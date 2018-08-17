@@ -1,0 +1,6 @@
+[package]
+name = "asn1c"
+version = "0.1.0"
+authors = ["mi7wa6"]
+
+[dependencies]
