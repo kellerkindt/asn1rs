@@ -12,11 +12,11 @@ pub enum Error {
     InvalidRangeValue,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Model {
-    name: String,
-    imports: Vec<Import>,
-    definitions: Vec<Definition>,
+    pub name: String,
+    pub imports: Vec<Import>,
+    pub definitions: Vec<Definition>,
 }
 
 impl Model {
@@ -171,13 +171,15 @@ impl Model {
             token = iter.next().ok_or(Error::UnexpectedEndOfStream)?;
         }
 
-
         let (continues, ends) = token
             .separator()
             .map(|s| (s == ',', s == '}'))
             .unwrap_or((false, false));
 
-        println!("read_field: {:?}, continues: {}, ends: {}", token, continues, ends);
+        println!(
+            "read_field: {:?}, continues: {}, ends: {}",
+            token, continues, ends
+        );
 
         if continues || ends {
             Ok((field, continues))
@@ -219,26 +221,26 @@ impl Model {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Import {
-    what: Vec<String>,
-    from: String,
+    pub what: Vec<String>,
+    pub from: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Definition {
     SequenceOf(String, Role),
     Sequence(String, Vec<Field>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Field {
-    name: String,
-    role: Role,
-    optional: bool,
+    pub name: String,
+    pub role: Role,
+    pub optional: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Role {
     Boolean,
     Integer(Option<(i64, i64)>),

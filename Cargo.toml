@@ -4,3 +4,4 @@ version = "0.1.0"
 authors = ["mi7wa6"]
 
 [dependencies]
+codegen = { git = "https://github.com/carllerche/codegen" } # Soon on crates.io

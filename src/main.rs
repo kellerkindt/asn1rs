@@ -1,5 +1,10 @@
+extern crate codegen;
+
+mod gen;
 mod model;
 mod parser;
+
+use gen::Generator;
 
 use model::Error as ModelError;
 use model::Model;
@@ -18,4 +23,11 @@ fn main() {
     println!("Tokens: {:?}", tokens);
     let model = Model::try_from(tokens).unwrap();
     println!("{:#?}", model);
+
+    let mut generator = Generator::new();
+    generator.add_model(model);
+    for (filePath, fileContent) in generator.to_string().unwrap().iter() {
+        println!("### {}:", filePath);
+        println!("{}", fileContent);
+    }
 }
