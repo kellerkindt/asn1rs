@@ -60,7 +60,11 @@ impl Generator {
                         for field in fields.iter() {
                             new_struct.field(
                                 &Self::rust_field_name(&field.name),
-                                Self::role_to_type(&field.role),
+                                if field.optional {
+                                    format!("Option<{}>", Self::role_to_type(&field.role))
+                                } else {
+                                    Self::role_to_type(&field.role)
+                                },
                             );
                         }
                     }
@@ -82,11 +86,16 @@ impl Generator {
                             Role::Integer((lower, upper)) => {
                                 block.line(format!(
                                     "buffer.write_int(self.{} as i64, ({} as i64, {} as i64))?;",
-                                    Self::rust_field_name(&field.name), lower, upper
+                                    Self::rust_field_name(&field.name),
+                                    lower,
+                                    upper
                                 ));
-                            },
+                            }
                             Role::Custom(ref _type) => {
-                                block.line(format!("self.{}.write(buffer)?;", Self::rust_field_name(&field.name)));
+                                block.line(format!(
+                                    "self.{}.write(buffer)?;",
+                                    Self::rust_field_name(&field.name)
+                                ));
                             }
                         }
                     }
@@ -94,18 +103,22 @@ impl Generator {
                     block.line("Ok(())");
                 }
                 for field in fields.iter() {
-                    implementation.new_fn(&Self::rust_field_name(&field.name))
+                    implementation
+                        .new_fn(&Self::rust_field_name(&field.name))
                         .vis("pub")
                         .arg_ref_self()
                         .ret(format!("&{}", Self::role_to_type(&field.role)))
                         .line(format!("&self.{}", Self::rust_field_name(&field.name)));
 
-
-                    implementation.new_fn(&format!("set_{}", Self::rust_field_name(&field.name)))
+                    implementation
+                        .new_fn(&format!("set_{}", Self::rust_field_name(&field.name)))
                         .vis("pub")
                         .arg_mut_self()
                         .arg("value", Self::role_to_type(&field.role))
-                        .line(format!("self.{} = value;", Self::rust_field_name(&field.name)));
+                        .line(format!(
+                            "self.{} = value;",
+                            Self::rust_field_name(&field.name)
+                        ));
                 }
             }
         }
@@ -116,14 +129,12 @@ impl Generator {
     fn role_to_type(role: &Role) -> String {
         let type_name = match role {
             Role::Boolean => "bool".into(),
-            Role::Integer((start, end)) => {
-                match (end - start) {
-                    0x00_00_00_00__00_00_00_00...0x00_00_00_00__00_00_00_FF => "i8".into(),
-                    0x00_00_00_00__00_00_00_00...0x00_00_00_00__00_00_FF_FF => "i16".into(),
-                    0x00_00_00_00__00_00_00_00...0x00_00_00_00__FF_FF_FF_FF => "i32".into(),
-                    _ => "i64".into(),
-                }
-            }
+            Role::Integer((start, end)) => match (end - start) {
+                0x00_00_00_00__00_00_00_00...0x00_00_00_00__00_00_00_FF => "i8".into(),
+                0x00_00_00_00__00_00_00_00...0x00_00_00_00__00_00_FF_FF => "i16".into(),
+                0x00_00_00_00__00_00_00_00...0x00_00_00_00__FF_FF_FF_FF => "i32".into(),
+                _ => "i64".into(),
+            },
             Role::Custom(name) => name.clone(),
         };
         type_name
