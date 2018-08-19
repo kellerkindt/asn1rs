@@ -42,13 +42,15 @@ impl Generator {
         for definition in model.definitions.iter() {
             match definition {
                 Definition::SequenceOf(name, role) => {
-                    Self::new_struct(&mut scope, name)
-                        .field("values", Self::role_to_type(role));
+                    Self::new_struct(&mut scope, name).field("values", Self::role_to_type(role));
                 }
                 Definition::Sequence(name, fields) => {
                     let mut new_struct = Self::new_struct(&mut scope, name);
                     for field in fields.iter() {
-                        new_struct.field(&Self::rust_field_name(&field.name), Self::role_to_type(&field.role));
+                        new_struct.field(
+                            &Self::rust_field_name(&field.name),
+                            Self::role_to_type(&field.role),
+                        );
                     }
                 }
             }
@@ -82,6 +84,10 @@ impl Generator {
     }
 
     fn new_struct<'a>(scope: &'a mut Scope, name: &str) -> &'a mut ::codegen::Struct {
-        scope.new_struct(name).vis("pub")
+        scope
+            .new_struct(name)
+            .vis("pub")
+            .derive("Default")
+            .derive("Debug")
     }
 }
