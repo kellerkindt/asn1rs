@@ -199,11 +199,6 @@ impl Model {
             .map(|s| (s == ',', s == '}'))
             .unwrap_or((false, false));
 
-        println!(
-            "read_field: {:?}, continues: {}, ends: {}",
-            token, continues, ends
-        );
-
         if continues || ends {
             Ok((field, continues))
         } else {
