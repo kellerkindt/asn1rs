@@ -1,4 +1,6 @@
 use codegen::Block;
+use codegen::Function;
+use codegen::Impl;
 use codegen::Scope;
 use codegen::Type;
 
@@ -80,54 +82,100 @@ impl Generator {
                     scope.new_impl(&name)
                 }
             };
-            if let Definition::Sequence(_name, fields) = definition {
-                {
-                    let mut block = implementation
-                        .new_fn("write")
-                        .vis("pub")
-                        .arg_ref_self()
-                        .arg("buffer", "&mut BitBuffer")
-                        .ret("Result<(), Error>");
+            match definition {
+                Definition::SequenceOf(_name, _aliased) => {}
+                Definition::Sequence(_name, fields) => {
+                    {
+                        let mut block = Self::new_write_impl(implementation);
 
-                    for field in fields.iter() {
-                        match field.role {
-                            Role::Boolean => {}
-                            Role::Integer((lower, upper)) => {
+                        // bitmask for optional fields
+                        for field in fields.iter() {
+                            if field.optional {
                                 block.line(format!(
-                                    "buffer.write_int(self.{} as i64, ({} as i64, {} as i64))?;",
+                                    "buffer.write_bit(self.{}.is_some());",
                                     Self::rust_field_name(&field.name),
-                                    lower,
-                                    upper
-                                ));
-                            }
-                            Role::Custom(ref _type) => {
-                                block.line(format!(
-                                    "self.{}.write(buffer)?;",
-                                    Self::rust_field_name(&field.name)
                                 ));
                             }
                         }
+
+                        for field in fields.iter() {
+                            let line = match field.role {
+                                Role::Boolean => format!(
+                                    "buffer.write_bit(self.{}{})?;",
+                                    Self::rust_field_name(&field.name),
+                                    if field.optional { ".unwrap()" } else { "" }
+                                ),
+                                Role::Integer((lower, upper)) => format!(
+                                    "buffer.write_int(self.{}{} as i64, ({} as i64, {} as i64))?;",
+                                    Self::rust_field_name(&field.name),
+                                    if field.optional { ".unwrap()" } else { "" },
+                                    lower,
+                                    upper
+                                ),
+                                Role::Custom(ref _type) => format!(
+                                    "self.{}{}.write(buffer)?;",
+                                    Self::rust_field_name(&field.name),
+                                    if field.optional { ".unwrap()" } else { "" }
+                                ),
+                            };
+                            if field.optional {
+                                let mut b = Block::new(&format!(
+                                    "if self.{}.is_some() ",
+                                    Self::rust_field_name(&field.name)
+                                ));
+                                b.line(line);
+                                block.push_block(b);
+                            } else {
+                                block.line(line);
+                            }
+                        }
+
+                        block.line("Ok(())");
                     }
+                    for field in fields.iter() {
+                        implementation
+                            .new_fn(&Self::rust_field_name(&field.name))
+                            .vis("pub")
+                            .arg_ref_self()
+                            .ret(if field.optional {
+                                format!("&Option<{}>", Self::role_to_type(&field.role))
+                            } else {
+                                format!("&{}", Self::role_to_type(&field.role))
+                            })
+                            .line(format!("&self.{}", Self::rust_field_name(&field.name)));
 
-                    block.line("Ok(())");
+                        implementation
+                            .new_fn(&format!("set_{}", Self::rust_field_name(&field.name)))
+                            .vis("pub")
+                            .arg_mut_self()
+                            .arg(
+                                "value",
+                                if field.optional {
+                                    format!("Option<{}>", Self::role_to_type(&field.role))
+                                } else {
+                                    Self::role_to_type(&field.role)
+                                },
+                            )
+                            .line(format!(
+                                "self.{} = value;",
+                                Self::rust_field_name(&field.name)
+                            ));
+                    }
                 }
-                for field in fields.iter() {
-                    implementation
-                        .new_fn(&Self::rust_field_name(&field.name))
-                        .vis("pub")
-                        .arg_ref_self()
-                        .ret(format!("&{}", Self::role_to_type(&field.role)))
-                        .line(format!("&self.{}", Self::rust_field_name(&field.name)));
-
-                    implementation
-                        .new_fn(&format!("set_{}", Self::rust_field_name(&field.name)))
-                        .vis("pub")
-                        .arg_mut_self()
-                        .arg("value", Self::role_to_type(&field.role))
-                        .line(format!(
-                            "self.{} = value;",
-                            Self::rust_field_name(&field.name)
+                Definition::Enumerated(name, variants) => {
+                    let mut block = Block::new("match self");
+                    for (i, variant) in variants.iter().enumerate() {
+                        block.line(format!(
+                            "{}::{} => buffer.write_int({}, (0, {}))?,",
+                            name,
+                            Self::rust_variant_name(&variant),
+                            i,
+                            variants.len()
                         ));
+                    }
+                    Self::new_write_impl(implementation)
+                        .push_block(block)
+                        .line("Ok(())");
                 }
             }
         }
@@ -178,6 +226,20 @@ impl Generator {
     }
 
     fn new_enum<'a>(scope: &'a mut Scope, name: &str) -> &'a mut ::codegen::Enum {
-        scope.new_enum(name).vis("pub").derive("Debug")
+        scope
+            .new_enum(name)
+            .vis("pub")
+            .derive("Debug")
+            .derive("PartialEq")
+            .derive("PartialOrd")
+    }
+
+    fn new_write_impl<'a>(implementation: &'a mut Impl) -> &'a mut Function {
+        implementation
+            .new_fn("write")
+            .vis("pub")
+            .arg_ref_self()
+            .arg("buffer", "&mut BitBuffer")
+            .ret("Result<(), Error>")
     }
 }
