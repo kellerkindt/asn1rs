@@ -43,7 +43,7 @@ impl Generator {
         };
 
         let mut scope = Scope::new();
-        scope.import("super::buffer", "Error");
+        scope.import("super::buffer", "Error as WriteError");
         scope.import("super::buffer", "BitBuffer");
 
         for import in model.imports.iter() {
@@ -87,6 +87,7 @@ impl Generator {
             };
             match definition {
                 Definition::SequenceOf(_name, _aliased) => {
+
 
                 }
                 Definition::Sequence(_name, fields) => {
@@ -294,6 +295,6 @@ impl Generator {
             .vis("pub")
             .arg_ref_self()
             .arg("buffer", "&mut BitBuffer")
-            .ret("Result<(), Error>")
+            .ret("Result<(), WriteError>")
     }
 }
