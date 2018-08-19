@@ -35,7 +35,7 @@ impl Generator {
 
     pub fn model_to_file(model: &Model) -> Result<(String, String), Error> {
         let file = {
-            let mut string = model.name.to_lowercase();
+            let mut string = Self::rust_module_name(&model.name);
             string.push_str(".rs");
             string
         };
@@ -45,8 +45,9 @@ impl Generator {
         scope.import("buffer", "BitBuffer");
 
         for import in model.imports.iter() {
+            let from = Self::rust_module_name(&import.from);
             for what in import.what.iter() {
-                scope.import(&import.from, &what);
+                scope.import(&from, &what);
             }
         }
 
@@ -228,12 +229,41 @@ impl Generator {
         out
     }
 
+    fn rust_module_name(name: &str) -> String {
+        let mut out = String::new();
+        let mut prev_lowered = false;
+        let mut chars = name.chars().peekable();
+        while let Some(c) = chars.next() {
+            let mut lowered = false;
+            if c.is_uppercase() {
+                if !out.is_empty() {
+                    if !prev_lowered {
+                        out.push('_');
+                    } else if let Some(next) = chars.peek() {
+                        if next.is_lowercase() {
+                            out.push('_');
+                        }
+                    }
+                }
+                lowered = true;
+                out.push_str(&c.to_lowercase().to_string());
+            } else if c == '-' {
+                out.push('_');
+            } else {
+                out.push(c);
+            }
+            prev_lowered = lowered;
+        }
+        out
+    }
+
     fn new_struct<'a>(scope: &'a mut Scope, name: &str) -> &'a mut ::codegen::Struct {
         scope
             .new_struct(name)
             .vis("pub")
             .derive("Default")
             .derive("Debug")
+            .derive("Clone")
     }
 
     fn new_enum<'a>(scope: &'a mut Scope, name: &str) -> &'a mut ::codegen::Enum {
@@ -241,6 +271,8 @@ impl Generator {
             .new_enum(name)
             .vis("pub")
             .derive("Debug")
+            .derive("Clone")
+            .derive("Copy")
             .derive("PartialEq")
             .derive("PartialOrd")
     }
