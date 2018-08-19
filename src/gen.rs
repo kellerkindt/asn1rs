@@ -203,10 +203,10 @@ impl Generator {
     fn role_to_type(role: &Role) -> String {
         let type_name = match role {
             Role::Boolean => "bool".into(),
-            Role::Integer((start, end)) => match (end - start) {
-                0x00_00_00_00__00_00_00_00...0x00_00_00_00__00_00_00_FF => "i8".into(),
-                0x00_00_00_00__00_00_00_00...0x00_00_00_00__00_00_FF_FF => "i16".into(),
-                0x00_00_00_00__00_00_00_00...0x00_00_00_00__FF_FF_FF_FF => "i32".into(),
+            Role::Integer((lower, upper)) => match lower.abs().max(*upper) {
+                0x00_00_00_00__00_00_00_00...0x00_00_00_00__00_00_00_7F => "i8".into(),
+                0x00_00_00_00__00_00_00_00...0x00_00_00_00__00_00_7F_FF => "i16".into(),
+                0x00_00_00_00__00_00_00_00...0x00_00_00_00__7F_FF_FF_FF => "i32".into(),
                 _ => "i64".into(),
             },
             Role::Custom(name) => name.clone(),
