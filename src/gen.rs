@@ -43,11 +43,11 @@ impl Generator {
         };
 
         let mut scope = Scope::new();
-        scope.import("buffer", "Error");
-        scope.import("buffer", "BitBuffer");
+        scope.import("super::buffer", "Error");
+        scope.import("super::buffer", "BitBuffer");
 
         for import in model.imports.iter() {
-            let from = Self::rust_module_name(&import.from);
+            let from = format!("super::{}", Self::rust_module_name(&import.from));
             for what in import.what.iter() {
                 scope.import(&from, &what);
             }
