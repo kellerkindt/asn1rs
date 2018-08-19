@@ -1,3 +1,4 @@
+use codegen::Block;
 use codegen::Scope;
 use codegen::Type;
 
@@ -38,6 +39,7 @@ impl Generator {
         };
 
         let mut scope = Scope::new();
+        scope.import("buffer", "Error");
         scope.import("buffer", "BitBuffer");
 
         for import in model.imports.iter() {
@@ -47,18 +49,63 @@ impl Generator {
         }
 
         for definition in model.definitions.iter() {
-            match definition {
+            let implementation = match definition {
                 Definition::SequenceOf(name, role) => {
                     Self::new_struct(&mut scope, name).field("values", Self::role_to_type(role));
+                    scope.new_impl(&name)
                 }
                 Definition::Sequence(name, fields) => {
-                    let mut new_struct = Self::new_struct(&mut scope, name);
-                    for field in fields.iter() {
-                        new_struct.field(
-                            &Self::rust_field_name(&field.name),
-                            Self::role_to_type(&field.role),
-                        );
+                    {
+                        let mut new_struct = Self::new_struct(&mut scope, name);
+                        for field in fields.iter() {
+                            new_struct.field(
+                                &Self::rust_field_name(&field.name),
+                                Self::role_to_type(&field.role),
+                            );
+                        }
                     }
+                    scope.new_impl(&name)
+                }
+            };
+            if let Definition::Sequence(_name, fields) = definition {
+                {
+                    let mut block = implementation
+                        .new_fn("write")
+                        .vis("pub")
+                        .arg_ref_self()
+                        .arg("buffer", "&mut BitBuffer")
+                        .ret("Result<(), Error>");
+
+                    for field in fields.iter() {
+                        match field.role {
+                            Role::Boolean => {}
+                            Role::Integer(range) => if let Some((lower, upper)) = range {
+                                block.line(format!(
+                                    "buffer.write_int(self.{} as i64, ({} as i64, {} as i64))?;",
+                                    Self::rust_field_name(&field.name), lower, upper
+                                ));
+                            },
+                            Role::Custom(ref _type) => {
+                                block.line(format!("self.{}.write(buffer)?;", Self::rust_field_name(&field.name)));
+                            }
+                        }
+                    }
+
+                    block.line("Ok(())");
+                }
+                for field in fields.iter() {
+                    implementation.new_fn(&Self::rust_field_name(&field.name))
+                        .vis("pub")
+                        .arg_ref_self()
+                        .ret(format!("&{}", Self::role_to_type(&field.role)))
+                        .line(format!("&self.{}", Self::rust_field_name(&field.name)));
+
+
+                    implementation.new_fn(&format!("set_{}", Self::rust_field_name(&field.name)))
+                        .vis("pub")
+                        .arg_mut_self()
+                        .arg("value", Self::role_to_type(&field.role))
+                        .line(format!("self.{} = value;", Self::rust_field_name(&field.name)));
                 }
             }
         }
@@ -66,7 +113,7 @@ impl Generator {
         Ok((file, scope.to_string()))
     }
 
-    fn role_to_type(role: &Role) -> Type {
+    fn role_to_type(role: &Role) -> String {
         let type_name = match role {
             Role::Boolean => "bool".into(),
             Role::Integer(range) => {
@@ -83,7 +130,7 @@ impl Generator {
             }
             Role::Custom(name) => name.clone(),
         };
-        Type::new(&type_name)
+        type_name
     }
 
     fn rust_field_name(name: &str) -> String {
