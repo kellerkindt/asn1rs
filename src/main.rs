@@ -13,10 +13,9 @@ use parser::Error as ParserError;
 use parser::Parser;
 use parser::Token;
 
-const EXAMPLE: &'static str = include_str!("environment.asn1");
+const EXAMPLE: &'static str = include_str!("../../ref/def.asn1");
 
 fn main() {
-    println!("Hello, world!");
     let parser = Parser::new();
     //let tokens = parser.parse("HEADER ::= SEQUENCE { header INTEGER (-100..20) OPTIONAL }").unwrap();
     let tokens = parser.parse(EXAMPLE).unwrap();

@@ -38,6 +38,13 @@ impl Generator {
         };
 
         let mut scope = Scope::new();
+        scope.import("buffer", "BitBuffer");
+
+        for import in model.imports.iter() {
+            for what in import.what.iter() {
+                scope.import(&import.from, &what);
+            }
+        }
 
         for definition in model.definitions.iter() {
             match definition {
