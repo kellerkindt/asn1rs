@@ -144,14 +144,14 @@ impl Model {
             Self::next_separator_ignore_case(iter, '.')?;
             let end = Self::next_text(iter)?;
             Self::next_separator_ignore_case(iter, ')')?;
-            Ok(Role::Integer(Some((
+            Ok(Role::Integer((
                 start.parse::<i64>().map_err(|_| Error::InvalidRangeValue)?,
                 if end.eq_ignore_ascii_case(&"MAX") {
                     ::std::i64::MAX
                 } else {
                     end.parse::<i64>().map_err(|_| Error::InvalidRangeValue)?
                 },
-            ))))
+            )))
         } else if text.eq_ignore_ascii_case(&"BOOLEAN") {
             Ok(Role::Boolean)
         } else {
@@ -243,6 +243,6 @@ pub struct Field {
 #[derive(Debug, Clone)]
 pub enum Role {
     Boolean,
-    Integer(Option<(i64, i64)>),
+    Integer((i64, i64)),
     Custom(String),
 }

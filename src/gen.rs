@@ -79,7 +79,7 @@ impl Generator {
                     for field in fields.iter() {
                         match field.role {
                             Role::Boolean => {}
-                            Role::Integer(range) => if let Some((lower, upper)) = range {
+                            Role::Integer((lower, upper)) => {
                                 block.line(format!(
                                     "buffer.write_int(self.{} as i64, ({} as i64, {} as i64))?;",
                                     Self::rust_field_name(&field.name), lower, upper
@@ -116,16 +116,12 @@ impl Generator {
     fn role_to_type(role: &Role) -> String {
         let type_name = match role {
             Role::Boolean => "bool".into(),
-            Role::Integer(range) => {
-                if let Some((start, end)) = range {
-                    match (end - start) {
-                        0x00_00_00_00__00_00_00_00...0x00_00_00_00__00_00_00_FF => "i8".into(),
-                        0x00_00_00_00__00_00_00_00...0x00_00_00_00__00_00_FF_FF => "i16".into(),
-                        0x00_00_00_00__00_00_00_00...0x00_00_00_00__FF_FF_FF_FF => "i32".into(),
-                        _ => "i64".into(),
-                    }
-                } else {
-                    "i32".into()
+            Role::Integer((start, end)) => {
+                match (end - start) {
+                    0x00_00_00_00__00_00_00_00...0x00_00_00_00__00_00_00_FF => "i8".into(),
+                    0x00_00_00_00__00_00_00_00...0x00_00_00_00__00_00_FF_FF => "i16".into(),
+                    0x00_00_00_00__00_00_00_00...0x00_00_00_00__FF_FF_FF_FF => "i32".into(),
+                    _ => "i64".into(),
                 }
             }
             Role::Custom(name) => name.clone(),
