@@ -105,33 +105,41 @@ impl Model {
         Self::next_separator_ignore_case(iter, ':')?;
         Self::next_separator_ignore_case(iter, ':')?;
         Self::next_separator_ignore_case(iter, '=')?;
-        Self::next_text_ignore_case(iter, "SEQUENCE")?;
+
         let token = iter.next().ok_or(Error::UnexpectedEndOfStream)?;
-        match token {
-            Token::Text(of) => {
-                if of.eq_ignore_ascii_case(&"OF") {
-                    Ok(Definition::SequenceOf(name, Self::read_role(iter)?))
-                } else {
-                    Err(Error::UnexpectedToken(Token::Text(of)))
-                }
-            }
-            Token::Separator(separator) => {
-                if separator == '{' {
-                    let mut fields = Vec::new();
 
-                    loop {
-                        let (field, continues) = Self::read_field(iter)?;
-                        fields.push(field);
-                        if !continues {
-                            break;
-                        }
+        if token.text().map(|s| s.eq(&"SEQUENCE")).unwrap_or(false) {
+            let token = iter.next().ok_or(Error::UnexpectedEndOfStream)?;
+            match token {
+                Token::Text(of) => {
+                    if of.eq_ignore_ascii_case(&"OF") {
+                        Ok(Definition::SequenceOf(name, Self::read_role(iter)?))
+                    } else {
+                        Err(Error::UnexpectedToken(Token::Text(of)))
                     }
+                }
+                Token::Separator(separator) => {
+                    if separator == '{' {
+                        let mut fields = Vec::new();
 
-                    Ok(Definition::Sequence(name, fields))
-                } else {
-                    Err(Error::UnexpectedToken(Token::Separator(separator)))
+                        loop {
+                            let (field, continues) = Self::read_field(iter)?;
+                            fields.push(field);
+                            if !continues {
+                                break;
+                            }
+                        }
+
+                        Ok(Definition::Sequence(name, fields))
+                    } else {
+                        Err(Error::UnexpectedToken(Token::Separator(separator)))
+                    }
                 }
             }
+        } else if token.text().map(|s| s.eq(&"ENUMERATED")).unwrap_or(false) {
+            Ok(Definition::Enumerated(name, Self::read_enumerated(iter)?))
+        } else {
+            Err(Error::UnexpectedToken(token))
         }
     }
 
@@ -157,6 +165,21 @@ impl Model {
         } else {
             Ok(Role::Custom(text))
         }
+    }
+
+    fn read_enumerated(iter: &mut IntoIter<Token>) -> Result<Vec<String>, Error> {
+        Self::next_separator_ignore_case(iter, '{')?;
+        let mut enumeration = Vec::new();
+
+        loop {
+            enumeration.push(Self::next_text(iter)?);
+            let separator = Self::next_seperator(iter)?;
+            if separator == '}' {
+                break;
+            }
+        }
+
+        Ok(enumeration)
     }
 
     fn read_field(iter: &mut IntoIter<Token>) -> Result<(Field, bool), Error> {
@@ -231,6 +254,7 @@ pub struct Import {
 pub enum Definition {
     SequenceOf(String, Role),
     Sequence(String, Vec<Field>),
+    Enumerated(String, Vec<String>),
 }
 
 #[derive(Debug, Clone)]

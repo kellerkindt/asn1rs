@@ -70,6 +70,15 @@ impl Generator {
                     }
                     scope.new_impl(&name)
                 }
+                Definition::Enumerated(name, variants) => {
+                    {
+                        let mut enumeration = Self::new_enum(&mut scope, name);
+                        for variant in variants.iter() {
+                            enumeration.new_variant(&Self::rust_variant_name(&variant));
+                        }
+                    }
+                    scope.new_impl(&name)
+                }
             };
             if let Definition::Sequence(_name, fields) = definition {
                 {
@@ -144,11 +153,31 @@ impl Generator {
         name.replace("-", "_")
     }
 
+    fn rust_variant_name(name: &str) -> String {
+        let mut out = String::new();
+        let mut next_upper = true;
+        for c in name.chars() {
+            if next_upper {
+                out.push_str(&c.to_uppercase().to_string());
+                next_upper = false;
+            } else if c == '-' {
+                next_upper = true;
+            } else {
+                out.push(c);
+            }
+        }
+        out
+    }
+
     fn new_struct<'a>(scope: &'a mut Scope, name: &str) -> &'a mut ::codegen::Struct {
         scope
             .new_struct(name)
             .vis("pub")
             .derive("Default")
             .derive("Debug")
+    }
+
+    fn new_enum<'a>(scope: &'a mut Scope, name: &str) -> &'a mut ::codegen::Enum {
+        scope.new_enum(name).vis("pub").derive("Debug")
     }
 }
