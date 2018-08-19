@@ -9,6 +9,8 @@ use model::Field;
 use model::Model;
 use model::Role;
 
+const KEYWORDS: [&str; 9] = ["use", "mod", "const", "type", "pub", "enum", "struct", "impl", "trait"];
+
 #[derive(Debug)]
 pub enum Error {}
 
@@ -210,7 +212,14 @@ impl Generator {
     }
 
     fn rust_field_name(name: &str) -> String {
-        name.replace("-", "_")
+        let mut name = name.replace("-", "_");
+        for keyword in KEYWORDS.iter() {
+            if keyword.eq(&name) {
+                name.push_str("_");
+                return name;
+            }
+        }
+        name
     }
 
     fn rust_variant_name(name: &str) -> String {
