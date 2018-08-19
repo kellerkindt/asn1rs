@@ -56,7 +56,7 @@ impl Generator {
         for definition in model.definitions.iter() {
             let implementation = match definition {
                 Definition::SequenceOf(name, role) => {
-                    Self::new_struct(&mut scope, name).field("values", Self::role_to_type(role));
+                    Self::new_struct(&mut scope, name).field("values", format!("Vec<{}>", Self::role_to_type(role)));
                     scope.new_impl(&name)
                 }
                 Definition::Sequence(name, fields) => {
@@ -86,7 +86,9 @@ impl Generator {
                 }
             };
             match definition {
-                Definition::SequenceOf(_name, _aliased) => {}
+                Definition::SequenceOf(_name, _aliased) => {
+
+                }
                 Definition::Sequence(_name, fields) => {
                     {
                         let mut block = Self::new_write_impl(implementation);
