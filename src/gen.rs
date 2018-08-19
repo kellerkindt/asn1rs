@@ -145,6 +145,17 @@ impl Generator {
                             .line(format!("&self.{}", Self::rust_field_name(&field.name)));
 
                         implementation
+                            .new_fn(&format!("{}_mut", Self::rust_field_name(&field.name)))
+                            .vis("pub")
+                            .arg_mut_self()
+                            .ret(if field.optional {
+                                format!("&mut Option<{}>", Self::role_to_type(&field.role))
+                            } else {
+                                format!("&mut {}", Self::role_to_type(&field.role))
+                            })
+                            .line(format!("&mut self.{}", Self::rust_field_name(&field.name)));
+
+                        implementation
                             .new_fn(&format!("set_{}", Self::rust_field_name(&field.name)))
                             .vis("pub")
                             .arg_mut_self()
