@@ -50,7 +50,7 @@ impl From<IoError> for Error {
     }
 }
 
-const EXAMPLE: &'static str = include_str!("../../ref/def.asn1");
+// const EXAMPLE: &'static str = include_str!("../../ref/def.asn1");
 
 fn main() {
     convert("/home/mi7wa6/mec-view/svn-sources/trunk/MECViewServerSDK/proto/general.asn1", "../asn1_uper/src/asn1/").unwrap();

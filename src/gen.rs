@@ -57,6 +57,23 @@ impl Generator {
             let implementation = match definition {
                 Definition::SequenceOf(name, role) => {
                     Self::new_struct(&mut scope, name).field("values", format!("Vec<{}>", Self::role_to_type(role)));
+                    {
+                        scope.new_impl(&name)
+                            .impl_trait("::std::ops::Deref")
+                            .associate_type("Target", format!("Vec<{}>", Self::role_to_type(role)))
+                            .new_fn("deref")
+                            .arg_ref_self()
+                            .ret(&format!("&Vec<{}>", Self::role_to_type(role)))
+                            .line(format!("&self.values"));
+                    }
+                    {
+                        scope.new_impl(&name)
+                            .impl_trait("::std::ops::DerefMut")
+                            .new_fn("deref_mut")
+                            .arg_mut_self()
+                            .ret(&format!("&mut Vec<{}>", Self::role_to_type(role)))
+                            .line(format!("&mut self.values"));
+                    }
                     scope.new_impl(&name)
                 }
                 Definition::Sequence(name, fields) => {
