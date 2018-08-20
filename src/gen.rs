@@ -145,27 +145,28 @@ impl Generator {
                         for field in fields.iter() {
                             let line = match field.role {
                                 Role::Boolean => format!(
-                                    "buffer.write_bit(self.{}{});",
+                                    "buffer.write_bit({}{});",
+                                    if field.optional { "*" } else { "self." },
                                     Self::rust_field_name(&field.name),
-                                    if field.optional { ".unwrap()" } else { "" }
                                 ),
                                 Role::Integer((lower, upper)) => format!(
-                                    "buffer.write_int(self.{}{} as i64, ({} as i64, {} as i64))?;",
+                                    "buffer.write_int({}{} as i64, ({} as i64, {} as i64))?;",
+                                    if field.optional { "*" } else { "self." },
                                     Self::rust_field_name(&field.name),
-                                    if field.optional { ".unwrap()" } else { "" },
                                     lower,
                                     upper
                                 ),
                                 Role::Custom(ref _type) => format!(
-                                    "self.{}{}.write(buffer)?;",
+                                    "{}{}.write(buffer)?;",
+                                    if field.optional { "" } else { "self." },
                                     Self::rust_field_name(&field.name),
-                                    if field.optional { ".unwrap()" } else { "" }
                                 ),
                             };
                             if field.optional {
                                 let mut b = Block::new(&format!(
-                                    "if self.{}.is_some() ",
-                                    Self::rust_field_name(&field.name)
+                                    "if let Some(ref {}) = self.{}",
+                                    Self::rust_field_name(&field.name),
+                                    Self::rust_field_name(&field.name),
                                 ));
                                 b.line(line);
                                 block.push_block(b);
