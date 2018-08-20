@@ -91,7 +91,11 @@ impl Generator {
                         let mut block = Self::new_write_impl(implementation);
                         block.line("buffer.write_length_determinant(self.values.len())?;");
                         let mut block_for = Block::new("for value in self.values.iter()");
-                        block_for.line("value.write(buffer)?;");
+                        match aliased {
+                            Role::Boolean => block_for.line("buffer.write_bit(value);"),
+                            Role::Integer((lower, upper)) => block_for.line(format!("buffer.write_int(*value as i64, ({}, {}))?;", lower, upper)),
+                            Role::Custom(custom) => block_for.line("value.write(buffer)?;")
+                        };
                         block.push_block(block_for);
                         block.line("Ok(())");
                     }
