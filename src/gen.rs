@@ -86,9 +86,36 @@ impl Generator {
                 }
             };
             match definition {
-                Definition::SequenceOf(_name, _aliased) => {
-
-
+                Definition::SequenceOf(_name, aliased) => {
+                    {
+                        let mut block = Self::new_write_impl(implementation);
+                        block.line("buffer.write_length_determinant(self.values.len())?;");
+                        let mut block_for = Block::new("for value in self.values.iter()");
+                        block_for.line("value.write(buffer)?;");
+                        block.push_block(block_for);
+                        block.line("Ok(())");
+                    }
+                    {
+                        implementation.new_fn("values")
+                            .vis("pub")
+                            .ret(format!("&Vec<{}>", Self::role_to_type(aliased)))
+                            .arg_ref_self()
+                            .line("&self.values");
+                    }
+                    {
+                        implementation.new_fn("values_mut")
+                            .vis("pub")
+                            .ret(format!("&mut Vec<{}>", Self::role_to_type(aliased)))
+                            .arg_mut_self()
+                            .line("&mut self.values");
+                    }
+                    {
+                        implementation.new_fn("set_values")
+                            .vis("pub")
+                            .arg_mut_self()
+                            .arg("values",format!("Vec<{}>", Self::role_to_type(aliased)))
+                            .line("self.values = values;");
+                    }
                 }
                 Definition::Sequence(_name, fields) => {
                     {
