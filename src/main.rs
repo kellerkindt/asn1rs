@@ -53,14 +53,11 @@ impl From<IoError> for Error {
 // const EXAMPLE: &'static str = include_str!("../../ref/def.asn1");
 
 fn main() {
-    convert(
-        "/home/mi7wa6/mec-view/svn-sources/trunk/MECViewServerSDK/proto/general.asn1",
-        "../asn1_uper/src/asn1/",
-    ).unwrap();
-    convert(
-        "/home/mi7wa6/mec-view/svn-sources/trunk/MECViewServerSDK/proto/environment.asn1",
-        "../asn1_uper/src/asn1/",
-    ).unwrap();
+    convert("/home/mi7wa6/mec-view/svn-sources/trunk/MECViewServerSDK/proto/environment.asn1", "../asn1_uper/src/asn1/").unwrap();
+    convert("/home/mi7wa6/mec-view/svn-sources/trunk/MECViewServerSDK/proto/general.asn1", "../asn1_uper/src/asn1/").unwrap();
+    convert("/home/mi7wa6/mec-view/svn-sources/trunk/MECViewServerSDK/proto/protocol.asn1", "../asn1_uper/src/asn1/").unwrap();
+    convert("/home/mi7wa6/mec-view/svn-sources/trunk/MECViewServerSDK/proto/road_clearance.asn1", "../asn1_uper/src/asn1/").unwrap();
+    convert("/home/mi7wa6/mec-view/svn-sources/trunk/MECViewServerSDK/proto/sensor.asn1", "../asn1_uper/src/asn1/").unwrap();
     /*
     let parser = Parser::new();
     //let tokens = parser.parse("HEADER ::= SEQUENCE { header INTEGER (-100..20) OPTIONAL }").unwrap();
