@@ -82,6 +82,13 @@ impl Generator {
                             enumeration.new_variant(&Self::rust_variant_name(&variant));
                         }
                     }
+                    {
+                        scope.new_impl(&name)
+                            .impl_trait("Default")
+                            .new_fn("default")
+                            .ret(&name as &str)
+                            .line(format!("{}::{}", name, Self::rust_variant_name(&variants[0])));
+                    }
                     scope.new_impl(&name)
                 }
             };
