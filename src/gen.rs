@@ -9,7 +9,9 @@ use model::Field;
 use model::Model;
 use model::Role;
 
-const KEYWORDS: [&str; 9] = ["use", "mod", "const", "type", "pub", "enum", "struct", "impl", "trait"];
+const KEYWORDS: [&str; 9] = [
+    "use", "mod", "const", "type", "pub", "enum", "struct", "impl", "trait",
+];
 
 #[derive(Debug)]
 pub enum Error {}
@@ -56,9 +58,11 @@ impl Generator {
         for definition in model.definitions.iter() {
             let implementation = match definition {
                 Definition::SequenceOf(name, role) => {
-                    Self::new_struct(&mut scope, name).field("values", format!("Vec<{}>", Self::role_to_type(role)));
+                    Self::new_struct(&mut scope, name)
+                        .field("values", format!("Vec<{}>", Self::role_to_type(role)));
                     {
-                        scope.new_impl(&name)
+                        scope
+                            .new_impl(&name)
                             .impl_trait("::std::ops::Deref")
                             .associate_type("Target", format!("Vec<{}>", Self::role_to_type(role)))
                             .new_fn("deref")
@@ -67,7 +71,8 @@ impl Generator {
                             .line(format!("&self.values"));
                     }
                     {
-                        scope.new_impl(&name)
+                        scope
+                            .new_impl(&name)
                             .impl_trait("::std::ops::DerefMut")
                             .new_fn("deref_mut")
                             .arg_mut_self()
@@ -100,11 +105,16 @@ impl Generator {
                         }
                     }
                     {
-                        scope.new_impl(&name)
+                        scope
+                            .new_impl(&name)
                             .impl_trait("Default")
                             .new_fn("default")
                             .ret(&name as &str)
-                            .line(format!("{}::{}", name, Self::rust_variant_name(&variants[0])));
+                            .line(format!(
+                                "{}::{}",
+                                name,
+                                Self::rust_variant_name(&variants[0])
+                            ));
                     }
                     scope.new_impl(&name)
                 }
@@ -117,37 +127,56 @@ impl Generator {
                         let mut block_for = Block::new("for value in self.values.iter()");
                         match aliased {
                             Role::Boolean => block_for.line("buffer.write_bit(value);"),
-                            Role::Integer((lower, upper)) => block_for.line(format!("buffer.write_int(*value as i64, ({}, {}))?;", lower, upper)),
-                            Role::Custom(custom) => block_for.line("value.write(buffer)?;")
+                            Role::Integer((lower, upper)) => block_for.line(format!(
+                                "buffer.write_int(*value as i64, ({}, {}))?;",
+                                lower, upper
+                            )),
+                            Role::Custom(custom) => block_for.line("value.write(buffer)?;"),
                         };
                         block.push_block(block_for);
                         block.line("Ok(())");
                     }
                     {
-                        implementation.new_fn("values")
+                        let mut block = Self::new_read_impl(implementation);
+                        block.line("let mut me = Self::default();");
+                        block.line("let len = buffer.read_length_determinant()?;");
+                        let mut block_for = Block::new("for _ in 0..len");
+                        match aliased {
+                            Role::Boolean => block_for.line("me.values.push(buffer.read_bit()?);"),
+                            Role::Integer((lower, upper))=> block_for.line(&format!("me.values.push(buffer.read_int(({}, {}))? as {});", lower, upper, Self::role_to_type(aliased))),
+                            Role::Custom(custom) => block_for.line(&format!("me.values.push({}::read(buffer)?);", custom)),
+                        };
+                        block.push_block(block_for);
+                        block.line("Ok(me)");
+                    }
+                    {
+                        implementation
+                            .new_fn("values")
                             .vis("pub")
                             .ret(format!("&Vec<{}>", Self::role_to_type(aliased)))
                             .arg_ref_self()
                             .line("&self.values");
                     }
                     {
-                        implementation.new_fn("values_mut")
+                        implementation
+                            .new_fn("values_mut")
                             .vis("pub")
                             .ret(format!("&mut Vec<{}>", Self::role_to_type(aliased)))
                             .arg_mut_self()
                             .line("&mut self.values");
                     }
                     {
-                        implementation.new_fn("set_values")
+                        implementation
+                            .new_fn("set_values")
                             .vis("pub")
                             .arg_mut_self()
-                            .arg("values",format!("Vec<{}>", Self::role_to_type(aliased)))
+                            .arg("values", format!("Vec<{}>", Self::role_to_type(aliased)))
                             .line("self.values = values;");
                     }
                 }
                 Definition::Sequence(_name, fields) => {
                     {
-                        let mut block = Self::new_write_impl(implementation);
+                        let block = Self::new_write_impl(implementation);
 
                         // bitmask for optional fields
                         for field in fields.iter() {
@@ -194,6 +223,64 @@ impl Generator {
 
                         block.line("Ok(())");
                     }
+                    {
+                        let block = Self::new_read_impl(implementation);
+                        block.line("let mut me = Self::default();");
+
+                        // bitmask for optional fields
+                        for field in fields.iter() {
+                            if field.optional {
+                                block.line(format!(
+                                    "let {} = buffer.read_bit()?;",
+                                    Self::rust_field_name(&field.name),
+                                ));
+                            }
+                        }
+                        for field in fields.iter() {
+                            let line = match field.role {
+                                Role::Boolean => format!(
+                                    "me.{} = {}buffer.read_bit()?{};",
+                                    Self::rust_field_name(&field.name),
+                                    if field.optional { "Some(" } else { "" },
+                                    if field.optional { ")" } else { "" },
+                                ),
+                                Role::Integer((lower, upper)) => format!(
+                                    "me.{} = {}buffer.read_int(({} as i64, {} as i64))? as {}{};",
+                                    Self::rust_field_name(&field.name),
+                                    if field.optional { "Some(" } else { "" },
+                                    lower,
+                                    upper,
+                                    Self::role_to_type(&field.role),
+                                    if field.optional { ")" } else { "" },
+                                ),
+                                Role::Custom(ref _type) => format!(
+                                    "me.{} = {}{}::read(buffer)?{};",
+                                    Self::rust_field_name(&field.name),
+                                    if field.optional { "Some(" } else { "" },
+                                    Self::role_to_type(&field.role),
+                                    if field.optional { ")" } else { "" },
+                                ),
+                            };
+                            if field.optional {
+                                let mut block_if = Block::new(&format!(
+                                    "if {}",
+                                    Self::rust_field_name(&field.name),
+                                ));
+                                block_if.line(line);
+                                let mut block_else = Block::new("else");
+                                block_else.line(format!(
+                                    "me.{} = None;",
+                                    Self::rust_field_name(&field.name),
+                                ));
+                                block.push_block(block_if);
+                                block.push_block(block_else);
+                            } else {
+                                block.line(line);
+                            }
+                        }
+
+                        block.line("Ok(me)");
+                    }
                     for field in fields.iter() {
                         implementation
                             .new_fn(&Self::rust_field_name(&field.name))
@@ -236,19 +323,37 @@ impl Generator {
                     }
                 }
                 Definition::Enumerated(name, variants) => {
-                    let mut block = Block::new("match self");
-                    for (i, variant) in variants.iter().enumerate() {
-                        block.line(format!(
-                            "{}::{} => buffer.write_int({}, (0, {}))?,",
-                            name,
-                            Self::rust_variant_name(&variant),
-                            i,
-                            variants.len()
-                        ));
+                    {
+                        let mut block = Block::new("match self");
+                        for (i, variant) in variants.iter().enumerate() {
+                            block.line(format!(
+                                "{}::{} => buffer.write_int({}, (0, {}))?,",
+                                name,
+                                Self::rust_variant_name(&variant),
+                                i,
+                                variants.len()
+                            ));
+                        }
+                        Self::new_write_impl(implementation)
+                            .push_block(block)
+                            .line("Ok(())");
                     }
-                    Self::new_write_impl(implementation)
-                        .push_block(block)
-                        .line("Ok(())");
+                    {
+
+                        let mut block = Self::new_read_impl(implementation);
+                        block.line(format!("let id = buffer.read_int((0, {}))?;", variants.len()));
+                        let mut block_match = Block::new("match id");
+                        for (i, variant) in variants.iter().enumerate() {
+                            block_match.line(format!(
+                                "{} => Ok({}::{}),",
+                                i,
+                                name,
+                                Self::rust_variant_name(&variant),
+                            ));
+                        }
+                        block_match.line(format!("_ => Err(WriteError::ValueNotInRange(id, 0, {}))", variants.len()));
+                        block.push_block(block_match);
+                    }
                 }
             }
         }
@@ -332,6 +437,7 @@ impl Generator {
             .derive("Default")
             .derive("Debug")
             .derive("Clone")
+            .derive("PartialEq")
     }
 
     fn new_enum<'a>(scope: &'a mut Scope, name: &str) -> &'a mut ::codegen::Enum {
@@ -343,6 +449,14 @@ impl Generator {
             .derive("Copy")
             .derive("PartialEq")
             .derive("PartialOrd")
+    }
+
+    fn new_read_impl<'a>(implementation: &'a mut Impl) -> &'a mut Function {
+        implementation
+            .new_fn("read")
+            .vis("pub")
+            .arg("buffer", "&mut BitBuffer")
+            .ret("Result<Self, WriteError>")
     }
 
     fn new_write_impl<'a>(implementation: &'a mut Impl) -> &'a mut Function {
