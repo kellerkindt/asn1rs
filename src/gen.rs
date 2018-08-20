@@ -145,7 +145,7 @@ impl Generator {
                         for field in fields.iter() {
                             let line = match field.role {
                                 Role::Boolean => format!(
-                                    "buffer.write_bit(self.{}{})?;",
+                                    "buffer.write_bit(self.{}{});",
                                     Self::rust_field_name(&field.name),
                                     if field.optional { ".unwrap()" } else { "" }
                                 ),
