@@ -132,6 +132,7 @@ impl Generator {
                                 lower, upper
                             )),
                             Role::Custom(custom) => block_for.line("value.write(buffer)?;"),
+                            Role::UTF8String => block_for.line("buffer.write_utf8_string(&value)?;")
                         };
                         block.push_block(block_for);
                         block.line("Ok(())");
@@ -143,8 +144,9 @@ impl Generator {
                         let mut block_for = Block::new("for _ in 0..len");
                         match aliased {
                             Role::Boolean => block_for.line("me.values.push(buffer.read_bit()?);"),
-                            Role::Integer((lower, upper))=> block_for.line(&format!("me.values.push(buffer.read_int(({}, {}))? as {});", lower, upper, Self::role_to_type(aliased))),
-                            Role::Custom(custom) => block_for.line(&format!("me.values.push({}::read(buffer)?);", custom)),
+                            Role::Integer((lower, upper))=> block_for.line(format!("me.values.push(buffer.read_int(({}, {}))? as {});", lower, upper, Self::role_to_type(aliased))),
+                            Role::Custom(custom) => block_for.line(format!("me.values.push({}::read(buffer)?);", custom)),
+                            Role::UTF8String => block_for.line(format!("me.values.push(buffer.read_utf8_string()?);"))
                         };
                         block.push_block(block_for);
                         block.line("Ok(me)");
@@ -207,6 +209,11 @@ impl Generator {
                                     if field.optional { "" } else { "self." },
                                     Self::rust_field_name(&field.name),
                                 ),
+                                Role::UTF8String => format!(
+                                    "buffer.write_utf8_string(&{}{})?;",
+                                    if field.optional { "" } else { "self." },
+                                    Self::rust_field_name(&field.name),
+                                )
                             };
                             if field.optional {
                                 let mut b = Block::new(&format!(
@@ -260,6 +267,10 @@ impl Generator {
                                     Self::role_to_type(&field.role),
                                     if field.optional { ")" } else { "" },
                                 ),
+                                Role::UTF8String => format!(
+                                    "me.{} = buffer.read_utf8_string()?;",
+                                    Self::rust_field_name(&field.name),
+                                )
                             };
                             if field.optional {
                                 let mut block_if = Block::new(&format!(
@@ -371,6 +382,7 @@ impl Generator {
                 _ => "i64".into(),
             },
             Role::Custom(name) => name.clone(),
+            Role::UTF8String => "String".into(),
         };
         type_name
     }

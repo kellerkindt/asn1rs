@@ -162,6 +162,8 @@ impl Model {
             )))
         } else if text.eq_ignore_ascii_case(&"BOOLEAN") {
             Ok(Role::Boolean)
+        } else if text.eq_ignore_ascii_case(&"UTF8String") {
+            Ok(Role::UTF8String)
         } else {
             Ok(Role::Custom(text))
         }
@@ -263,5 +265,6 @@ pub struct Field {
 pub enum Role {
     Boolean,
     Integer((i64, i64)),
+    UTF8String,
     Custom(String),
 }
