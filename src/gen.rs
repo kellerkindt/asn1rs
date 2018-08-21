@@ -370,10 +370,9 @@ impl UperGenerator {
             Definition::SequenceOf(_name, max_values, aliased) => {
                 {
                     let mut block = Self::new_write_fn(serializable_implementation);
-                    if let Some((min, max)) = max_values {
+                    if let Some(max) = max_values {
                         block.line(format!(
-                            "writer.write_int(self.values.len() as i64, ({}, {}))?;",
-                            min,
+                            "writer.write_int(self.values.len() as i64, 0, {})?;",
                             max
                         ));
                     } else {
@@ -398,15 +397,7 @@ impl UperGenerator {
                 {
                     let mut block = Self::new_read_fn(serializable_implementation);
                     block.line("let mut me = Self::default();");
-                    if let Some((min, max)) = max_values {
-                        block.line(format!(
-                            "let len = reder.read_int(({}, {}))?;",
-                            min,
-                            max
-                        ));
-                    } else {
-                        block.line("let len = reader.read_length_determinant()?;");
-                    }
+                    block.line("let len = reader.read_length_determinant()?;");
                     block.line(format!(
                         "println!(\"{} Length determinant {{}}\", len);",
                         _name

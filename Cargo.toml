@@ -12,7 +12,6 @@ name = "asn1c"
 path = "src/main.rs"
 
 [dependencies]
-backtrace = "0.3"
 clap = "2.32.0"
 codegen = { git = "https://github.com/carllerche/codegen" } # Soon on crates.io
 byteorder = "1.2.4"

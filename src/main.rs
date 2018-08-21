@@ -1,4 +1,3 @@
-extern crate backtrace;
 extern crate byteorder;
 extern crate clap;
 extern crate codegen;
