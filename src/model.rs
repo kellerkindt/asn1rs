@@ -152,14 +152,16 @@ impl Model {
             Self::next_separator_ignore_case(iter, '.')?;
             let end = Self::next_text(iter)?;
             Self::next_separator_ignore_case(iter, ')')?;
-            Ok(Role::Integer((
-                start.parse::<i64>().map_err(|_| Error::InvalidRangeValue)?,
-                if end.eq_ignore_ascii_case(&"MAX") {
-                    ::std::i64::MAX
-                } else {
-                    end.parse::<i64>().map_err(|_| Error::InvalidRangeValue)?
-                },
-            )))
+            if start.eq("0") && end.eq("MAX") {
+                Ok(Role::UnsignedMaxInteger)
+            } else if end.eq("MAX") {
+                Err(Error::UnexpectedToken(Token::Text("MAX".into())))
+            } else {
+                Ok(Role::Integer((
+                    start.parse::<i64>().map_err(|_| Error::InvalidRangeValue)?,
+                     end.parse::<i64>().map_err(|_| Error::InvalidRangeValue)?,
+                )))
+            }
         } else if text.eq_ignore_ascii_case(&"BOOLEAN") {
             Ok(Role::Boolean)
         } else if text.eq_ignore_ascii_case(&"UTF8String") {
@@ -265,6 +267,7 @@ pub struct Field {
 pub enum Role {
     Boolean,
     Integer((i64, i64)),
+    UnsignedMaxInteger,
     UTF8String,
     Custom(String),
 }

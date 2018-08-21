@@ -209,6 +209,7 @@ impl Generator {
                 0x00_00_00_00__00_00_00_00...0x00_00_00_00__7F_FF_FF_FF => "i32".into(),
                 _ => "i64".into(),
             },
+            Role::UnsignedMaxInteger => "u64".into(),
             Role::Custom(name) => name.clone(),
             Role::UTF8String => "String".into(),
         };
@@ -371,6 +372,9 @@ impl UperGenerator {
                             "writer.write_int(*value as i64, ({}, {}))?;",
                             lower, upper
                         )),
+                        Role::UnsignedMaxInteger => block_for.line(
+                            "writer.write_int_max(*value)?;",
+                        ),
                         Role::Custom(_custom) => block_for.line("value.write(writer)?;"),
                         Role::UTF8String => block_for.line("writer.write_utf8_string(&value)?;"),
                     };
@@ -381,6 +385,7 @@ impl UperGenerator {
                     let mut block = Self::new_read_fn(serializable_implementation);
                     block.line("let mut me = Self::default();");
                     block.line("let len = reader.read_length_determinant()?;");
+                    block.line("println!(\"Length determinant {}\", len);");
                     let mut block_for = Block::new("for _ in 0..len");
                     match aliased {
                         Role::Boolean => block_for.line("me.values.push(reader.read_bit()?);"),
@@ -390,6 +395,9 @@ impl UperGenerator {
                             upper,
                             Generator::role_to_type(aliased)
                         )),
+                        Role::UnsignedMaxInteger => block_for.line(
+                            "me.values.push(reader.read_int_max()?);"
+                        ),
                         Role::Custom(custom) => {
                             block_for.line(format!("me.values.push({}::read(reader)?);", custom))
                         }
@@ -428,6 +436,11 @@ impl UperGenerator {
                                 Generator::rust_field_name(&field.name),
                                 lower,
                                 upper
+                            ),
+                            Role::UnsignedMaxInteger => format!(
+                                "writer.write_int_max({}{})?;",
+                                if field.optional { "*" } else { "self." },
+                                Generator::rust_field_name(&field.name),
                             ),
                             Role::Custom(ref _type) => format!(
                                 "{}{}.write(writer)?;",
@@ -483,6 +496,12 @@ impl UperGenerator {
                                 lower,
                                 upper,
                                 Generator::role_to_type(&field.role),
+                                if field.optional { ")" } else { "" },
+                            ),
+                            Role::UnsignedMaxInteger => format!(
+                                "me.{} = {}reader.read_int_max()?{};",
+                                Generator::rust_field_name(&field.name),
+                                if field.optional { "Some(" } else { "" },
                                 if field.optional { ")" } else { "" },
                             ),
                             Role::Custom(ref _type) => format!(

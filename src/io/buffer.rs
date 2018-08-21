@@ -54,6 +54,11 @@ impl BitBuffer {
     }
 }
 
+const UPER_LENGTH_DET_L1: i64 = 127;
+const UPER_LENGTH_DET_L2: i64 = 16383;
+//const UPER_LENGTH_DET_L3: usize = 49151;
+//const UPER_LENGTH_DET_L4: usize = 65535;
+
 impl CodecReader for BitBuffer {}
 impl UperReader for BitBuffer {
     fn read_utf8_string(&mut self) -> Result<String, UperError> {
@@ -88,6 +93,12 @@ impl UperReader for BitBuffer {
         Ok(value + lower)
     }
 
+    fn read_int_max(&mut self) -> Result<u64, UperError> {
+        let mut buffer = [0u8; 8];
+        self.read_bit_string_till_end(&mut buffer[..], 0)?;
+        Ok(NetworkEndian::read_u64(&buffer[..]))
+    }
+
     fn read_bit_string(
         &mut self,
         buffer: &mut [u8],
@@ -116,11 +127,11 @@ impl UperReader for BitBuffer {
 
     fn read_length_determinant(&mut self) -> Result<usize, UperError> {
         if !self.read_bit()? {
-            // length < ::std::i8::MAX as usize
-            Ok(self.read_int((0, ::std::i8::MAX as i64 - 1))? as usize)
-        } else if self.read_bit()? {
-            // length < ::std::i16::MAX as usize
-            Ok(self.read_int((0, ::std::i16::MAX as i64 - 1))? as usize)
+            // length <= UPER_LENGTH_DET_L1
+            Ok(self.read_int((0, UPER_LENGTH_DET_L1))? as usize)
+        } else if !self.read_bit()? {
+            // length <= UPER_LENGTH_DET_L2
+            Ok(self.read_int((0, UPER_LENGTH_DET_L2))? as usize)
         } else {
             Err(UperError::UnsupportedOperation(
                 "Cannot read length determinant for other than i8 and i16".into(),
@@ -179,6 +190,14 @@ impl UperWriter for BitBuffer {
         Ok(())
     }
 
+    fn write_int_max(&mut self, value: u64) -> Result<(), UperError> {
+        let mut buffer = [0u8; 8];
+        NetworkEndian::write_u64(&mut buffer[..], value);
+        self.write_bit_string_till_end(&buffer[..], 0)?;
+
+        Ok(())
+    }
+
     fn write_bit_string(
         &mut self,
         buffer: &[u8],
@@ -201,17 +220,17 @@ impl UperWriter for BitBuffer {
     }
 
     fn write_length_determinant(&mut self, length: usize) -> Result<(), UperError> {
-        if length < ::std::i8::MAX as usize {
+        if length <= UPER_LENGTH_DET_L1 as usize {
             self.write_bit(false)?;
-            self.write_int(length as i64, (0, ::std::i8::MAX as i64 - 1))
-        } else if length < ::std::i16::MAX as usize {
+            self.write_int(length as i64, (0, UPER_LENGTH_DET_L1))
+        } else if length <= UPER_LENGTH_DET_L2 as usize {
             self.write_bit(true)?;
             self.write_bit(false)?;
-            self.write_int(length as i64, (0, ::std::i16::MAX as i64 - 1))
+            self.write_int(length as i64, (0, UPER_LENGTH_DET_L2))
         } else {
             Err(UperError::UnsupportedOperation(format!(
                 "Writing length determinant for lengths > {} is unsupported, tried for length {}",
-                ::std::i16::MAX,
+                UPER_LENGTH_DET_L2,
                 length
             )))
         }

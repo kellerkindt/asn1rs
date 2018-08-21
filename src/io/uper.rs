@@ -28,6 +28,8 @@ pub trait Reader: CodecReader {
 
     fn read_int(&mut self, range: (i64, i64)) -> Result<i64, Error>;
 
+    fn read_int_max(&mut self) -> Result<u64, Error>;
+
     fn read_bit_string(
         &mut self,
         buffer: &mut [u8],
@@ -53,6 +55,8 @@ pub trait Writer: CodecWriter {
     fn write_utf8_string(&mut self, value: &str) -> Result<(), Error>;
 
     fn write_int(&mut self, value: i64, range: (i64, i64)) -> Result<(), Error>;
+
+    fn write_int_max(&mut self, value: u64) -> Result<(), Error>;
 
     fn write_bit_string(
         &mut self,
