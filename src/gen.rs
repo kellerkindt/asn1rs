@@ -56,7 +56,7 @@ impl Generator {
         }
 
         for definition in model.definitions.iter() {
-            let serializable_implementation = match definition {
+            let name: String = match definition {
                 Definition::SequenceOf(name, role) => {
                     Self::new_struct(&mut scope, name)
                         .field("values", format!("Vec<{}>", Self::role_to_type(role)));
@@ -106,7 +106,7 @@ impl Generator {
                                 .line("self.values = values;");
                         }
                     }
-                    Self::new_uper_serializable_impl(&mut scope, &name)
+                    name.clone()
                 }
                 Definition::Sequence(name, fields) => {
                     {
@@ -166,7 +166,7 @@ impl Generator {
                                 ));
                         }
                     }
-                    Self::new_uper_serializable_impl(&mut scope, &name)
+                    name.clone()
                 }
                 Definition::Enumerated(name, variants) => {
                     {
@@ -187,207 +187,12 @@ impl Generator {
                                 Self::rust_variant_name(&variants[0])
                             ));
                     }
-                    Self::new_uper_serializable_impl(&mut scope, &name)
+                    name.clone()
                 }
             };
-            match definition {
-                Definition::SequenceOf(_name, aliased) => {
-                    {
-                        let mut block = Self::new_write_fn(serializable_implementation);
-                        block.line("writer.write_length_determinant(self.values.len())?;");
-                        let mut block_for = Block::new("for value in self.values.iter()");
-                        match aliased {
-                            Role::Boolean => block_for.line("writer.write_bit(value);"),
-                            Role::Integer((lower, upper)) => block_for.line(format!(
-                                "writer.write_int(*value as i64, ({}, {}))?;",
-                                lower, upper
-                            )),
-                            Role::Custom(_custom) => block_for.line("value.write(writer)?;"),
-                            Role::UTF8String => {
-                                block_for.line("writer.write_utf8_string(&value)?;")
-                            }
-                        };
-                        block.push_block(block_for);
-                        block.line("Ok(())");
-                    }
-                    {
-                        let mut block = Self::new_read_fn(serializable_implementation);
-                        block.line("let mut me = Self::default();");
-                        block.line("let len = reader.read_length_determinant()?;");
-                        let mut block_for = Block::new("for _ in 0..len");
-                        match aliased {
-                            Role::Boolean => block_for.line("me.values.push(reader.read_bit()?);"),
-                            Role::Integer((lower, upper)) => block_for.line(format!(
-                                "me.values.push(reader.read_int(({}, {}))? as {});",
-                                lower,
-                                upper,
-                                Self::role_to_type(aliased)
-                            )),
-                            Role::Custom(custom) => block_for
-                                .line(format!("me.values.push({}::read(reader)?);", custom)),
-                            Role::UTF8String => block_for
-                                .line(format!("me.values.push(reader.read_utf8_string()?);")),
-                        };
-                        block.push_block(block_for);
-                        block.line("Ok(me)");
-                    }
-                }
-                Definition::Sequence(_name, fields) => {
-                    {
-                        let block = Self::new_write_fn(serializable_implementation);
+            let uper_impl = UperGenerator::new_uper_serializable_impl(&mut scope, &name);
+            UperGenerator::generate_serializable_impl(&definition, uper_impl);
 
-                        // bitmask for optional fields
-                        for field in fields.iter() {
-                            if field.optional {
-                                block.line(format!(
-                                    "writer.write_bit(self.{}.is_some());",
-                                    Self::rust_field_name(&field.name),
-                                ));
-                            }
-                        }
-
-                        for field in fields.iter() {
-                            let line = match field.role {
-                                Role::Boolean => format!(
-                                    "writer.write_bit({}{});",
-                                    if field.optional { "*" } else { "self." },
-                                    Self::rust_field_name(&field.name),
-                                ),
-                                Role::Integer((lower, upper)) => format!(
-                                    "writer.write_int({}{} as i64, ({} as i64, {} as i64))?;",
-                                    if field.optional { "*" } else { "self." },
-                                    Self::rust_field_name(&field.name),
-                                    lower,
-                                    upper
-                                ),
-                                Role::Custom(ref _type) => format!(
-                                    "{}{}.write(writer)?;",
-                                    if field.optional { "" } else { "self." },
-                                    Self::rust_field_name(&field.name),
-                                ),
-                                Role::UTF8String => format!(
-                                    "writer.write_utf8_string(&{}{})?;",
-                                    if field.optional { "" } else { "self." },
-                                    Self::rust_field_name(&field.name),
-                                ),
-                            };
-                            if field.optional {
-                                let mut b = Block::new(&format!(
-                                    "if let Some(ref {}) = self.{}",
-                                    Self::rust_field_name(&field.name),
-                                    Self::rust_field_name(&field.name),
-                                ));
-                                b.line(line);
-                                block.push_block(b);
-                            } else {
-                                block.line(line);
-                            }
-                        }
-
-                        block.line("Ok(())");
-                    }
-                    {
-                        let block = Self::new_read_fn(serializable_implementation);
-                        block.line("let mut me = Self::default();");
-
-                        // bitmask for optional fields
-                        for field in fields.iter() {
-                            if field.optional {
-                                block.line(format!(
-                                    "let {} = reader.read_bit()?;",
-                                    Self::rust_field_name(&field.name),
-                                ));
-                            }
-                        }
-                        for field in fields.iter() {
-                            let line = match field.role {
-                                Role::Boolean => format!(
-                                    "me.{} = {}reader.read_bit()?{};",
-                                    Self::rust_field_name(&field.name),
-                                    if field.optional { "Some(" } else { "" },
-                                    if field.optional { ")" } else { "" },
-                                ),
-                                Role::Integer((lower, upper)) => format!(
-                                    "me.{} = {}reader.read_int(({} as i64, {} as i64))? as {}{};",
-                                    Self::rust_field_name(&field.name),
-                                    if field.optional { "Some(" } else { "" },
-                                    lower,
-                                    upper,
-                                    Self::role_to_type(&field.role),
-                                    if field.optional { ")" } else { "" },
-                                ),
-                                Role::Custom(ref _type) => format!(
-                                    "me.{} = {}{}::read(reader)?{};",
-                                    Self::rust_field_name(&field.name),
-                                    if field.optional { "Some(" } else { "" },
-                                    Self::role_to_type(&field.role),
-                                    if field.optional { ")" } else { "" },
-                                ),
-                                Role::UTF8String => format!(
-                                    "me.{} = reader.read_utf8_string()?;",
-                                    Self::rust_field_name(&field.name),
-                                ),
-                            };
-                            if field.optional {
-                                let mut block_if = Block::new(&format!(
-                                    "if {}",
-                                    Self::rust_field_name(&field.name),
-                                ));
-                                block_if.line(line);
-                                let mut block_else = Block::new("else");
-                                block_else.line(format!(
-                                    "me.{} = None;",
-                                    Self::rust_field_name(&field.name),
-                                ));
-                                block.push_block(block_if);
-                                block.push_block(block_else);
-                            } else {
-                                block.line(line);
-                            }
-                        }
-
-                        block.line("Ok(me)");
-                    }
-                }
-                Definition::Enumerated(name, variants) => {
-                    {
-                        let mut block = Block::new("match self");
-                        for (i, variant) in variants.iter().enumerate() {
-                            block.line(format!(
-                                "{}::{} => writer.write_int({}, (0, {}))?,",
-                                name,
-                                Self::rust_variant_name(&variant),
-                                i,
-                                variants.len()
-                            ));
-                        }
-                        Self::new_write_fn(serializable_implementation)
-                            .push_block(block)
-                            .line("Ok(())");
-                    }
-                    {
-                        let mut block = Self::new_read_fn(serializable_implementation);
-                        block.line(format!(
-                            "let id = reader.read_int((0, {}))?;",
-                            variants.len()
-                        ));
-                        let mut block_match = Block::new("match id");
-                        for (i, variant) in variants.iter().enumerate() {
-                            block_match.line(format!(
-                                "{} => Ok({}::{}),",
-                                i,
-                                name,
-                                Self::rust_variant_name(&variant),
-                            ));
-                        }
-                        block_match.line(format!(
-                            "_ => Err(UperError::ValueNotInRange(id, 0, {}))",
-                            variants.len()
-                        ));
-                        block.push_block(block_match);
-                    }
-                }
-            }
         }
 
         Ok((file, scope.to_string()))
@@ -483,6 +288,11 @@ impl Generator {
             .derive("PartialEq")
             .derive("PartialOrd")
     }
+}
+
+pub struct UperGenerator;
+impl UperGenerator {
+
 
     fn new_uper_serializable_impl<'a>(scope: &'a mut Scope, impl_for: &str) -> &'a mut Impl {
         scope.new_impl(impl_for).impl_trait("Serializable<Uper>")
@@ -501,5 +311,206 @@ impl Generator {
             .arg_ref_self()
             .arg("writer", "&mut <Uper as Codec>::Writer")
             .ret("Result<(), UperError>")
+    }
+
+    fn generate_serializable_impl(definition: &Definition, serializable_implementation: &mut Impl) {
+        match definition {
+            Definition::SequenceOf(_name, aliased) => {
+                {
+                    let mut block = Self::new_write_fn(serializable_implementation);
+                    block.line("writer.write_length_determinant(self.values.len())?;");
+                    let mut block_for = Block::new("for value in self.values.iter()");
+                    match aliased {
+                        Role::Boolean => block_for.line("writer.write_bit(value);"),
+                        Role::Integer((lower, upper)) => block_for.line(format!(
+                            "writer.write_int(*value as i64, ({}, {}))?;",
+                            lower, upper
+                        )),
+                        Role::Custom(_custom) => block_for.line("value.write(writer)?;"),
+                        Role::UTF8String => {
+                            block_for.line("writer.write_utf8_string(&value)?;")
+                        }
+                    };
+                    block.push_block(block_for);
+                    block.line("Ok(())");
+                }
+                {
+                    let mut block = Self::new_read_fn(serializable_implementation);
+                    block.line("let mut me = Self::default();");
+                    block.line("let len = reader.read_length_determinant()?;");
+                    let mut block_for = Block::new("for _ in 0..len");
+                    match aliased {
+                        Role::Boolean => block_for.line("me.values.push(reader.read_bit()?);"),
+                        Role::Integer((lower, upper)) => block_for.line(format!(
+                            "me.values.push(reader.read_int(({}, {}))? as {});",
+                            lower,
+                            upper,
+                            Generator::role_to_type(aliased)
+                        )),
+                        Role::Custom(custom) => block_for
+                            .line(format!("me.values.push({}::read(reader)?);", custom)),
+                        Role::UTF8String => block_for
+                            .line(format!("me.values.push(reader.read_utf8_string()?);")),
+                    };
+                    block.push_block(block_for);
+                    block.line("Ok(me)");
+                }
+            }
+            Definition::Sequence(_name, fields) => {
+                {
+                    let block = Self::new_write_fn(serializable_implementation);
+
+                    // bitmask for optional fields
+                    for field in fields.iter() {
+                        if field.optional {
+                            block.line(format!(
+                                "writer.write_bit(self.{}.is_some());",
+                                Generator::rust_field_name(&field.name),
+                            ));
+                        }
+                    }
+
+                    for field in fields.iter() {
+                        let line = match field.role {
+                            Role::Boolean => format!(
+                                "writer.write_bit({}{});",
+                                if field.optional { "*" } else { "self." },
+                                Generator::rust_field_name(&field.name),
+                            ),
+                            Role::Integer((lower, upper)) => format!(
+                                "writer.write_int({}{} as i64, ({} as i64, {} as i64))?;",
+                                if field.optional { "*" } else { "self." },
+                                Generator::rust_field_name(&field.name),
+                                lower,
+                                upper
+                            ),
+                            Role::Custom(ref _type) => format!(
+                                "{}{}.write(writer)?;",
+                                if field.optional { "" } else { "self." },
+                                Generator::rust_field_name(&field.name),
+                            ),
+                            Role::UTF8String => format!(
+                                "writer.write_utf8_string(&{}{})?;",
+                                if field.optional { "" } else { "self." },
+                                Generator::rust_field_name(&field.name),
+                            ),
+                        };
+                        if field.optional {
+                            let mut b = Block::new(&format!(
+                                "if let Some(ref {}) = self.{}",
+                                Generator::rust_field_name(&field.name),
+                                Generator::rust_field_name(&field.name),
+                            ));
+                            b.line(line);
+                            block.push_block(b);
+                        } else {
+                            block.line(line);
+                        }
+                    }
+
+                    block.line("Ok(())");
+                }
+                {
+                    let block = Self::new_read_fn(serializable_implementation);
+                    block.line("let mut me = Self::default();");
+
+                    // bitmask for optional fields
+                    for field in fields.iter() {
+                        if field.optional {
+                            block.line(format!(
+                                "let {} = reader.read_bit()?;",
+                                Generator::rust_field_name(&field.name),
+                            ));
+                        }
+                    }
+                    for field in fields.iter() {
+                        let line = match field.role {
+                            Role::Boolean => format!(
+                                "me.{} = {}reader.read_bit()?{};",
+                                Generator::rust_field_name(&field.name),
+                                if field.optional { "Some(" } else { "" },
+                                if field.optional { ")" } else { "" },
+                            ),
+                            Role::Integer((lower, upper)) => format!(
+                                "me.{} = {}reader.read_int(({} as i64, {} as i64))? as {}{};",
+                                Generator::rust_field_name(&field.name),
+                                if field.optional { "Some(" } else { "" },
+                                lower,
+                                upper,
+                                Generator::role_to_type(&field.role),
+                                if field.optional { ")" } else { "" },
+                            ),
+                            Role::Custom(ref _type) => format!(
+                                "me.{} = {}{}::read(reader)?{};",
+                                Generator::rust_field_name(&field.name),
+                                if field.optional { "Some(" } else { "" },
+                                Generator::role_to_type(&field.role),
+                                if field.optional { ")" } else { "" },
+                            ),
+                            Role::UTF8String => format!(
+                                "me.{} = reader.read_utf8_string()?;",
+                                Generator::rust_field_name(&field.name),
+                            ),
+                        };
+                        if field.optional {
+                            let mut block_if = Block::new(&format!(
+                                "if {}",
+                                Generator::rust_field_name(&field.name),
+                            ));
+                            block_if.line(line);
+                            let mut block_else = Block::new("else");
+                            block_else.line(format!(
+                                "me.{} = None;",
+                                Generator::rust_field_name(&field.name),
+                            ));
+                            block.push_block(block_if);
+                            block.push_block(block_else);
+                        } else {
+                            block.line(line);
+                        }
+                    }
+
+                    block.line("Ok(me)");
+                }
+            }
+            Definition::Enumerated(name, variants) => {
+                {
+                    let mut block = Block::new("match self");
+                    for (i, variant) in variants.iter().enumerate() {
+                        block.line(format!(
+                            "{}::{} => writer.write_int({}, (0, {}))?,",
+                            name,
+                            Generator::rust_variant_name(&variant),
+                            i,
+                            variants.len()
+                        ));
+                    }
+                    Self::new_write_fn(serializable_implementation)
+                        .push_block(block)
+                        .line("Ok(())");
+                }
+                {
+                    let mut block = Self::new_read_fn(serializable_implementation);
+                    block.line(format!(
+                        "let id = reader.read_int((0, {}))?;",
+                        variants.len()
+                    ));
+                    let mut block_match = Block::new("match id");
+                    for (i, variant) in variants.iter().enumerate() {
+                        block_match.line(format!(
+                            "{} => Ok({}::{}),",
+                            i,
+                            name,
+                            Generator::rust_variant_name(&variant),
+                        ));
+                    }
+                    block_match.line(format!(
+                        "_ => Err(UperError::ValueNotInRange(id, 0, {}))",
+                        variants.len()
+                    ));
+                    block.push_block(block_match);
+                }
+            }
+        }
     }
 }
