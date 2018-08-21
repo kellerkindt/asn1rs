@@ -1,3 +1,5 @@
+use backtrace::Backtrace;
+
 use parser::Token;
 
 use std::iter::Peekable;
@@ -7,7 +9,7 @@ use std::vec::IntoIter;
 pub enum Error {
     ExpectedTextGot(String, String),
     ExpectedSeparatorGot(char, char),
-    UnexpectedToken(Token),
+    UnexpectedToken(Backtrace, Token),
     MissingModuleName,
     UnexpectedEndOfStream,
     InvalidRangeValue,
@@ -30,7 +32,10 @@ impl Model {
 
         while let Some(token) = iter.next() {
             match token {
-                t @ Token::Separator(_) => return Err(Error::UnexpectedToken(t)),
+                t @ Token::Separator(_) => {
+                    println!("{:?}", iter);
+                    return Err(Error::UnexpectedToken(Backtrace::new(), t));
+                }
                 Token::Text(text) => {
                     let lower = text.to_lowercase();
 
@@ -89,14 +94,14 @@ impl Model {
                                 Self::skip_after(iter, &Token::Separator(';'))?;
                                 return Ok(imports);
                             } else {
-                                return Err(Error::UnexpectedToken(token));
+                                return Err(Error::UnexpectedToken(Backtrace::new(), token));
                             }
                         }
                     }
-                    t => return Err(Error::UnexpectedToken(t)),
+                    t => return Err(Error::UnexpectedToken(Backtrace::new(), t)),
                 }
             } else {
-                return Err(Error::UnexpectedToken(token));
+                return Err(Error::UnexpectedToken(Backtrace::new(), token));
             }
         }
         Err(Error::UnexpectedEndOfStream)
@@ -117,37 +122,39 @@ impl Model {
             match token {
                 Token::Text(of) => {
                     if of.eq_ignore_ascii_case(&"OF") {
+                        let role = Self::read_role(iter)?;
                         let mut max = None;
+
                         let has_range_limit = iter
                             .peek()
-                            .map(|t| {
-                                t.text()
-                                    .map(|t| t.eq_ignore_ascii_case("INTEGER"))
-                                    .unwrap_or(false)
-                            })
+                            .map(|t| t.separator().map(|s| s == '(').unwrap_or(false))
                             .unwrap_or(false);
 
                         if has_range_limit {
-                            Self::next_text_ignore_case(iter, "INTEGER")?;
                             Self::next_separator_ignore_case(iter, '(')?;
-                            Self::next_text_ignore_case(iter, "0")?;
+                            let txt_min = Self::next_text(iter)?;
+                            let min = txt_min.parse::<u64>().map_err(|_| {
+                                Error::UnexpectedToken(Backtrace::new(), Token::Text(txt_min))
+                            })?;
                             Self::next_separator_ignore_case(iter, '.')?;
                             Self::next_separator_ignore_case(iter, '.')?;
                             let text = Self::next_text(iter)?;
                             if text.eq_ignore_ascii_case("MAX") {
                                 // ignore
                             } else {
-                                max = Some(
-                                    text.parse::<u64>()
-                                        .map_err(|_| Error::UnexpectedToken(Token::Text(text)))?,
-                                );
+                                max = Some((
+                                    min,
+                                    text.parse::<u64>().map_err(|_| {
+                                        Error::UnexpectedToken(Backtrace::new(), Token::Text(text))
+                                    })?,
+                                ));
                             }
                             Self::next_separator_ignore_case(iter, ')')?;
                         }
 
-                        Ok(Definition::SequenceOf(name, max, Self::read_role(iter)?))
+                        Ok(Definition::SequenceOf(name, max, role))
                     } else {
-                        Err(Error::UnexpectedToken(Token::Text(of)))
+                        Err(Error::UnexpectedToken(Backtrace::new(), Token::Text(of)))
                     }
                 }
                 Token::Separator(separator) => {
@@ -164,14 +171,17 @@ impl Model {
 
                         Ok(Definition::Sequence(name, fields))
                     } else {
-                        Err(Error::UnexpectedToken(Token::Separator(separator)))
+                        Err(Error::UnexpectedToken(
+                            Backtrace::new(),
+                            Token::Separator(separator),
+                        ))
                     }
                 }
             }
         } else if token.text().map(|s| s.eq(&"ENUMERATED")).unwrap_or(false) {
             Ok(Definition::Enumerated(name, Self::read_enumerated(iter)?))
         } else {
-            Err(Error::UnexpectedToken(token))
+            Err(Error::UnexpectedToken(Backtrace::new(), token))
         }
     }
 
@@ -187,7 +197,10 @@ impl Model {
             if start.eq("0") && end.eq("MAX") {
                 Ok(Role::UnsignedMaxInteger)
             } else if end.eq("MAX") {
-                Err(Error::UnexpectedToken(Token::Text("MAX".into())))
+                Err(Error::UnexpectedToken(
+                    Backtrace::new(),
+                    Token::Text("MAX".into()),
+                ))
             } else {
                 Ok(Role::Integer((
                     start.parse::<i64>().map_err(|_| Error::InvalidRangeValue)?,
@@ -238,14 +251,14 @@ impl Model {
         if continues || ends {
             Ok((field, continues))
         } else {
-            Err(Error::UnexpectedToken(token))
+            Err(Error::UnexpectedToken(Backtrace::new(), token))
         }
     }
 
     fn next_text(iter: &mut Peekable<IntoIter<Token>>) -> Result<String, Error> {
         match iter.next().ok_or(Error::UnexpectedEndOfStream)? {
             Token::Text(text) => Ok(text),
-            t => Err(Error::UnexpectedToken(t)),
+            t => Err(Error::UnexpectedToken(Backtrace::new(), t)),
         }
     }
 
@@ -264,7 +277,7 @@ impl Model {
     fn next_seperator(iter: &mut Peekable<IntoIter<Token>>) -> Result<char, Error> {
         match iter.next().ok_or(Error::UnexpectedEndOfStream)? {
             Token::Separator(separator) => Ok(separator),
-            t => Err(Error::UnexpectedToken(t)),
+            t => Err(Error::UnexpectedToken(Backtrace::new(), t)),
         }
     }
 
@@ -289,7 +302,7 @@ pub struct Import {
 
 #[derive(Debug, Clone)]
 pub enum Definition {
-    SequenceOf(String, Option<u64>, Role),
+    SequenceOf(String, Option<(u64, u64)>, Role),
     Sequence(String, Vec<Field>),
     Enumerated(String, Vec<String>),
 }
