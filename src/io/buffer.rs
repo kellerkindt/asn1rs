@@ -71,7 +71,7 @@ impl UperReader for BitBuffer {
         let (lower, upper) = range;
         let range = (upper - lower) as u64;
         let bit_length_range = {
-            let mut range = range + 1;
+            let mut range = range;
             let mut bit_length: u8 = 0;
             while range > 0 {
                 bit_length += 1;
@@ -160,7 +160,7 @@ impl UperWriter for BitBuffer {
         };
         let range = (upper - lower) as u64;
         let bit_length_range = {
-            let mut range = range + 1;
+            let mut range = range;
             let mut bit_length: u8 = 0;
             while range > 0 {
                 bit_length += 1;

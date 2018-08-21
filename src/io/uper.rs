@@ -62,7 +62,7 @@ pub trait Writer: CodecWriter {
     ) -> Result<(), Error>;
 
     fn write_bit_string_till_end(&mut self, buffer: &[u8], bit_offset: usize) -> Result<(), Error> {
-        let len = buffer.len() * BYTE_LEN - bit_offset;
+        let len = (buffer.len() * BYTE_LEN) - bit_offset;
         self.write_bit_string(buffer, bit_offset, len)
     }
 

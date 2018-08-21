@@ -366,7 +366,7 @@ impl UperGenerator {
                     block.line("writer.write_length_determinant(self.values.len())?;");
                     let mut block_for = Block::new("for value in self.values.iter()");
                     match aliased {
-                        Role::Boolean => block_for.line("writer.write_bit(value);"),
+                        Role::Boolean => block_for.line("writer.write_bit(value)?;"),
                         Role::Integer((lower, upper)) => block_for.line(format!(
                             "writer.write_int(*value as i64, ({}, {}))?;",
                             lower, upper
@@ -409,7 +409,7 @@ impl UperGenerator {
                     for field in fields.iter() {
                         if field.optional {
                             block.line(format!(
-                                "writer.write_bit(self.{}.is_some());",
+                                "writer.write_bit(self.{}.is_some())?;",
                                 Generator::rust_field_name(&field.name),
                             ));
                         }
@@ -418,7 +418,7 @@ impl UperGenerator {
                     for field in fields.iter() {
                         let line = match field.role {
                             Role::Boolean => format!(
-                                "writer.write_bit({}{});",
+                                "writer.write_bit({}{})?;",
                                 if field.optional { "*" } else { "self." },
                                 Generator::rust_field_name(&field.name),
                             ),
@@ -527,7 +527,7 @@ impl UperGenerator {
                             name,
                             Generator::rust_variant_name(&variant),
                             i,
-                            variants.len()
+                            variants.len() - 1
                         ));
                     }
                     Self::new_write_fn(serializable_implementation)
@@ -538,7 +538,7 @@ impl UperGenerator {
                     let mut block = Self::new_read_fn(serializable_implementation);
                     block.line(format!(
                         "let id = reader.read_int((0, {}))?;",
-                        variants.len()
+                        variants.len() - 1
                     ));
                     let mut block_match = Block::new("match id");
                     for (i, variant) in variants.iter().enumerate() {
