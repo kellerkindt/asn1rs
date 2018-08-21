@@ -44,11 +44,6 @@ impl BitBuffer {
     }
 
     #[allow(unused)]
-    pub fn read_available(&self) -> bool {
-        self.read_position < self.write_position
-    }
-
-    #[allow(unused)]
     pub fn bit_len(&self) -> usize {
         self.write_position
     }

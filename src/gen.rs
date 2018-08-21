@@ -356,9 +356,6 @@ impl UperGenerator {
     fn add_imports(scope: &mut Scope) {
         scope.import("asn1c::io::uper", "Uper");
         scope.import("asn1c::io::uper", &format!("Error as {}Error", Self::CODEC));
-        scope.import("asn1c::io::uper", &format!("Reader as {}Reader", Self::CODEC));
-        scope.import("asn1c::io::uper", &format!("Writer as {}Writer", Self::CODEC));
-        scope.import("asn1c::io::buffer", "BitBuffer");
     }
 
     fn generate_serializable_impl(scope: &mut Scope, impl_for: &str, definition: &Definition) {
@@ -367,11 +364,8 @@ impl UperGenerator {
             Definition::SequenceOf(_name, aliased) => {
                 {
                     let mut block = Self::new_write_fn(serializable_implementation);
-                    let mut block_len = Block::new("let buffer = ");
-                    block_len.line("let mut tmp = BitBuffer::default();");
-                    block_len.line("tmp.write_length_determinant(self.values.len())?;");
+                    block.line("writer.write_length_determinant(self.values.len())?;");
                     let mut block_for = Block::new("for value in self.values.iter()");
-                    block_for.line("let mut writer = &mut tmp;");
                     match aliased {
                         Role::Boolean => block_for.line("writer.write_bit(value)?;"),
                         Role::Integer((lower, upper)) => block_for.line(format!(
@@ -384,12 +378,7 @@ impl UperGenerator {
                         Role::Custom(_custom) => block_for.line("value.write(writer)?;"),
                         Role::UTF8String => block_for.line("writer.write_utf8_string(&value)?;"),
                     };
-                    block_len.push_block(block_for);
-                    block_len.line("tmp");
-                    block_len.after(";");
-                    block.push_block(block_len);
-                    block.line("writer.write_length_determinant(buffer.bit_len())?;");
-                    block.line("writer.write_bit_string_till_end(&buffer.content(), 0)?;");
+                    block.push_block(block_for);
                     block.line("Ok(())");
                 }
                 {
@@ -397,12 +386,7 @@ impl UperGenerator {
                     block.line("let mut me = Self::default();");
                     block.line("let len = reader.read_length_determinant()?;");
                     block.line("println!(\"Length determinant {}\", len);");
-                    block.line("let mut tmp = vec![0u8; len];");
-                    block.line("reader.read_bit_string_till_end(&mut tmp[..], 0)?;");
-                    block.line("let mut reader = BitBuffer::from(tmp, len);");
-                    block.line("let len = reader.read_length_determinant()?;");
                     let mut block_for = Block::new("for _ in 0..len");
-                    block_for.line("let reader = &mut reader;");
                     match aliased {
                         Role::Boolean => block_for.line("me.values.push(reader.read_bit()?);"),
                         Role::Integer((lower, upper)) => block_for.line(format!(
