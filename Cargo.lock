@@ -2,8 +2,14 @@
 name = "asn1c"
 version = "0.1.0"
 dependencies = [
+ "byteorder 1.2.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "codegen 0.1.0 (git+https://github.com/carllerche/codegen)",
 ]
+
+[[package]]
+name = "byteorder"
+version = "1.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "codegen"
@@ -19,5 +25,6 @@ version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [metadata]
+"checksum byteorder 1.2.4 (registry+https://github.com/rust-lang/crates.io-index)" = "8389c509ec62b9fe8eca58c502a0acaf017737355615243496cde4994f8fa4f9"
 "checksum codegen 0.1.0 (git+https://github.com/carllerche/codegen)" = "<none>"
 "checksum indexmap 1.0.1 (registry+https://github.com/rust-lang/crates.io-index)" = "08173ba1e906efb6538785a8844dd496f5d34f0a2d88038e95195172fc667220"
