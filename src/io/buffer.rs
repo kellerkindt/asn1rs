@@ -230,7 +230,8 @@ impl UperWriter for BitBuffer {
         } else {
             Err(UperError::UnsupportedOperation(format!(
                 "Writing length determinant for lengths > {} is unsupported, tried for length {}",
-                UPER_LENGTH_DET_L2, length
+                UPER_LENGTH_DET_L2,
+                length
             )))
         }
     }

@@ -59,7 +59,7 @@ impl Generator {
 
         for definition in model.definitions.iter() {
             let name: String = match definition {
-                Definition::SequenceOf(name, _max_values, role) => {
+                Definition::SequenceOf(name, role) => {
                     Self::new_struct(&mut scope, name)
                         .field("values", format!("Vec<{}>", Self::role_to_type(role)));
                     {
@@ -292,14 +292,8 @@ impl Generator {
             .derive("PartialOrd")
     }
 
-    fn new_uper_serializable_impl<'a>(
-        scope: &'a mut Scope,
-        impl_for: &str,
-        codec: &str,
-    ) -> &'a mut Impl {
-        scope
-            .new_impl(impl_for)
-            .impl_trait(format!("Serializable<{}>", codec))
+    fn new_uper_serializable_impl<'a>(scope: &'a mut Scope, impl_for: &str, codec: &str) -> &'a mut Impl {
+        scope.new_impl(impl_for).impl_trait(format!("Serializable<{}>", codec))
     }
 
     fn new_read_fn<'a>(implementation: &'a mut Impl, codec: &str) -> &'a mut Function {
@@ -367,17 +361,10 @@ impl UperGenerator {
     fn generate_serializable_impl(scope: &mut Scope, impl_for: &str, definition: &Definition) {
         let serializable_implementation = Self::new_uper_serializable_impl(scope, impl_for);
         match definition {
-            Definition::SequenceOf(_name, max_values, aliased) => {
+            Definition::SequenceOf(_name, aliased) => {
                 {
                     let mut block = Self::new_write_fn(serializable_implementation);
-                    if let Some(max) = max_values {
-                        block.line(format!(
-                            "writer.write_int(self.values.len() as i64, 0, {})?;",
-                            max
-                        ));
-                    } else {
-                        block.line("writer.write_length_determinant(self.values.len())?;");
-                    }
+                    block.line("writer.write_length_determinant(self.values.len())?;");
                     let mut block_for = Block::new("for value in self.values.iter()");
                     match aliased {
                         Role::Boolean => block_for.line("writer.write_bit(value)?;"),
@@ -385,9 +372,9 @@ impl UperGenerator {
                             "writer.write_int(*value as i64, ({}, {}))?;",
                             lower, upper
                         )),
-                        Role::UnsignedMaxInteger => {
-                            block_for.line("writer.write_int_max(*value)?;")
-                        }
+                        Role::UnsignedMaxInteger => block_for.line(
+                            "writer.write_int_max(*value)?;",
+                        ),
                         Role::Custom(_custom) => block_for.line("value.write(writer)?;"),
                         Role::UTF8String => block_for.line("writer.write_utf8_string(&value)?;"),
                     };
@@ -398,10 +385,7 @@ impl UperGenerator {
                     let mut block = Self::new_read_fn(serializable_implementation);
                     block.line("let mut me = Self::default();");
                     block.line("let len = reader.read_length_determinant()?;");
-                    block.line(format!(
-                        "println!(\"{} Length determinant {{}}\", len);",
-                        _name
-                    ));
+                    block.line("println!(\"Length determinant {}\", len);");
                     let mut block_for = Block::new("for _ in 0..len");
                     match aliased {
                         Role::Boolean => block_for.line("me.values.push(reader.read_bit()?);"),
@@ -411,9 +395,9 @@ impl UperGenerator {
                             upper,
                             Generator::role_to_type(aliased)
                         )),
-                        Role::UnsignedMaxInteger => {
-                            block_for.line("me.values.push(reader.read_int_max()?);")
-                        }
+                        Role::UnsignedMaxInteger => block_for.line(
+                            "me.values.push(reader.read_int_max()?);"
+                        ),
                         Role::Custom(custom) => {
                             block_for.line(format!("me.values.push({}::read(reader)?);", custom))
                         }

@@ -1,6 +1,5 @@
 use parser::Token;
 
-use std::iter::Peekable;
 use std::vec::IntoIter;
 
 #[derive(Debug)]
@@ -23,7 +22,7 @@ pub struct Model {
 impl Model {
     pub fn try_from(value: Vec<Token>) -> Result<Self, Error> {
         let mut model = Model::default();
-        let mut iter = value.into_iter().peekable();
+        let mut iter = value.into_iter();
 
         model.name = Self::read_name(&mut iter)?;
         Self::skip_after(&mut iter, &Token::Text("BEGIN".into()))?;
@@ -50,7 +49,7 @@ impl Model {
         Err(Error::UnexpectedEndOfStream)
     }
 
-    fn read_name(iter: &mut Peekable<IntoIter<Token>>) -> Result<String, Error> {
+    fn read_name(iter: &mut IntoIter<Token>) -> Result<String, Error> {
         iter.next()
             .and_then(|token| {
                 if let Token::Text(text) = token {
@@ -62,7 +61,7 @@ impl Model {
             .ok_or(Error::MissingModuleName)
     }
 
-    fn skip_after(iter: &mut Peekable<IntoIter<Token>>, token: &Token) -> Result<(), Error> {
+    fn skip_after(iter: &mut IntoIter<Token>, token: &Token) -> Result<(), Error> {
         while let Some(t) = iter.next() {
             if t.eq(&token) {
                 return Ok(());
@@ -71,7 +70,7 @@ impl Model {
         Err(Error::UnexpectedEndOfStream)
     }
 
-    fn read_imports(iter: &mut Peekable<IntoIter<Token>>) -> Result<Import, Error> {
+    fn read_imports(iter: &mut IntoIter<Token>) -> Result<Import, Error> {
         let mut imports = Import::default();
         while let Some(token) = iter.next() {
             if let Token::Text(text) = token {
@@ -102,10 +101,7 @@ impl Model {
         Err(Error::UnexpectedEndOfStream)
     }
 
-    fn read_definition(
-        iter: &mut Peekable<IntoIter<Token>>,
-        name: String,
-    ) -> Result<Definition, Error> {
+    fn read_definition(iter: &mut IntoIter<Token>, name: String) -> Result<Definition, Error> {
         Self::next_separator_ignore_case(iter, ':')?;
         Self::next_separator_ignore_case(iter, ':')?;
         Self::next_separator_ignore_case(iter, '=')?;
@@ -117,35 +113,7 @@ impl Model {
             match token {
                 Token::Text(of) => {
                     if of.eq_ignore_ascii_case(&"OF") {
-                        let mut max = None;
-                        let has_range_limit = iter
-                            .peek()
-                            .map(|t| {
-                                t.text()
-                                    .map(|t| t.eq_ignore_ascii_case("INTEGER"))
-                                    .unwrap_or(false)
-                            })
-                            .unwrap_or(false);
-
-                        if has_range_limit {
-                            Self::next_text_ignore_case(iter, "INTEGER")?;
-                            Self::next_separator_ignore_case(iter, '(')?;
-                            Self::next_text_ignore_case(iter, "0")?;
-                            Self::next_separator_ignore_case(iter, '.')?;
-                            Self::next_separator_ignore_case(iter, '.')?;
-                            let text = Self::next_text(iter)?;
-                            if text.eq_ignore_ascii_case("MAX") {
-                                // ignore
-                            } else {
-                                max = Some(
-                                    text.parse::<u64>()
-                                        .map_err(|_| Error::UnexpectedToken(Token::Text(text)))?,
-                                );
-                            }
-                            Self::next_separator_ignore_case(iter, ')')?;
-                        }
-
-                        Ok(Definition::SequenceOf(name, max, Self::read_role(iter)?))
+                        Ok(Definition::SequenceOf(name, Self::read_role(iter)?))
                     } else {
                         Err(Error::UnexpectedToken(Token::Text(of)))
                     }
@@ -175,7 +143,7 @@ impl Model {
         }
     }
 
-    fn read_role(iter: &mut Peekable<IntoIter<Token>>) -> Result<Role, Error> {
+    fn read_role(iter: &mut IntoIter<Token>) -> Result<Role, Error> {
         let text = Self::next_text(iter)?;
         if text.eq_ignore_ascii_case(&"INTEGER") {
             Self::next_separator_ignore_case(iter, '(')?;
@@ -191,7 +159,7 @@ impl Model {
             } else {
                 Ok(Role::Integer((
                     start.parse::<i64>().map_err(|_| Error::InvalidRangeValue)?,
-                    end.parse::<i64>().map_err(|_| Error::InvalidRangeValue)?,
+                     end.parse::<i64>().map_err(|_| Error::InvalidRangeValue)?,
                 )))
             }
         } else if text.eq_ignore_ascii_case(&"BOOLEAN") {
@@ -203,7 +171,7 @@ impl Model {
         }
     }
 
-    fn read_enumerated(iter: &mut Peekable<IntoIter<Token>>) -> Result<Vec<String>, Error> {
+    fn read_enumerated(iter: &mut IntoIter<Token>) -> Result<Vec<String>, Error> {
         Self::next_separator_ignore_case(iter, '{')?;
         let mut enumeration = Vec::new();
 
@@ -218,7 +186,7 @@ impl Model {
         Ok(enumeration)
     }
 
-    fn read_field(iter: &mut Peekable<IntoIter<Token>>) -> Result<(Field, bool), Error> {
+    fn read_field(iter: &mut IntoIter<Token>) -> Result<(Field, bool), Error> {
         let mut field = Field {
             name: Self::next_text(iter)?,
             role: Self::read_role(iter)?,
@@ -242,17 +210,14 @@ impl Model {
         }
     }
 
-    fn next_text(iter: &mut Peekable<IntoIter<Token>>) -> Result<String, Error> {
+    fn next_text(iter: &mut IntoIter<Token>) -> Result<String, Error> {
         match iter.next().ok_or(Error::UnexpectedEndOfStream)? {
             Token::Text(text) => Ok(text),
             t => Err(Error::UnexpectedToken(t)),
         }
     }
 
-    fn next_text_ignore_case(
-        iter: &mut Peekable<IntoIter<Token>>,
-        text: &str,
-    ) -> Result<(), Error> {
+    fn next_text_ignore_case(iter: &mut IntoIter<Token>, text: &str) -> Result<(), Error> {
         let token = Self::next_text(iter)?;
         if text.eq_ignore_ascii_case(&token) {
             Ok(())
@@ -261,17 +226,14 @@ impl Model {
         }
     }
 
-    fn next_seperator(iter: &mut Peekable<IntoIter<Token>>) -> Result<char, Error> {
+    fn next_seperator(iter: &mut IntoIter<Token>) -> Result<char, Error> {
         match iter.next().ok_or(Error::UnexpectedEndOfStream)? {
             Token::Separator(separator) => Ok(separator),
             t => Err(Error::UnexpectedToken(t)),
         }
     }
 
-    fn next_separator_ignore_case(
-        iter: &mut Peekable<IntoIter<Token>>,
-        text: char,
-    ) -> Result<(), Error> {
+    fn next_separator_ignore_case(iter: &mut IntoIter<Token>, text: char) -> Result<(), Error> {
         let token = Self::next_seperator(iter)?;
         if token.eq_ignore_ascii_case(&text) {
             Ok(())
@@ -289,7 +251,7 @@ pub struct Import {
 
 #[derive(Debug, Clone)]
 pub enum Definition {
-    SequenceOf(String, Option<u64>, Role),
+    SequenceOf(String, Role),
     Sequence(String, Vec<Field>),
     Enumerated(String, Vec<String>),
 }
