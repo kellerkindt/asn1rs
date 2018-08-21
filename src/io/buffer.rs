@@ -1,10 +1,10 @@
 use byteorder::ByteOrder;
 use byteorder::NetworkEndian;
 
-use io::uper::BYTE_LEN;
 use io::uper::Error as UperError;
 use io::uper::Reader as UperReader;
 use io::uper::Writer as UperWriter;
+use io::uper::BYTE_LEN;
 use io::CodecReader;
 use io::CodecWriter;
 
