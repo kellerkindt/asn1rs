@@ -30,12 +30,15 @@ impl Generator {
     pub fn to_string(&self) -> Result<Vec<(String, String)>, Error> {
         let mut files = Vec::new();
         for model in self.models.iter() {
-            files.push(Self::model_to_file(model)?);
+            files.push(Self::model_to_file(model, &[&UperGenerator])?);
         }
         Ok(files)
     }
 
-    pub fn model_to_file(model: &Model) -> Result<(String, String), Error> {
+    pub fn model_to_file(
+        model: &Model,
+        generators: &[&SerializableGenerator],
+    ) -> Result<(String, String), Error> {
         let file = {
             let mut string = Self::rust_module_name(&model.name);
             string.push_str(".rs");
@@ -45,8 +48,7 @@ impl Generator {
         let mut scope = Scope::new();
         scope.import("asn1c::io", "Codec");
         scope.import("asn1c::io", "Serializable");
-        scope.import("asn1c::io::uper", "Uper");
-        scope.import("asn1c::io::uper", "Error as UperError");
+        generators.iter().for_each(|g| g.add_imports(&mut scope));
 
         for import in model.imports.iter() {
             let from = format!("super::{}", Self::rust_module_name(&import.from));
@@ -190,9 +192,9 @@ impl Generator {
                     name.clone()
                 }
             };
-            let uper_impl = UperGenerator::new_uper_serializable_impl(&mut scope, &name);
-            UperGenerator::generate_serializable_impl(&definition, uper_impl);
-
+            generators
+                .iter()
+                .for_each(|g| g.generate_serializable_impl(&mut scope, &name, &definition));
         }
 
         Ok((file, scope.to_string()))
@@ -288,32 +290,75 @@ impl Generator {
             .derive("PartialEq")
             .derive("PartialOrd")
     }
-}
 
-pub struct UperGenerator;
-impl UperGenerator {
-
-
-    fn new_uper_serializable_impl<'a>(scope: &'a mut Scope, impl_for: &str) -> &'a mut Impl {
-        scope.new_impl(impl_for).impl_trait("Serializable<Uper>")
+    fn new_uper_serializable_impl<'a>(scope: &'a mut Scope, impl_for: &str, codec: &str) -> &'a mut Impl {
+        scope.new_impl(impl_for).impl_trait(format!("Serializable<{}>", codec))
     }
 
-    fn new_read_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
+    fn new_read_fn<'a>(implementation: &'a mut Impl, codec: &str) -> &'a mut Function {
         implementation
             .new_fn("read")
-            .arg("reader", "&mut <Uper as Codec>::Reader")
-            .ret("Result<Self, UperError>")
+            .arg("reader", format!("&mut <{} as Codec>::Reader", codec))
+            .ret(format!("Result<Self, {}Error>", codec))
     }
 
-    fn new_write_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
+    fn new_write_fn<'a>(implementation: &'a mut Impl, codec: &str) -> &'a mut Function {
         implementation
             .new_fn("write")
             .arg_ref_self()
-            .arg("writer", "&mut <Uper as Codec>::Writer")
-            .ret("Result<(), UperError>")
+            .arg("writer", format!("&mut <{} as Codec>::Writer", codec))
+            .ret(format!("Result<(), {}Error>", codec))
+    }
+}
+
+trait SerializableGenerator {
+    fn add_imports(&self, scope: &mut Scope);
+    fn generate_serializable_impl(
+        &self,
+        scope: &mut Scope,
+        impl_for: &str,
+        definition: &Definition,
+    );
+}
+
+pub struct UperGenerator;
+impl SerializableGenerator for UperGenerator {
+    fn add_imports(&self, scope: &mut Scope) {
+        Self::add_imports(scope)
     }
 
-    fn generate_serializable_impl(definition: &Definition, serializable_implementation: &mut Impl) {
+    fn generate_serializable_impl(
+        &self,
+        scope: &mut Scope,
+        impl_for: &str,
+        definition: &Definition,
+    ) {
+        Self::generate_serializable_impl(scope, impl_for, definition)
+    }
+}
+
+impl UperGenerator {
+    const CODEC: &'static str = "Uper";
+
+    fn new_uper_serializable_impl<'a>(scope: &'a mut Scope, impl_for: &str) -> &'a mut Impl {
+        Generator::new_uper_serializable_impl(scope, impl_for, Self::CODEC)
+    }
+
+    fn new_read_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
+        Generator::new_read_fn(implementation, Self::CODEC)
+    }
+
+    fn new_write_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
+        Generator::new_write_fn(implementation, Self::CODEC)
+    }
+
+    fn add_imports(scope: &mut Scope) {
+        scope.import("asn1c::io::uper", "Uper");
+        scope.import("asn1c::io::uper", &format!("Error as {}Error", Self::CODEC));
+    }
+
+    fn generate_serializable_impl(scope: &mut Scope, impl_for: &str, definition: &Definition) {
+        let serializable_implementation = Self::new_uper_serializable_impl(scope, impl_for);
         match definition {
             Definition::SequenceOf(_name, aliased) => {
                 {
@@ -327,9 +372,7 @@ impl UperGenerator {
                             lower, upper
                         )),
                         Role::Custom(_custom) => block_for.line("value.write(writer)?;"),
-                        Role::UTF8String => {
-                            block_for.line("writer.write_utf8_string(&value)?;")
-                        }
+                        Role::UTF8String => block_for.line("writer.write_utf8_string(&value)?;"),
                     };
                     block.push_block(block_for);
                     block.line("Ok(())");
@@ -347,10 +390,12 @@ impl UperGenerator {
                             upper,
                             Generator::role_to_type(aliased)
                         )),
-                        Role::Custom(custom) => block_for
-                            .line(format!("me.values.push({}::read(reader)?);", custom)),
-                        Role::UTF8String => block_for
-                            .line(format!("me.values.push(reader.read_utf8_string()?);")),
+                        Role::Custom(custom) => {
+                            block_for.line(format!("me.values.push({}::read(reader)?);", custom))
+                        }
+                        Role::UTF8String => {
+                            block_for.line(format!("me.values.push(reader.read_utf8_string()?);"))
+                        }
                     };
                     block.push_block(block_for);
                     block.line("Ok(me)");
