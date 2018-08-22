@@ -42,7 +42,7 @@ pub trait Reader: CodecReader {
         buffer: &mut [u8],
         bit_offset: usize,
     ) -> Result<(), Error> {
-        let len = buffer.len() * BYTE_LEN - bit_offset;
+        let len = (buffer.len() * BYTE_LEN) - bit_offset;
         self.read_bit_string(buffer, bit_offset, len)
     }
 

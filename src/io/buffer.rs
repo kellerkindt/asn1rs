@@ -56,8 +56,8 @@ impl BitBuffer {
 
 const UPER_LENGTH_DET_L1: i64 = 127;
 const UPER_LENGTH_DET_L2: i64 = 16383;
-//const UPER_LENGTH_DET_L3: usize = 49151;
-//const UPER_LENGTH_DET_L4: usize = 65535;
+// const UPER_LENGTH_DET_L3: i64 = 49151;
+// const UPER_LENGTH_DET_L4: i64 = 65535;
 
 impl CodecReader for BitBuffer {}
 impl UperReader for BitBuffer {
@@ -90,13 +90,26 @@ impl UperReader for BitBuffer {
         debug_assert!(buffer_bits == 64);
         self.read_bit_string_till_end(&mut buffer[..], buffer_bits - bit_length_range as usize)?;
         let value = NetworkEndian::read_u64(&buffer[..]) as i64;
+        println!("value {}, lower {}", value, lower);
         Ok(value + lower)
     }
 
     fn read_int_max(&mut self) -> Result<u64, UperError> {
+        let len_in_bytes = self.read_length_determinant()?;
+        if len_in_bytes > 8 {
+            Err(UperError::UnsupportedOperation("Reading bigger data types than 64bit is not supported".into()))
+        } else {
+            let mut buffer = vec![0u8; 8];
+            let offset = (8 * BYTE_LEN) - (len_in_bytes * BYTE_LEN);
+            self.read_bit_string_till_end(&mut buffer[..], offset)?;
+            Ok(NetworkEndian::read_u64(&buffer[..]))
+        }
+        //Ok(self.read_length_determinant()? as u64)
+        /*
         let mut buffer = [0u8; 8];
+        //self.read_bit_string_till_end(&mut buffer[..], 56)?;
         self.read_bit_string_till_end(&mut buffer[..], 0)?;
-        Ok(NetworkEndian::read_u64(&buffer[..]))
+        Ok(NetworkEndian::read_u64(&buffer[..]))*/
     }
 
     fn read_bit_string(
@@ -191,9 +204,23 @@ impl UperWriter for BitBuffer {
     }
 
     fn write_int_max(&mut self, value: u64) -> Result<(), UperError> {
+        if value > ::std::i64::MAX as u64 {
+            return Err(UperError::ValueNotInRange(value as i64, 0, ::std::i64::MAX));
+        }
         let mut buffer = [0u8; 8];
         NetworkEndian::write_u64(&mut buffer[..], value);
-        self.write_bit_string_till_end(&buffer[..], 0)?;
+        let byte_len = {
+            let mut len = buffer.len();
+            while len > 0 && buffer[buffer.len() - len] == 0x00 {
+                len -= 1;
+            }
+            len
+        };
+        self.write_length_determinant(byte_len)?;
+        if byte_len > 0 {
+            let bit_offset = (buffer.len() - byte_len) * BYTE_LEN;
+            self.write_bit_string_till_end(&buffer, bit_offset)?;
+        }
 
         Ok(())
     }
