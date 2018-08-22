@@ -671,15 +671,28 @@ impl ProtobufGenerator {
     }
 
     fn new_read_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
-        Generator::new_read_fn(implementation, Self::CODEC)
+        let function = Generator::new_read_fn(implementation, Self::CODEC);
+        function.line("let mut vec = reader.read_bytes()?;");
+        function.line(format!("let reader = &mut vec as &mut {}Reader;", Self::CODEC));
+        function
     }
 
-    fn new_write_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
-        Generator::new_write_fn(implementation, Self::CODEC)
+    fn new_write_fn<'a, F: FnOnce(&mut Block)>(implementation: &'a mut Impl, once: F) {
+        let function = Generator::new_write_fn(implementation, Self::CODEC);
+        function.line("let mut vec = Vec::new();");
+        let mut block = Block::new("");
+        block.line(format!("let writer = &mut vec as &mut {}Writer;", Self::CODEC));
+        once(&mut block);
+        function.push_block(block);
+        function.line("writer.write_bytes(&vec[..])");
     }
 
     fn add_imports(scope: &mut Scope) {
+        scope.import("std::io", "Read");
+        scope.import("std::io", "Write");
         scope.import("asn1c::io::protobuf", Self::CODEC);
+        scope.import("asn1c::io::protobuf", &format!("Reader as {}Reader", Self::CODEC));
+        scope.import("asn1c::io::protobuf", &format!("Writer as {}Writer", Self::CODEC));
         scope.import(
             "asn1c::io::protobuf",
             &format!("Error as {}Error", Self::CODEC),
@@ -692,20 +705,21 @@ impl ProtobufGenerator {
         match definition {
             Definition::SequenceOf(_name, aliased) => {
                 {
-                    let mut block = Self::new_write_fn(serializable_implementation);
-                    block.line("writer.write_tag(1)?;");
-                    block.line("writer.write_varint(self.values.len() as u64)?;");
-                    let mut block_for = Block::new("for value in self.values.iter()");
-                    match aliased {
-                        Role::Custom(_custom) => block_for.line("value.write(writer)?;"),
-                        r => block_for.line(format!(
-                            "writer.write_{}(*value{})?;",
-                            ProtobufGenerator::role_to_type(r),
-                            Self::role_to_as_statement(r),
-                        )),
-                    };
-                    block.push_block(block_for);
-                    block.line("Ok(())");
+                    Self::new_write_fn(serializable_implementation, |block| {
+                        block.line("writer.write_tag(1)?;");
+                        block.line("writer.write_varint(self.values.len() as u64)?;");
+                        let mut block_for = Block::new("for value in self.values.iter()");
+                        match aliased {
+                            Role::Custom(_custom) => block_for.line("value.write(writer)?;"),
+                            r => block_for.line(format!(
+                                "writer.write_{}(*value{})?;",
+                                ProtobufGenerator::role_to_type(r),
+                                Self::role_to_as_statement(r),
+                            )),
+                        };
+                        block.push_block(block_for);
+                        block.line("Ok(())");
+                    });
                 }
                 {
                     let mut block = Self::new_read_fn(serializable_implementation);
@@ -725,48 +739,49 @@ impl ProtobufGenerator {
             }
             Definition::Sequence(_name, fields) => {
                 {
-                    let block = Self::new_write_fn(serializable_implementation);
-
-                    for (prev_tag, field) in fields.iter().enumerate() {
-                        let line = match &field.role {
-                            Role::Custom(_custom) => format!(
-                                "{}{}.write(writer)?;",
-                                if field.optional {
-                                    ""
-                                } else {
-                                    "self."
-                                },
-                                Generator::rust_field_name(&field.name, true),
-                            ),
-                            r => format!(
-                                "writer.write_{}(*{}{}{})?;",
-                                ProtobufGenerator::role_to_type(r),
-                                if field.optional {
-                                    ""
-                                } else {
-                                    "self."
-                                },
-                                Generator::rust_field_name(&field.name, true),
-                                Self::role_to_as_statement(r),
-                            ),
-                        };
-                        let tag_line = format!("writer.write_tag({})?;", prev_tag + 1);
-                        if field.optional {
-                            let mut b = Block::new(&format!(
-                                "if let Some(ref {}) = self.{}",
-                                Generator::rust_field_name(&field.name, true),
-                                Generator::rust_field_name(&field.name, true),
-                            ));
-                            b.line(tag_line);
-                            b.line(line);
-                            block.push_block(b);
-                        } else {
-                            block.line(tag_line);
-                            block.line(line);
+                    Self::new_write_fn(serializable_implementation, |block| {
+                        for (prev_tag, field) in fields.iter().enumerate() {
+                            let line = match &field.role {
+                                Role::Custom(_custom) => format!(
+                                    "{}{}.write(writer)?;",
+                                    if field.optional {
+                                        ""
+                                    } else {
+                                        "self."
+                                    },
+                                    Generator::rust_field_name(&field.name, true),
+                                ),
+                                r => format!(
+                                    "writer.write_{}(*{}{}{})?;",
+                                    ProtobufGenerator::role_to_type(r),
+                                    if field.optional {
+                                        ""
+                                    } else {
+                                        "self."
+                                    },
+                                    Generator::rust_field_name(&field.name, true),
+                                    Self::role_to_as_statement(r),
+                                ),
+                            };
+                            let tag_line = format!("writer.write_tag({})?;", prev_tag + 1);
+                            if field.optional {
+                                let mut b = Block::new(&format!(
+                                    "if let Some(ref {}) = self.{}",
+                                    Generator::rust_field_name(&field.name, true),
+                                    Generator::rust_field_name(&field.name, true),
+                                ));
+                                b.line(tag_line);
+                                b.line(line);
+                                block.push_block(b);
+                            } else {
+                                block.line(tag_line);
+                                block.line(line);
+                            }
                         }
-                    }
 
-                    block.line("Ok(())");
+                        block.line("Ok(())");
+                    });
+
                 }
                 {
                     let block = Self::new_read_fn(serializable_implementation);
@@ -831,19 +846,21 @@ impl ProtobufGenerator {
             }
             Definition::Enumerated(name, variants) => {
                 {
-                    let mut block = Block::new("match self");
-                    for (i, variant) in variants.iter().enumerate() {
-                        block.line(format!(
-                            "{}::{} => writer.write_int({}, (0, {}))?,",
-                            name,
-                            Generator::rust_variant_name(&variant),
-                            i,
-                            variants.len() - 1
-                        ));
-                    }
-                    Self::new_write_fn(serializable_implementation)
-                        .push_block(block)
-                        .line("Ok(())");
+                    Self::new_write_fn(serializable_implementation, |block| {
+                        let mut outer_block = Block::new("match self");
+                        for (i, variant) in variants.iter().enumerate() {
+                            outer_block.line(format!(
+                                "{}::{} => writer.write_int({}, (0, {}))?,",
+                                name,
+                                Generator::rust_variant_name(&variant),
+                                i,
+                                variants.len() - 1
+                            ));
+                        }
+                        block.push_block(outer_block);
+                        block.line("Ok(())");
+                    });
+
                 }
                 {
                     let mut block = Self::new_read_fn(serializable_implementation);
