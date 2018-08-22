@@ -137,10 +137,16 @@ impl Generator {
                                 } else {
                                     format!("&{}", Self::role_to_type(&field.role))
                                 })
-                                .line(format!("&self.{}", Self::rust_field_name(&field.name, true)));
+                                .line(format!(
+                                    "&self.{}",
+                                    Self::rust_field_name(&field.name, true)
+                                ));
 
                             implementation
-                                .new_fn(&format!("{}_mut", Self::rust_field_name(&field.name, false)))
+                                .new_fn(&format!(
+                                    "{}_mut",
+                                    Self::rust_field_name(&field.name, false)
+                                ))
                                 .vis("pub")
                                 .arg_mut_self()
                                 .ret(if field.optional {
@@ -148,10 +154,16 @@ impl Generator {
                                 } else {
                                     format!("&mut {}", Self::role_to_type(&field.role))
                                 })
-                                .line(format!("&mut self.{}", Self::rust_field_name(&field.name, true)));
+                                .line(format!(
+                                    "&mut self.{}",
+                                    Self::rust_field_name(&field.name, true)
+                                ));
 
                             implementation
-                                .new_fn(&format!("set_{}", Self::rust_field_name(&field.name, false)))
+                                .new_fn(&format!(
+                                    "set_{}",
+                                    Self::rust_field_name(&field.name, false)
+                                ))
                                 .vis("pub")
                                 .arg_mut_self()
                                 .arg(
@@ -176,11 +188,19 @@ impl Generator {
                             };
 
                             if let Some((min, max)) = min_max {
-                                implementation.new_fn(&format!("{}_min", Self::rust_field_name(&field.name, false)))
+                                implementation
+                                    .new_fn(&format!(
+                                        "{}_min",
+                                        Self::rust_field_name(&field.name, false)
+                                    ))
                                     .vis("pub")
                                     .ret(Self::role_to_type(&field.role))
                                     .line(format!("{}", min));
-                                implementation.new_fn(&format!("{}_max", Self::rust_field_name(&field.name, false)))
+                                implementation
+                                    .new_fn(&format!(
+                                        "{}_max",
+                                        Self::rust_field_name(&field.name, false)
+                                    ))
                                     .vis("pub")
                                     .ret(Self::role_to_type(&field.role))
                                     .line(format!("{}", max));
@@ -207,6 +227,22 @@ impl Generator {
                                 name,
                                 Self::rust_variant_name(&variants[0])
                             ));
+                    }
+                    {
+                        let implementation = scope.new_impl(&name);
+                        {
+                            let values_fn = implementation
+                                .new_fn("values")
+                                .vis("pub")
+                                .ret(format!("Vec<Self>"))
+                                .line("let mut values = Vec::new();");
+
+                            for variant in variants {
+                                values_fn.line(format!("values.push({}::{});", name, Self::rust_variant_name(variant)));
+                            }
+                            values_fn.line("values");
+
+                        }
                     }
                     name.clone()
                 }
@@ -313,8 +349,14 @@ impl Generator {
             .derive("PartialOrd")
     }
 
-    fn new_uper_serializable_impl<'a>(scope: &'a mut Scope, impl_for: &str, codec: &str) -> &'a mut Impl {
-        scope.new_impl(impl_for).impl_trait(format!("Serializable<{}>", codec))
+    fn new_uper_serializable_impl<'a>(
+        scope: &'a mut Scope,
+        impl_for: &str,
+        codec: &str,
+    ) -> &'a mut Impl {
+        scope
+            .new_impl(impl_for)
+            .impl_trait(format!("Serializable<{}>", codec))
     }
 
     fn new_read_fn<'a>(implementation: &'a mut Impl, codec: &str) -> &'a mut Function {
@@ -393,9 +435,9 @@ impl UperGenerator {
                             "writer.write_int(*value as i64, ({}, {}))?;",
                             lower, upper
                         )),
-                        Role::UnsignedMaxInteger => block_for.line(
-                            "writer.write_int_max(*value)?;",
-                        ),
+                        Role::UnsignedMaxInteger => {
+                            block_for.line("writer.write_int_max(*value)?;")
+                        }
                         Role::Custom(_custom) => block_for.line("value.write(writer)?;"),
                         Role::UTF8String => block_for.line("writer.write_utf8_string(&value)?;"),
                     };
@@ -416,9 +458,9 @@ impl UperGenerator {
                             upper,
                             Generator::role_to_type(aliased)
                         )),
-                        Role::UnsignedMaxInteger => block_for.line(
-                            "me.values.push(reader.read_int_max()?);"
-                        ),
+                        Role::UnsignedMaxInteger => {
+                            block_for.line("me.values.push(reader.read_int_max()?);")
+                        }
                         Role::Custom(custom) => {
                             block_for.line(format!("me.values.push({}::read(reader)?);", custom))
                         }
