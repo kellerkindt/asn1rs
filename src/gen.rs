@@ -234,13 +234,13 @@ impl Generator {
                             let values_fn = implementation
                                 .new_fn("values")
                                 .vis("pub")
-                                .ret(format!("Vec<Self>"))
-                                .line("let mut values = Vec::new();");
+                                .ret(format!("[Self; {}]", variants.len()))
+                                .line("[");
 
                             for variant in variants {
-                                values_fn.line(format!("values.push({}::{});", name, Self::rust_variant_name(variant)));
+                                values_fn.line(format!("{}::{},", name, Self::rust_variant_name(variant)));
                             }
-                            values_fn.line("values");
+                            values_fn.line("]");
 
                         }
                     }
