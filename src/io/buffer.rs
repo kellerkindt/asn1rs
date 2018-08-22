@@ -90,7 +90,6 @@ impl UperReader for BitBuffer {
         debug_assert!(buffer_bits == 64);
         self.read_bit_string_till_end(&mut buffer[..], buffer_bits - bit_length_range as usize)?;
         let value = NetworkEndian::read_u64(&buffer[..]) as i64;
-        println!("value {}, lower {}", value, lower);
         Ok(value + lower)
     }
 
