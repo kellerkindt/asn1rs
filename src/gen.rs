@@ -232,7 +232,7 @@ impl Generator {
                         let implementation = scope.new_impl(&name);
                         {
                             let values_fn = implementation
-                                .new_fn("values")
+                                .new_fn("variants")
                                 .vis("pub")
                                 .ret(format!("[Self; {}]", variants.len()))
                                 .line("[");
