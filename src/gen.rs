@@ -115,7 +115,7 @@ impl Generator {
                         let mut new_struct = Self::new_struct(&mut scope, name);
                         for field in fields.iter() {
                             new_struct.field(
-                                &Self::rust_field_name(&field.name),
+                                &Self::rust_field_name(&field.name, true),
                                 if field.optional {
                                     format!("Option<{}>", Self::role_to_type(&field.role))
                                 } else {
@@ -129,7 +129,7 @@ impl Generator {
 
                         for field in fields.iter() {
                             implementation
-                                .new_fn(&Self::rust_field_name(&field.name))
+                                .new_fn(&Self::rust_field_name(&field.name, true))
                                 .vis("pub")
                                 .arg_ref_self()
                                 .ret(if field.optional {
@@ -137,10 +137,10 @@ impl Generator {
                                 } else {
                                     format!("&{}", Self::role_to_type(&field.role))
                                 })
-                                .line(format!("&self.{}", Self::rust_field_name(&field.name)));
+                                .line(format!("&self.{}", Self::rust_field_name(&field.name, true)));
 
                             implementation
-                                .new_fn(&format!("{}_mut", Self::rust_field_name(&field.name)))
+                                .new_fn(&format!("{}_mut", Self::rust_field_name(&field.name, false)))
                                 .vis("pub")
                                 .arg_mut_self()
                                 .ret(if field.optional {
@@ -148,10 +148,10 @@ impl Generator {
                                 } else {
                                     format!("&mut {}", Self::role_to_type(&field.role))
                                 })
-                                .line(format!("&mut self.{}", Self::rust_field_name(&field.name)));
+                                .line(format!("&mut self.{}", Self::rust_field_name(&field.name, true)));
 
                             implementation
-                                .new_fn(&format!("set_{}", Self::rust_field_name(&field.name)))
+                                .new_fn(&format!("set_{}", Self::rust_field_name(&field.name, false)))
                                 .vis("pub")
                                 .arg_mut_self()
                                 .arg(
@@ -164,8 +164,27 @@ impl Generator {
                                 )
                                 .line(format!(
                                     "self.{} = value;",
-                                    Self::rust_field_name(&field.name)
+                                    Self::rust_field_name(&field.name, true)
                                 ));
+
+                            let min_max = match field.role {
+                                Role::Boolean => None,
+                                Role::Integer((lower, upper)) => Some((lower, upper)),
+                                Role::UnsignedMaxInteger => Some((0, ::std::i64::MAX)),
+                                Role::UTF8String => None,
+                                Role::Custom(_) => None,
+                            };
+
+                            if let Some((min, max)) = min_max {
+                                implementation.new_fn(&format!("{}_min", Self::rust_field_name(&field.name, false)))
+                                    .vis("pub")
+                                    .ret(Self::role_to_type(&field.role))
+                                    .line(format!("{}", min));
+                                implementation.new_fn(&format!("{}_max", Self::rust_field_name(&field.name, false)))
+                                    .vis("pub")
+                                    .ret(Self::role_to_type(&field.role))
+                                    .line(format!("{}", max));
+                            }
                         }
                     }
                     name.clone()
@@ -216,12 +235,14 @@ impl Generator {
         type_name
     }
 
-    fn rust_field_name(name: &str) -> String {
+    fn rust_field_name(name: &str, check_for_keywords: bool) -> String {
         let mut name = name.replace("-", "_");
-        for keyword in KEYWORDS.iter() {
-            if keyword.eq(&name) {
-                name.push_str("_");
-                return name;
+        if check_for_keywords {
+            for keyword in KEYWORDS.iter() {
+                if keyword.eq(&name) {
+                    name.push_str("_");
+                    return name;
+                }
             }
         }
         name
@@ -418,7 +439,7 @@ impl UperGenerator {
                         if field.optional {
                             block.line(format!(
                                 "writer.write_bit(self.{}.is_some())?;",
-                                Generator::rust_field_name(&field.name),
+                                Generator::rust_field_name(&field.name, true),
                             ));
                         }
                     }
@@ -428,36 +449,36 @@ impl UperGenerator {
                             Role::Boolean => format!(
                                 "writer.write_bit({}{})?;",
                                 if field.optional { "*" } else { "self." },
-                                Generator::rust_field_name(&field.name),
+                                Generator::rust_field_name(&field.name, true),
                             ),
                             Role::Integer((lower, upper)) => format!(
                                 "writer.write_int({}{} as i64, ({} as i64, {} as i64))?;",
                                 if field.optional { "*" } else { "self." },
-                                Generator::rust_field_name(&field.name),
+                                Generator::rust_field_name(&field.name, true),
                                 lower,
                                 upper
                             ),
                             Role::UnsignedMaxInteger => format!(
                                 "writer.write_int_max({}{})?;",
                                 if field.optional { "*" } else { "self." },
-                                Generator::rust_field_name(&field.name),
+                                Generator::rust_field_name(&field.name, true),
                             ),
                             Role::Custom(ref _type) => format!(
                                 "{}{}.write(writer)?;",
                                 if field.optional { "" } else { "self." },
-                                Generator::rust_field_name(&field.name),
+                                Generator::rust_field_name(&field.name, true),
                             ),
                             Role::UTF8String => format!(
                                 "writer.write_utf8_string(&{}{})?;",
                                 if field.optional { "" } else { "self." },
-                                Generator::rust_field_name(&field.name),
+                                Generator::rust_field_name(&field.name, true),
                             ),
                         };
                         if field.optional {
                             let mut b = Block::new(&format!(
                                 "if let Some(ref {}) = self.{}",
-                                Generator::rust_field_name(&field.name),
-                                Generator::rust_field_name(&field.name),
+                                Generator::rust_field_name(&field.name, true),
+                                Generator::rust_field_name(&field.name, true),
                             ));
                             b.line(line);
                             block.push_block(b);
@@ -477,7 +498,7 @@ impl UperGenerator {
                         if field.optional {
                             block.line(format!(
                                 "let {} = reader.read_bit()?;",
-                                Generator::rust_field_name(&field.name),
+                                Generator::rust_field_name(&field.name, true),
                             ));
                         }
                     }
@@ -485,13 +506,13 @@ impl UperGenerator {
                         let line = match field.role {
                             Role::Boolean => format!(
                                 "me.{} = {}reader.read_bit()?{};",
-                                Generator::rust_field_name(&field.name),
+                                Generator::rust_field_name(&field.name, true),
                                 if field.optional { "Some(" } else { "" },
                                 if field.optional { ")" } else { "" },
                             ),
                             Role::Integer((lower, upper)) => format!(
                                 "me.{} = {}reader.read_int(({} as i64, {} as i64))? as {}{};",
-                                Generator::rust_field_name(&field.name),
+                                Generator::rust_field_name(&field.name, true),
                                 if field.optional { "Some(" } else { "" },
                                 lower,
                                 upper,
@@ -500,32 +521,32 @@ impl UperGenerator {
                             ),
                             Role::UnsignedMaxInteger => format!(
                                 "me.{} = {}reader.read_int_max()?{};",
-                                Generator::rust_field_name(&field.name),
+                                Generator::rust_field_name(&field.name, true),
                                 if field.optional { "Some(" } else { "" },
                                 if field.optional { ")" } else { "" },
                             ),
                             Role::Custom(ref _type) => format!(
                                 "me.{} = {}{}::read(reader)?{};",
-                                Generator::rust_field_name(&field.name),
+                                Generator::rust_field_name(&field.name, true),
                                 if field.optional { "Some(" } else { "" },
                                 Generator::role_to_type(&field.role),
                                 if field.optional { ")" } else { "" },
                             ),
                             Role::UTF8String => format!(
                                 "me.{} = reader.read_utf8_string()?;",
-                                Generator::rust_field_name(&field.name),
+                                Generator::rust_field_name(&field.name, true),
                             ),
                         };
                         if field.optional {
                             let mut block_if = Block::new(&format!(
                                 "if {}",
-                                Generator::rust_field_name(&field.name),
+                                Generator::rust_field_name(&field.name, true),
                             ));
                             block_if.line(line);
                             let mut block_else = Block::new("else");
                             block_else.line(format!(
                                 "me.{} = None;",
-                                Generator::rust_field_name(&field.name),
+                                Generator::rust_field_name(&field.name, true),
                             ));
                             block.push_block(block_if);
                             block.push_block(block_else);
