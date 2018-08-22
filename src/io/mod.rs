@@ -1,4 +1,5 @@
 pub mod buffer;
+pub mod protobuf;
 pub mod uper;
 
 use std::fmt::Debug;
@@ -10,7 +11,10 @@ pub trait Codec {
 }
 
 pub trait CodecReader {}
+impl<R: ::std::io::Read> CodecReader for R {}
+
 pub trait CodecWriter {}
+impl<W: ::std::io::Write> CodecWriter for W {}
 
 pub trait Serializable<C: Codec> {
     fn write(&self, writer: &mut C::Writer) -> Result<(), C::Error>;

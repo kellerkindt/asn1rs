@@ -79,7 +79,11 @@ impl Generator {
             }
             Definition::SequenceOf(name, aliased) => {
                 writeln!(target, "message {} {{", name)?;
-                writeln!(target, "    repeated {} values = 1;", Self::role_to_type(&aliased))?;
+                writeln!(
+                    target,
+                    "    repeated {} values = 1;",
+                    Self::role_to_type(&aliased)
+                )?;
                 writeln!(target, "}}")?;
             }
         }

@@ -1,7 +1,7 @@
-use gen::rust::Error as RustGeneratorError;
-use gen::rust::Generator as RustGenerator;
 use gen::protobuf::Error as ProtobufGeneratorError;
 use gen::protobuf::Generator as ProtobufGenerator;
+use gen::rust::Error as RustGeneratorError;
+use gen::rust::Generator as RustGenerator;
 use model::Error as ModelError;
 use model::Model;
 use parser::Error as ParserError;
@@ -49,7 +49,10 @@ impl From<IoError> for Error {
     }
 }
 
-pub fn convert_to_rust<F: AsRef<Path>, D: AsRef<Path>>(file: F, dir: D) -> Result<Vec<String>, Error> {
+pub fn convert_to_rust<F: AsRef<Path>, D: AsRef<Path>>(
+    file: F,
+    dir: D,
+) -> Result<Vec<String>, Error> {
     let input = ::std::fs::read_to_string(file)?;
     let tokens = Parser::new().parse(&input)?;
     let model = Model::try_from(tokens)?;
@@ -66,7 +69,10 @@ pub fn convert_to_rust<F: AsRef<Path>, D: AsRef<Path>>(file: F, dir: D) -> Resul
     Ok(files)
 }
 
-pub fn convert_to_proto<F: AsRef<Path>, D: AsRef<Path>>(file: F, dir: D) -> Result<Vec<String>, Error> {
+pub fn convert_to_proto<F: AsRef<Path>, D: AsRef<Path>>(
+    file: F,
+    dir: D,
+) -> Result<Vec<String>, Error> {
     let input = ::std::fs::read_to_string(file)?;
     let tokens = Parser::new().parse(&input)?;
     let model = Model::try_from(tokens)?;

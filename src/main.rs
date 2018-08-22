@@ -21,7 +21,7 @@ pub fn main() {
                 .multiple(false)
                 .value_name("CONVERSION_TARGET")
                 .default_value("rust")
-                .possible_values(&["rust", "proto"])
+                .possible_values(&["rust", "proto"]),
         )
         .arg(
             Arg::with_name("DESTINATION_DIR")
@@ -50,8 +50,10 @@ pub fn main() {
             Err(e) => println!("Failed to convert {}, reason: {:?}", source, e),
             Ok(mut files) => {
                 println!("Successfully converted {} => {}", source, files.remove(0));
-                files.iter().for_each(|f| println!("                          => {}", f));
-            },
+                files
+                    .iter()
+                    .for_each(|f| println!("                          => {}", f));
+            }
         }
     }
 }
