@@ -1,5 +1,7 @@
-use gen::rust::Error as GeneratorError;
-use gen::rust::Generator;
+use gen::rust::Error as RustGeneratorError;
+use gen::rust::Generator as RustGenerator;
+use gen::protobuf::Error as ProtobufGeneratorError;
+use gen::protobuf::Generator as ProtobufGenerator;
 use model::Error as ModelError;
 use model::Model;
 use parser::Error as ParserError;
@@ -10,15 +12,22 @@ use std::path::Path;
 
 #[derive(Debug)]
 pub enum Error {
-    Generator(GeneratorError),
+    RustGenerator(RustGeneratorError),
+    ProtobufGenerator(ProtobufGeneratorError),
     Model(ModelError),
     Parser(ParserError),
     Io(IoError),
 }
 
-impl From<GeneratorError> for Error {
-    fn from(g: GeneratorError) -> Self {
-        Error::Generator(g)
+impl From<RustGeneratorError> for Error {
+    fn from(g: RustGeneratorError) -> Self {
+        Error::RustGenerator(g)
+    }
+}
+
+impl From<ProtobufGeneratorError> for Error {
+    fn from(g: ProtobufGeneratorError) -> Self {
+        Error::ProtobufGenerator(g)
     }
 }
 
@@ -40,17 +49,36 @@ impl From<IoError> for Error {
     }
 }
 
-pub fn convert<F: AsRef<Path>, D: AsRef<Path>>(file: F, dir: D) -> Result<(), Error> {
+pub fn convert_to_rust<F: AsRef<Path>, D: AsRef<Path>>(file: F, dir: D) -> Result<Vec<String>, Error> {
     let input = ::std::fs::read_to_string(file)?;
     let tokens = Parser::new().parse(&input)?;
     let model = Model::try_from(tokens)?;
-    let mut generator = Generator::new();
+    let mut generator = RustGenerator::new();
     generator.add_model(model);
     let output = generator.to_string()?;
 
     let dir = dir.as_ref().clone();
+    let mut files = Vec::new();
     for (file, content) in output {
-        ::std::fs::write(dir.join(file), content)?;
+        ::std::fs::write(dir.join(&file), content)?;
+        files.push(file);
     }
-    Ok(())
+    Ok(files)
+}
+
+pub fn convert_to_proto<F: AsRef<Path>, D: AsRef<Path>>(file: F, dir: D) -> Result<Vec<String>, Error> {
+    let input = ::std::fs::read_to_string(file)?;
+    let tokens = Parser::new().parse(&input)?;
+    let model = Model::try_from(tokens)?;
+    let mut generator = ProtobufGenerator::default();
+    generator.add_model(model);
+    let output = generator.generate()?;
+
+    let dir = dir.as_ref().clone();
+    let mut files = Vec::new();
+    for (file, content) in output {
+        ::std::fs::write(dir.join(&file), content)?;
+        files.push(file);
+    }
+    Ok(files)
 }
