@@ -97,7 +97,9 @@ impl UperReader for BitBuffer {
     fn read_int_max(&mut self) -> Result<u64, UperError> {
         let len_in_bytes = self.read_length_determinant()?;
         if len_in_bytes > 8 {
-            Err(UperError::UnsupportedOperation("Reading bigger data types than 64bit is not supported".into()))
+            Err(UperError::UnsupportedOperation(
+                "Reading bigger data types than 64bit is not supported".into(),
+            ))
         } else {
             let mut buffer = vec![0u8; 8];
             let offset = (8 * BYTE_LEN) - (len_in_bytes * BYTE_LEN);
@@ -109,8 +111,7 @@ impl UperReader for BitBuffer {
         let mut buffer = [0u8; 8];
         //self.read_bit_string_till_end(&mut buffer[..], 56)?;
         self.read_bit_string_till_end(&mut buffer[..], 0)?;
-        Ok(NetworkEndian::read_u64(&buffer[..]))*/
-    }
+        Ok(NetworkEndian::read_u64(&buffer[..]))*/    }
 
     fn read_bit_string(
         &mut self,
@@ -257,8 +258,7 @@ impl UperWriter for BitBuffer {
         } else {
             Err(UperError::UnsupportedOperation(format!(
                 "Writing length determinant for lengths > {} is unsupported, tried for length {}",
-                UPER_LENGTH_DET_L2,
-                length
+                UPER_LENGTH_DET_L2, length
             )))
         }
     }

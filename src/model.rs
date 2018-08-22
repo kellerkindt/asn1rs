@@ -159,7 +159,7 @@ impl Model {
             } else {
                 Ok(Role::Integer((
                     start.parse::<i64>().map_err(|_| Error::InvalidRangeValue)?,
-                     end.parse::<i64>().map_err(|_| Error::InvalidRangeValue)?,
+                    end.parse::<i64>().map_err(|_| Error::InvalidRangeValue)?,
                 )))
             }
         } else if text.eq_ignore_ascii_case(&"BOOLEAN") {
