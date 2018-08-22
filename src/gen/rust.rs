@@ -238,10 +238,13 @@ impl Generator {
                                 .line("[");
 
                             for variant in variants {
-                                values_fn.line(format!("{}::{},", name, Self::rust_variant_name(variant)));
+                                values_fn.line(format!(
+                                    "{}::{},",
+                                    name,
+                                    Self::rust_variant_name(variant)
+                                ));
                             }
                             values_fn.line("]");
-
                         }
                     }
                     name.clone()
