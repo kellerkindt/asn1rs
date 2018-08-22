@@ -1,5 +1,5 @@
-use gen::Error as GeneratorError;
-use gen::Generator;
+use gen::rust::Error as GeneratorError;
+use gen::rust::Generator;
 use model::Error as ModelError;
 use model::Model;
 use parser::Error as ParserError;
