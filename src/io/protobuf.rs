@@ -34,6 +34,10 @@ impl Codec for Protobuf {
 pub trait Writer: CodecWriter {
     fn write_varint(&mut self, value: u64) -> Result<(), Error>;
 
+    fn write_bool(&mut self, value: bool) -> Result<(), Error> {
+        self.write_varint(if value { 1 } else { 0 })
+    }
+
     fn write_bytes(&mut self, value: &[u8]) -> Result<(), Error>;
 
     fn write_tag(&mut self, tag: u32) -> Result<(), Error> {
@@ -84,6 +88,10 @@ impl<W: Write> Writer for W {
 
 pub trait Reader: CodecReader {
     fn read_varint(&mut self) -> Result<u64, Error>;
+
+    fn read_bool(&mut self) -> Result<bool, Error> {
+        Ok(self.read_varint()? != 0)
+    }
 
     fn read_bytes(&mut self) -> Result<Vec<u8>, Error>;
 
