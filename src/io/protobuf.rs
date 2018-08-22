@@ -44,11 +44,11 @@ pub trait Writer: CodecWriter {
         self.write_varint(variant as u64)
     }
 
-    fn write_sfixed32(&mut self, value: i32, tag: u32) -> Result<(), Error>;
+    fn write_sfixed32(&mut self, value: i32) -> Result<(), Error>;
 
-    fn write_uint64(&mut self, value: u64, tag: u32) -> Result<(), Error>;
+    fn write_uint64(&mut self, value: u64) -> Result<(), Error>;
 
-    fn write_string(&mut self, value: &str, tag: u32) -> Result<(), Error>;
+    fn write_string(&mut self, value: &str) -> Result<(), Error>;
 }
 
 impl<W: Write> Writer for W {
@@ -66,20 +66,17 @@ impl<W: Write> Writer for W {
         Ok(())
     }
 
-    fn write_sfixed32(&mut self, value: i32, tag: u32) -> Result<(), Error> {
-        self.write_tag(tag)?;
+    fn write_sfixed32(&mut self, value: i32) -> Result<(), Error> {
         self.write_i32::<E>(value)?;
         Ok(())
     }
 
-    fn write_uint64(&mut self, value: u64, tag: u32) -> Result<(), Error> {
-        self.write_tag(tag)?;
+    fn write_uint64(&mut self, value: u64) -> Result<(), Error> {
         self.write_u64::<E>(value)?;
         Ok(())
     }
 
-    fn write_string(&mut self, value: &str, tag: u32) -> Result<(), Error> {
-        self.write_tag(tag)?;
+    fn write_string(&mut self, value: &str) -> Result<(), Error> {
         self.write_bytes(value.as_bytes())?;
         Ok(())
     }
