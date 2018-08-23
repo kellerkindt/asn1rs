@@ -8,7 +8,7 @@ mod io;
 mod model;
 mod parser;
 
-use clap::{App, Arg, ArgMatches, SubCommand};
+use clap::{App, Arg};
 
 pub fn main() {
     let matches = App::new(env!("CARGO_PKG_NAME"))

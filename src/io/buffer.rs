@@ -5,8 +5,6 @@ use io::uper::Error as UperError;
 use io::uper::Reader as UperReader;
 use io::uper::Writer as UperWriter;
 use io::uper::BYTE_LEN;
-use io::CodecReader;
-use io::CodecWriter;
 
 #[derive(Debug, Default)]
 pub struct BitBuffer {
@@ -59,7 +57,6 @@ const UPER_LENGTH_DET_L2: i64 = 16383;
 // const UPER_LENGTH_DET_L3: i64 = 49151;
 // const UPER_LENGTH_DET_L4: i64 = 65535;
 
-impl CodecReader for BitBuffer {}
 impl UperReader for BitBuffer {
     fn read_utf8_string(&mut self) -> Result<String, UperError> {
         let len = self.read_length_determinant()?;
@@ -166,7 +163,6 @@ impl UperReader for BitBuffer {
     }
 }
 
-impl CodecWriter for BitBuffer {}
 impl UperWriter for BitBuffer {
     fn write_utf8_string(&mut self, value: &str) -> Result<(), UperError> {
         self.write_length_determinant(value.len())?;

@@ -2,7 +2,6 @@ use std::fmt::Error as FmtError;
 use std::fmt::Write;
 
 use model::Definition;
-use model::Error as ModelError;
 use model::Field;
 use model::Model;
 use model::Role;
@@ -47,7 +46,7 @@ impl Generator {
         Ok((file_name, content))
     }
 
-    pub fn append_header(target: &mut Write, model: &Model) -> Result<(), Error> {
+    pub fn append_header(target: &mut Write, _model: &Model) -> Result<(), Error> {
         writeln!(target, "syntax = 'proto3';")?;
         writeln!(target)?;
         Ok(())

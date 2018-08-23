@@ -1,11 +1,4 @@
-use super::Codec;
-use super::CodecReader;
-use super::CodecWriter;
-
 pub const BYTE_LEN: usize = 8;
-
-#[allow(unused)]
-pub struct Uper;
 
 #[derive(Debug)]
 pub enum Error {
@@ -17,13 +10,15 @@ pub enum Error {
     EndOfStream,
 }
 
-impl Codec for Uper {
-    type Error = Error;
-    type Reader = Reader;
-    type Writer = Writer;
+pub trait Uper {
+    fn read_uper(reader: &mut Reader) -> Result<Self, Error>
+        where
+            Self: Sized;
+
+    fn write_uper(&self, writer: &mut Writer) -> Result<(), Error>;
 }
 
-pub trait Reader: CodecReader {
+pub trait Reader {
     fn read_utf8_string(&mut self) -> Result<String, Error>;
 
     fn read_int(&mut self, range: (i64, i64)) -> Result<i64, Error>;
@@ -51,7 +46,7 @@ pub trait Reader: CodecReader {
     fn read_bit(&mut self) -> Result<bool, Error>;
 }
 
-pub trait Writer: CodecWriter {
+pub trait Writer {
     fn write_utf8_string(&mut self, value: &str) -> Result<(), Error>;
 
     fn write_int(&mut self, value: i64, range: (i64, i64)) -> Result<(), Error>;

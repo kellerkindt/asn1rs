@@ -1,7 +1,3 @@
-use super::Codec;
-use super::CodecReader;
-use super::CodecWriter;
-
 use byteorder::LittleEndian as E;
 use byteorder::ReadBytesExt;
 use byteorder::WriteBytesExt;
@@ -10,13 +6,15 @@ use std::io::Error as IoError;
 use std::io::Read;
 use std::io::Write;
 
-#[allow(unused)]
-pub struct Protobuf;
-
 #[derive(Debug)]
 pub enum Error {
     Io(IoError),
+    #[allow(unused)]
     InvalidUtf8Received,
+    #[allow(unused)]
+    MissingRequiredField(&'static str),
+    #[allow(unused)]
+    InvalidTagReceived(u32),
 }
 
 impl From<IoError> for Error {
@@ -25,13 +23,15 @@ impl From<IoError> for Error {
     }
 }
 
-impl Codec for Protobuf {
-    type Error = Error;
-    type Reader = Reader;
-    type Writer = Writer;
+pub trait Protobuf {
+    fn read_protobuf(reader: &mut Reader) -> Result<Self, Error>
+    where
+        Self: Sized;
+
+    fn write_protobuf(&self, writer: &mut Writer) -> Result<(), Error>;
 }
 
-pub trait Writer: CodecWriter {
+pub trait Writer {
     fn write_varint(&mut self, value: u64) -> Result<(), Error>;
 
     fn write_bool(&mut self, value: bool) -> Result<(), Error> {
@@ -86,7 +86,7 @@ impl<W: Write> Writer for W {
     }
 }
 
-pub trait Reader: CodecReader {
+pub trait Reader {
     fn read_varint(&mut self) -> Result<u64, Error>;
 
     fn read_bool(&mut self) -> Result<bool, Error> {
