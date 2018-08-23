@@ -712,6 +712,20 @@ impl ProtobufGenerator {
         );
     }
 
+    fn role_to_format(role: &Role) -> String {
+        use gen::protobuf::Generator as ProtobufGenerator;
+        match role {
+            Role::Boolean => format!("{}Format::VarInt", Self::CODEC),
+            Role::Custom(custom) => format!("{}::{}_format()", custom, Self::CODEC.to_lowercase()),
+            _ => match ProtobufGenerator::role_to_type(role).as_str() {
+                "sfixed32" => format!("{}Format::Fixed32", Self::CODEC),
+                "sfixed64" => format!("{}Format::Fixed64", Self::CODEC),
+                "uint64" => format!("{}Format::Fixed64", Self::CODEC),
+                _ => panic!("Unexpected role: {:?}", role),
+            }
+        }
+    }
+
     fn generate_serializable_impl(scope: &mut Scope, impl_for: &str, definition: &Definition) {
         use gen::protobuf::Generator as ProtobufGenerator;
         let serializable_implementation = Self::new_protobuf_serializable_impl(scope, impl_for);
@@ -723,8 +737,8 @@ impl ProtobufGenerator {
                         let mut block_writer = Block::new("");
                         let mut block_for = Block::new("for value in self.values.iter()");
                         block_for.line(format!(
-                            "writer.write_tag(1, {}Format::LengthDelimited);",
-                            Self::CODEC
+                            "writer.write_tag(1, {});",
+                            Self::role_to_format(aliased),
                         ));
                         block_for.line("let mut bytes = Vec::new();");
                         match aliased {
