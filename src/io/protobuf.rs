@@ -15,6 +15,27 @@ pub enum Error {
     MissingRequiredField(&'static str),
     #[allow(unused)]
     InvalidTagReceived(u32),
+    InvalidFormat(u32),
+}
+
+#[derive(Debug)]
+#[repr(u32)]
+pub enum Format {
+    VARINT = 0,
+    FIXED64 = 1,
+    LENGTH_DELIMITED = 2,
+    FIXED32 = 5,
+}
+
+impl Format {
+    pub fn from(id: u32) -> Result<Format, Error> {
+        match id {
+            0 => Ok(Format::VARINT),
+            1 => Ok(Format::FIXED64),
+            5 => Ok(Format::FIXED32),
+            f => Err(Error::InvalidFormat(f)),
+        }
+    }
 }
 
 impl From<IoError> for Error {
@@ -40,8 +61,8 @@ pub trait Writer {
 
     fn write_bytes(&mut self, value: &[u8]) -> Result<(), Error>;
 
-    fn write_tag(&mut self, tag: u32) -> Result<(), Error> {
-        self.write_varint(tag as u64)
+    fn write_tag(&mut self, field: u32, format: Format) -> Result<(), Error> {
+        self.write_varint((field << 3 | (format as u32)) as u64)
     }
 
     fn write_enum_variant(&mut self, variant: u32) -> Result<(), Error> {
@@ -53,6 +74,35 @@ pub trait Writer {
     fn write_uint64(&mut self, value: u64) -> Result<(), Error>;
 
     fn write_string(&mut self, value: &str) -> Result<(), Error>;
+
+    fn write_tagged_bool(&mut self, field: u32, value: bool) -> Result<(), Error> {
+        self.write_tag(field, Format::VARINT)?;
+        self.write_bool(value)
+    }
+
+    fn write_tagged_sfixed32(&mut self, field: u32, value: i32) -> Result<(), Error> {
+        self.write_tag(field, Format::FIXED32)?;
+        self.write_sfixed32(value)
+    }
+
+    fn write_tagged_uint64(&mut self, field: u32, value: u64) -> Result<(), Error> {
+        self.write_tag(field, Format::FIXED64)?;
+        self.write_uint64(value)
+    }
+
+    fn write_tagged_string(&mut self, field: u32, value: &str) -> Result<(), Error> {
+        self.write_tag(field, Format::LENGTH_DELIMITED)?;
+        self.write_string(value)
+    }
+
+    fn write_tagged_varint(&mut self, field: u32, value: u64) -> Result<(), Error> {
+        self.write_tag(field, Format::VARINT)?;
+        self.write_varint(value)
+    }
+
+    fn write_tagged_enum_variant(&mut self, field: u32, value: u32) -> Result<(), Error> {
+        self.write_tagged_varint(field, value as u64)
+    }
 }
 
 impl<W: Write> Writer for W {
@@ -95,8 +145,12 @@ pub trait Reader {
 
     fn read_bytes(&mut self) -> Result<Vec<u8>, Error>;
 
-    fn read_tag(&mut self) -> Result<u32, Error> {
-        Ok(self.read_varint()? as u32)
+    fn read_tag(&mut self) -> Result<(u32, Format), Error> {
+        let mask = 0b0000_0111;
+        let tag = self.read_varint()? as u32;
+        let format = Format::from(tag & mask)?;
+        let field = tag >> 3;
+        Ok((field, format))
     }
 
     fn read_enum_variant(&mut self) -> Result<u32, Error> {

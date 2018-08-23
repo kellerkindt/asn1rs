@@ -12,8 +12,8 @@ pub enum Error {
 
 pub trait Uper {
     fn read_uper(reader: &mut Reader) -> Result<Self, Error>
-        where
-            Self: Sized;
+    where
+        Self: Sized;
 
     fn write_uper(&self, writer: &mut Writer) -> Result<(), Error>;
 }
