@@ -1,3 +1,4 @@
+use backtrace::Backtrace;
 use byteorder::LittleEndian as E;
 use byteorder::ReadBytesExt;
 use byteorder::WriteBytesExt;
@@ -8,43 +9,65 @@ use std::io::Write;
 
 #[derive(Debug)]
 pub enum Error {
-    Io(IoError),
+    Io(Backtrace, IoError),
     #[allow(unused)]
     InvalidUtf8Received,
     #[allow(unused)]
     MissingRequiredField(&'static str),
     #[allow(unused)]
-    InvalidTagReceived(u32),
-    InvalidFormat(u32),
+    InvalidTagReceived(Backtrace, u32),
+    InvalidFormat(Backtrace, u32),
+    UnexpectedFormat(Backtrace, Format),
+    InvalidVariant(Backtrace, u32),
 }
 
-#[derive(Debug)]
+impl Error {
+    pub fn invalid_format(format: u32) -> Self {
+        Error::InvalidFormat(Backtrace::new(), format)
+    }
+    pub fn invalid_variant(format: u32) -> Self {
+        Error::InvalidFormat(Backtrace::new(), format)
+    }
+
+    pub fn invalid_tag_received(tag: u32) -> Self {
+        Error::InvalidTagReceived(Backtrace::new(), tag)
+    }
+
+    pub fn unexpected_format(format: Format) -> Self {
+        Error::UnexpectedFormat(Backtrace::new(), format)
+    }
+}
+
+#[derive(Debug, PartialOrd, PartialEq)]
 #[repr(u32)]
 pub enum Format {
-    VARINT = 0,
-    FIXED64 = 1,
-    LENGTH_DELIMITED = 2,
-    FIXED32 = 5,
+    VarInt = 0,
+    Fixed64 = 1,
+    LengthDelimited = 2,
+    Fixed32 = 5,
 }
 
 impl Format {
     pub fn from(id: u32) -> Result<Format, Error> {
         match id {
-            0 => Ok(Format::VARINT),
-            1 => Ok(Format::FIXED64),
-            5 => Ok(Format::FIXED32),
-            f => Err(Error::InvalidFormat(f)),
+            0 => Ok(Format::VarInt),
+            1 => Ok(Format::Fixed64),
+            2 => Ok(Format::LengthDelimited),
+            5 => Ok(Format::Fixed32),
+            f => Err(Error::InvalidFormat(Backtrace::new(), f)),
         }
     }
 }
 
 impl From<IoError> for Error {
     fn from(e: IoError) -> Self {
-        Error::Io(e)
+        Error::Io(Backtrace::new(), e)
     }
 }
 
 pub trait Protobuf {
+    fn protobuf_format() -> Format;
+
     fn read_protobuf(reader: &mut Reader) -> Result<Self, Error>
     where
         Self: Sized;
@@ -76,27 +99,27 @@ pub trait Writer {
     fn write_string(&mut self, value: &str) -> Result<(), Error>;
 
     fn write_tagged_bool(&mut self, field: u32, value: bool) -> Result<(), Error> {
-        self.write_tag(field, Format::VARINT)?;
+        self.write_tag(field, Format::VarInt)?;
         self.write_bool(value)
     }
 
     fn write_tagged_sfixed32(&mut self, field: u32, value: i32) -> Result<(), Error> {
-        self.write_tag(field, Format::FIXED32)?;
+        self.write_tag(field, Format::Fixed32)?;
         self.write_sfixed32(value)
     }
 
     fn write_tagged_uint64(&mut self, field: u32, value: u64) -> Result<(), Error> {
-        self.write_tag(field, Format::FIXED64)?;
+        self.write_tag(field, Format::VarInt)?;
         self.write_uint64(value)
     }
 
     fn write_tagged_string(&mut self, field: u32, value: &str) -> Result<(), Error> {
-        self.write_tag(field, Format::LENGTH_DELIMITED)?;
+        self.write_tag(field, Format::LengthDelimited)?;
         self.write_string(value)
     }
 
     fn write_tagged_varint(&mut self, field: u32, value: u64) -> Result<(), Error> {
-        self.write_tag(field, Format::VARINT)?;
+        self.write_tag(field, Format::VarInt)?;
         self.write_varint(value)
     }
 
@@ -126,7 +149,7 @@ impl<W: Write> Writer for W {
     }
 
     fn write_uint64(&mut self, value: u64) -> Result<(), Error> {
-        self.write_u64::<E>(value)?;
+        self.write_varint(value);
         Ok(())
     }
 
@@ -167,10 +190,11 @@ pub trait Reader {
 impl<R: Read> Reader for R {
     fn read_varint(&mut self) -> Result<u64, Error> {
         let mut value = 0;
-        loop {
+        let mut shift = 0_usize;
+        while shift < 64 {
             let read = self.read_u8()?;
-            value <<= 7;
-            value |= (read & 0x7F) as u64;
+            value |= ((read & 0x7F) as u64) << shift;
+            shift += 7;
             if read & 0x80 == 0 {
                 break;
             }
@@ -180,10 +204,8 @@ impl<R: Read> Reader for R {
 
     fn read_bytes(&mut self) -> Result<Vec<u8>, Error> {
         let len = self.read_varint()? as usize;
-        let mut vec = Vec::with_capacity(len);
-        for _ in 0..len {
-            vec.push(self.read_u8()?);
-        }
+        let mut vec = vec![0u8; len];
+        self.read_exact(&mut vec[..])?;
         Ok(vec)
     }
 
@@ -192,7 +214,7 @@ impl<R: Read> Reader for R {
     }
 
     fn read_uint64(&mut self) -> Result<u64, Error> {
-        Ok(self.read_u64::<E>()?)
+        Ok(self.read_varint()?)
     }
 
     fn read_string(&mut self) -> Result<String, Error> {
