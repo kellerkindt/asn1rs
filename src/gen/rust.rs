@@ -722,7 +722,7 @@ impl ProtobufGenerator {
                 "sfixed64" => format!("{}Format::Fixed64", Self::CODEC),
                 "uint64" => format!("{}Format::Fixed64", Self::CODEC),
                 _ => panic!("Unexpected role: {:?}", role),
-            }
+            },
         }
     }
 
@@ -743,7 +743,10 @@ impl ProtobufGenerator {
                         block_for.line("let mut bytes = Vec::new();");
                         match aliased {
                             Role::Custom(_custom) => {
-                                block_for.line(format!("value.write_protobuf(&mut bytes as &mut {}Writer)?;", Self::CODEC));
+                                block_for.line(format!(
+                                    "value.write_protobuf(&mut bytes as &mut {}Writer)?;",
+                                    Self::CODEC
+                                ));
                             }
                             r => {
                                 block_for.line(format!(
@@ -771,7 +774,10 @@ impl ProtobufGenerator {
                     block_while.line(format!("if tag.1 != {}Format::LengthDelimited {{ return Err({}Error::unexpected_format(tag.1)); }}", Self::CODEC, Self::CODEC));
                     block_while.line("let bytes = reader.read_bytes()?;");
                     let mut block_reader = Block::new("");
-                    block_reader.line(format!("let reader = &mut &bytes[..] as &mut {}Reader;", Self::CODEC));
+                    block_reader.line(format!(
+                        "let reader = &mut &bytes[..] as &mut {}Reader;",
+                        Self::CODEC
+                    ));
                     match aliased {
                         Role::Custom(custom) => block_reader.line(format!(
                             "me.values.push({}::read_protobuf(reader)?);",

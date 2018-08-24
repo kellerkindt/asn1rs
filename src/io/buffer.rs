@@ -102,12 +102,7 @@ impl UperReader for BitBuffer {
             self.read_bit_string_till_end(&mut buffer[..], offset)?;
             Ok(NetworkEndian::read_u64(&buffer[..]))
         }
-        //Ok(self.read_length_determinant()? as u64)
-        /*
-        let mut buffer = [0u8; 8];
-        //self.read_bit_string_till_end(&mut buffer[..], 56)?;
-        self.read_bit_string_till_end(&mut buffer[..], 0)?;
-        Ok(NetworkEndian::read_u64(&buffer[..]))*/    }
+    }
 
     fn read_bit_string(
         &mut self,

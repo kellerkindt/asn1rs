@@ -61,7 +61,11 @@ impl Generator {
         Ok(())
     }
 
-    pub fn append_definition(target: &mut Write, model: &Model, definition: &Definition) -> Result<(), Error> {
+    pub fn append_definition(
+        target: &mut Write,
+        model: &Model,
+        definition: &Definition,
+    ) -> Result<(), Error> {
         match definition {
             Definition::Enumerated(name, variants) => {
                 writeln!(target, "enum {} {{", name)?;
@@ -90,7 +94,12 @@ impl Generator {
         Ok(())
     }
 
-    pub fn append_field(target: &mut Write, model: &Model, field: &Field, tag: usize) -> Result<(), Error> {
+    pub fn append_field(
+        target: &mut Write,
+        model: &Model,
+        field: &Field,
+        tag: usize,
+    ) -> Result<(), Error> {
         writeln!(
             target,
             "    {} {} = {};",
@@ -137,7 +146,7 @@ impl Generator {
                 }
                 prefixed.push_str(&name);
                 prefixed
-            },
+            }
             _ => Self::role_to_type(role),
         };
         type_name
