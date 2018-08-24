@@ -445,7 +445,7 @@ impl UperGenerator {
                     let mut block_for = Block::new("for value in self.values.iter()");
                     match aliased {
                         Role::Boolean => block_for.line("writer.write_bit(value)?;"),
-                        Role::Integer((lower, upper)) => block_for.line(format!(
+                        Role::Integer(_) => block_for.line(format!(
                             "writer.write_int(*value as i64, (Self::value_min() as i64, Self::value_max() as i64))?;"
                         )),
                         Role::UnsignedMaxInteger => {
@@ -504,7 +504,7 @@ impl UperGenerator {
                                 if field.optional { "*" } else { "self." },
                                 Generator::rust_field_name(&field.name, true),
                             ),
-                            Role::Integer((lower, upper)) => format!(
+                            Role::Integer(_) => format!(
                                 "writer.write_int({}{} as i64, (Self::{}_min() as i64, Self::{}_max() as i64))?;",
                                 if field.optional { "*" } else { "self." },
                                 Generator::rust_field_name(&field.name, true),
