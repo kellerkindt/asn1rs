@@ -14,25 +14,28 @@ pub enum Error {
     InvalidUtf8Received,
     #[allow(unused)]
     MissingRequiredField(&'static str),
-    #[allow(unused)]
     InvalidTagReceived(Backtrace, u32),
     InvalidFormat(Backtrace, u32),
     UnexpectedFormat(Backtrace, Format),
-    InvalidVariant(Backtrace, u32),
 }
 
 impl Error {
+    #[allow(unused)]
     pub fn invalid_format(format: u32) -> Self {
         Error::InvalidFormat(Backtrace::new(), format)
     }
+
+    #[allow(unused)]
     pub fn invalid_variant(format: u32) -> Self {
         Error::InvalidFormat(Backtrace::new(), format)
     }
 
+    #[allow(unused)]
     pub fn invalid_tag_received(tag: u32) -> Self {
         Error::InvalidTagReceived(Backtrace::new(), tag)
     }
 
+    #[allow(unused)]
     pub fn unexpected_format(format: Format) -> Self {
         Error::UnexpectedFormat(Backtrace::new(), format)
     }
@@ -41,13 +44,18 @@ impl Error {
 #[derive(Debug, PartialOrd, PartialEq)]
 #[repr(u32)]
 pub enum Format {
+    #[allow(unused)]
     VarInt = 0,
+    #[allow(unused)]
     Fixed64 = 1,
+    #[allow(unused)]
     LengthDelimited = 2,
+    #[allow(unused)]
     Fixed32 = 5,
 }
 
 impl Format {
+    #[allow(unused)]
     pub fn from(id: u32) -> Result<Format, Error> {
         match id {
             0 => Ok(Format::VarInt),
@@ -149,7 +157,7 @@ impl<W: Write> Writer for W {
     }
 
     fn write_uint64(&mut self, value: u64) -> Result<(), Error> {
-        self.write_varint(value);
+        self.write_varint(value)?;
         Ok(())
     }
 
