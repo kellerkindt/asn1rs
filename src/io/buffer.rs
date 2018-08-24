@@ -267,3 +267,396 @@ impl UperWriter for BitBuffer {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    pub fn bit_buffer_write_bit_keeps_correct_order() -> Result<(), UperError> {
+        let mut buffer = BitBuffer::default();
+
+        buffer.write_bit(true)?;
+        buffer.write_bit(false)?;
+        buffer.write_bit(false)?;
+        buffer.write_bit(true)?;
+
+        buffer.write_bit(true)?;
+        buffer.write_bit(true)?;
+        buffer.write_bit(true)?;
+        buffer.write_bit(false)?;
+
+        assert_eq!(buffer.content(), &[0b1001_1110]);
+
+        buffer.write_bit(true)?;
+        buffer.write_bit(false)?;
+        buffer.write_bit(true)?;
+        buffer.write_bit(true)?;
+
+        buffer.write_bit(true)?;
+        buffer.write_bit(true)?;
+        buffer.write_bit(true)?;
+        buffer.write_bit(false)?;
+
+        assert_eq!(buffer.content(), &[0b1001_1110, 0b1011_1110]);
+
+        buffer.write_bit(true)?;
+        buffer.write_bit(false)?;
+        buffer.write_bit(true)?;
+        buffer.write_bit(false)?;
+
+        assert_eq!(buffer.content(), &[0b1001_1110, 0b1011_1110, 0b1010_0000]);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_bit_string_till_end() -> Result<(), UperError> {
+        let content = &[0xFF, 0x74, 0xA6, 0x0F];
+        let mut buffer = BitBuffer::default();
+        buffer.write_bit_string_till_end(content, 0)?;
+        assert_eq!(buffer.content(), content);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_bit_string_till_end_with_offset() -> Result<(), UperError> {
+        let content = &[0b1111_1111, 0b0111_0100, 0b1010_0110, 0b0000_1111];
+        let mut buffer = BitBuffer::default();
+        buffer.write_bit_string_till_end(content, 7)?;
+        assert_eq!(
+            buffer.content(),
+            &[0b1011_1010, 0b0101_0011, 0b0000_0111, 0b1000_0000]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_bit_string() -> Result<(), UperError> {
+        let content = &[0b1111_1111, 0b0111_0100, 0b1010_0110, 0b0000_1111];
+        let mut buffer = BitBuffer::default();
+        buffer.write_bit_string(content, 7, 12)?;
+        assert_eq!(buffer.content(), &[0b1011_1010, 0b0101_0000]);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_length_determinant_0() -> Result<(), UperError> {
+        let mut buffer = BitBuffer::default();
+        buffer.write_length_determinant(0)?;
+        assert_eq!(buffer.content(), &[0x00 | 0]);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_length_determinant_1() -> Result<(), UperError> {
+        let mut buffer = BitBuffer::default();
+        buffer.write_length_determinant(1)?;
+        assert_eq!(buffer.content(), &[0x00 | 1]);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_length_determinant_127() -> Result<(), UperError> {
+        let mut buffer = BitBuffer::default();
+        buffer.write_length_determinant(126)?;
+        assert_eq!(buffer.content(), &[0x00 | 126]);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_length_determinant_128() -> Result<(), UperError> {
+        let mut buffer = BitBuffer::default();
+        buffer.write_length_determinant(128)?;
+        // detects that the value is greater than 127, so
+        //   10xx_xxxx xxxx_xxxx (header)
+        // | --00_0000 1000_0000 (128)
+        // =======================
+        //   1000_0000 1000_0000
+        assert_eq!(buffer.content(), &[0x80 | 0x00, 0x00 | 128]);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_length_determinant_16383() -> Result<(), UperError> {
+        let mut buffer = BitBuffer::default();
+        buffer.write_length_determinant(16383)?;
+        // detects that the value is greater than 127, so
+        //   10xx_xxxx xxxx_xxxx (header)
+        // | --11_1111 1111_1111 (16383)
+        // =======================
+        //   1011_1111 1111_1111
+        assert_eq!(
+            buffer.content(),
+            &[0x80 | (16383 >> 8) as u8, 0x00 | (16383 & 0xFF) as u8]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_int_max_127() -> Result<(), UperError> {
+        let mut buffer = BitBuffer::default();
+        buffer.write_int_max(127)?;
+        // Can be represented in 1 byte,
+        // therefore the first byte is written
+        // with 0x00 (header) | 1 (byte len).
+        // The second byte is then the actual value
+        assert_eq!(buffer.content(), &[0x00 | 1, 127]);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_int_max_128() -> Result<(), UperError> {
+        let mut buffer = BitBuffer::default();
+        buffer.write_int_max(128)?;
+        // Can be represented in 1 byte,
+        // therefore the first byte is written
+        // with 0x00 (header) | 1 (byte len).
+        // The second byte is then the actual value
+        assert_eq!(buffer.content(), &[0x00 | 1, 128]);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_int_max_255() -> Result<(), UperError> {
+        let mut buffer = BitBuffer::default();
+        buffer.write_int_max(255)?;
+        // Can be represented in 1 byte,
+        // therefore the first byte is written
+        // with 0x00 (header) | 1 (byte len).
+        // The second byte is then the actual value
+        assert_eq!(buffer.content(), &[0x00 | 1, 255]);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_int_max_256() -> Result<(), UperError> {
+        let mut buffer = BitBuffer::default();
+        buffer.write_int_max(256)?;
+        // Can be represented in 2 bytes,
+        // therefore the first byte is written
+        // with 0x00 (header) | 2 (byte len).
+        // The second byte is then the actual value
+        assert_eq!(
+            buffer.content(),
+            &[
+                0x00 | 2,
+                ((256 & 0xFF_00) >> 8) as u8,
+                (256 & 0x00_ff) as u8
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_int_max_65535() -> Result<(), UperError> {
+        let mut buffer = BitBuffer::default();
+        buffer.write_int_max(65535)?;
+        // Can be represented in 2 bytes,
+        // therefore the first byte is written
+        // with 0x00 (header) | 2 (byte len).
+        // The second byte is then the actual value
+        assert_eq!(
+            buffer.content(),
+            &[
+                0x00 | 2,
+                ((65535 & 0xFF_00) >> 8) as u8,
+                ((65535 & 0x00_FF) >> 0) as u8
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_int_max_65536() -> Result<(), UperError> {
+        let mut buffer = BitBuffer::default();
+        buffer.write_int_max(65536)?;
+        // Can be represented in 3 bytes,
+        // therefore the first byte is written
+        // with 0x00 (header) | 3 (byte len).
+        // The second byte is then the actual value
+        assert_eq!(
+            buffer.content(),
+            &[
+                0x00 | 3,
+                ((65536 & 0xFF_00_00) >> 16) as u8,
+                ((65536 & 0x00_FF_00) >> 8) as u8,
+                ((65536 & 0x00_00_FF) >> 0) as u8,
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_int_max_16777215() -> Result<(), UperError> {
+        let mut buffer = BitBuffer::default();
+        buffer.write_int_max(16777215)?;
+        // Can be represented in 3 bytes,
+        // therefore the first byte is written
+        // with 0x00 (header) | 3 (byte len).
+        // The second byte is then the actual value
+        assert_eq!(
+            buffer.content(),
+            &[
+                0x00 | 3,
+                ((16777215 & 0xFF_00_00) >> 16) as u8,
+                ((16777215 & 0x00_FF_00) >> 8) as u8,
+                ((16777215 & 0x00_00_FF) >> 0) as u8,
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_int_max_16777216() -> Result<(), UperError> {
+        let mut buffer = BitBuffer::default();
+        buffer.write_int_max(16777216)?;
+        // Can be represented in 4 bytes,
+        // therefore the first byte is written
+        // with 0x00 (header) | 4 (byte len).
+        // The second byte is then the actual value
+        assert_eq!(
+            buffer.content(),
+            &[
+                0x00 | 4,
+                ((16777216 & 0xFF_00_00_00) >> 24) as u8,
+                ((16777216 & 0x00_FF_00_00) >> 16) as u8,
+                ((16777216 & 0x00_00_FF_00) >> 8) as u8,
+                ((16777216 & 0x00_00_00_FF) >> 0) as u8,
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_int_max_4294967295() -> Result<(), UperError> {
+        let mut buffer = BitBuffer::default();
+        buffer.write_int_max(4294967295)?;
+        // Can be represented in 4 bytes,
+        // therefore the first byte is written
+        // with 0x00 (header) | 4 (byte len).
+        // The second byte is then the actual value
+        assert_eq!(
+            buffer.content(),
+            &[
+                0x00 | 4,
+                ((4294967295 & 0xFF_00_00_00) >> 24) as u8,
+                ((4294967295 & 0x00_FF_00_00) >> 16) as u8,
+                ((4294967295 & 0x00_00_FF_00) >> 8) as u8,
+                ((4294967295 & 0x00_00_00_FF) >> 0) as u8,
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_int_max_4294967296() -> Result<(), UperError> {
+        let mut buffer = BitBuffer::default();
+        buffer.write_int_max(4294967296_u64)?;
+        // Can be represented in 5 bytes,
+        // therefore the first byte is written
+        // with 0x00 (header) | 5 (byte len).
+        // The second byte is then the actual value
+        assert_eq!(
+            buffer.content(),
+            &[
+                0x00 | 5,
+                ((4294967296_u64 & 0xFF_00_00_00_00) >> 32) as u8,
+                ((4294967296_u64 & 0x00_FF_00_00_00) >> 24) as u8,
+                ((4294967296_u64 & 0x00_00_FF_00_00) >> 16) as u8,
+                ((4294967296_u64 & 0x00_00_00_FF_00) >> 8) as u8,
+                ((4294967296_u64 & 0x00_00_00_00_FF) >> 0) as u8,
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_int_max_i64_max() -> Result<(), UperError> {
+        assert_eq!(0x7F_FF_FF_FF_FF_FF_FF_FF_u64, ::std::i64::MAX as u64);
+        let mut buffer = BitBuffer::default();
+        buffer.write_int_max(0x7F_FF_FF_FF_FF_FF_FF_FF_u64)?;
+        // Can be represented in 8 bytes,
+        // therefore the first byte is written
+        // with 0x00 (header) | 8 (byte len).
+        // The second byte is then the actual value
+        assert_eq!(
+            buffer.content(),
+            &[
+                0x00 | 8,
+                ((0x7F_FF_FF_FF_FF_FF_FF_FF_u64 & 0xFF_00_00_00_00_00_00_00) >> 56) as u8,
+                ((0x7F_FF_FF_FF_FF_FF_FF_FF_u64 & 0x00_FF_00_00_00_00_00_00) >> 48) as u8,
+                ((0x7F_FF_FF_FF_FF_FF_FF_FF_u64 & 0x00_00_FF_00_00_00_00_00) >> 40) as u8,
+                ((0x7F_FF_FF_FF_FF_FF_FF_FF_u64 & 0x00_00_00_FF_00_00_00_00) >> 32) as u8,
+                ((0x7F_FF_FF_FF_FF_FF_FF_FF_u64 & 0x00_00_00_00_FF_00_00_00) >> 24) as u8,
+                ((0x7F_FF_FF_FF_FF_FF_FF_FF_u64 & 0x00_00_00_00_00_FF_00_00) >> 16) as u8,
+                ((0x7F_FF_FF_FF_FF_FF_FF_FF_u64 & 0x00_00_00_00_00_00_FF_00) >> 8) as u8,
+                ((0x7F_FF_FF_FF_FF_FF_FF_FF_u64 & 0x00_00_00_00_00_00_00_FF) >> 0) as u8,
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_int_detects_not_in_range_positive_only() {
+        let mut buffer = BitBuffer::default();
+        // lower check
+        assert_eq!(buffer.write_int(0, (10, 127)), Err(UperError::ValueNotInRange(0, 10, 127)));
+        // upper check
+        assert_eq!(buffer.write_int(128, (10, 127)), Err(UperError::ValueNotInRange(128, 10, 127)));
+    }
+
+    #[test]
+    fn bit_buffer_write_int_detects_not_in_range_negative() {
+        let mut buffer = BitBuffer::default();
+        // lower check
+        assert_eq!(buffer.write_int(-11, (-10, -1)), Err(UperError::ValueNotInRange(-11, -10, -1)));
+        // upper check
+        assert_eq!(buffer.write_int(0, (-10, -1)), Err(UperError::ValueNotInRange(0, -10, -1)));
+    }
+
+    #[test]
+    fn bit_buffer_write_int_detects_not_in_range_with_negative() {
+        let mut buffer = BitBuffer::default();
+        // lower check
+        assert_eq!(buffer.write_int(-11, (-10, 1)), Err(UperError::ValueNotInRange(-11, -10,  1)));
+        // upper check
+        assert_eq!(buffer.write_int(2, (-10, 1)), Err(UperError::ValueNotInRange(2, -10, 1)));
+    }
+
+
+    #[test]
+    fn bit_buffer_write_int_7bits() -> Result<(), UperError> {
+        let mut buffer = BitBuffer::default();
+        buffer.write_int(10, (0, 127))?;
+        // [0; 127] are 128 numbers, so they
+        // have to fit in 7 bit
+        assert_eq!(buffer.content(), &[10 << 1]);
+        // be sure write_bit writes at the 8th bit
+        buffer.write_bit(true);
+        assert_eq!(buffer.content(), &[10 << 1 | 0b0000_0001]);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_int_neg() -> Result<(), UperError> {
+        let mut buffer = BitBuffer::default();
+        buffer.write_int(-10, (-128, 127))?;
+        // [-128; 127] are 255 numbers, so they
+        // have to fit in one byte
+        assert_eq!(buffer.content(), &[118]);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_int_neg_extended_range() -> Result<(), UperError> {
+        let mut buffer = BitBuffer::default();
+        buffer.write_int(-10, (-128, 128))?;
+        // [-128; 127] are 256 numbers, so they
+        // don't fit in one byte but in 9 bits
+        assert_eq!(buffer.content(), &[118 >> 1, 118 << 7 | 0b0000_0000]);
+        // be sure write_bit writes at the 10th bit
+        buffer.write_bit(true);
+        assert_eq!(buffer.content(), &[118 >> 1, 118 << 7 | 0b0100_0000]);
+        Ok(())
+    }
+}

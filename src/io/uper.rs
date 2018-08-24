@@ -1,6 +1,6 @@
 pub const BYTE_LEN: usize = 8;
 
-#[derive(Debug)]
+#[derive(Debug, PartialOrd, PartialEq)]
 pub enum Error {
     InvalidUtf8String,
     UnsupportedOperation(String),
