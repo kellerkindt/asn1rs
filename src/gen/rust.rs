@@ -939,12 +939,21 @@ impl ProtobufGenerator {
                             if field.optional {
                                 "".into()
                             } else {
-                                format!(
-                                    ".ok_or({}Error::MissingRequiredField(\"{}::{}\"))?",
-                                    Self::CODEC,
-                                    _name,
-                                    Generator::rust_field_name(&field.name, true)
-                                )
+                                let unwrap_or_zero = match field.role {
+                                    Role::UnsignedMaxInteger => true,
+                                    Role::Integer((min, max)) => min <= 0 && max >= 0,
+                                    _ => false,
+                                };
+                                if unwrap_or_zero {
+                                    ".unwrap_or(0)".into()
+                                } else {
+                                    format!(
+                                        ".ok_or({}Error::MissingRequiredField(\"{}::{}\"))?",
+                                        Self::CODEC,
+                                        _name,
+                                        Generator::rust_field_name(&field.name, true)
+                                    )
+                                }
                             },
                         ));
                     }
