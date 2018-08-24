@@ -34,6 +34,7 @@ impl Model {
                     let lower = text.to_lowercase();
 
                     if lower.eq(&"end") {
+                        model.make_names_nice();
                         return Ok(model);
                     } else if lower.eq(&"imports") {
                         model.imports.push(Self::read_imports(&mut iter)?);
@@ -45,7 +46,6 @@ impl Model {
                 }
             }
         }
-
         Err(Error::UnexpectedEndOfStream)
     }
 
@@ -239,6 +239,23 @@ impl Model {
             Ok(())
         } else {
             Err(Error::ExpectedSeparatorGot(text.into(), token))
+        }
+    }
+
+    pub fn make_names_nice(&mut self) {
+        Self::make_name_nice(&mut self.name);
+        for import in self.imports.iter_mut() {
+            Self::make_name_nice(&mut import.from);
+        }
+    }
+
+    fn make_name_nice(name: &mut String) {
+        const TO_REMOVE_AT_END: &[&'static str] = &["Module"];
+        for to_remove in TO_REMOVE_AT_END.iter() {
+            if name.ends_with(to_remove) {
+                let new_len = name.len() - to_remove.len();
+                name.truncate(new_len);
+            }
         }
     }
 }
