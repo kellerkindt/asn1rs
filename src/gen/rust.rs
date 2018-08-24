@@ -108,6 +108,7 @@ impl Generator {
                                 .arg("values", format!("Vec<{}>", Self::role_to_type(role)))
                                 .line("self.values = values;");
                         }
+                        Self::add_min_max_methods_if_applicable(implementation, "value", &role);
                     }
                     name.clone()
                 }
@@ -180,32 +181,11 @@ impl Generator {
                                     Self::rust_field_name(&field.name, true)
                                 ));
 
-                            let min_max = match field.role {
-                                Role::Boolean => None,
-                                Role::Integer((lower, upper)) => Some((lower, upper)),
-                                Role::UnsignedMaxInteger => Some((0, ::std::i64::MAX)),
-                                Role::UTF8String => None,
-                                Role::Custom(_) => None,
-                            };
-
-                            if let Some((min, max)) = min_max {
-                                implementation
-                                    .new_fn(&format!(
-                                        "{}_min",
-                                        Self::rust_field_name(&field.name, false)
-                                    ))
-                                    .vis("pub")
-                                    .ret(Self::role_to_type(&field.role))
-                                    .line(format!("{}", min));
-                                implementation
-                                    .new_fn(&format!(
-                                        "{}_max",
-                                        Self::rust_field_name(&field.name, false)
-                                    ))
-                                    .vis("pub")
-                                    .ret(Self::role_to_type(&field.role))
-                                    .line(format!("{}", max));
-                            }
+                            Self::add_min_max_methods_if_applicable(
+                                implementation,
+                                &field.name,
+                                &field.role,
+                            );
                         }
                     }
                     name.clone()
@@ -257,6 +237,29 @@ impl Generator {
         }
 
         Ok((file, scope.to_string()))
+    }
+
+    fn add_min_max_methods_if_applicable(implementation: &mut Impl, name: &str, role: &Role) {
+        let min_max = match role {
+            Role::Boolean => None,
+            Role::Integer((lower, upper)) => Some((*lower, *upper)),
+            Role::UnsignedMaxInteger => Some((0, ::std::i64::MAX)),
+            Role::UTF8String => None,
+            Role::Custom(_) => None,
+        };
+
+        if let Some((min, max)) = min_max {
+            implementation
+                .new_fn(&format!("{}_min", Self::rust_field_name(name, false)))
+                .vis("pub")
+                .ret(Self::role_to_type(role))
+                .line(format!("{}", min));
+            implementation
+                .new_fn(&format!("{}_max", Self::rust_field_name(name, false)))
+                .vis("pub")
+                .ret(Self::role_to_type(role))
+                .line(format!("{}", max));
+        }
     }
 
     fn role_to_type(role: &Role) -> String {
@@ -443,8 +446,7 @@ impl UperGenerator {
                     match aliased {
                         Role::Boolean => block_for.line("writer.write_bit(value)?;"),
                         Role::Integer((lower, upper)) => block_for.line(format!(
-                            "writer.write_int(*value as i64, ({}, {}))?;",
-                            lower, upper
+                            "writer.write_int(*value as i64, (Self::value_min() as i64, Self::value_max() as i64))?;"
                         )),
                         Role::UnsignedMaxInteger => {
                             block_for.line("writer.write_int_max(*value)?;")
@@ -503,11 +505,11 @@ impl UperGenerator {
                                 Generator::rust_field_name(&field.name, true),
                             ),
                             Role::Integer((lower, upper)) => format!(
-                                "writer.write_int({}{} as i64, ({} as i64, {} as i64))?;",
+                                "writer.write_int({}{} as i64, (Self::{}_min() as i64, Self::{}_max() as i64))?;",
                                 if field.optional { "*" } else { "self." },
                                 Generator::rust_field_name(&field.name, true),
-                                lower,
-                                upper
+                                Generator::rust_field_name(&field.name, false),
+                                Generator::rust_field_name(&field.name, false),
                             ),
                             Role::UnsignedMaxInteger => format!(
                                 "writer.write_int_max({}{})?;",
