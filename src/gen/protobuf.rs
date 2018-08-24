@@ -41,13 +41,14 @@ impl Generator {
         Self::append_header(&mut content, model)?;
         Self::append_imports(&mut content, model)?;
         for definition in model.definitions.iter() {
-            Self::append_definition(&mut content, definition)?;
+            Self::append_definition(&mut content, model, definition)?;
         }
         Ok((file_name, content))
     }
 
-    pub fn append_header(target: &mut Write, _model: &Model) -> Result<(), Error> {
+    pub fn append_header(target: &mut Write, model: &Model) -> Result<(), Error> {
         writeln!(target, "syntax = 'proto3';")?;
+        writeln!(target, "package {};", Self::model_to_package(&model.name))?;
         writeln!(target)?;
         Ok(())
     }
@@ -60,7 +61,7 @@ impl Generator {
         Ok(())
     }
 
-    pub fn append_definition(target: &mut Write, definition: &Definition) -> Result<(), Error> {
+    pub fn append_definition(target: &mut Write, model: &Model, definition: &Definition) -> Result<(), Error> {
         match definition {
             Definition::Enumerated(name, variants) => {
                 writeln!(target, "enum {} {{", name)?;
@@ -72,7 +73,7 @@ impl Generator {
             Definition::Sequence(name, fields) => {
                 writeln!(target, "message {} {{", name)?;
                 for (prev_tag, field) in fields.iter().enumerate() {
-                    Self::append_field(target, field, prev_tag + 1)?;
+                    Self::append_field(target, model, field, prev_tag + 1)?;
                 }
                 writeln!(target, "}}")?;
             }
@@ -81,7 +82,7 @@ impl Generator {
                 writeln!(
                     target,
                     "    repeated {} values = 1;",
-                    Self::role_to_type(&aliased)
+                    Self::role_to_full_type(&aliased, model)
                 )?;
                 writeln!(target, "}}")?;
             }
@@ -89,11 +90,11 @@ impl Generator {
         Ok(())
     }
 
-    pub fn append_field(target: &mut Write, field: &Field, tag: usize) -> Result<(), Error> {
+    pub fn append_field(target: &mut Write, model: &Model, field: &Field, tag: usize) -> Result<(), Error> {
         writeln!(
             target,
             "    {} {} = {};",
-            Self::role_to_type(&field.role),
+            Self::role_to_full_type(&field.role, model),
             Self::field_name(&field.name),
             tag
         )?;
@@ -121,6 +122,27 @@ impl Generator {
         type_name
     }
 
+    pub fn role_to_full_type(role: &Role, model: &Model) -> String {
+        let type_name = match role {
+            Role::Custom(name) => {
+                let mut prefixed = String::new();
+                'outer: for import in model.imports.iter() {
+                    for what in import.what.iter() {
+                        if what.eq(name) {
+                            prefixed.push_str(&Self::model_to_package(&import.from));
+                            prefixed.push('.');
+                            break 'outer;
+                        }
+                    }
+                }
+                prefixed.push_str(&name);
+                prefixed
+            },
+            _ => Self::role_to_type(role),
+        };
+        type_name
+    }
+
     pub fn variant_name(name: &str) -> String {
         name.replace("-", "_").to_uppercase().to_string()
     }
@@ -130,6 +152,11 @@ impl Generator {
     }
 
     pub fn model_file_name(model: &str) -> String {
+        let mut name = Self::model_name(model, '_');
+        name.push_str(".proto");
+        name
+    }
+    pub fn model_name(model: &str, separator: char) -> String {
         let mut out = String::new();
         let mut prev_lowered = false;
         let mut chars = model.clone().chars().peekable();
@@ -138,24 +165,27 @@ impl Generator {
             if c.is_uppercase() {
                 if !out.is_empty() {
                     if !prev_lowered {
-                        out.push('_');
+                        out.push(separator);
                     } else if let Some(next) = chars.peek() {
                         if next.is_lowercase() {
-                            out.push('_');
+                            out.push(separator);
                         }
                     }
                 }
                 lowered = true;
                 out.push_str(&c.to_lowercase().to_string());
             } else if c == '-' {
-                out.push('_');
+                out.push(separator);
             } else {
                 out.push(c);
             }
             prev_lowered = lowered;
         }
-        out.push_str(".proto");
         out
+    }
+
+    pub fn model_to_package(model: &str) -> String {
+        Self::model_name(model, '.')
     }
 }
 
