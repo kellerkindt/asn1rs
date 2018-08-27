@@ -287,7 +287,7 @@ impl<T: ProtobufEq + Default + PartialEq> ProtobufEq<Option<T>> for Option<T> {
     fn protobuf_eq(&self, other: &Option<T>) -> bool {
         match self {
             Some(ref v) => match other {
-                Some(ref v_other) => v == v_other,
+                Some(ref v_other) => v .protobuf_eq(v_other),
                 None => v == &T::default(),
             },
             None => match other {
