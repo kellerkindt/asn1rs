@@ -62,16 +62,17 @@ impl Generator {
         for definition in model.definitions.iter() {
             let name: String = match definition {
                 Definition::SequenceOf(name, role) => {
+                    let rust_type = role.clone().into_rust().to_string();
                     Self::new_struct(&mut scope, name)
-                        .field("values", format!("Vec<{}>", Self::role_to_type(role)));
+                        .field("values", format!("Vec<{}>", rust_type));
                     {
                         scope
                             .new_impl(&name)
                             .impl_trait("::std::ops::Deref")
-                            .associate_type("Target", format!("Vec<{}>", Self::role_to_type(role)))
+                            .associate_type("Target", format!("Vec<{}>", rust_type))
                             .new_fn("deref")
                             .arg_ref_self()
-                            .ret(&format!("&Vec<{}>", Self::role_to_type(role)))
+                            .ret(&format!("&Vec<{}>", rust_type))
                             .line(format!("&self.values"));
                     }
                     {
@@ -80,7 +81,7 @@ impl Generator {
                             .impl_trait("::std::ops::DerefMut")
                             .new_fn("deref_mut")
                             .arg_mut_self()
-                            .ret(&format!("&mut Vec<{}>", Self::role_to_type(role)))
+                            .ret(&format!("&mut Vec<{}>", rust_type))
                             .line(format!("&mut self.values"));
                     }
                     {
@@ -89,7 +90,7 @@ impl Generator {
                             implementation
                                 .new_fn("values")
                                 .vis("pub")
-                                .ret(format!("&Vec<{}>", Self::role_to_type(role)))
+                                .ret(format!("&Vec<{}>", rust_type))
                                 .arg_ref_self()
                                 .line("&self.values");
                         }
@@ -97,7 +98,7 @@ impl Generator {
                             implementation
                                 .new_fn("values_mut")
                                 .vis("pub")
-                                .ret(format!("&mut Vec<{}>", Self::role_to_type(role)))
+                                .ret(format!("&mut Vec<{}>", rust_type))
                                 .arg_mut_self()
                                 .line("&mut self.values");
                         }
@@ -106,7 +107,7 @@ impl Generator {
                                 .new_fn("set_values")
                                 .vis("pub")
                                 .arg_mut_self()
-                                .arg("values", format!("Vec<{}>", Self::role_to_type(role)))
+                                .arg("values", format!("Vec<{}>", rust_type))
                                 .line("self.values = values;");
                         }
                         Self::add_min_max_methods_if_applicable(implementation, "value", &role);
@@ -120,9 +121,9 @@ impl Generator {
                             new_struct.field(
                                 &Self::rust_field_name(&field.name, true),
                                 if field.optional {
-                                    format!("Option<{}>", Self::role_to_type(&field.role))
+                                    format!("Option<{}>", field.role.clone().into_rust().to_string())
                                 } else {
-                                    Self::role_to_type(&field.role)
+                                    field.role.clone().into_rust().to_string()
                                 },
                             );
                         }
@@ -136,9 +137,9 @@ impl Generator {
                                 .vis("pub")
                                 .arg_ref_self()
                                 .ret(if field.optional {
-                                    format!("&Option<{}>", Self::role_to_type(&field.role))
+                                    format!("&Option<{}>", field.role.clone().into_rust().to_string())
                                 } else {
-                                    format!("&{}", Self::role_to_type(&field.role))
+                                    format!("&{}", field.role.clone().into_rust().to_string())
                                 })
                                 .line(format!(
                                     "&self.{}",
@@ -153,9 +154,9 @@ impl Generator {
                                 .vis("pub")
                                 .arg_mut_self()
                                 .ret(if field.optional {
-                                    format!("&mut Option<{}>", Self::role_to_type(&field.role))
+                                    format!("&mut Option<{}>", field.role.clone().into_rust().to_string())
                                 } else {
-                                    format!("&mut {}", Self::role_to_type(&field.role))
+                                    format!("&mut {}", field.role.clone().into_rust().to_string())
                                 })
                                 .line(format!(
                                     "&mut self.{}",
@@ -172,9 +173,9 @@ impl Generator {
                                 .arg(
                                     "value",
                                     if field.optional {
-                                        format!("Option<{}>", Self::role_to_type(&field.role))
+                                        format!("Option<{}>", field.role.clone().into_rust().to_string())
                                     } else {
-                                        Self::role_to_type(&field.role)
+                                        field.role.clone().into_rust().to_string()
                                     },
                                 )
                                 .line(format!(
@@ -253,30 +254,14 @@ impl Generator {
             implementation
                 .new_fn(&format!("{}_min", Self::rust_field_name(name, false)))
                 .vis("pub")
-                .ret(Self::role_to_type(role))
+                .ret(&role.clone().into_rust().to_string())
                 .line(format!("{}", min));
             implementation
                 .new_fn(&format!("{}_max", Self::rust_field_name(name, false)))
                 .vis("pub")
-                .ret(Self::role_to_type(role))
+                .ret(&role.clone().into_rust().to_string())
                 .line(format!("{}", max));
         }
-    }
-
-    fn role_to_type(role: &Role) -> String {
-        let type_name = match role {
-            Role::Boolean => "bool".into(),
-            Role::Integer((lower, upper)) => match lower.abs().max(*upper) {
-                0x00_00_00_00__00_00_00_00...0x00_00_00_00__00_00_00_7F => "i8".into(),
-                0x00_00_00_00__00_00_00_00...0x00_00_00_00__00_00_7F_FF => "i16".into(),
-                0x00_00_00_00__00_00_00_00...0x00_00_00_00__7F_FF_FF_FF => "i32".into(),
-                _ => "i64".into(),
-            },
-            Role::UnsignedMaxInteger => "u64".into(),
-            Role::Custom(name) => name.clone(),
-            Role::UTF8String => "String".into(),
-        };
-        type_name
     }
 
     fn rust_field_name(name: &str, check_for_keywords: bool) -> String {
@@ -439,7 +424,7 @@ impl UperGenerator {
     fn generate_serializable_impl(scope: &mut Scope, impl_for: &str, definition: &Definition) {
         let serializable_implementation = Self::new_uper_serializable_impl(scope, impl_for);
         match definition {
-            Definition::SequenceOf(_name, aliased) => {
+            Definition::SequenceOf(name, aliased) => {
                 {
                     let mut block = Self::new_write_fn(serializable_implementation);
                     block.line("writer.write_length_determinant(self.values.len())?;");
@@ -466,10 +451,8 @@ impl UperGenerator {
                     match aliased {
                         Role::Boolean => block_for.line("me.values.push(reader.read_bit()?);"),
                         Role::Integer((lower, upper)) => block_for.line(format!(
-                            "me.values.push(reader.read_int(({}, {}))? as {});",
-                            lower,
-                            upper,
-                            Generator::role_to_type(aliased)
+                            "me.values.push(reader.read_int((Self::value_min() as i64, Self::value_max() as i64))? as {});",
+                            aliased.clone().into_rust().to_string(),
                         )),
                         Role::UnsignedMaxInteger => {
                             block_for.line("me.values.push(reader.read_int_max()?);")
@@ -565,12 +548,12 @@ impl UperGenerator {
                                 if field.optional { ")" } else { "" },
                             ),
                             Role::Integer((lower, upper)) => format!(
-                                "me.{} = {}reader.read_int(({} as i64, {} as i64))? as {}{};",
+                                "me.{} = {}reader.read_int((Self::{}_min() as i64, Self::{}_max() as i64))? as {}{};",
                                 Generator::rust_field_name(&field.name, true),
                                 if field.optional { "Some(" } else { "" },
-                                lower,
-                                upper,
-                                Generator::role_to_type(&field.role),
+                                Generator::rust_field_name(&field.name, false),
+                                Generator::rust_field_name(&field.name, false),
+                                field.role.clone().into_rust().to_string(),
                                 if field.optional { ")" } else { "" },
                             ),
                             Role::UnsignedMaxInteger => format!(
@@ -583,7 +566,7 @@ impl UperGenerator {
                                 "me.{} = {}{}::read_uper(reader)?{};",
                                 Generator::rust_field_name(&field.name, true),
                                 if field.optional { "Some(" } else { "" },
-                                Generator::role_to_type(&field.role),
+                                field.role.clone().into_rust().to_string(),
                                 if field.optional { ")" } else { "" },
                             ),
                             Role::UTF8String => format!(
@@ -786,9 +769,9 @@ impl ProtobufGenerator {
                             custom
                         )),
                         r => block_reader.line(format!(
-                            "me.values.push(reader.read_{}()? as {});",
+                            "me.values.push(reader.read_{}()?{});",
                             r.clone().into_protobuf().to_string(),
-                            Generator::role_to_type(r),
+                            Self::get_as_rust_type_statement(r),
                         )),
                     };
                     block_while.push_block(block_reader);
@@ -938,10 +921,10 @@ impl ProtobufGenerator {
                     let mut return_block = Block::new(&format!("Ok({}", _name));
                     for field in fields.iter() {
                         return_block.line(&format!(
-                            "{}: read_{}.map(|v| v as {}){},",
+                            "{}: read_{}.map(|v| v{}){},",
                             Generator::rust_field_name(&field.name, true),
                             Generator::rust_field_name(&field.name, false),
-                            Generator::role_to_type(&field.role),
+                            Self::get_as_rust_type_statement(&field.role),
                             if field.optional {
                                 "".into()
                             } else {
@@ -1011,6 +994,17 @@ impl ProtobufGenerator {
 
         if role_rust != proto_rust {
             format!(" as {}", proto_rust.to_string())
+        } else {
+            "".into()
+        }
+    }
+
+    fn get_as_rust_type_statement(role: &Role) -> String {
+        let role_rust = role.clone().into_rust();
+        let proto_rust = role.clone().into_protobuf().into_rust();
+
+        if role_rust != proto_rust {
+            format!(" as {}", role_rust.to_string())
         } else {
             "".into()
         }

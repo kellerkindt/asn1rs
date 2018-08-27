@@ -135,9 +135,24 @@ pub trait Writer {
         self.write_sfixed32(value)
     }
 
+    fn write_tagged_uint32(&mut self, field: u32, value: u32) -> Result<(), Error> {
+        self.write_tag(field, Format::VarInt)?;
+        self.write_uint32(value)
+    }
+
     fn write_tagged_uint64(&mut self, field: u32, value: u64) -> Result<(), Error> {
         self.write_tag(field, Format::VarInt)?;
         self.write_uint64(value)
+    }
+
+    fn write_tagged_sint32(&mut self, field: u32, value: i32) -> Result<(), Error> {
+        self.write_tag(field, Format::VarInt)?;
+        self.write_sint32(value)
+    }
+
+    fn write_tagged_sint64(&mut self, field: u32, value: i64) -> Result<(), Error> {
+        self.write_tag(field, Format::VarInt)?;
+        self.write_sint64(value)
     }
 
     fn write_tagged_string(&mut self, field: u32, value: &str) -> Result<(), Error> {
@@ -172,11 +187,6 @@ impl<W: Write> Writer for W {
 
     fn write_sfixed32(&mut self, value: i32) -> Result<(), Error> {
         self.write_i32::<E>(value)?;
-        Ok(())
-    }
-
-    fn write_uint64(&mut self, value: u64) -> Result<(), Error> {
-        self.write_varint(value)?;
         Ok(())
     }
 
@@ -220,7 +230,7 @@ pub trait Reader {
     fn read_sint32(&mut self) -> Result<i32, Error> {
         // remove leading negative sign to allow further size reduction
         // protobuf magic, probably something like value - I32_MIN
-        let value = self.read_varint()?;
+        let value = self.read_varint()? as u32;
         Ok(((value >> 1) as i32) ^ (-((value & 0x01) as i32)))
     }
 

@@ -339,11 +339,11 @@ impl From<Role> for RustType {
             Role::Boolean => RustType::Bool,
             Role::Integer((lower, upper)) => {
                 if lower >= 0 {
-                    match upper {
-                        0...I8_MAX => RustType::U8,
-                        0...I16_MAX=> RustType::U16,
-                        0...I32_MAX => RustType::U32,
-                        0...I64_MAX => RustType::U64,
+                    match upper as u64 {
+                        0...U8_MAX => RustType::U8,
+                        0...U16_MAX=> RustType::U16,
+                        0...U32_MAX => RustType::U32,
+                        0...U64_MAX => RustType::U64,
                         // default is U64
                         _ => RustType::U64,
                     }
@@ -427,13 +427,23 @@ impl From<Role> for ProtobufType {
     fn from(role: Role) -> Self {
         match role {
             Role::Boolean => ProtobufType::Bool,
-            Role::Integer((lower, upper)) => match lower.abs().max(upper) {
-                // TODO produces quite inefficient protobuf structures
-                0...I8_MAX => ProtobufType::SFixed32,
-                0...I16_MAX => ProtobufType::SFixed32,
-                0...I32_MAX => ProtobufType::SFixed32,
-                0...I64_MAX => ProtobufType::SFixed32,
-                _ => ProtobufType::SFixed64,
+            Role::Integer((lower, upper)) => {
+                if lower >= 0 {
+                    match upper as u64 {
+                        0...U32_MAX => ProtobufType::UInt32,
+                        0...U64_MAX => ProtobufType::UInt64,
+                        // default is U64
+                        _ => ProtobufType::UInt64,
+                    }
+                } else {
+                    let max_amplitude = lower.abs().max(upper);
+                    match max_amplitude {
+                        0...I32_MAX => ProtobufType::SInt32,
+                        0...I64_MAX => ProtobufType::SInt32,
+                        // default is I64
+                        _ => ProtobufType::SInt64,
+                    }
+                }
             },
             Role::UnsignedMaxInteger => ProtobufType::UInt64,
             Role::Custom(name) => ProtobufType::Complex(name.clone()),
@@ -448,13 +458,13 @@ impl From<RustType> for ProtobufType {
         match rust {
             RustType::Bool => ProtobufType::Bool,
             RustType::U8 => ProtobufType::UInt32,
-            RustType::I8 => ProtobufType::UInt32,
+            RustType::I8 => ProtobufType::SInt32,
             RustType::U16 => ProtobufType::UInt32,
-            RustType::I16 => ProtobufType::UInt32,
-            RustType::U32 => ProtobufType::SFixed32,
-            RustType::I32 => ProtobufType::SFixed32,
-            RustType::U64 => ProtobufType::SFixed64,
-            RustType::I64 => ProtobufType::SFixed64,
+            RustType::I16 => ProtobufType::SInt32,
+            RustType::U32 => ProtobufType::UInt32,
+            RustType::I32 => ProtobufType::SInt32,
+            RustType::U64 => ProtobufType::UInt64,
+            RustType::I64 => ProtobufType::SInt64,
             RustType::String => ProtobufType::String,
             RustType::Complex(name) => ProtobufType::Complex(name.clone()),
         }
