@@ -720,7 +720,10 @@ impl ProtobufGenerator {
             ProtobufType::Bool => format!("{}Format::VarInt", Self::CODEC),
             ProtobufType::SFixed32 => format!("{}Format::Fixed32", Self::CODEC),
             ProtobufType::SFixed64 => format!("{}Format::Fixed64", Self::CODEC),
-            ProtobufType::UInt64 => format!("{}Format::Fixed64", Self::CODEC),
+            ProtobufType::UInt32 => format!("{}Format::VarInt", Self::CODEC),
+            ProtobufType::UInt64 => format!("{}Format::VarInt", Self::CODEC),
+            ProtobufType::SInt32 => format!("{}Format::VarInt", Self::CODEC),
+            ProtobufType::SInt64 => format!("{}Format::VarInt", Self::CODEC),
             ProtobufType::String => format!("{}Format::LengthDelimited", Self::CODEC),
             ProtobufType::Complex(complex) => format!("{}::{}_format()", complex, Self::CODEC.to_lowercase()),
         }

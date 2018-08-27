@@ -372,7 +372,10 @@ impl From<ProtobufType> for RustType {
             ProtobufType::Bool => RustType::Bool,
             ProtobufType::SFixed32 => RustType::I32,
             ProtobufType::SFixed64 => RustType::I64,
+            ProtobufType::UInt32 => RustType::U32,
             ProtobufType::UInt64 => RustType::U64,
+            ProtobufType::SInt32 => RustType::I32,
+            ProtobufType::SInt64 => RustType::I64,
             ProtobufType::String => RustType::String,
             ProtobufType::Complex(name) => RustType::Complex(name.clone()),
         }
@@ -404,7 +407,10 @@ pub enum ProtobufType {
     Bool,
     SFixed32,
     SFixed64,
+    UInt32,
     UInt64,
+    SInt32,
+    SInt64,
     String,
     /// Indicates a complex, custom type that is
     /// not one of rusts known types
@@ -441,13 +447,13 @@ impl From<RustType> for ProtobufType {
     fn from(rust: RustType) -> Self {
         match rust {
             RustType::Bool => ProtobufType::Bool,
-            RustType::U8 => ProtobufType::SFixed32,
-            RustType::I8 => ProtobufType::SFixed32,
-            RustType::U16 => ProtobufType::SFixed32,
-            RustType::I16 => ProtobufType::SFixed32,
+            RustType::U8 => ProtobufType::UInt32,
+            RustType::I8 => ProtobufType::UInt32,
+            RustType::U16 => ProtobufType::UInt32,
+            RustType::I16 => ProtobufType::UInt32,
             RustType::U32 => ProtobufType::SFixed32,
             RustType::I32 => ProtobufType::SFixed32,
-            RustType::U64 => ProtobufType::UInt64,
+            RustType::U64 => ProtobufType::SFixed64,
             RustType::I64 => ProtobufType::SFixed64,
             RustType::String => ProtobufType::String,
             RustType::Complex(name) => ProtobufType::Complex(name.clone()),
@@ -461,7 +467,10 @@ impl ToString for ProtobufType {
             ProtobufType::Bool => "bool",
             ProtobufType::SFixed32 => "sfixed32",
             ProtobufType::SFixed64 => "sfixed64",
+            ProtobufType::UInt32 => "uint32",
             ProtobufType::UInt64 => "uint64",
+            ProtobufType::SInt32 => "sint32",
+            ProtobufType::SInt64 => "sint64",
             ProtobufType::String => "string",
             ProtobufType::Complex(name) => return name.clone(),
         }.into()
