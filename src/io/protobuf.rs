@@ -102,7 +102,26 @@ pub trait Writer {
 
     fn write_sfixed32(&mut self, value: i32) -> Result<(), Error>;
 
-    fn write_uint64(&mut self, value: u64) -> Result<(), Error>;
+    fn write_uint32(&mut self, value: u32) -> Result<(), Error> {
+        self.write_varint(value as u64)
+    }
+
+    fn write_uint64(&mut self, value: u64) -> Result<(), Error> {
+        self.write_varint(value)
+    }
+
+    fn write_sint32(&mut self, value: i32) -> Result<(), Error> {
+        // remove leading negative sign to allow further size reduction
+        // protobuf magic, probably something like value - I32_MIN
+        self.write_varint(((value << 1) ^ (value >> 31)) as u64)
+    }
+
+    fn write_sint64(&mut self, value: i64) -> Result<(), Error> {
+        // remove leading negative sign to allow further size reduction
+        // protobuf magic, probably something like value - I64_MIN
+        self.write_varint(((value << 1) ^ (value >> 63)) as u64)
+
+    }
 
     fn write_string(&mut self, value: &str) -> Result<(), Error>;
 
@@ -190,7 +209,27 @@ pub trait Reader {
 
     fn read_sfixed32(&mut self) -> Result<i32, Error>;
 
-    fn read_uint64(&mut self) -> Result<u64, Error>;
+    fn read_uint32(&mut self) -> Result<u32, Error> {
+        Ok(self.read_varint()? as u32)
+    }
+
+    fn read_uint64(&mut self) -> Result<u64, Error> {
+        self.read_varint()
+    }
+
+    fn read_sint32(&mut self) -> Result<i32, Error> {
+        // remove leading negative sign to allow further size reduction
+        // protobuf magic, probably something like value - I32_MIN
+        let value = self.read_varint()?;
+        Ok(((value >> 1) as i32) ^ (-((value & 0x01) as i32)))
+    }
+
+    fn read_sint64(&mut self) -> Result<i64, Error> {
+        // remove leading negative sign to allow further size reduction
+        // protobuf magic, probably something like value - I64_MIN
+        let value = self.read_varint()?;
+        Ok(((value >> 1) as i64) ^ (-((value & 0x01) as i64)))
+    }
 
     fn read_string(&mut self) -> Result<String, Error>;
 }
@@ -219,10 +258,6 @@ impl<R: Read> Reader for R {
 
     fn read_sfixed32(&mut self) -> Result<i32, Error> {
         Ok(self.read_i32::<E>()?)
-    }
-
-    fn read_uint64(&mut self) -> Result<u64, Error> {
-        Ok(self.read_varint()?)
     }
 
     fn read_string(&mut self) -> Result<String, Error> {
