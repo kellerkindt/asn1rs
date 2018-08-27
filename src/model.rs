@@ -299,7 +299,6 @@ impl Role {
     }
 }
 
-
 const I8_MAX: i64 = ::std::i8::MAX as i64;
 const I16_MAX: i64 = ::std::i16::MAX as i64;
 const I32_MAX: i64 = ::std::i32::MAX as i64;
@@ -341,7 +340,7 @@ impl From<Role> for RustType {
                 if lower >= 0 {
                     match upper as u64 {
                         0...U8_MAX => RustType::U8,
-                        0...U16_MAX=> RustType::U16,
+                        0...U16_MAX => RustType::U16,
                         0...U32_MAX => RustType::U32,
                         0...U64_MAX => RustType::U64,
                         // default is U64
@@ -358,7 +357,7 @@ impl From<Role> for RustType {
                         _ => RustType::I64,
                     }
                 }
-            },
+            }
             Role::UnsignedMaxInteger => RustType::U64,
             Role::UTF8String => RustType::String,
             Role::Custom(name) => RustType::Complex(name.clone()),
@@ -399,8 +398,6 @@ impl ToString for RustType {
         }.into()
     }
 }
-
-
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum ProtobufType {
@@ -444,14 +441,13 @@ impl From<Role> for ProtobufType {
                         _ => ProtobufType::SInt64,
                     }
                 }
-            },
+            }
             Role::UnsignedMaxInteger => ProtobufType::UInt64,
             Role::Custom(name) => ProtobufType::Complex(name.clone()),
             Role::UTF8String => ProtobufType::String,
         }
     }
 }
-
 
 impl From<RustType> for ProtobufType {
     fn from(rust: RustType) -> Self {

@@ -4,9 +4,10 @@ use codegen::Impl;
 use codegen::Scope;
 
 use model::Definition;
+use model::Field;
 use model::Model;
-use model::Role;
 use model::ProtobufType;
+use model::Role;
 
 const KEYWORDS: [&str; 9] = [
     "use", "mod", "const", "type", "pub", "enum", "struct", "impl", "trait",
@@ -121,7 +122,10 @@ impl Generator {
                             new_struct.field(
                                 &Self::rust_field_name(&field.name, true),
                                 if field.optional {
-                                    format!("Option<{}>", field.role.clone().into_rust().to_string())
+                                    format!(
+                                        "Option<{}>",
+                                        field.role.clone().into_rust().to_string()
+                                    )
                                 } else {
                                     field.role.clone().into_rust().to_string()
                                 },
@@ -137,7 +141,10 @@ impl Generator {
                                 .vis("pub")
                                 .arg_ref_self()
                                 .ret(if field.optional {
-                                    format!("&Option<{}>", field.role.clone().into_rust().to_string())
+                                    format!(
+                                        "&Option<{}>",
+                                        field.role.clone().into_rust().to_string()
+                                    )
                                 } else {
                                     format!("&{}", field.role.clone().into_rust().to_string())
                                 })
@@ -154,7 +161,10 @@ impl Generator {
                                 .vis("pub")
                                 .arg_mut_self()
                                 .ret(if field.optional {
-                                    format!("&mut Option<{}>", field.role.clone().into_rust().to_string())
+                                    format!(
+                                        "&mut Option<{}>",
+                                        field.role.clone().into_rust().to_string()
+                                    )
                                 } else {
                                     format!("&mut {}", field.role.clone().into_rust().to_string())
                                 })
@@ -173,7 +183,10 @@ impl Generator {
                                 .arg(
                                     "value",
                                     if field.optional {
-                                        format!("Option<{}>", field.role.clone().into_rust().to_string())
+                                        format!(
+                                            "Option<{}>",
+                                            field.role.clone().into_rust().to_string()
+                                        )
                                     } else {
                                         field.role.clone().into_rust().to_string()
                                     },
@@ -677,9 +690,19 @@ impl ProtobufGenerator {
             .line(format!("{}Format::{}", Self::CODEC, format_variant));
     }
 
+    fn new_eq_impl<'a>(scope: &'a mut Scope, name: &str) -> &'a mut Impl {
+        scope
+            .new_impl(name)
+            .impl_trait(&format!("{}Eq", Self::CODEC))
+    }
+
     fn add_imports(scope: &mut Scope) {
         scope.import("std::io", "Read");
         scope.import("asn1c::io::protobuf", Self::CODEC);
+        scope.import(
+            "asn1c::io::protobuf",
+            &format!("ProtobufEq as {}Eq", Self::CODEC),
+        );
         scope.import(
             "asn1c::io::protobuf",
             &format!("Reader as {}Reader", Self::CODEC),
@@ -708,11 +731,41 @@ impl ProtobufGenerator {
             ProtobufType::SInt32 => format!("{}Format::VarInt", Self::CODEC),
             ProtobufType::SInt64 => format!("{}Format::VarInt", Self::CODEC),
             ProtobufType::String => format!("{}Format::LengthDelimited", Self::CODEC),
-            ProtobufType::Complex(complex) => format!("{}::{}_format()", complex, Self::CODEC.to_lowercase()),
+            ProtobufType::Complex(complex) => {
+                format!("{}::{}_format()", complex, Self::CODEC.to_lowercase())
+            }
         }
     }
 
     fn generate_serializable_impl(scope: &mut Scope, impl_for: &str, definition: &Definition) {
+        {
+            let implementation = Self::new_eq_impl(scope, impl_for);
+
+            let function = implementation
+                .new_fn(&format!("{}_eq", Self::CODEC.to_lowercase()))
+                .ret("bool")
+                .arg_ref_self()
+                .arg("other", format!("&Self"));
+
+            match definition {
+                Definition::SequenceOf(_, _) => {
+                    function.line(format!("self.values.{}_eq(&other.values)", Self::CODEC.to_lowercase()));
+                }
+                Definition::Sequence(_, fields) => {
+                    for (num, field) in fields.iter().enumerate() {
+                        if num > 0 {
+                            function.line("&&");
+                        }
+                        let field_name = Generator::rust_field_name(&field.name, true);
+                        function.line(&format!("self.{}.{}_eq(&other.{})", field_name, Self::CODEC.to_lowercase(), field_name));
+                    }
+                }
+                Definition::Enumerated(_, _) => {
+                    function.line("self == other");
+                }
+            }
+        }
+
         let serializable_implementation = Self::new_protobuf_serializable_impl(scope, impl_for);
         match definition {
             Definition::SequenceOf(_name, aliased) => {
@@ -928,21 +981,10 @@ impl ProtobufGenerator {
                             if field.optional {
                                 "".into()
                             } else {
-                                let unwrap_or_zero = match field.role {
-                                    Role::UnsignedMaxInteger => true,
-                                    Role::Integer((min, max)) => min <= 0 && max >= 0,
-                                    _ => false,
-                                };
-                                if unwrap_or_zero {
-                                    ".unwrap_or(0)".into()
-                                } else {
-                                    format!(
-                                        ".ok_or({}Error::MissingRequiredField(\"{}::{}\"))?",
-                                        Self::CODEC,
-                                        _name,
-                                        Generator::rust_field_name(&field.name, true)
-                                    )
-                                }
+                                format!(
+                                    ".unwrap_or({}::default())",
+                                    field.role.clone().into_rust().to_string()
+                                )
                             },
                         ));
                     }
