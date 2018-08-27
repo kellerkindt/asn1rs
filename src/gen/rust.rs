@@ -6,6 +6,7 @@ use codegen::Scope;
 use model::Definition;
 use model::Model;
 use model::Role;
+use model::ProtobufType;
 
 const KEYWORDS: [&str; 9] = [
     "use", "mod", "const", "type", "pub", "enum", "struct", "impl", "trait",
@@ -715,21 +716,17 @@ impl ProtobufGenerator {
     }
 
     fn role_to_format(role: &Role) -> String {
-        use gen::protobuf::Generator as ProtobufGenerator;
-        match role {
-            Role::Boolean => format!("{}Format::VarInt", Self::CODEC),
-            Role::Custom(custom) => format!("{}::{}_format()", custom, Self::CODEC.to_lowercase()),
-            _ => match ProtobufGenerator::role_to_type(role).as_str() {
-                "sfixed32" => format!("{}Format::Fixed32", Self::CODEC),
-                "sfixed64" => format!("{}Format::Fixed64", Self::CODEC),
-                "uint64" => format!("{}Format::Fixed64", Self::CODEC),
-                _ => panic!("Unexpected role: {:?}", role),
-            },
+        match role.clone().into_protobuf() {
+            ProtobufType::Bool => format!("{}Format::VarInt", Self::CODEC),
+            ProtobufType::SFixed32 => format!("{}Format::Fixed32", Self::CODEC),
+            ProtobufType::SFixed64 => format!("{}Format::Fixed64", Self::CODEC),
+            ProtobufType::UInt64 => format!("{}Format::Fixed64", Self::CODEC),
+            ProtobufType::String => format!("{}Format::LengthDelimited", Self::CODEC),
+            ProtobufType::Complex(complex) => format!("{}::{}_format()", complex, Self::CODEC.to_lowercase()),
         }
     }
 
     fn generate_serializable_impl(scope: &mut Scope, impl_for: &str, definition: &Definition) {
-        use gen::protobuf::Generator as ProtobufGenerator;
         let serializable_implementation = Self::new_protobuf_serializable_impl(scope, impl_for);
         match definition {
             Definition::SequenceOf(_name, aliased) => {
@@ -754,8 +751,8 @@ impl ProtobufGenerator {
                                 block_for.line(format!(
                                     "(&mut bytes as &mut {}Writer).write_{}(*value{})?;",
                                     Self::CODEC,
-                                    ProtobufGenerator::role_to_type(r),
-                                    Self::role_to_as_statement(r),
+                                    r.clone().into_protobuf().to_string(),
+                                    Self::get_as_protobuf_type_statement(r),
                                 ));
                             }
                         };
@@ -787,7 +784,7 @@ impl ProtobufGenerator {
                         )),
                         r => block_reader.line(format!(
                             "me.values.push(reader.read_{}()? as {});",
-                            ProtobufGenerator::role_to_type(r),
+                            r.clone().into_protobuf().to_string(),
                             Generator::role_to_type(r),
                         )),
                     };
@@ -851,11 +848,9 @@ impl ProtobufGenerator {
                                 r => {
                                     block.line(format!(
                                         "writer.write_tagged_{}({}, {}{}{})?;",
-                                        ProtobufGenerator::role_to_type(r),
+                                        r.clone().into_protobuf().to_string(),
                                         prev_tag + 1,
-                                        if "string".eq_ignore_ascii_case(
-                                            &ProtobufGenerator::role_to_type(r)
-                                        ) {
+                                        if ProtobufType::String == r.clone().into_protobuf() {
                                             if field.optional {
                                                 ""
                                             } else {
@@ -869,7 +864,7 @@ impl ProtobufGenerator {
                                             }
                                         },
                                         Generator::rust_field_name(&field.name, true),
-                                        Self::role_to_as_statement(r),
+                                        Self::get_as_protobuf_type_statement(r),
                                     ));
                                 }
                             };
@@ -924,7 +919,7 @@ impl ProtobufGenerator {
                                     Generator::rust_field_name(&field.name, false),
                                     format!(
                                         "reader.read_{}()?",
-                                        ProtobufGenerator::role_to_type(role)
+                                        role.clone().into_protobuf().to_string(),
                                     )
                                 ));
                             }
@@ -1007,13 +1002,14 @@ impl ProtobufGenerator {
         }
     }
 
-    fn role_to_as_statement(role: &Role) -> String {
-        use gen::protobuf::Generator as ProtobufGenerator;
-        match ProtobufGenerator::role_to_type(role).as_str() {
-            "sfixed32" => " as i32",
-            "sfixed64" => " as i64",
-            "uint64" => " as u64",
-            _ => "",
-        }.into()
+    fn get_as_protobuf_type_statement(role: &Role) -> String {
+        let role_rust = role.clone().into_rust();
+        let proto_rust = role.clone().into_protobuf().into_rust();
+
+        if role_rust != proto_rust {
+            format!(" as {}", proto_rust.to_string())
+        } else {
+            "".into()
+        }
     }
 }

@@ -115,22 +115,6 @@ impl Generator {
         Ok(())
     }
 
-    pub fn role_to_type(role: &Role) -> String {
-        let type_name = match role {
-            Role::Boolean => "bool".into(),
-            Role::Integer((lower, upper)) => match lower.abs().max(*upper) {
-                0x00_00_00_00__00_00_00_00...0x00_00_00_00__00_00_00_7F => "sfixed32".into(),
-                0x00_00_00_00__00_00_00_00...0x00_00_00_00__00_00_7F_FF => "sfixed32".into(),
-                0x00_00_00_00__00_00_00_00...0x00_00_00_00__7F_FF_FF_FF => "sfixed32".into(),
-                _ => "sfixed64".into(),
-            },
-            Role::UnsignedMaxInteger => "uint64".into(),
-            Role::Custom(name) => name.clone(),
-            Role::UTF8String => "string".into(),
-        };
-        type_name
-    }
-
     pub fn role_to_full_type(role: &Role, model: &Model) -> String {
         let type_name = match role {
             Role::Custom(name) => {
@@ -147,7 +131,7 @@ impl Generator {
                 prefixed.push_str(&name);
                 prefixed
             }
-            _ => Self::role_to_type(role),
+            r => r.clone().into_protobuf().to_string(),
         };
         type_name
     }

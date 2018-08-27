@@ -280,11 +280,190 @@ pub struct Field {
     pub optional: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum Role {
     Boolean,
     Integer((i64, i64)),
     UnsignedMaxInteger,
     UTF8String,
     Custom(String),
+}
+
+impl Role {
+    pub fn into_rust(self) -> RustType {
+        RustType::from(self)
+    }
+
+    pub fn into_protobuf(self) -> ProtobufType {
+        ProtobufType::from(self)
+    }
+}
+
+
+const I8_MAX: i64 = ::std::i8::MAX as i64;
+const I16_MAX: i64 = ::std::i16::MAX as i64;
+const I32_MAX: i64 = ::std::i32::MAX as i64;
+const I64_MAX: i64 = ::std::i64::MAX as i64;
+
+const U8_MAX: u64 = ::std::u8::MAX as u64;
+const U16_MAX: u64 = ::std::u16::MAX as u64;
+const U32_MAX: u64 = ::std::u32::MAX as u64;
+const U64_MAX: u64 = ::std::u64::MAX as u64;
+
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub enum RustType {
+    Bool,
+    U8,
+    I8,
+    U16,
+    I16,
+    U32,
+    I32,
+    U64,
+    I64,
+    String,
+    /// Indicates a complex, custom type that is
+    /// not one of rusts known types
+    Complex(String),
+}
+
+impl RustType {
+    pub fn into_protobuf(self) -> ProtobufType {
+        ProtobufType::from(self)
+    }
+}
+
+impl From<Role> for RustType {
+    fn from(role: Role) -> Self {
+        match role {
+            Role::Boolean => RustType::Bool,
+            Role::Integer((lower, upper)) => {
+                if lower >= 0 {
+                    match upper {
+                        0...I8_MAX => RustType::U8,
+                        0...I16_MAX=> RustType::U16,
+                        0...I32_MAX => RustType::U32,
+                        0...I64_MAX => RustType::U64,
+                        // default is U64
+                        _ => RustType::U64,
+                    }
+                } else {
+                    let max_amplitude = lower.abs().max(upper);
+                    match max_amplitude {
+                        0...I8_MAX => RustType::I8,
+                        0...I16_MAX => RustType::I16,
+                        0...I32_MAX => RustType::I32,
+                        0...I64_MAX => RustType::I64,
+                        // default is I64
+                        _ => RustType::I64,
+                    }
+                }
+            },
+            Role::UnsignedMaxInteger => RustType::U64,
+            Role::UTF8String => RustType::String,
+            Role::Custom(name) => RustType::Complex(name.clone()),
+        }
+    }
+}
+
+impl From<ProtobufType> for RustType {
+    fn from(proto: ProtobufType) -> Self {
+        match proto {
+            ProtobufType::Bool => RustType::Bool,
+            ProtobufType::SFixed32 => RustType::I32,
+            ProtobufType::SFixed64 => RustType::I64,
+            ProtobufType::UInt64 => RustType::U64,
+            ProtobufType::String => RustType::String,
+            ProtobufType::Complex(name) => RustType::Complex(name.clone()),
+        }
+    }
+}
+
+impl ToString for RustType {
+    fn to_string(&self) -> String {
+        match self {
+            RustType::Bool => "bool",
+            RustType::U8 => "u8",
+            RustType::I8 => "i8",
+            RustType::U16 => "u16",
+            RustType::I16 => "i16",
+            RustType::U32 => "u32",
+            RustType::I32 => "i32",
+            RustType::U64 => "u64",
+            RustType::I64 => "i64",
+            RustType::String => "String",
+            RustType::Complex(name) => return name.clone(),
+        }.into()
+    }
+}
+
+
+
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub enum ProtobufType {
+    Bool,
+    SFixed32,
+    SFixed64,
+    UInt64,
+    String,
+    /// Indicates a complex, custom type that is
+    /// not one of rusts known types
+    Complex(String),
+}
+
+impl ProtobufType {
+    pub fn into_rust(self) -> RustType {
+        RustType::from(self)
+    }
+}
+
+impl From<Role> for ProtobufType {
+    fn from(role: Role) -> Self {
+        match role {
+            Role::Boolean => ProtobufType::Bool,
+            Role::Integer((lower, upper)) => match lower.abs().max(upper) {
+                // TODO produces quite inefficient protobuf structures
+                0...I8_MAX => ProtobufType::SFixed32,
+                0...I16_MAX => ProtobufType::SFixed32,
+                0...I32_MAX => ProtobufType::SFixed32,
+                0...I64_MAX => ProtobufType::SFixed32,
+                _ => ProtobufType::SFixed64,
+            },
+            Role::UnsignedMaxInteger => ProtobufType::UInt64,
+            Role::Custom(name) => ProtobufType::Complex(name.clone()),
+            Role::UTF8String => ProtobufType::String,
+        }
+    }
+}
+
+
+impl From<RustType> for ProtobufType {
+    fn from(rust: RustType) -> Self {
+        match rust {
+            RustType::Bool => ProtobufType::Bool,
+            RustType::U8 => ProtobufType::SFixed32,
+            RustType::I8 => ProtobufType::SFixed32,
+            RustType::U16 => ProtobufType::SFixed32,
+            RustType::I16 => ProtobufType::SFixed32,
+            RustType::U32 => ProtobufType::SFixed32,
+            RustType::I32 => ProtobufType::SFixed32,
+            RustType::U64 => ProtobufType::UInt64,
+            RustType::I64 => ProtobufType::SFixed64,
+            RustType::String => ProtobufType::String,
+            RustType::Complex(name) => ProtobufType::Complex(name.clone()),
+        }
+    }
+}
+
+impl ToString for ProtobufType {
+    fn to_string(&self) -> String {
+        match self {
+            ProtobufType::Bool => "bool",
+            ProtobufType::SFixed32 => "sfixed32",
+            ProtobufType::SFixed64 => "sfixed64",
+            ProtobufType::UInt64 => "uint64",
+            ProtobufType::String => "string",
+            ProtobufType::Complex(name) => return name.clone(),
+        }.into()
+    }
 }
