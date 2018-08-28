@@ -72,41 +72,9 @@ impl Generator {
             let name: String = match definition {
                 Definition::SequenceOf(name, role) => name.clone(),
                 Definition::Sequence(name, fields) => name.clone(),
-                Definition::Enumerated(name, variants) => {
-                    {
-                        scope
-                            .new_impl(&name)
-                            .impl_trait("Default")
-                            .new_fn("default")
-                            .ret(&name as &str)
-                            .line(format!(
-                                "{}::{}",
-                                name,
-                                Self::rust_variant_name(&variants[0])
-                            ));
-                    }
-                    {
-                        let implementation = scope.new_impl(&name);
-                        {
-                            let values_fn = implementation
-                                .new_fn("variants")
-                                .vis("pub")
-                                .ret(format!("[Self; {}]", variants.len()))
-                                .line("[");
-
-                            for variant in variants {
-                                values_fn.line(format!(
-                                    "{}::{},",
-                                    name,
-                                    Self::rust_variant_name(variant)
-                                ));
-                            }
-                            values_fn.line("]");
-                        }
-                    }
-                    name.clone()
-                }
+                Definition::Enumerated(name, variants) => name.clone(),
             };
+
             generators
                 .iter()
                 .for_each(|g| g.generate_implementations(&mut scope, &name, &definition));
@@ -167,6 +135,7 @@ impl Generator {
                 Self::impl_sequence(scope, name, &fields[..]);
             }
             Definition::Enumerated(name, variants) => {
+                Self::impl_enumerated_default(scope, name, &variants[..]);
                 Self::impl_enumerated(scope, name, &variants[..]);
             }
         }
@@ -303,7 +272,37 @@ impl Generator {
             ));
     }
 
-    fn impl_enumerated(scope: &mut Scope, name: &String, variants: &[String]) {}
+    fn impl_enumerated_default(scope: &mut Scope, name: &str, variants: &[String]) {
+        scope
+            .new_impl(&name)
+            .impl_trait("Default")
+            .new_fn("default")
+            .ret(&name as &str)
+            .line(format!(
+                "{}::{}",
+                name,
+                Self::rust_variant_name(&variants[0])
+            ));
+    }
+
+    fn impl_enumerated(scope: &mut Scope, name: &String, variants: &[String]) {
+        let implementation = scope.new_impl(name);
+
+        Self::impl_enumerated_values_fn(implementation, &name, variants);
+    }
+
+    fn impl_enumerated_values_fn(implementation: &mut Impl, name: &str, variants: &[String]) {
+        let values_fn = implementation
+            .new_fn("variants")
+            .vis("pub")
+            .ret(format!("[Self; {}]", variants.len()))
+            .line("[");
+
+        for variant in variants {
+            values_fn.line(format!("{}::{},", name, Self::rust_variant_name(variant)));
+        }
+        values_fn.line("]");
+    }
 
     fn add_min_max_fn_if_applicable(implementation: &mut Impl, name: &str, role: &Role) {
         let min_max = match role {
