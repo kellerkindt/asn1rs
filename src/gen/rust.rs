@@ -127,16 +127,16 @@ impl Generator {
         match definition {
             Definition::SequenceOf(name, aliased) => {
                 let rust_type = aliased.clone().into_rust();
+                Self::impl_sequence_of(scope, name, &aliased);
                 Self::impl_sequence_of_deref(scope, name, &rust_type);
                 Self::impl_sequence_of_deref_mut(scope, name, &rust_type);
-                Self::impl_sequence_of(scope, name, &aliased);
             }
             Definition::Sequence(name, fields) => {
                 Self::impl_sequence(scope, name, &fields[..]);
             }
             Definition::Enumerated(name, variants) => {
-                Self::impl_enumerated_default(scope, name, &variants[..]);
                 Self::impl_enumerated(scope, name, &variants[..]);
+                Self::impl_enumerated_default(scope, name, &variants[..]);
             }
         }
     }
