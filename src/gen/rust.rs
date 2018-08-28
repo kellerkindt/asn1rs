@@ -71,80 +71,7 @@ impl Generator {
 
             let name: String = match definition {
                 Definition::SequenceOf(name, role) => name.clone(),
-                Definition::Sequence(name, fields) => {
-                    {
-                        let implementation = scope.new_impl(name);
-
-                        for field in fields.iter() {
-                            implementation
-                                .new_fn(&Self::rust_field_name(&field.name, true))
-                                .vis("pub")
-                                .arg_ref_self()
-                                .ret(if field.optional {
-                                    format!(
-                                        "&Option<{}>",
-                                        field.role.clone().into_rust().to_string()
-                                    )
-                                } else {
-                                    format!("&{}", field.role.clone().into_rust().to_string())
-                                })
-                                .line(format!(
-                                    "&self.{}",
-                                    Self::rust_field_name(&field.name, true)
-                                ));
-
-                            implementation
-                                .new_fn(&format!(
-                                    "{}_mut",
-                                    Self::rust_field_name(&field.name, false)
-                                ))
-                                .vis("pub")
-                                .arg_mut_self()
-                                .ret(if field.optional {
-                                    format!(
-                                        "&mut Option<{}>",
-                                        field.role.clone().into_rust().to_string()
-                                    )
-                                } else {
-                                    format!("&mut {}", field.role.clone().into_rust().to_string())
-                                })
-                                .line(format!(
-                                    "&mut self.{}",
-                                    Self::rust_field_name(&field.name, true)
-                                ));
-
-                            implementation
-                                .new_fn(&format!(
-                                    "set_{}",
-                                    Self::rust_field_name(&field.name, false)
-                                ))
-                                .vis("pub")
-                                .arg_mut_self()
-                                .arg(
-                                    "value",
-                                    if field.optional {
-                                        format!(
-                                            "Option<{}>",
-                                            field.role.clone().into_rust().to_string()
-                                        )
-                                    } else {
-                                        field.role.clone().into_rust().to_string()
-                                    },
-                                )
-                                .line(format!(
-                                    "self.{} = value;",
-                                    Self::rust_field_name(&field.name, true)
-                                ));
-
-                            Self::add_min_max_fn_if_applicable(
-                                implementation,
-                                &field.name,
-                                &field.role,
-                            );
-                        }
-                    }
-                    name.clone()
-                }
+                Definition::Sequence(name, fields) => name.clone(),
                 Definition::Enumerated(name, variants) => {
                     {
                         scope
@@ -304,7 +231,77 @@ impl Generator {
             .line("self.values = values;");
     }
 
-    fn impl_sequence(scope: &mut Scope, name: &String, fields: &[Field]) {}
+    fn impl_sequence(scope: &mut Scope, name: &String, fields: &[Field]) {
+        let implementation = scope.new_impl(name);
+
+        for field in fields.iter() {
+            Self::impl_sequence_field_get(implementation, field);
+            Self::impl_sequence_field_get_mut(implementation, field);
+            Self::impl_sequence_field_set(implementation, field);
+
+            Self::add_min_max_fn_if_applicable(implementation, &field.name, &field.role);
+        }
+    }
+
+    fn impl_sequence_field_get(implementation: &mut Impl, field: &Field) {
+        implementation
+            .new_fn(&Self::rust_field_name(&field.name, true))
+            .vis("pub")
+            .arg_ref_self()
+            .ret(if field.optional {
+                format!("&Option<{}>", field.role.clone().into_rust().to_string())
+            } else {
+                format!("&{}", field.role.clone().into_rust().to_string())
+            })
+            .line(format!(
+                "&self.{}",
+                Self::rust_field_name(&field.name, true)
+            ));
+    }
+
+    fn impl_sequence_field_get_mut(implementation: &mut Impl, field: &Field) {
+        implementation
+            .new_fn(&format!(
+                "{}_mut",
+                Self::rust_field_name(&field.name, false)
+            ))
+            .vis("pub")
+            .arg_mut_self()
+            .ret(if field.optional {
+                format!(
+                    "&mut Option<{}>",
+                    field.role.clone().into_rust().to_string()
+                )
+            } else {
+                format!("&mut {}", field.role.clone().into_rust().to_string())
+            })
+            .line(format!(
+                "&mut self.{}",
+                Self::rust_field_name(&field.name, true)
+            ));
+    }
+
+    fn impl_sequence_field_set(implementation: &mut Impl, field: &Field) {
+        implementation
+            .new_fn(&format!(
+                "set_{}",
+                Self::rust_field_name(&field.name, false)
+            ))
+            .vis("pub")
+            .arg_mut_self()
+            .arg(
+                "value",
+                if field.optional {
+                    format!("Option<{}>", field.role.clone().into_rust().to_string())
+                } else {
+                    field.role.clone().into_rust().to_string()
+                },
+            )
+            .line(format!(
+                "self.{} = value;",
+                Self::rust_field_name(&field.name, true)
+            ));
+    }
 
     fn impl_enumerated(scope: &mut Scope, name: &String, variants: &[String]) {}
 
