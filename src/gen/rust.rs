@@ -775,7 +775,7 @@ impl ProtobufGenerator {
                         let mut block_writer = Block::new("");
                         let mut block_for = Block::new("for value in self.values.iter()");
                         block_for.line(format!(
-                            "writer.write_tag(1, {});",
+                            "writer.write_tag(1, {})?;",
                             Self::role_to_format(aliased),
                         ));
                         block_for.line("let mut bytes = Vec::new();");
@@ -856,7 +856,7 @@ impl ProtobufGenerator {
                                         Self::CODEC.to_lowercase()
                                     );
                                     block.line(format!(
-                                        "writer.write_tag({}, {});",
+                                        "writer.write_tag({}, {})?;",
                                         prev_tag + 1,
                                         format_line,
                                     ));
