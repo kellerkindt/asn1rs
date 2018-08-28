@@ -250,7 +250,7 @@ impl Generator {
             };
             generators
                 .iter()
-                .for_each(|g| g.generate_serializable_impl(&mut scope, &name, &definition));
+                .for_each(|g| g.generate_implementations(&mut scope, &name, &definition));
         }
 
         Ok((file, scope.to_string()))
@@ -384,12 +384,7 @@ impl Generator {
 
 pub trait SerializableGenerator {
     fn add_imports(&self, scope: &mut Scope);
-    fn generate_serializable_impl(
-        &self,
-        scope: &mut Scope,
-        impl_for: &str,
-        definition: &Definition,
-    );
+    fn generate_implementations(&self, scope: &mut Scope, impl_for: &str, definition: &Definition);
 }
 
 pub struct UperGenerator;
@@ -398,13 +393,8 @@ impl SerializableGenerator for UperGenerator {
         Self::add_imports(scope)
     }
 
-    fn generate_serializable_impl(
-        &self,
-        scope: &mut Scope,
-        impl_for: &str,
-        definition: &Definition,
-    ) {
-        Self::generate_serializable_impl(scope, impl_for, definition)
+    fn generate_implementations(&self, scope: &mut Scope, impl_for: &str, definition: &Definition) {
+        Self::generate_implementations(scope, impl_for, definition)
     }
 }
 
@@ -436,7 +426,7 @@ impl UperGenerator {
         );
     }
 
-    fn generate_serializable_impl(scope: &mut Scope, impl_for: &str, definition: &Definition) {
+    fn generate_implementations(scope: &mut Scope, impl_for: &str, definition: &Definition) {
         let serializable_implementation = Self::new_uper_serializable_impl(scope, impl_for);
         match definition {
             Definition::SequenceOf(_name, aliased) => {
@@ -658,13 +648,17 @@ impl SerializableGenerator for ProtobufGenerator {
         Self::add_imports(scope)
     }
 
-    fn generate_serializable_impl(
-        &self,
-        scope: &mut Scope,
-        impl_for: &str,
-        definition: &Definition,
-    ) {
-        Self::generate_serializable_impl(scope, impl_for, definition)
+    fn generate_implementations(&self, scope: &mut Scope, impl_for: &str, definition: &Definition) {
+        Self::impl_eq_fn(
+            Self::new_eq_fn(Self::new_eq_impl(scope, impl_for)),
+            definition,
+        );
+
+        let serializable_impl = Self::new_protobuf_serializable_impl(scope, impl_for);
+
+        Self::impl_format_fn(Self::new_format_fn(serializable_impl), definition);
+        Self::impl_write_fn(Self::new_write_fn(serializable_impl), definition);
+        Self::impl_read_fn(Self::new_read_fn(serializable_impl), definition);
     }
 }
 
@@ -1051,19 +1045,6 @@ impl ProtobufGenerator {
                 format!("{}::{}_format()", complex, Self::CODEC.to_lowercase())
             }
         }
-    }
-
-    fn generate_serializable_impl(scope: &mut Scope, impl_for: &str, definition: &Definition) {
-        Self::impl_eq_fn(
-            Self::new_eq_fn(Self::new_eq_impl(scope, impl_for)),
-            definition,
-        );
-
-        let serializable_impl = Self::new_protobuf_serializable_impl(scope, impl_for);
-
-        Self::impl_format_fn(Self::new_format_fn(serializable_impl), definition);
-        Self::impl_write_fn(Self::new_write_fn(serializable_impl), definition);
-        Self::impl_read_fn(Self::new_read_fn(serializable_impl), definition);
     }
 
     fn get_as_protobuf_type_statement(role: &Role) -> String {
