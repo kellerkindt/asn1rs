@@ -1,13 +1,16 @@
 use codegen::Block;
+use codegen::Enum;
 use codegen::Function;
 use codegen::Impl;
 use codegen::Scope;
+use codegen::Struct;
 
 use model::Definition;
 use model::Field;
 use model::Model;
 use model::ProtobufType;
 use model::Role;
+use model::RustType;
 
 use io::protobuf::Format as ProtobufFormat;
 
@@ -63,77 +66,12 @@ impl Generator {
         }
 
         for definition in model.definitions.iter() {
+            Self::add_definition(&mut scope, definition);
+            Self::impl_definition(&mut scope, definition);
+
             let name: String = match definition {
-                Definition::SequenceOf(name, role) => {
-                    let rust_type = role.clone().into_rust().to_string();
-                    Self::new_struct(&mut scope, name)
-                        .field("values", format!("Vec<{}>", rust_type));
-                    {
-                        scope
-                            .new_impl(&name)
-                            .impl_trait("::std::ops::Deref")
-                            .associate_type("Target", format!("Vec<{}>", rust_type))
-                            .new_fn("deref")
-                            .arg_ref_self()
-                            .ret(&format!("&Vec<{}>", rust_type))
-                            .line(format!("&self.values"));
-                    }
-                    {
-                        scope
-                            .new_impl(&name)
-                            .impl_trait("::std::ops::DerefMut")
-                            .new_fn("deref_mut")
-                            .arg_mut_self()
-                            .ret(&format!("&mut Vec<{}>", rust_type))
-                            .line(format!("&mut self.values"));
-                    }
-                    {
-                        let implementation = scope.new_impl(&name);
-                        {
-                            implementation
-                                .new_fn("values")
-                                .vis("pub")
-                                .ret(format!("&Vec<{}>", rust_type))
-                                .arg_ref_self()
-                                .line("&self.values");
-                        }
-                        {
-                            implementation
-                                .new_fn("values_mut")
-                                .vis("pub")
-                                .ret(format!("&mut Vec<{}>", rust_type))
-                                .arg_mut_self()
-                                .line("&mut self.values");
-                        }
-                        {
-                            implementation
-                                .new_fn("set_values")
-                                .vis("pub")
-                                .arg_mut_self()
-                                .arg("values", format!("Vec<{}>", rust_type))
-                                .line("self.values = values;");
-                        }
-                        Self::add_min_max_methods_if_applicable(implementation, "value", &role);
-                    }
-                    name.clone()
-                }
+                Definition::SequenceOf(name, role) => name.clone(),
                 Definition::Sequence(name, fields) => {
-                    {
-                        let mut new_struct = Self::new_struct(&mut scope, name);
-                        for field in fields.iter() {
-                            new_struct.field(
-                                &Self::rust_field_name(&field.name, true),
-                                if field.optional {
-                                    format!(
-                                        "Option<{}>",
-                                        field.role.clone().into_rust().to_string()
-                                    )
-                                } else {
-                                    field.role.clone().into_rust().to_string()
-                                },
-                            );
-                        }
-                    }
                     {
                         let implementation = scope.new_impl(name);
 
@@ -198,7 +136,7 @@ impl Generator {
                                     Self::rust_field_name(&field.name, true)
                                 ));
 
-                            Self::add_min_max_methods_if_applicable(
+                            Self::add_min_max_fn_if_applicable(
                                 implementation,
                                 &field.name,
                                 &field.role,
@@ -208,12 +146,6 @@ impl Generator {
                     name.clone()
                 }
                 Definition::Enumerated(name, variants) => {
-                    {
-                        let mut enumeration = Self::new_enum(&mut scope, name);
-                        for variant in variants.iter() {
-                            enumeration.new_variant(&Self::rust_variant_name(&variant));
-                        }
-                    }
                     {
                         scope
                             .new_impl(&name)
@@ -256,7 +188,127 @@ impl Generator {
         Ok((file, scope.to_string()))
     }
 
-    fn add_min_max_methods_if_applicable(implementation: &mut Impl, name: &str, role: &Role) {
+    fn add_definition(scope: &mut Scope, definition: &Definition) {
+        match definition {
+            Definition::SequenceOf(name, aliased) => {
+                Self::add_sequence_of(Self::new_struct(scope, name), name, aliased);
+            }
+            Definition::Sequence(name, fields) => {
+                Self::add_sequence(Self::new_struct(scope, name), name, &fields[..]);
+            }
+            Definition::Enumerated(name, variants) => {
+                Self::add_enumerated(Self::new_enum(scope, name), name, &variants[..]);
+            }
+        }
+    }
+
+    fn add_sequence_of(str_ct: &mut Struct, name: &String, aliased: &Role) {
+        str_ct.field(
+            "values",
+            format!("Vec<{}>", aliased.clone().into_rust().to_string()),
+        );
+    }
+
+    fn add_sequence(str_ct: &mut Struct, name: &String, fields: &[Field]) {
+        for field in fields.iter() {
+            str_ct.field(
+                &Self::rust_field_name(&field.name, true),
+                if field.optional {
+                    format!("Option<{}>", field.role.clone().into_rust().to_string())
+                } else {
+                    field.role.clone().into_rust().to_string()
+                },
+            );
+        }
+    }
+
+    fn add_enumerated(en_m: &mut Enum, name: &String, variants: &[String]) {
+        for variant in variants.iter() {
+            en_m.new_variant(&Self::rust_variant_name(&variant));
+        }
+    }
+
+    fn impl_definition(scope: &mut Scope, definition: &Definition) {
+        match definition {
+            Definition::SequenceOf(name, aliased) => {
+                let rust_type = aliased.clone().into_rust();
+                Self::impl_sequence_of_deref(scope, name, &rust_type);
+                Self::impl_sequence_of_deref_mut(scope, name, &rust_type);
+                Self::impl_sequence_of(scope, name, &aliased);
+            }
+            Definition::Sequence(name, fields) => {
+                Self::impl_sequence(scope, name, &fields[..]);
+            }
+            Definition::Enumerated(name, variants) => {
+                Self::impl_enumerated(scope, name, &variants[..]);
+            }
+        }
+    }
+
+    fn impl_sequence_of_deref(scope: &mut Scope, name: &String, aliased: &RustType) {
+        scope
+            .new_impl(&name)
+            .impl_trait("::std::ops::Deref")
+            .associate_type("Target", format!("Vec<{}>", aliased.to_string()))
+            .new_fn("deref")
+            .arg_ref_self()
+            .ret(&format!("&Vec<{}>", aliased.to_string()))
+            .line(format!("&self.values"));
+    }
+
+    fn impl_sequence_of_deref_mut(scope: &mut Scope, name: &String, aliased: &RustType) {
+        scope
+            .new_impl(&name)
+            .impl_trait("::std::ops::DerefMut")
+            .new_fn("deref_mut")
+            .arg_mut_self()
+            .ret(&format!("&mut Vec<{}>", aliased.to_string()))
+            .line(format!("&mut self.values"));
+    }
+
+    fn impl_sequence_of(scope: &mut Scope, name: &String, aliased: &Role) {
+        let implementation = scope.new_impl(name);
+        let rust_type = aliased.clone().into_rust().to_string();
+
+        Self::add_sequence_of_values_fn(implementation, &rust_type);
+        Self::add_sequence_of_values_mut_fn(implementation, &rust_type);
+        Self::add_sequence_of_set_values_fn(implementation, &rust_type);
+
+        Self::add_min_max_fn_if_applicable(implementation, "value", &aliased);
+    }
+
+    fn add_sequence_of_values_fn(implementation: &mut Impl, rust_type: &str) {
+        implementation
+            .new_fn("values")
+            .vis("pub")
+            .ret(format!("&Vec<{}>", rust_type))
+            .arg_ref_self()
+            .line("&self.values");
+    }
+
+    fn add_sequence_of_values_mut_fn(implementation: &mut Impl, rust_type: &str) {
+        implementation
+            .new_fn("values_mut")
+            .vis("pub")
+            .ret(format!("&mut Vec<{}>", rust_type))
+            .arg_mut_self()
+            .line("&mut self.values");
+    }
+
+    fn add_sequence_of_set_values_fn(implementation: &mut Impl, rust_type: &str) {
+        implementation
+            .new_fn("set_values")
+            .vis("pub")
+            .arg_mut_self()
+            .arg("values", format!("Vec<{}>", rust_type))
+            .line("self.values = values;");
+    }
+
+    fn impl_sequence(scope: &mut Scope, name: &String, fields: &[Field]) {}
+
+    fn impl_enumerated(scope: &mut Scope, name: &String, variants: &[String]) {}
+
+    fn add_min_max_fn_if_applicable(implementation: &mut Impl, name: &str, role: &Role) {
         let min_max = match role {
             Role::Boolean => None,
             Role::Integer((lower, upper)) => Some((*lower, *upper)),
@@ -336,7 +388,7 @@ impl Generator {
         out
     }
 
-    fn new_struct<'a>(scope: &'a mut Scope, name: &str) -> &'a mut ::codegen::Struct {
+    fn new_struct<'a>(scope: &'a mut Scope, name: &str) -> &'a mut Struct {
         scope
             .new_struct(name)
             .vis("pub")
@@ -346,7 +398,7 @@ impl Generator {
             .derive("PartialEq")
     }
 
-    fn new_enum<'a>(scope: &'a mut Scope, name: &str) -> &'a mut ::codegen::Enum {
+    fn new_enum<'a>(scope: &'a mut Scope, name: &str) -> &'a mut Enum {
         scope
             .new_enum(name)
             .vis("pub")
@@ -649,7 +701,6 @@ impl UperGenerator {
         }
         function.push_block(block);
     }
-
 }
 
 pub struct ProtobufGenerator;
