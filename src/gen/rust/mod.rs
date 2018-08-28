@@ -151,7 +151,7 @@ impl RustCodeGenerator {
         }
     }
 
-    fn impl_sequence_of_deref(scope: &mut Scope, name: &String, aliased: &RustType) {
+    fn impl_sequence_of_deref(scope: &mut Scope, name: &str, aliased: &RustType) {
         scope
             .new_impl(&name)
             .impl_trait("::std::ops::Deref")
@@ -162,7 +162,7 @@ impl RustCodeGenerator {
             .line(format!("&self.values"));
     }
 
-    fn impl_sequence_of_deref_mut(scope: &mut Scope, name: &String, aliased: &RustType) {
+    fn impl_sequence_of_deref_mut(scope: &mut Scope, name: &str, aliased: &RustType) {
         scope
             .new_impl(&name)
             .impl_trait("::std::ops::DerefMut")
@@ -172,7 +172,7 @@ impl RustCodeGenerator {
             .line(format!("&mut self.values"));
     }
 
-    fn impl_sequence_of(scope: &mut Scope, name: &String, aliased: &Role) {
+    fn impl_sequence_of(scope: &mut Scope, name: &str, aliased: &Role) {
         let implementation = scope.new_impl(name);
         let rust_type = aliased.clone().into_rust().to_string();
 
@@ -210,7 +210,7 @@ impl RustCodeGenerator {
             .line("self.values = values;");
     }
 
-    fn impl_sequence(scope: &mut Scope, name: &String, fields: &[Field]) {
+    fn impl_sequence(scope: &mut Scope, name: &str, fields: &[Field]) {
         let implementation = scope.new_impl(name);
 
         for field in fields.iter() {
@@ -295,7 +295,7 @@ impl RustCodeGenerator {
             ));
     }
 
-    fn impl_enumerated(scope: &mut Scope, name: &String, variants: &[String]) {
+    fn impl_enumerated(scope: &mut Scope, name: &str, variants: &[String]) {
         let implementation = scope.new_impl(name);
 
         Self::impl_enumerated_values_fn(implementation, &name, variants);

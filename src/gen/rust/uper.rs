@@ -147,7 +147,7 @@ impl UperGenerator {
         function.line("Ok(me)");
     }
 
-    fn impl_read_fn_for_enumeration(function: &mut Function, name: &String, variants: &[String]) {
+    fn impl_read_fn_for_enumeration(function: &mut Function, name: &str, variants: &[String]) {
         function.line(format!(
             "let id = reader.read_int((0, {}))?;",
             variants.len() - 1
@@ -259,7 +259,7 @@ impl UperGenerator {
         }
     }
 
-    fn impl_write_fn_for_enumeration(function: &mut Function, name: &String, variants: &[String]) {
+    fn impl_write_fn_for_enumeration(function: &mut Function, name: &str, variants: &[String]) {
         let mut block = Block::new("match self");
         for (i, variant) in variants.iter().enumerate() {
             block.line(format!(

@@ -110,7 +110,7 @@ impl ProtobufGenerator {
         function.line("Ok(me)");
     }
 
-    fn impl_read_fn_for_sequence(function: &mut Function, name: &String, fields: &[Field]) {
+    fn impl_read_fn_for_sequence(function: &mut Function, name: &str, fields: &[Field]) {
         for field in fields.iter() {
             function.line(format!(
                 "let mut read_{} = None;",
@@ -191,7 +191,7 @@ impl ProtobufGenerator {
         function.push_block(return_block);
     }
 
-    fn impl_read_fn_for_enumeration(function: &mut Function, name: &String, variants: &[String]) {
+    fn impl_read_fn_for_enumeration(function: &mut Function, name: &str, variants: &[String]) {
         let mut block_match = Block::new("match reader.read_varint()?");
         for (field, variant) in variants.iter().enumerate() {
             block_match.line(format!(
@@ -329,7 +329,7 @@ impl ProtobufGenerator {
         }
     }
 
-    fn impl_write_fn_for_enumeration(function: &mut Function, name: &String, variants: &[String]) {
+    fn impl_write_fn_for_enumeration(function: &mut Function, name: &str, variants: &[String]) {
         let mut outer_block = Block::new("match self");
         for (field, variant) in variants.iter().enumerate() {
             outer_block.line(format!(
