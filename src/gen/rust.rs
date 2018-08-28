@@ -390,7 +390,16 @@ pub trait GeneratorSupplement {
 pub struct UperGenerator;
 impl GeneratorSupplement for UperGenerator {
     fn add_imports(&self, scope: &mut Scope) {
-        Self::add_imports(scope)
+        scope.import("asn1c::io::uper", Self::CODEC);
+        scope.import("asn1c::io::uper", &format!("Error as {}Error", Self::CODEC));
+        scope.import(
+            "asn1c::io::uper",
+            &format!("Reader as {}Reader", Self::CODEC),
+        );
+        scope.import(
+            "asn1c::io::uper",
+            &format!("Writer as {}Writer", Self::CODEC),
+        );
     }
 
     fn generate_implementations(&self, scope: &mut Scope, impl_for: &str, definition: &Definition) {
@@ -411,19 +420,6 @@ impl UperGenerator {
 
     fn new_write_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
         Generator::new_write_fn(implementation, Self::CODEC)
-    }
-
-    fn add_imports(scope: &mut Scope) {
-        scope.import("asn1c::io::uper", Self::CODEC);
-        scope.import("asn1c::io::uper", &format!("Error as {}Error", Self::CODEC));
-        scope.import(
-            "asn1c::io::uper",
-            &format!("Reader as {}Reader", Self::CODEC),
-        );
-        scope.import(
-            "asn1c::io::uper",
-            &format!("Writer as {}Writer", Self::CODEC),
-        );
     }
 
     fn generate_implementations(scope: &mut Scope, impl_for: &str, definition: &Definition) {
@@ -645,7 +641,27 @@ impl UperGenerator {
 pub struct ProtobufGenerator;
 impl GeneratorSupplement for ProtobufGenerator {
     fn add_imports(&self, scope: &mut Scope) {
-        Self::add_imports(scope)
+        scope.import("asn1c::io::protobuf", Self::CODEC);
+        scope.import(
+            "asn1c::io::protobuf",
+            &format!("ProtobufEq as {}Eq", Self::CODEC),
+        );
+        scope.import(
+            "asn1c::io::protobuf",
+            &format!("Reader as {}Reader", Self::CODEC),
+        );
+        scope.import(
+            "asn1c::io::protobuf",
+            &format!("Writer as {}Writer", Self::CODEC),
+        );
+        scope.import(
+            "asn1c::io::protobuf",
+            &format!("Error as {}Error", Self::CODEC),
+        );
+        scope.import(
+            "asn1c::io::protobuf",
+            &format!("Format as {}Format", Self::CODEC),
+        );
     }
 
     fn generate_implementations(&self, scope: &mut Scope, impl_for: &str, definition: &Definition) {
@@ -1005,30 +1021,6 @@ impl ProtobufGenerator {
                 function.line("self == other");
             }
         }
-    }
-
-    fn add_imports(scope: &mut Scope) {
-        scope.import("asn1c::io::protobuf", Self::CODEC);
-        scope.import(
-            "asn1c::io::protobuf",
-            &format!("ProtobufEq as {}Eq", Self::CODEC),
-        );
-        scope.import(
-            "asn1c::io::protobuf",
-            &format!("Reader as {}Reader", Self::CODEC),
-        );
-        scope.import(
-            "asn1c::io::protobuf",
-            &format!("Writer as {}Writer", Self::CODEC),
-        );
-        scope.import(
-            "asn1c::io::protobuf",
-            &format!("Error as {}Error", Self::CODEC),
-        );
-        scope.import(
-            "asn1c::io::protobuf",
-            &format!("Format as {}Format", Self::CODEC),
-        );
     }
 
     fn role_to_format(role: &Role) -> String {
