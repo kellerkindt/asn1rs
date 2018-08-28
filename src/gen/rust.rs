@@ -12,43 +12,46 @@ use model::ProtobufType;
 use model::Role;
 use model::RustType;
 
+use gen::Generator;
+
 use io::protobuf::Format as ProtobufFormat;
 
 const KEYWORDS: [&str; 9] = [
     "use", "mod", "const", "type", "pub", "enum", "struct", "impl", "trait",
 ];
 
-#[derive(Debug)]
-pub enum Error {}
-
-pub struct Generator {
+#[derive(Debug, Default)]
+pub struct RustCodeGenerator {
     models: Vec<Model>,
 }
 
-impl Generator {
-    pub fn new() -> Generator {
-        Generator { models: Vec::new() }
-    }
-
-    pub fn add_model(&mut self, model: Model) {
+impl Generator for RustCodeGenerator {
+    fn add_model(&mut self, model: Model) {
         self.models.push(model);
     }
 
-    pub fn to_string(&self) -> Result<Vec<(String, String)>, Error> {
-        let mut files = Vec::new();
-        for model in self.models.iter() {
-            files.push(Self::model_to_file(
-                model,
-                &[&UperGenerator, &ProtobufGenerator],
-            )?);
-        }
-        Ok(files)
+    fn models(&self) -> &[Model] {
+        &self.models[..]
     }
 
-    pub fn model_to_file(
-        model: &Model,
-        generators: &[&GeneratorSupplement],
-    ) -> Result<(String, String), Error> {
+    fn models_mut(&mut self) -> &mut [Model] {
+        &mut self.models[..]
+    }
+
+    fn to_string(&self) -> Vec<(String, String)> {
+        let mut files = Vec::new();
+        for model in self.models.iter() {
+            files.push(RustCodeGenerator::model_to_file(
+                model,
+                &[&UperGenerator, &ProtobufGenerator],
+            ));
+        }
+        files
+    }
+}
+
+impl RustCodeGenerator {
+    pub fn model_to_file(model: &Model, generators: &[&GeneratorSupplement]) -> (String, String) {
         let file = {
             let mut string = Self::rust_module_name(&model.name);
             string.push_str(".rs");
@@ -80,7 +83,7 @@ impl Generator {
                 .for_each(|g| g.generate_implementations(&mut scope, &name, &definition));
         }
 
-        Ok((file, scope.to_string()))
+        (file, scope.to_string())
     }
 
     fn add_definition(scope: &mut Scope, definition: &Definition) {
@@ -461,11 +464,11 @@ impl UperGenerator {
     const CODEC: &'static str = "Uper";
 
     fn new_uper_serializable_impl<'a>(scope: &'a mut Scope, impl_for: &str) -> &'a mut Impl {
-        Generator::new_serializable_impl(scope, impl_for, Self::CODEC)
+        RustCodeGenerator::new_serializable_impl(scope, impl_for, Self::CODEC)
     }
 
     fn new_read_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
-        Generator::new_read_fn(implementation, Self::CODEC)
+        RustCodeGenerator::new_read_fn(implementation, Self::CODEC)
     }
 
     fn impl_read_fn(function: &mut Function, definition: &Definition) {
@@ -513,7 +516,7 @@ impl UperGenerator {
             if field.optional {
                 function.line(format!(
                     "let {} = reader.read_bit()?;",
-                    Generator::rust_field_name(&field.name, true),
+                    RustCodeGenerator::rust_field_name(&field.name, true),
                 ));
             }
         }
@@ -521,47 +524,47 @@ impl UperGenerator {
             let line = match field.role {
                 Role::Boolean => format!(
                     "me.{} = {}reader.read_bit()?{};",
-                    Generator::rust_field_name(&field.name, true),
+                    RustCodeGenerator::rust_field_name(&field.name, true),
                     if field.optional { "Some(" } else { "" },
                     if field.optional { ")" } else { "" },
                 ),
                 Role::Integer(_) => format!(
                     "me.{} = {}reader.read_int((Self::{}_min() as i64, Self::{}_max() as i64))? as {}{};",
-                    Generator::rust_field_name(&field.name, true),
+                    RustCodeGenerator::rust_field_name(&field.name, true),
                     if field.optional { "Some(" } else { "" },
-                    Generator::rust_field_name(&field.name, false),
-                    Generator::rust_field_name(&field.name, false),
+                    RustCodeGenerator::rust_field_name(&field.name, false),
+                    RustCodeGenerator::rust_field_name(&field.name, false),
                     field.role.clone().into_rust().to_string(),
                     if field.optional { ")" } else { "" },
                 ),
                 Role::UnsignedMaxInteger => format!(
                     "me.{} = {}reader.read_int_max()?{};",
-                    Generator::rust_field_name(&field.name, true),
+                    RustCodeGenerator::rust_field_name(&field.name, true),
                     if field.optional { "Some(" } else { "" },
                     if field.optional { ")" } else { "" },
                 ),
                 Role::Custom(ref _type) => format!(
                     "me.{} = {}{}::read_uper(reader)?{};",
-                    Generator::rust_field_name(&field.name, true),
+                    RustCodeGenerator::rust_field_name(&field.name, true),
                     if field.optional { "Some(" } else { "" },
                     field.role.clone().into_rust().to_string(),
                     if field.optional { ")" } else { "" },
                 ),
                 Role::UTF8String => format!(
                     "me.{} = reader.read_utf8_string()?;",
-                    Generator::rust_field_name(&field.name, true),
+                    RustCodeGenerator::rust_field_name(&field.name, true),
                 ),
             };
             if field.optional {
                 let mut block_if = Block::new(&format!(
                     "if {}",
-                    Generator::rust_field_name(&field.name, true),
+                    RustCodeGenerator::rust_field_name(&field.name, true),
                 ));
                 block_if.line(line);
                 let mut block_else = Block::new("else");
                 block_else.line(format!(
                     "me.{} = None;",
-                    Generator::rust_field_name(&field.name, true),
+                    RustCodeGenerator::rust_field_name(&field.name, true),
                 ));
                 function.push_block(block_if);
                 function.push_block(block_else);
@@ -583,7 +586,7 @@ impl UperGenerator {
                 "{} => Ok({}::{}),",
                 i,
                 name,
-                Generator::rust_variant_name(&variant),
+                RustCodeGenerator::rust_variant_name(&variant),
             ));
         }
         block_match.line(format!(
@@ -594,7 +597,7 @@ impl UperGenerator {
     }
 
     fn new_write_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
-        Generator::new_write_fn(implementation, Self::CODEC)
+        RustCodeGenerator::new_write_fn(implementation, Self::CODEC)
     }
 
     fn impl_write_fn(function: &mut Function, definition: &Definition) {
@@ -635,7 +638,7 @@ impl UperGenerator {
             if field.optional {
                 function.line(format!(
                     "writer.write_bit(self.{}.is_some())?;",
-                    Generator::rust_field_name(&field.name, true),
+                    RustCodeGenerator::rust_field_name(&field.name, true),
                 ));
             }
         }
@@ -645,36 +648,36 @@ impl UperGenerator {
                 Role::Boolean => format!(
                     "writer.write_bit({}{})?;",
                     if field.optional { "*" } else { "self." },
-                    Generator::rust_field_name(&field.name, true),
+                    RustCodeGenerator::rust_field_name(&field.name, true),
                 ),
                 Role::Integer(_) => format!(
                     "writer.write_int({}{} as i64, (Self::{}_min() as i64, Self::{}_max() as i64))?;",
                     if field.optional { "*" } else { "self." },
-                    Generator::rust_field_name(&field.name, true),
-                    Generator::rust_field_name(&field.name, false),
-                    Generator::rust_field_name(&field.name, false),
+                    RustCodeGenerator::rust_field_name(&field.name, true),
+                    RustCodeGenerator::rust_field_name(&field.name, false),
+                    RustCodeGenerator::rust_field_name(&field.name, false),
                 ),
                 Role::UnsignedMaxInteger => format!(
                     "writer.write_int_max({}{})?;",
                     if field.optional { "*" } else { "self." },
-                    Generator::rust_field_name(&field.name, true),
+                    RustCodeGenerator::rust_field_name(&field.name, true),
                 ),
                 Role::Custom(ref _type) => format!(
                     "{}{}.write_uper(writer)?;",
                     if field.optional { "" } else { "self." },
-                    Generator::rust_field_name(&field.name, true),
+                    RustCodeGenerator::rust_field_name(&field.name, true),
                 ),
                 Role::UTF8String => format!(
                     "writer.write_utf8_string(&{}{})?;",
                     if field.optional { "" } else { "self." },
-                    Generator::rust_field_name(&field.name, true),
+                    RustCodeGenerator::rust_field_name(&field.name, true),
                 ),
             };
             if field.optional {
                 let mut b = Block::new(&format!(
                     "if let Some(ref {}) = self.{}",
-                    Generator::rust_field_name(&field.name, true),
-                    Generator::rust_field_name(&field.name, true),
+                    RustCodeGenerator::rust_field_name(&field.name, true),
+                    RustCodeGenerator::rust_field_name(&field.name, true),
                 ));
                 b.line(line);
                 function.push_block(b);
@@ -690,7 +693,7 @@ impl UperGenerator {
             block.line(format!(
                 "{}::{} => writer.write_int({}, (0, {}))?,",
                 name,
-                Generator::rust_variant_name(&variant),
+                RustCodeGenerator::rust_variant_name(&variant),
                 i,
                 variants.len() - 1
             ));
@@ -743,11 +746,11 @@ impl ProtobufGenerator {
     const CODEC: &'static str = "Protobuf";
 
     fn new_protobuf_serializable_impl<'a>(scope: &'a mut Scope, impl_for: &str) -> &'a mut Impl {
-        Generator::new_serializable_impl(scope, impl_for, Self::CODEC)
+        RustCodeGenerator::new_serializable_impl(scope, impl_for, Self::CODEC)
     }
 
     fn new_read_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
-        Generator::new_read_fn(implementation, Self::CODEC)
+        RustCodeGenerator::new_read_fn(implementation, Self::CODEC)
     }
 
     fn impl_read_fn(function: &mut Function, definition: &Definition) {
@@ -799,7 +802,7 @@ impl ProtobufGenerator {
         for field in fields.iter() {
             function.line(format!(
                 "let mut read_{} = None;",
-                Generator::rust_field_name(&field.name, false)
+                RustCodeGenerator::rust_field_name(&field.name, false)
             ));
         }
 
@@ -813,7 +816,7 @@ impl ProtobufGenerator {
                     let mut block_case = Block::new(&format!(
                         "{} => read_{} = Some(",
                         prev_tag + 1,
-                        Generator::rust_field_name(&field.name, false)
+                        RustCodeGenerator::rust_field_name(&field.name, false)
                     ));
                     let mut block_case_if = Block::new(&format!(
                         "if {}::{}_format() == {}Format::LengthDelimited",
@@ -838,7 +841,7 @@ impl ProtobufGenerator {
                     block_match_tag.line(format!(
                         "{} => read_{} = Some({}),",
                         prev_tag + 1,
-                        Generator::rust_field_name(&field.name, false),
+                        RustCodeGenerator::rust_field_name(&field.name, false),
                         format!(
                             "reader.read_{}()?",
                             role.clone().into_protobuf().to_string(),
@@ -858,8 +861,8 @@ impl ProtobufGenerator {
         for field in fields.iter() {
             return_block.line(&format!(
                 "{}: read_{}.map(|v| v{}){},",
-                Generator::rust_field_name(&field.name, true),
-                Generator::rust_field_name(&field.name, false),
+                RustCodeGenerator::rust_field_name(&field.name, true),
+                RustCodeGenerator::rust_field_name(&field.name, false),
                 Self::get_as_rust_type_statement(&field.role),
                 if field.optional {
                     "".into()
@@ -883,7 +886,7 @@ impl ProtobufGenerator {
                 "{} => Ok({}::{}),",
                 field,
                 name,
-                Generator::rust_variant_name(&variant),
+                RustCodeGenerator::rust_variant_name(&variant),
             ));
         }
         block_match.line(format!(
@@ -894,7 +897,7 @@ impl ProtobufGenerator {
     }
 
     fn new_write_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
-        Generator::new_write_fn(implementation, Self::CODEC)
+        RustCodeGenerator::new_write_fn(implementation, Self::CODEC)
     }
 
     fn impl_write_fn(function: &mut Function, definition: &Definition) {
@@ -947,8 +950,8 @@ impl ProtobufGenerator {
             let mut block = if field.optional {
                 Block::new(&format!(
                     "if let Some(ref {}) = self.{}",
-                    Generator::rust_field_name(&field.name, true),
-                    Generator::rust_field_name(&field.name, true),
+                    RustCodeGenerator::rust_field_name(&field.name, true),
+                    RustCodeGenerator::rust_field_name(&field.name, true),
                 ))
             } else {
                 Block::new("")
@@ -972,7 +975,7 @@ impl ProtobufGenerator {
                     block_if.line(format!(
                         "{}{}.write_protobuf(&mut vec as &mut {}Writer)?;",
                         if field.optional { "" } else { "self." },
-                        Generator::rust_field_name(&field.name, true),
+                        RustCodeGenerator::rust_field_name(&field.name, true),
                         Self::CODEC,
                     ));
                     block_if.line("writer.write_bytes(&vec[..])?;");
@@ -981,7 +984,7 @@ impl ProtobufGenerator {
                     block_el.line(format!(
                         "{}{}.write_protobuf(writer)?;",
                         if field.optional { "" } else { "self." },
-                        Generator::rust_field_name(&field.name, true),
+                        RustCodeGenerator::rust_field_name(&field.name, true),
                     ));
 
                     block.push_block(block_if);
@@ -1005,7 +1008,7 @@ impl ProtobufGenerator {
                                 "self."
                             }
                         },
-                        Generator::rust_field_name(&field.name, true),
+                        RustCodeGenerator::rust_field_name(&field.name, true),
                         Self::get_as_protobuf_type_statement(r),
                     ));
                 }
@@ -1020,7 +1023,7 @@ impl ProtobufGenerator {
             outer_block.line(format!(
                 "{}::{} => writer.write_varint({})?,",
                 name,
-                Generator::rust_variant_name(&variant),
+                RustCodeGenerator::rust_variant_name(&variant),
                 field,
             ));
         }
@@ -1069,7 +1072,7 @@ impl ProtobufGenerator {
                     if num > 0 {
                         function.line("&&");
                     }
-                    let field_name = Generator::rust_field_name(&field.name, true);
+                    let field_name = RustCodeGenerator::rust_field_name(&field.name, true);
                     function.line(&format!(
                         "self.{}.{}_eq(&other.{})",
                         field_name,

@@ -1,7 +1,8 @@
 use gen::protobuf::Error as ProtobufGeneratorError;
 use gen::protobuf::Generator as ProtobufGenerator;
-use gen::rust::Error as RustGeneratorError;
-use gen::rust::Generator as RustGenerator;
+use gen::rust::RustCodeGenerator as RustGenerator;
+use gen::Generator;
+
 use model::Error as ModelError;
 use model::Model;
 use parser::Error as ParserError;
@@ -12,17 +13,10 @@ use std::path::Path;
 
 #[derive(Debug)]
 pub enum Error {
-    RustGenerator(RustGeneratorError),
     ProtobufGenerator(ProtobufGeneratorError),
     Model(ModelError),
     Parser(ParserError),
     Io(IoError),
-}
-
-impl From<RustGeneratorError> for Error {
-    fn from(g: RustGeneratorError) -> Self {
-        Error::RustGenerator(g)
-    }
 }
 
 impl From<ProtobufGeneratorError> for Error {
@@ -56,9 +50,9 @@ pub fn convert_to_rust<F: AsRef<Path>, D: AsRef<Path>>(
     let input = ::std::fs::read_to_string(file)?;
     let tokens = Parser::new().parse(&input)?;
     let model = Model::try_from(tokens)?;
-    let mut generator = RustGenerator::new();
+    let mut generator = RustGenerator::default();
     generator.add_model(model);
-    let output = generator.to_string()?;
+    let output = generator.to_string();
 
     let dir = dir.as_ref().clone();
     let mut files = Vec::new();
