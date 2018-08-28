@@ -8,11 +8,10 @@ use model::Field;
 use model::ProtobufType;
 use model::Role;
 
-use gen::rust::RustCodeGenerator;
 use gen::rust::GeneratorSupplement;
+use gen::rust::RustCodeGenerator;
 
 use io::protobuf::Format as ProtobufFormat;
-
 
 pub struct ProtobufGenerator;
 impl GeneratorSupplement for ProtobufGenerator {

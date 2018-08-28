@@ -12,11 +12,11 @@ use model::RustType;
 
 use gen::Generator;
 
-mod uper;
 mod protobuf;
+mod uper;
 
-use self::uper::UperGenerator;
 use self::protobuf::ProtobufGenerator;
+use self::uper::UperGenerator;
 
 const KEYWORDS: [&str; 9] = [
     "use", "mod", "const", "type", "pub", "enum", "struct", "impl", "trait",
@@ -33,6 +33,8 @@ pub struct RustCodeGenerator {
 }
 
 impl Generator for RustCodeGenerator {
+    type Error = ();
+
     fn add_model(&mut self, model: Model) {
         self.models.push(model);
     }
@@ -45,7 +47,7 @@ impl Generator for RustCodeGenerator {
         &mut self.models[..]
     }
 
-    fn to_string(&self) -> Vec<(String, String)> {
+    fn to_string(&self) -> Result<Vec<(String, String)>, Self::Error> {
         let mut files = Vec::new();
         for model in self.models.iter() {
             files.push(RustCodeGenerator::model_to_file(
@@ -53,7 +55,7 @@ impl Generator for RustCodeGenerator {
                 &[&UperGenerator, &ProtobufGenerator],
             ));
         }
-        files
+        Ok(files)
     }
 }
 

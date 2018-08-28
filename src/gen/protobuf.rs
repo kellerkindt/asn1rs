@@ -18,11 +18,11 @@ impl From<FmtError> for Error {
 }
 
 #[derive(Debug, Default)]
-pub struct Generator {
+pub struct ProtobufDefGenerator {
     models: Vec<Model>,
 }
 
-impl Generator {
+impl ProtobufDefGenerator {
     pub fn add_model(&mut self, model: Model) {
         self.models.push(model);
     }

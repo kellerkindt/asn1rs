@@ -1,5 +1,5 @@
 use gen::protobuf::Error as ProtobufGeneratorError;
-use gen::protobuf::Generator as ProtobufGenerator;
+use gen::protobuf::ProtobufDefGenerator as ProtobufGenerator;
 use gen::rust::RustCodeGenerator as RustGenerator;
 use gen::Generator;
 
@@ -13,6 +13,7 @@ use std::path::Path;
 
 #[derive(Debug)]
 pub enum Error {
+    RustGenerator,
     ProtobufGenerator(ProtobufGeneratorError),
     Model(ModelError),
     Parser(ParserError),
@@ -52,7 +53,8 @@ pub fn convert_to_rust<F: AsRef<Path>, D: AsRef<Path>>(
     let model = Model::try_from(tokens)?;
     let mut generator = RustGenerator::default();
     generator.add_model(model);
-    let output = generator.to_string();
+
+    let output = generator.to_string().map_err(|_| Error::RustGenerator)?;
 
     let dir = dir.as_ref().clone();
     let mut files = Vec::new();
@@ -70,7 +72,7 @@ pub fn convert_to_proto<F: AsRef<Path>, D: AsRef<Path>>(
     let input = ::std::fs::read_to_string(file)?;
     let tokens = Parser::new().parse(&input)?;
     let model = Model::try_from(tokens)?;
-    let mut generator = ProtobufGenerator::default();
+    let mut generator = ProtobufDefGenerator::default();
     generator.add_model(model);
     let output = generator.generate()?;
 

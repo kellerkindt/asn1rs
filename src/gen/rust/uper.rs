@@ -7,8 +7,8 @@ use model::Definition;
 use model::Field;
 use model::Role;
 
-use gen::rust::RustCodeGenerator;
 use gen::rust::GeneratorSupplement;
+use gen::rust::RustCodeGenerator;
 
 pub struct UperGenerator;
 impl GeneratorSupplement for UperGenerator {
