@@ -4,7 +4,6 @@ use codegen::Impl;
 use codegen::Scope;
 
 use model::Definition;
-use model::Field;
 use model::Model;
 use model::ProtobufType;
 use model::Role;
@@ -437,7 +436,7 @@ impl UperGenerator {
     fn generate_serializable_impl(scope: &mut Scope, impl_for: &str, definition: &Definition) {
         let serializable_implementation = Self::new_uper_serializable_impl(scope, impl_for);
         match definition {
-            Definition::SequenceOf(name, aliased) => {
+            Definition::SequenceOf(_name, aliased) => {
                 {
                     let mut block = Self::new_write_fn(serializable_implementation);
                     block.line("writer.write_length_determinant(self.values.len())?;");
@@ -463,7 +462,7 @@ impl UperGenerator {
                     let mut block_for = Block::new("for _ in 0..len");
                     match aliased {
                         Role::Boolean => block_for.line("me.values.push(reader.read_bit()?);"),
-                        Role::Integer((lower, upper)) => block_for.line(format!(
+                        Role::Integer(_) => block_for.line(format!(
                             "me.values.push(reader.read_int((Self::value_min() as i64, Self::value_max() as i64))? as {});",
                             aliased.clone().into_rust().to_string(),
                         )),
@@ -560,7 +559,7 @@ impl UperGenerator {
                                 if field.optional { "Some(" } else { "" },
                                 if field.optional { ")" } else { "" },
                             ),
-                            Role::Integer((lower, upper)) => format!(
+                            Role::Integer(_) => format!(
                                 "me.{} = {}reader.read_int((Self::{}_min() as i64, Self::{}_max() as i64))? as {}{};",
                                 Generator::rust_field_name(&field.name, true),
                                 if field.optional { "Some(" } else { "" },
