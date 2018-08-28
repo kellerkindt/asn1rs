@@ -207,7 +207,7 @@ impl Generator {
                     }
                     name.clone()
                 }
-                Definition::Enumeration(name, variants) => {
+                Definition::Enumerated(name, variants) => {
                     {
                         let mut enumeration = Self::new_enum(&mut scope, name);
                         for variant in variants.iter() {
@@ -600,7 +600,7 @@ impl UperGenerator {
                     block.line("Ok(me)");
                 }
             }
-            Definition::Enumeration(name, variants) => {
+            Definition::Enumerated(name, variants) => {
                 {
                     let mut block = Block::new("match self");
                     for (i, variant) in variants.iter().enumerate() {
@@ -681,7 +681,7 @@ impl ProtobufGenerator {
             Definition::Sequence(name, fields) => {
                 Self::impl_read_fn_for_sequence(function, name, &fields[..]);
             }
-            Definition::Enumeration(name, variants) => {
+            Definition::Enumerated(name, variants) => {
                 Self::impl_read_fn_for_enumeration(function, name, &variants[..]);
             }
         };
@@ -828,7 +828,7 @@ impl ProtobufGenerator {
             Definition::Sequence(name, fields) => {
                 Self::impl_write_fn_for_sequence(function, name, &fields[..]);
             }
-            Definition::Enumeration(name, variants) => {
+            Definition::Enumerated(name, variants) => {
                 Self::impl_write_fn_for_enumeration(function, name, &variants[..]);
             }
         };
@@ -960,7 +960,7 @@ impl ProtobufGenerator {
         let format = match definition {
             Definition::SequenceOf(_, _) => ProtobufFormat::LengthDelimited,
             Definition::Sequence(_, _) => ProtobufFormat::LengthDelimited,
-            Definition::Enumeration(_, _) => ProtobufFormat::VarInt,
+            Definition::Enumerated(_, _) => ProtobufFormat::VarInt,
         };
         function.line(format!("{}Format::{}", Self::CODEC, format.to_string()));
     }
@@ -1001,7 +1001,7 @@ impl ProtobufGenerator {
                     ));
                 }
             }
-            Definition::Enumeration(_, _) => {
+            Definition::Enumerated(_, _) => {
                 function.line("self == other");
             }
         }

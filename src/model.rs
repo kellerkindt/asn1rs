@@ -137,7 +137,7 @@ impl Model {
                 }
             }
         } else if token.text().map(|s| s.eq(&"ENUMERATED")).unwrap_or(false) {
-            Ok(Definition::Enumeration(name, Self::read_enumerated(iter)?))
+            Ok(Definition::Enumerated(name, Self::read_enumerated(iter)?))
         } else {
             Err(Error::UnexpectedToken(token))
         }
@@ -270,7 +270,7 @@ pub struct Import {
 pub enum Definition {
     SequenceOf(String, Role),
     Sequence(String, Vec<Field>),
-    Enumeration(String, Vec<String>),
+    Enumerated(String, Vec<String>),
 }
 
 #[derive(Debug, Clone)]
