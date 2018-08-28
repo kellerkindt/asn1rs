@@ -44,7 +44,7 @@ impl Generator {
 
     pub fn model_to_file(
         model: &Model,
-        generators: &[&SerializableGenerator],
+        generators: &[&GeneratorSupplement],
     ) -> Result<(String, String), Error> {
         let file = {
             let mut string = Self::rust_module_name(&model.name);
@@ -382,13 +382,13 @@ impl Generator {
     }
 }
 
-pub trait SerializableGenerator {
+pub trait GeneratorSupplement {
     fn add_imports(&self, scope: &mut Scope);
     fn generate_implementations(&self, scope: &mut Scope, impl_for: &str, definition: &Definition);
 }
 
 pub struct UperGenerator;
-impl SerializableGenerator for UperGenerator {
+impl GeneratorSupplement for UperGenerator {
     fn add_imports(&self, scope: &mut Scope) {
         Self::add_imports(scope)
     }
@@ -643,7 +643,7 @@ impl UperGenerator {
 }
 
 pub struct ProtobufGenerator;
-impl SerializableGenerator for ProtobufGenerator {
+impl GeneratorSupplement for ProtobufGenerator {
     fn add_imports(&self, scope: &mut Scope) {
         Self::add_imports(scope)
     }
