@@ -181,31 +181,3 @@ impl Generator {
         Self::model_name(model, '.')
     }
 }
-
-#[cfg(test)]
-mod test {
-    use super::*;
-    use parser::Parser;
-
-    #[test]
-    fn test() {
-        test_file("/home/mi7wa6/mec-view/svn-sources/trunk/MECViewServerSDK/proto/general.asn1");
-        test_file(
-            "/home/mi7wa6/mec-view/svn-sources/trunk/MECViewServerSDK/proto/environment.asn1",
-        );
-    }
-
-    fn test_file(file: &str) {
-        let input = ::std::fs::read_to_string(file).unwrap();
-        let tokens = Parser::new().parse(&input).unwrap();
-        let model = Model::try_from(tokens).unwrap();
-
-        let mut generator = Generator::default();
-        generator.add_model(model);
-        let generated = generator.generate().unwrap();
-        eprintln!("{:#?}", generated);
-        for (file, content) in generated {
-            ::std::fs::write(format!("/tmp/{}", file), content).unwrap();
-        }
-    }
-}
