@@ -67,7 +67,7 @@ impl Generator {
         definition: &Definition,
     ) -> Result<(), Error> {
         match definition {
-            Definition::Enumerated(name, variants) => {
+            Definition::Enumeration(name, variants) => {
                 writeln!(target, "enum {} {{", name)?;
                 for (tag, variant) in variants.iter().enumerate() {
                     Self::append_variant(target, &variant, tag)?;
