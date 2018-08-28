@@ -1,16 +1,11 @@
 use codegen::Block;
-use codegen::Enum;
 use codegen::Function;
 use codegen::Impl;
 use codegen::Scope;
-use codegen::Struct;
 
 use model::Definition;
 use model::Field;
-use model::Model;
-use model::ProtobufType;
 use model::Role;
-use model::RustType;
 
 use gen::rust::RustCodeGenerator;
 use gen::rust::GeneratorSupplement;
@@ -62,7 +57,7 @@ impl UperGenerator {
         };
     }
 
-    fn impl_read_fn_for_sequence_of(function: &mut Function, name: &String, aliased: &Role) {
+    fn impl_read_fn_for_sequence_of(function: &mut Function, _name: &str, aliased: &Role) {
         function.line("let mut me = Self::default();");
         function.line("let len = reader.read_length_determinant()?;");
         let mut block_for = Block::new("for _ in 0..len");
@@ -85,7 +80,7 @@ impl UperGenerator {
         function.line("Ok(me)");
     }
 
-    fn impl_read_fn_for_sequence(function: &mut Function, name: &String, fields: &[Field]) {
+    fn impl_read_fn_for_sequence(function: &mut Function, _name: &str, fields: &[Field]) {
         function.line("let mut me = Self::default();");
 
         // bitmask for optional fields
@@ -192,7 +187,7 @@ impl UperGenerator {
         function.line("Ok(())");
     }
 
-    fn impl_write_fn_for_sequence_of(function: &mut Function, name: &String, aliased: &Role) {
+    fn impl_write_fn_for_sequence_of(function: &mut Function, _name: &str, aliased: &Role) {
         function.line("writer.write_length_determinant(self.values.len())?;");
         let mut block_for = Block::new("for value in self.values.iter()");
         match aliased {
@@ -209,7 +204,7 @@ impl UperGenerator {
         function.push_block(block_for);
     }
 
-    fn impl_write_fn_for_sequence(function: &mut Function, name: &String, fields: &[Field]) {
+    fn impl_write_fn_for_sequence(function: &mut Function, _name: &str, fields: &[Field]) {
         // bitmask for optional fields
         for field in fields.iter() {
             if field.optional {

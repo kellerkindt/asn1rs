@@ -217,6 +217,7 @@ impl Model {
         }
     }
 
+    #[allow(unused)]
     fn next_text_ignore_case(iter: &mut IntoIter<Token>, text: &str) -> Result<(), Error> {
         let token = Self::next_text(iter)?;
         if text.eq_ignore_ascii_case(&token) {

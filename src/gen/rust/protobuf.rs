@@ -1,16 +1,12 @@
 use codegen::Block;
-use codegen::Enum;
 use codegen::Function;
 use codegen::Impl;
 use codegen::Scope;
-use codegen::Struct;
 
 use model::Definition;
 use model::Field;
-use model::Model;
 use model::ProtobufType;
 use model::Role;
-use model::RustType;
 
 use gen::rust::RustCodeGenerator;
 use gen::rust::GeneratorSupplement;
@@ -83,7 +79,7 @@ impl ProtobufGenerator {
         };
     }
 
-    fn impl_read_fn_for_sequence_of(function: &mut Function, name: &String, aliased: &Role) {
+    fn impl_read_fn_for_sequence_of(function: &mut Function, _name: &str, aliased: &Role) {
         function.line("let mut me = Self::default();");
 
         let mut block_while = Block::new("while let Ok(tag) = reader.read_tag()");
@@ -231,7 +227,7 @@ impl ProtobufGenerator {
         function.line("Ok(())");
     }
 
-    fn impl_write_fn_for_sequence_of(function: &mut Function, name: &String, aliased: &Role) {
+    fn impl_write_fn_for_sequence_of(function: &mut Function, _name: &str, aliased: &Role) {
         let mut block_writer = Block::new("");
         let mut block_for = Block::new("for value in self.values.iter()");
         block_for.line(format!(
@@ -260,7 +256,7 @@ impl ProtobufGenerator {
         function.push_block(block_writer);
     }
 
-    fn impl_write_fn_for_sequence(function: &mut Function, name: &String, fields: &[Field]) {
+    fn impl_write_fn_for_sequence(function: &mut Function, _name: &str, fields: &[Field]) {
         for (prev_tag, field) in fields.iter().enumerate() {
             let block_: &mut Function = function;
             let mut block = if field.optional {

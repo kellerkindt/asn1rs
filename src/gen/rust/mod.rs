@@ -1,4 +1,3 @@
-use codegen::Block;
 use codegen::Enum;
 use codegen::Function;
 use codegen::Impl;
@@ -8,7 +7,6 @@ use codegen::Struct;
 use model::Definition;
 use model::Field;
 use model::Model;
-use model::ProtobufType;
 use model::Role;
 use model::RustType;
 
@@ -19,8 +17,6 @@ mod protobuf;
 
 use self::uper::UperGenerator;
 use self::protobuf::ProtobufGenerator;
-
-use io::protobuf::Format as ProtobufFormat;
 
 const KEYWORDS: [&str; 9] = [
     "use", "mod", "const", "type", "pub", "enum", "struct", "impl", "trait",
@@ -84,9 +80,9 @@ impl RustCodeGenerator {
             Self::impl_definition(&mut scope, definition);
 
             let name: String = match definition {
-                Definition::SequenceOf(name, role) => name.clone(),
-                Definition::Sequence(name, fields) => name.clone(),
-                Definition::Enumerated(name, variants) => name.clone(),
+                Definition::SequenceOf(name, _role) => name.clone(),
+                Definition::Sequence(name, _fields) => name.clone(),
+                Definition::Enumerated(name, _variants) => name.clone(),
             };
 
             generators
@@ -111,14 +107,14 @@ impl RustCodeGenerator {
         }
     }
 
-    fn add_sequence_of(str_ct: &mut Struct, name: &String, aliased: &Role) {
+    fn add_sequence_of(str_ct: &mut Struct, _name: &str, aliased: &Role) {
         str_ct.field(
             "values",
             format!("Vec<{}>", aliased.clone().into_rust().to_string()),
         );
     }
 
-    fn add_sequence(str_ct: &mut Struct, name: &String, fields: &[Field]) {
+    fn add_sequence(str_ct: &mut Struct, _name: &str, fields: &[Field]) {
         for field in fields.iter() {
             str_ct.field(
                 &Self::rust_field_name(&field.name, true),
@@ -131,7 +127,7 @@ impl RustCodeGenerator {
         }
     }
 
-    fn add_enumerated(en_m: &mut Enum, name: &String, variants: &[String]) {
+    fn add_enumerated(en_m: &mut Enum, _name: &str, variants: &[String]) {
         for variant in variants.iter() {
             en_m.new_variant(&Self::rust_variant_name(&variant));
         }
