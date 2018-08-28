@@ -40,7 +40,7 @@ impl GeneratorSupplement for ProtobufGenerator {
         );
     }
 
-    fn generate_implementations(&self, scope: &mut Scope, impl_for: &str, definition: &Definition) {
+    fn impl_supplement(&self, scope: &mut Scope, impl_for: &str, definition: &Definition) {
         Self::impl_eq_fn(
             Self::new_eq_fn(Self::new_eq_impl(scope, impl_for)),
             definition,

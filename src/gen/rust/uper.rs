@@ -25,7 +25,7 @@ impl GeneratorSupplement for UperGenerator {
         );
     }
 
-    fn generate_implementations(&self, scope: &mut Scope, impl_for: &str, definition: &Definition) {
+    fn impl_supplement(&self, scope: &mut Scope, impl_for: &str, definition: &Definition) {
         let serializable_implementation = Self::new_uper_serializable_impl(scope, impl_for);
         Self::impl_read_fn(Self::new_read_fn(serializable_implementation), definition);
         Self::impl_write_fn(Self::new_write_fn(serializable_implementation), definition);

@@ -24,7 +24,7 @@ const KEYWORDS: [&str; 9] = [
 
 pub trait GeneratorSupplement {
     fn add_imports(&self, scope: &mut Scope);
-    fn generate_implementations(&self, scope: &mut Scope, impl_for: &str, definition: &Definition);
+    fn impl_supplement(&self, scope: &mut Scope, impl_for: &str, definition: &Definition);
 }
 
 #[derive(Debug, Default)]
@@ -87,7 +87,7 @@ impl RustCodeGenerator {
 
             generators
                 .iter()
-                .for_each(|g| g.generate_implementations(&mut scope, &name, &definition));
+                .for_each(|g| g.impl_supplement(&mut scope, &name, &definition));
         }
 
         (file, scope.to_string())
