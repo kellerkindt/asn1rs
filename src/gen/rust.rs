@@ -696,7 +696,6 @@ impl ProtobufGenerator {
     }
 
     fn add_imports(scope: &mut Scope) {
-        scope.import("std::io", "Read");
         scope.import("asn1c::io::protobuf", Self::CODEC);
         scope.import(
             "asn1c::io::protobuf",
