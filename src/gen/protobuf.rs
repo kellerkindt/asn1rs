@@ -6,6 +6,8 @@ use model::Field;
 use model::Model;
 use model::Role;
 
+use gen::Generator;
+
 #[derive(Debug)]
 pub enum Error {
     Fmt(FmtError),
@@ -22,19 +24,31 @@ pub struct ProtobufDefGenerator {
     models: Vec<Model>,
 }
 
-impl ProtobufDefGenerator {
-    pub fn add_model(&mut self, model: Model) {
+impl Generator for ProtobufDefGenerator {
+    type Error = Error;
+
+    fn add_model(&mut self, model: Model) {
         self.models.push(model);
     }
 
-    pub fn generate(&self) -> Result<Vec<(String, String)>, Error> {
+    fn models(&self) -> &[Model] {
+        &self.models[..]
+    }
+
+    fn models_mut(&mut self) -> &mut [Model] {
+        &mut self.models[..]
+    }
+
+    fn to_string(&self) -> Result<Vec<(String, String)>, <Self as Generator>::Error> {
         let mut files = Vec::new();
         for model in self.models.iter() {
             files.push(Self::generate_file(model)?);
         }
         Ok(files)
     }
+}
 
+impl ProtobufDefGenerator {
     pub fn generate_file(model: &Model) -> Result<(String, String), Error> {
         let file_name = Self::model_file_name(&model.name);
         let mut content = String::new();

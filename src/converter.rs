@@ -72,9 +72,9 @@ pub fn convert_to_proto<F: AsRef<Path>, D: AsRef<Path>>(
     let input = ::std::fs::read_to_string(file)?;
     let tokens = Parser::new().parse(&input)?;
     let model = Model::try_from(tokens)?;
-    let mut generator = ProtobufDefGenerator::default();
+    let mut generator = ProtobufGenerator::default();
     generator.add_model(model);
-    let output = generator.generate()?;
+    let output = generator.to_string()?;
 
     let dir = dir.as_ref().clone();
     let mut files = Vec::new();
