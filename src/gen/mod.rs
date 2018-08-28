@@ -1,6 +1,8 @@
 pub mod protobuf;
 pub mod rust;
 
+pub use self::rust::RustCodeGenerator;
+
 use model::Model;
 
 pub trait Generator {
