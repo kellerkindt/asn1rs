@@ -177,7 +177,7 @@ impl UperGenerator {
         }
         block_match.line(format!(
             "_ => Err(UperError::ValueNotInRange(id, 0, {}))",
-            variants.len()
+            variants.len() - 1
         ));
         function.push_block(block_match);
     }
