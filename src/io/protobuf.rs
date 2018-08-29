@@ -17,6 +17,7 @@ pub enum Error {
     InvalidTagReceived(Backtrace, u32),
     InvalidFormat(Backtrace, u32),
     UnexpectedFormat(Backtrace, Format),
+    UnexpectedTag(Backtrace, (u32, Format)),
 }
 
 impl Error {
@@ -38,6 +39,11 @@ impl Error {
     #[allow(unused)]
     pub fn unexpected_format(format: Format) -> Self {
         Error::UnexpectedFormat(Backtrace::new(), format)
+    }
+
+    #[allow(unused)]
+    pub fn unexpected_tag(tag: (u32, Format)) -> Self {
+        Error::UnexpectedTag(Backtrace::new(), tag)
     }
 }
 

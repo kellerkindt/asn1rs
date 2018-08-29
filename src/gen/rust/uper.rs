@@ -190,7 +190,7 @@ impl UperGenerator {
                         "value"
                     },
                     &variants[0].1,
-                    false,
+                    variants[0].1.clone().into_rust().is_primitive(),
                     false,
                 )
             ));
@@ -249,7 +249,12 @@ impl UperGenerator {
         }
 
         for field in fields.iter() {
-            let line = Self::write_field(&field.name, &field.role, true, field.optional);
+            let line = Self::write_field(
+                &field.name,
+                &field.role,
+                field.role.clone().into_rust().is_primitive(),
+                field.optional,
+            );
             if field.optional {
                 let mut b = Block::new(&format!(
                     "if let Some(ref {}) = self.{}",
@@ -301,7 +306,7 @@ impl UperGenerator {
                 },
                 role,
                 false,
-                false,
+                true,
             ));
             block.push_block(block_case);
         }
@@ -347,19 +352,15 @@ impl UperGenerator {
         }
     }
 
-    fn write_field(field_name: &str, role: &Role, prefix_self: bool, optional: bool) -> String {
-        let prefix = if prefix_self {
-            if optional {
-                "*"
-            } else {
-                "self."
-            }
-        } else {
-            if optional {
+    fn write_field(field_name: &str, role: &Role, primitive: bool, no_self_prefix: bool) -> String {
+        let prefix = if no_self_prefix {
+            if primitive {
                 "*"
             } else {
                 ""
             }
+        } else {
+            "self."
         };
         match role {
             Role::Boolean => format!(

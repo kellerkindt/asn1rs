@@ -494,6 +494,14 @@ impl ProtobufType {
     pub fn into_rust(self) -> RustType {
         RustType::from(self)
     }
+
+    pub fn is_primitive(&self) -> bool {
+        if let ProtobufType::Complex(_) = self {
+            false
+        } else {
+            true
+        }
+    }
 }
 
 impl From<Role> for ProtobufType {

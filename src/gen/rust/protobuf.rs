@@ -210,7 +210,53 @@ impl ProtobufGenerator {
     }
 
     fn impl_read_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Role)]) {
-
+        function.line("let tag = reader.read_tag()?;");
+        let mut block_match = Block::new("match tag.0");
+        for (field, (variant, role)) in variants.iter().enumerate() {
+            let mut block_case = Block::new(&format!(
+                "{}{} =>",
+                field,
+                if role.clone().into_protobuf().is_primitive() {
+                    "".into()
+                } else {
+                    format!(" if tag.1 == {}Format::LengthDelimited", Self::CODEC)
+                },
+            ));
+            let complex_name = match role {
+                Role::Boolean => None,
+                Role::Integer(_) => None,
+                Role::UnsignedMaxInteger => None,
+                Role::UTF8String => None,
+                Role::OctetString => None,
+                Role::Custom(name) => Some(name.clone()),
+            };
+            if let Some(complex_name) = complex_name {
+                block_case.line("let bytes = reader.read_bytes()?;");
+                block_case.line(format!(
+                    "let value = {}::read_{}(&mut &bytes[..] as &mut {}Reader)?;",
+                    complex_name,
+                    Self::CODEC.to_lowercase(),
+                    Self::CODEC,
+                ));
+            } else {
+                // primitive
+                block_case.line(format!(
+                    "let value = reader.read_{}()?;",
+                    role.clone().into_protobuf().to_string()
+                ));
+            }
+            block_case.line(format!(
+                "Ok({}::{}(value))",
+                name,
+                RustCodeGenerator::rust_variant_name(variant)
+            ));
+            block_match.push_block(block_case);
+        }
+        block_match.line(format!(
+            "_ => return Err({}Error::unexpected_tag(tag))",
+            Self::CODEC
+        ));
+        function.push_block(block_match);
     }
 
     fn new_write_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
@@ -360,7 +406,47 @@ impl ProtobufGenerator {
         function.push_block(outer_block);
     }
 
-    fn impl_write_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Role)]) {}
+    fn impl_write_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Role)]) {
+        let mut block_match = Block::new("match self");
+        for (field, (variant, role)) in variants.iter().enumerate() {
+            let mut block_case = Block::new(&format!(
+                "{}::{}(value) =>",
+                name,
+                RustCodeGenerator::rust_variant_name(&variant),
+            ));
+            if role.clone().into_protobuf().is_primitive() {
+                block_case.line(&format!(
+                    "writer.write_tag({}, value.{}_format())?;",
+                    field,
+                    Self::CODEC.to_lowercase()
+                ));
+                block_case.line(format!(
+                    "writer.write_{}({}value)?;",
+                    role.clone().into_protobuf().to_string(),
+                    if role.clone().into_rust().is_primitive() {
+                        "*"
+                    } else {
+                        ""
+                    }
+                ));
+            } else {
+                block_case.line("let mut vec = Vec::new();");
+                block_case.line(format!(
+                    "value.write_{}(&mut vec as &mut {}Writer)?;",
+                    Self::CODEC.to_lowercase(),
+                    Self::CODEC
+                ));
+                block_case.line(&format!(
+                    "writer.write_tag({}, {}Format::LengthDelimited)?;",
+                    field,
+                    Self::CODEC
+                ));
+                block_case.line("writer.write_bytes(&vec[..])?;");
+            }
+            block_match.push_block(block_case);
+        }
+        function.push_block(block_match);
+    }
 
     fn new_format_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
         implementation
