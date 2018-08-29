@@ -52,7 +52,10 @@ impl UperGenerator {
                 Self::impl_read_fn_for_sequence(function, name, &fields[..]);
             }
             Definition::Enumerated(name, variants) => {
-                Self::impl_read_fn_for_enumeration(function, name, &variants[..]);
+                Self::impl_read_fn_for_enumerated(function, name, &variants[..]);
+            }
+            Definition::Choice(name, variants) => {
+                Self::impl_read_fn_for_choice(function, name, &variants[..]);
             }
         };
     }
@@ -158,7 +161,7 @@ impl UperGenerator {
         function.line("Ok(me)");
     }
 
-    fn impl_read_fn_for_enumeration(function: &mut Function, name: &str, variants: &[String]) {
+    fn impl_read_fn_for_enumerated(function: &mut Function, name: &str, variants: &[String]) {
         function.line(format!(
             "let id = reader.read_int((0, {}))?;",
             variants.len() - 1
@@ -179,6 +182,8 @@ impl UperGenerator {
         function.push_block(block_match);
     }
 
+    fn impl_read_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Role)]) {}
+
     fn new_write_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
         RustCodeGenerator::new_write_fn(implementation, Self::CODEC)
     }
@@ -193,6 +198,9 @@ impl UperGenerator {
             }
             Definition::Enumerated(name, variants) => {
                 Self::impl_write_fn_for_enumeration(function, name, &variants[..]);
+            }
+            Definition::Choice(name, variants) => {
+                Self::impl_write_fn_for_choice(function, name, &variants[..]);
             }
         };
         function.line("Ok(())");
@@ -289,4 +297,6 @@ impl UperGenerator {
         }
         function.push_block(block);
     }
+
+    fn impl_write_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Role)]) {}
 }

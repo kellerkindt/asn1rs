@@ -74,7 +74,10 @@ impl ProtobufGenerator {
                 Self::impl_read_fn_for_sequence(function, name, &fields[..]);
             }
             Definition::Enumerated(name, variants) => {
-                Self::impl_read_fn_for_enumeration(function, name, &variants[..]);
+                Self::impl_read_fn_for_enumerated(function, name, &variants[..]);
+            }
+            Definition::Choice(name, variants) => {
+                Self::impl_read_fn_for_choice(function, name, &variants[..]);
             }
         };
     }
@@ -131,9 +134,7 @@ impl ProtobufGenerator {
                         RustCodeGenerator::rust_field_name(&field.name, false)
                     ));
                     let mut block_case_if = Block::new(&format!(
-                        "if {}::{}_format() == {}Format::LengthDelimited",
-                        name,
-                        Self::CODEC.to_lowercase(),
+                        "if tag.1 == {}Format::LengthDelimited",
                         Self::CODEC
                     ));
                     block_case_if.line("let bytes = reader.read_bytes()?;");
@@ -191,7 +192,7 @@ impl ProtobufGenerator {
         function.push_block(return_block);
     }
 
-    fn impl_read_fn_for_enumeration(function: &mut Function, name: &str, variants: &[String]) {
+    fn impl_read_fn_for_enumerated(function: &mut Function, name: &str, variants: &[String]) {
         let mut block_match = Block::new("match reader.read_varint()?");
         for (field, variant) in variants.iter().enumerate() {
             block_match.line(format!(
@@ -208,6 +209,8 @@ impl ProtobufGenerator {
         function.push_block(block_match);
     }
 
+    fn impl_read_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Role)]) {}
+
     fn new_write_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
         RustCodeGenerator::new_write_fn(implementation, Self::CODEC)
     }
@@ -221,7 +224,10 @@ impl ProtobufGenerator {
                 Self::impl_write_fn_for_sequence(function, name, &fields[..]);
             }
             Definition::Enumerated(name, variants) => {
-                Self::impl_write_fn_for_enumeration(function, name, &variants[..]);
+                Self::impl_write_fn_for_enumerated(function, name, &variants[..]);
+            }
+            Definition::Choice(name, variants) => {
+                Self::impl_write_fn_for_choice(function, name, &variants[..]);
             }
         };
         function.line("Ok(())");
@@ -232,7 +238,7 @@ impl ProtobufGenerator {
         let mut block_for = Block::new("for value in self.values.iter()");
         block_for.line(format!(
             "writer.write_tag(1, {})?;",
-            Self::role_to_format(aliased),
+            Self::role_to_format(aliased, "value"),
         ));
         block_for.line("let mut bytes = Vec::new();");
         match aliased {
@@ -271,8 +277,12 @@ impl ProtobufGenerator {
 
             match &field.role {
                 Role::Custom(_custom) => {
-                    let format_line =
-                        format!("{}::{}_format()", _custom, Self::CODEC.to_lowercase());
+                    let format_line = format!(
+                        "{}{}.{}_format()",
+                        if field.optional { "" } else { "self." },
+                        RustCodeGenerator::rust_field_name(&field.name, true),
+                        Self::CODEC.to_lowercase()
+                    );
                     block.line(format!(
                         "writer.write_tag({}, {})?;",
                         prev_tag + 1,
@@ -335,7 +345,7 @@ impl ProtobufGenerator {
         }
     }
 
-    fn impl_write_fn_for_enumeration(function: &mut Function, name: &str, variants: &[String]) {
+    fn impl_write_fn_for_enumerated(function: &mut Function, name: &str, variants: &[String]) {
         let mut outer_block = Block::new("match self");
         for (field, variant) in variants.iter().enumerate() {
             outer_block.line(format!(
@@ -348,19 +358,37 @@ impl ProtobufGenerator {
         function.push_block(outer_block);
     }
 
+    fn impl_write_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Role)]) {}
+
     fn new_format_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
         implementation
             .new_fn(&format!("{}_format", Self::CODEC.to_lowercase()))
+            .arg_ref_self()
             .ret(format!("{}Format", Self::CODEC))
     }
 
     fn impl_format_fn(function: &mut Function, definition: &Definition) {
         let format = match definition {
-            Definition::SequenceOf(_, _) => ProtobufFormat::LengthDelimited,
-            Definition::Sequence(_, _) => ProtobufFormat::LengthDelimited,
-            Definition::Enumerated(_, _) => ProtobufFormat::VarInt,
+            Definition::SequenceOf(_, _) => Some(ProtobufFormat::LengthDelimited),
+            Definition::Sequence(_, _) => Some(ProtobufFormat::LengthDelimited),
+            Definition::Enumerated(_, _) => Some(ProtobufFormat::VarInt),
+            Definition::Choice(name, variants) => {
+                let mut block_match = Block::new("match self");
+                for (variant, role) in variants.iter() {
+                    block_match.line(format!(
+                        "{}::{}(value) => {}",
+                        name,
+                        RustCodeGenerator::rust_variant_name(variant),
+                        Self::role_to_format(role, "value"),
+                    ));
+                }
+                function.push_block(block_match);
+                None
+            }
         };
-        function.line(format!("{}Format::{}", Self::CODEC, format.to_string()));
+        if let Some(format) = format {
+            function.line(format!("{}Format::{}", Self::CODEC, format.to_string()));
+        }
     }
 
     fn new_eq_impl<'a>(scope: &'a mut Scope, name: &str) -> &'a mut Impl {
@@ -402,10 +430,35 @@ impl ProtobufGenerator {
             Definition::Enumerated(_, _) => {
                 function.line("self == other");
             }
+            Definition::Choice(name, variants) => {
+                let mut block_match = Block::new("match self");
+                for (variant, role) in variants.iter() {
+                    let mut block_case = Block::new(&format!(
+                        "{}::{}(value) => ",
+                        name,
+                        RustCodeGenerator::rust_variant_name(variant),
+                    ));
+                    let mut block_if = Block::new(&format!(
+                        "if let {}::{}(ref other_value) = other",
+                        name,
+                        RustCodeGenerator::rust_variant_name(variant),
+                    ));
+                    block_if.line(format!(
+                        "value.{}_eq(other_value)",
+                        Self::CODEC.to_lowercase()
+                    ));
+                    let mut block_else = Block::new("else");
+                    block_else.line("false");
+                    block_case.push_block(block_if);
+                    block_case.push_block(block_else);
+                    block_match.push_block(block_case);
+                }
+                function.push_block(block_match);
+            }
         }
     }
 
-    fn role_to_format(role: &Role) -> String {
+    fn role_to_format(role: &Role, complex_name: &str) -> String {
         match role.clone().into_protobuf() {
             ProtobufType::Bool => format!("{}Format::VarInt", Self::CODEC),
             ProtobufType::SFixed32 => format!("{}Format::Fixed32", Self::CODEC),
@@ -416,8 +469,8 @@ impl ProtobufGenerator {
             ProtobufType::SInt64 => format!("{}Format::VarInt", Self::CODEC),
             ProtobufType::String => format!("{}Format::LengthDelimited", Self::CODEC),
             ProtobufType::Bytes => format!("{}Format::LengthDelimited", Self::CODEC),
-            ProtobufType::Complex(complex) => {
-                format!("{}::{}_format()", complex, Self::CODEC.to_lowercase())
+            ProtobufType::Complex(_complex_type) => {
+                format!("{}.{}_format(),", complex_name, Self::CODEC.to_lowercase())
             }
         }
     }

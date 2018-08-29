@@ -91,7 +91,7 @@ impl ProtobufDefGenerator {
             Definition::Sequence(name, fields) => {
                 writeln!(target, "message {} {{", name)?;
                 for (prev_tag, field) in fields.iter().enumerate() {
-                    Self::append_field(target, model, field, prev_tag + 1)?;
+                    Self::append_field(target, model, &field.name, &field.role, prev_tag + 1)?;
                 }
                 writeln!(target, "}}")?;
             }
@@ -104,6 +104,16 @@ impl ProtobufDefGenerator {
                 )?;
                 writeln!(target, "}}")?;
             }
+            Definition::Choice(name, variants) => {
+                writeln!(target, "message {} {{", name)?;
+                writeln!(target, "    oneof value {{")?;
+                for (prev_tag, (name, role)) in variants.iter().enumerate() {
+                    write!(target, "    ");
+                    Self::append_field(target, model, &name, role, prev_tag + 1)?;
+                }
+                writeln!(target, "    }}")?;
+                writeln!(target, "}}")?;
+            }
         }
         Ok(())
     }
@@ -111,14 +121,15 @@ impl ProtobufDefGenerator {
     pub fn append_field(
         target: &mut Write,
         model: &Model,
-        field: &Field,
+        name: &str,
+        role: &Role,
         tag: usize,
     ) -> Result<(), Error> {
         writeln!(
             target,
             "    {} {} = {};",
-            Self::role_to_full_type(&field.role, model),
-            Self::field_name(&field.name),
+            Self::role_to_full_type(role, model),
+            Self::field_name(name),
             tag
         )?;
         Ok(())

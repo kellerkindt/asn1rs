@@ -86,6 +86,7 @@ impl RustCodeGenerator {
                 Definition::SequenceOf(name, _role) => name.clone(),
                 Definition::Sequence(name, _fields) => name.clone(),
                 Definition::Enumerated(name, _variants) => name.clone(),
+                Definition::Choice(name, _variants) => name.clone(),
             };
 
             generators
@@ -105,7 +106,10 @@ impl RustCodeGenerator {
                 Self::add_sequence(Self::new_struct(scope, name), name, &fields[..]);
             }
             Definition::Enumerated(name, variants) => {
-                Self::add_enumerated(Self::new_enum(scope, name), name, &variants[..]);
+                Self::add_enumerated(Self::new_enum(scope, name, true), name, &variants[..]);
+            }
+            Definition::Choice(name, variants) => {
+                Self::add_choice(Self::new_enum(scope, name, false), name, &variants[..]);
             }
         }
     }
@@ -136,6 +140,16 @@ impl RustCodeGenerator {
         }
     }
 
+    fn add_choice(en_m: &mut Enum, _name: &str, variants: &[(String, Role)]) {
+        for (variant, role) in variants.iter() {
+            en_m.new_variant(&format!(
+                "{}({})",
+                Self::rust_variant_name(variant),
+                role.clone().into_rust().to_string()
+            ));
+        }
+    }
+
     fn impl_definition(scope: &mut Scope, definition: &Definition) {
         match definition {
             Definition::SequenceOf(name, aliased) => {
@@ -150,6 +164,10 @@ impl RustCodeGenerator {
             Definition::Enumerated(name, variants) => {
                 Self::impl_enumerated(scope, name, &variants[..]);
                 Self::impl_enumerated_default(scope, name, &variants[..]);
+            }
+            Definition::Choice(name, variants) => {
+                Self::impl_choice(scope, name, &variants[..]);
+                Self::impl_choice_default(scope, name, &variants[..]);
             }
         }
     }
@@ -338,6 +356,59 @@ impl RustCodeGenerator {
         ordinal_fn.push_block(block);
     }
 
+    fn impl_choice(scope: &mut Scope, name: &str, variants: &[(String, Role)]) {
+        let implementation = scope.new_impl(name);
+
+        Self::impl_choice_values_fn(implementation, &name, variants);
+        Self::impl_choice_value_index_fn(implementation, &name, variants);
+    }
+
+    fn impl_choice_values_fn(implementation: &mut Impl, name: &str, variants: &[(String, Role)]) {
+        let values_fn = implementation
+            .new_fn("variants")
+            .vis("pub")
+            .ret(format!("[Self; {}]", variants.len()))
+            .line("[");
+
+        for (variant, _) in variants {
+            values_fn.line(format!("{}::{}(Default::default()),", name, Self::rust_variant_name(variant)));
+        }
+        values_fn.line("]");
+    }
+
+    fn impl_choice_value_index_fn(implementation: &mut Impl, name: &str, variants: &[(String, Role)]) {
+        let ordinal_fn = implementation
+            .new_fn("value_index")
+            .arg_ref_self()
+            .vis("pub")
+            .ret("usize");
+
+        let mut block = Block::new("match self");
+        variants.iter().enumerate().for_each(|(ordinal, (variant, _))| {
+            block.line(format!(
+                "{}::{}(_) => {},",
+                name,
+                Self::rust_variant_name(variant),
+                ordinal
+            ));
+        });
+
+        ordinal_fn.push_block(block);
+    }
+
+    fn impl_choice_default(scope: &mut Scope, name: &str, variants: &[(String, Role)]) {
+        scope
+            .new_impl(&name)
+            .impl_trait("Default")
+            .new_fn("default")
+            .ret(&name as &str)
+            .line(format!(
+                "{}::{}(Default::default())",
+                name,
+                Self::rust_variant_name(&variants[0].0)
+            ));
+    }
+
     fn add_min_max_fn_if_applicable(implementation: &mut Impl, name: &str, role: &Role) {
         let min_max = match role {
             Role::Boolean => None,
@@ -429,15 +500,19 @@ impl RustCodeGenerator {
             .derive("PartialEq")
     }
 
-    fn new_enum<'a>(scope: &'a mut Scope, name: &str) -> &'a mut Enum {
-        scope
+    fn new_enum<'a>(scope: &'a mut Scope, name: &str, c_enum: bool) -> &'a mut Enum {
+        let en_m = scope
             .new_enum(name)
             .vis("pub")
             .derive("Debug")
             .derive("Clone")
-            .derive("Copy")
-            .derive("PartialEq")
-            .derive("PartialOrd")
+            .derive("PartialEq");
+        if c_enum {
+            en_m
+                .derive("Copy")
+                .derive("PartialOrd");
+        }
+        en_m
     }
 
     fn new_serializable_impl<'a>(

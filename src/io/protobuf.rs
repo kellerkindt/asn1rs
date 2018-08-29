@@ -85,7 +85,7 @@ impl From<IoError> for Error {
 }
 
 pub trait Protobuf: ProtobufEq {
-    fn protobuf_format() -> Format;
+    fn protobuf_format(&self) -> Format;
 
     fn read_protobuf(reader: &mut Reader) -> Result<Self, Error>
     where

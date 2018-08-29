@@ -39,7 +39,9 @@ impl Model {
                         model.make_names_nice();
                         return Ok(model);
                     } else if lower.eq(&"imports") {
-                        model.imports.push(Self::read_imports(&mut iter)?);
+                        Self::read_imports(&mut iter)?
+                            .into_iter()
+                            .for_each(|i| model.imports.push(i));
                     } else {
                         model
                             .definitions
@@ -72,32 +74,37 @@ impl Model {
         Err(Error::UnexpectedEndOfStream)
     }
 
-    fn read_imports(iter: &mut IntoIter<Token>) -> Result<Import, Error> {
-        let mut imports = Import::default();
+    fn read_imports(iter: &mut IntoIter<Token>) -> Result<Vec<Import>, Error> {
+        let mut imports = Vec::new();
+        let mut import = Import::default();
         while let Some(token) = iter.next() {
-            if let Token::Text(text) = token {
-                imports.what.push(text);
-                match iter.next().ok_or(Error::UnexpectedEndOfStream)? {
-                    Token::Separator(s) if s == ',' => {}
-                    Token::Text(s) => {
-                        let lower = s.to_lowercase();
-                        if s.eq(&",") {
+            match token {
+                Token::Separator(s) if s == ';' => {
+                    return Ok(imports);
+                }
+                Token::Text(text) => {
+                    import.what.push(text);
+                    match iter.next().ok_or(Error::UnexpectedEndOfStream)? {
+                        Token::Separator(s) if s == ',' => {}
+                        Token::Text(s) => {
+                            let lower = s.to_lowercase();
+                            if s.eq(&",") {
 
-                        } else if lower.eq(&"from") {
-                            let token = iter.next().ok_or(Error::UnexpectedEndOfStream)?;
-                            if let Token::Text(from) = token {
-                                imports.from = from;
-                                Self::skip_after(iter, &Token::Separator(';'))?;
-                                return Ok(imports);
-                            } else {
-                                return Err(Error::UnexpectedToken(Backtrace::new(), token));
+                            } else if lower.eq(&"from") {
+                                let token = iter.next().ok_or(Error::UnexpectedEndOfStream)?;
+                                if let Token::Text(from) = token {
+                                    import.from = from;
+                                    imports.push(import);
+                                    import = Import::default();
+                                } else {
+                                    return Err(Error::UnexpectedToken(Backtrace::new(), token));
+                                }
                             }
                         }
+                        t => return Err(Error::UnexpectedToken(Backtrace::new(), t)),
                     }
-                    t => return Err(Error::UnexpectedToken(Backtrace::new(), t)),
                 }
-            } else {
-                return Err(Error::UnexpectedToken(Backtrace::new(), token));
+                _ => return Err(Error::UnexpectedToken(Backtrace::new(), token))
             }
         }
         Err(Error::UnexpectedEndOfStream)
@@ -134,12 +141,25 @@ impl Model {
 
                         Ok(Definition::Sequence(name, fields))
                     } else {
-                        Err(Error::UnexpectedToken(Backtrace::new(), Token::Separator(separator)))
+                        Err(Error::UnexpectedToken(
+                            Backtrace::new(),
+                            Token::Separator(separator),
+                        ))
                     }
                 }
             }
-        } else if token.text().map(|s| s.eq(&"ENUMERATED")).unwrap_or(false) {
+        } else if token
+            .text()
+            .map(|s| s.eq_ignore_ascii_case(&"ENUMERATED"))
+            .unwrap_or(false)
+        {
             Ok(Definition::Enumerated(name, Self::read_enumerated(iter)?))
+        } else if token
+            .text()
+            .map(|s| s.eq_ignore_ascii_case(&"CHOICE"))
+            .unwrap_or(false)
+        {
+            Ok(Definition::Choice(name, Self::read_choice(iter)?))
         } else {
             Err(Error::UnexpectedToken(Backtrace::new(), token))
         }
@@ -157,7 +177,10 @@ impl Model {
             if start.eq("0") && end.eq("MAX") {
                 Ok(Role::UnsignedMaxInteger)
             } else if end.eq("MAX") {
-                Err(Error::UnexpectedToken(Backtrace::new(), Token::Text("MAX".into())))
+                Err(Error::UnexpectedToken(
+                    Backtrace::new(),
+                    Token::Text("MAX".into()),
+                ))
             } else {
                 Ok(Role::Integer((
                     start.parse::<i64>().map_err(|_| Error::InvalidRangeValue)?,
@@ -193,6 +216,21 @@ impl Model {
         }
 
         Ok(enumeration)
+    }
+
+    fn read_choice(iter: &mut IntoIter<Token>) -> Result<Vec<(String, Role)>, Error> {
+        Self::next_separator_ignore_case(iter, '{')?;
+        let mut fields = Vec::new();
+
+        loop {
+            let (field, continues) = Self::read_field(iter)?;
+            fields.push((field.name, field.role));
+            if !continues {
+                break;
+            }
+        }
+
+        Ok(fields)
     }
 
     fn read_field(iter: &mut IntoIter<Token>) -> Result<(Field, bool), Error> {
@@ -248,7 +286,11 @@ impl Model {
         if token.eq_ignore_ascii_case(&text) {
             Ok(())
         } else {
-            Err(Error::ExpectedSeparatorGot(Backtrace::new(), text.into(), token))
+            Err(Error::ExpectedSeparatorGot(
+                Backtrace::new(),
+                text.into(),
+                token,
+            ))
         }
     }
 
@@ -281,6 +323,7 @@ pub enum Definition {
     SequenceOf(String, Role),
     Sequence(String, Vec<Field>),
     Enumerated(String, Vec<String>),
+    Choice(String, Vec<(String, Role)>),
 }
 
 #[derive(Debug, Clone)]
