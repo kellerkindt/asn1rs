@@ -302,7 +302,7 @@ impl RustCodeGenerator {
         let implementation = scope.new_impl(name);
 
         Self::impl_enumerated_values_fn(implementation, &name, variants);
-        Self::impl_enumerated_ordinal_fn(implementation, &name, variants);
+        Self::impl_enumerated_value_index_fn(implementation, &name, variants);
     }
 
     fn impl_enumerated_values_fn(implementation: &mut Impl, name: &str, variants: &[String]) {
@@ -318,9 +318,9 @@ impl RustCodeGenerator {
         values_fn.line("]");
     }
 
-    fn impl_enumerated_ordinal_fn(implementation: &mut Impl, name: &str, variants: &[String]) {
+    fn impl_enumerated_value_index_fn(implementation: &mut Impl, name: &str, variants: &[String]) {
         let ordinal_fn = implementation
-            .new_fn("ordinal")
+            .new_fn("value_index")
             .arg_ref_self()
             .vis("pub")
             .ret("usize");
