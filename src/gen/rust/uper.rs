@@ -70,11 +70,14 @@ impl UperGenerator {
             Role::UnsignedMaxInteger => {
                 block_for.line("me.values.push(reader.read_int_max()?);")
             }
-            Role::Custom(custom) => block_for
-                .line(format!("me.values.push({}::read_uper(reader)?);", custom)),
             Role::UTF8String => {
                 block_for.line(format!("me.values.push(reader.read_utf8_string()?);"))
             }
+            Role::OctetString => {
+                block_for.line("me.values.push(reader.read_octet_string(None)?);")
+            }
+            Role::Custom(custom) => block_for
+                .line(format!("me.values.push({}::read_uper(reader)?);", custom)),
         };
         function.push_block(block_for);
         function.line("Ok(me)");
@@ -115,16 +118,24 @@ impl UperGenerator {
                     if field.optional { "Some(" } else { "" },
                     if field.optional { ")" } else { "" },
                 ),
+                Role::UTF8String => format!(
+                    "me.{} = {}reader.read_utf8_string()?{};",
+                    RustCodeGenerator::rust_field_name(&field.name, true),
+                    if field.optional { "Some(" } else { "" },
+                    if field.optional { ")" } else { "" },
+                ),
+                Role::OctetString => format!(
+                    "me.{} = {}reader.read_octet_string(None)?{};",
+                    RustCodeGenerator::rust_field_name(&field.name, true),
+                    if field.optional { "Some(" } else { "" },
+                    if field.optional { ")" } else { "" },
+                ),
                 Role::Custom(ref _type) => format!(
                     "me.{} = {}{}::read_uper(reader)?{};",
                     RustCodeGenerator::rust_field_name(&field.name, true),
                     if field.optional { "Some(" } else { "" },
                     field.role.clone().into_rust().to_string(),
                     if field.optional { ")" } else { "" },
-                ),
-                Role::UTF8String => format!(
-                    "me.{} = reader.read_utf8_string()?;",
-                    RustCodeGenerator::rust_field_name(&field.name, true),
                 ),
             };
             if field.optional {
@@ -198,8 +209,9 @@ impl UperGenerator {
             Role::UnsignedMaxInteger => {
                 block_for.line("writer.write_int_max(*value)?;")
             }
-            Role::Custom(_custom) => block_for.line("value.write_uper(writer)?;"),
             Role::UTF8String => block_for.line("writer.write_utf8_string(&value)?;"),
+            Role::OctetString => block_for.line("writer.write_octet_string(&value[..], None)?;"),
+            Role::Custom(_custom) => block_for.line("value.write_uper(writer)?;"),
         };
         function.push_block(block_for);
     }
@@ -234,13 +246,18 @@ impl UperGenerator {
                     if field.optional { "*" } else { "self." },
                     RustCodeGenerator::rust_field_name(&field.name, true),
                 ),
-                Role::Custom(ref _type) => format!(
-                    "{}{}.write_uper(writer)?;",
+                Role::OctetString => format!(
+                    "writer.write_octet_string(&{}{}, None)?;",
                     if field.optional { "" } else { "self." },
                     RustCodeGenerator::rust_field_name(&field.name, true),
                 ),
                 Role::UTF8String => format!(
                     "writer.write_utf8_string(&{}{})?;",
+                    if field.optional { "" } else { "self." },
+                    RustCodeGenerator::rust_field_name(&field.name, true),
+                ),
+                Role::Custom(ref _type) => format!(
+                    "{}{}.write_uper(writer)?;",
                     if field.optional { "" } else { "self." },
                     RustCodeGenerator::rust_field_name(&field.name, true),
                 ),

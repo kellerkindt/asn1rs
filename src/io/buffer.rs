@@ -130,6 +130,20 @@ impl UperReader for BitBuffer {
         Ok(())
     }
 
+    fn read_octet_string(
+        &mut self,
+        length_range: Option<(i64, i64)>,
+    ) -> Result<Vec<u8>, UperError> {
+        let len = if let Some((min, max)) = length_range {
+            self.read_int((min, max))? as usize
+        } else {
+            self.read_length_determinant()?
+        };
+        let mut vec = vec![0u8; len];
+        self.read_bit_string_till_end(&mut vec[..], 0)?;
+        Ok(vec)
+    }
+
     fn read_length_determinant(&mut self) -> Result<usize, UperError> {
         if !self.read_bit()? {
             // length <= UPER_LENGTH_DET_L1
@@ -234,6 +248,20 @@ impl UperWriter for BitBuffer {
             let bit = (buffer[byte_pos] >> bit_pos & 0x01) == 0x01;
             self.write_bit(bit)?;
         }
+        Ok(())
+    }
+
+    fn write_octet_string(
+        &mut self,
+        string: &[u8],
+        length_range: Option<(i64, i64)>,
+    ) -> Result<(), UperError> {
+        if let Some((min, max)) = length_range {
+            self.write_int(string.len() as i64, (min, max))?;
+        } else {
+            self.write_length_determinant(string.len())?;
+        }
+        self.write_bit_string_till_end(string, 0)?;
         Ok(())
     }
 
@@ -858,6 +886,32 @@ mod tests {
             ]
         );
         check_int(&mut buffer, INT, RANGE);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_octet_string_with_range() -> Result<(), UperError> {
+        // test scenario from https://github.com/alexvoronov/geonetworking/blob/57a43113aeabc25f005ea17f76409aed148e67b5/camdenm/src/test/java/net/gcdc/camdenm/UperEncoderDecodeTest.java#L169
+        const BYTES: &[u8] = &[0x2A, 0x2B, 0x96, 0xFF];
+        const RANGE: (i64, i64) = (1, 20);
+        let mut buffer = BitBuffer::default();
+        buffer.write_octet_string(BYTES, Some(RANGE))?;
+        assert_eq!(
+            &[0x19, 0x51, 0x5c, 0xb7, 0xf8],
+            &buffer.content(),
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_octet_string_without_range() -> Result<(), UperError> {
+        const BYTES: &[u8] = &[0x2A, 0x2B, 0x96, 0xFF];
+        let mut buffer = BitBuffer::default();
+        buffer.write_octet_string(BYTES, None)?;
+        assert_eq!(
+            &[0x04, 0x2a, 0x2b, 0x96, 0xff],
+            &buffer.content(),
+        );
         Ok(())
     }
 }

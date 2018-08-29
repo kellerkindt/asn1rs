@@ -140,6 +140,11 @@ pub trait Writer {
         self.write_bool(value)
     }
 
+    fn write_tagged_bytes(&mut self, field: u32, value: &[u8]) -> Result<(), Error> {
+        self.write_tag(field, Format::VarInt);
+        self.write_bytes(value)
+    }
+
     fn write_tagged_sfixed32(&mut self, field: u32, value: i32) -> Result<(), Error> {
         self.write_tag(field, Format::Fixed32)?;
         self.write_sfixed32(value)

@@ -32,6 +32,8 @@ pub trait Reader {
         bit_length: usize,
     ) -> Result<(), Error>;
 
+    fn read_octet_string(&mut self, length_range: Option<(i64, i64)>) -> Result<Vec<u8>, Error>;
+
     fn read_bit_string_till_end(
         &mut self,
         buffer: &mut [u8],
@@ -58,6 +60,12 @@ pub trait Writer {
         buffer: &[u8],
         bit_offset: usize,
         bit_length: usize,
+    ) -> Result<(), Error>;
+
+    fn write_octet_string(
+        &mut self,
+        string: &[u8],
+        length_range: Option<(i64, i64)>,
     ) -> Result<(), Error>;
 
     fn write_bit_string_till_end(&mut self, buffer: &[u8], bit_offset: usize) -> Result<(), Error> {

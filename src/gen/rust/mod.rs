@@ -322,6 +322,7 @@ impl RustCodeGenerator {
             Role::Integer((lower, upper)) => Some((*lower, *upper)),
             Role::UnsignedMaxInteger => Some((0, ::std::i64::MAX)),
             Role::UTF8String => None,
+            Role::OctetString => None,
             Role::Custom(_) => None,
         };
 

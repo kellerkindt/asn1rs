@@ -1,12 +1,14 @@
+use backtrace::Backtrace;
+
 use parser::Token;
 
 use std::vec::IntoIter;
 
 #[derive(Debug)]
 pub enum Error {
-    ExpectedTextGot(String, String),
-    ExpectedSeparatorGot(char, char),
-    UnexpectedToken(Token),
+    ExpectedTextGot(Backtrace, String, String),
+    ExpectedSeparatorGot(Backtrace, char, char),
+    UnexpectedToken(Backtrace, Token),
     MissingModuleName,
     UnexpectedEndOfStream,
     InvalidRangeValue,
@@ -29,7 +31,7 @@ impl Model {
 
         while let Some(token) = iter.next() {
             match token {
-                t @ Token::Separator(_) => return Err(Error::UnexpectedToken(t)),
+                t @ Token::Separator(_) => return Err(Error::UnexpectedToken(Backtrace::new(), t)),
                 Token::Text(text) => {
                     let lower = text.to_lowercase();
 
@@ -88,14 +90,14 @@ impl Model {
                                 Self::skip_after(iter, &Token::Separator(';'))?;
                                 return Ok(imports);
                             } else {
-                                return Err(Error::UnexpectedToken(token));
+                                return Err(Error::UnexpectedToken(Backtrace::new(), token));
                             }
                         }
                     }
-                    t => return Err(Error::UnexpectedToken(t)),
+                    t => return Err(Error::UnexpectedToken(Backtrace::new(), t)),
                 }
             } else {
-                return Err(Error::UnexpectedToken(token));
+                return Err(Error::UnexpectedToken(Backtrace::new(), token));
             }
         }
         Err(Error::UnexpectedEndOfStream)
@@ -115,7 +117,7 @@ impl Model {
                     if of.eq_ignore_ascii_case(&"OF") {
                         Ok(Definition::SequenceOf(name, Self::read_role(iter)?))
                     } else {
-                        Err(Error::UnexpectedToken(Token::Text(of)))
+                        Err(Error::UnexpectedToken(Backtrace::new(), Token::Text(of)))
                     }
                 }
                 Token::Separator(separator) => {
@@ -132,14 +134,14 @@ impl Model {
 
                         Ok(Definition::Sequence(name, fields))
                     } else {
-                        Err(Error::UnexpectedToken(Token::Separator(separator)))
+                        Err(Error::UnexpectedToken(Backtrace::new(), Token::Separator(separator)))
                     }
                 }
             }
         } else if token.text().map(|s| s.eq(&"ENUMERATED")).unwrap_or(false) {
             Ok(Definition::Enumerated(name, Self::read_enumerated(iter)?))
         } else {
-            Err(Error::UnexpectedToken(token))
+            Err(Error::UnexpectedToken(Backtrace::new(), token))
         }
     }
 
@@ -155,7 +157,7 @@ impl Model {
             if start.eq("0") && end.eq("MAX") {
                 Ok(Role::UnsignedMaxInteger)
             } else if end.eq("MAX") {
-                Err(Error::UnexpectedToken(Token::Text("MAX".into())))
+                Err(Error::UnexpectedToken(Backtrace::new(), Token::Text("MAX".into())))
             } else {
                 Ok(Role::Integer((
                     start.parse::<i64>().map_err(|_| Error::InvalidRangeValue)?,
@@ -166,6 +168,13 @@ impl Model {
             Ok(Role::Boolean)
         } else if text.eq_ignore_ascii_case(&"UTF8String") {
             Ok(Role::UTF8String)
+        } else if text.eq_ignore_ascii_case(&"OCTET") {
+            let token = iter.next().ok_or(Error::UnexpectedEndOfStream)?;
+            if token.text().map(|t| t.eq("STRING")).unwrap_or(false) {
+                Ok(Role::OctetString)
+            } else {
+                Err(Error::UnexpectedToken(Backtrace::new(), token))
+            }
         } else {
             Ok(Role::Custom(text))
         }
@@ -206,14 +215,14 @@ impl Model {
         if continues || ends {
             Ok((field, continues))
         } else {
-            Err(Error::UnexpectedToken(token))
+            Err(Error::UnexpectedToken(Backtrace::new(), token))
         }
     }
 
     fn next_text(iter: &mut IntoIter<Token>) -> Result<String, Error> {
         match iter.next().ok_or(Error::UnexpectedEndOfStream)? {
             Token::Text(text) => Ok(text),
-            t => Err(Error::UnexpectedToken(t)),
+            t => Err(Error::UnexpectedToken(Backtrace::new(), t)),
         }
     }
 
@@ -223,14 +232,14 @@ impl Model {
         if text.eq_ignore_ascii_case(&token) {
             Ok(())
         } else {
-            Err(Error::ExpectedTextGot(text.into(), token))
+            Err(Error::ExpectedTextGot(Backtrace::new(), text.into(), token))
         }
     }
 
     fn next_seperator(iter: &mut IntoIter<Token>) -> Result<char, Error> {
         match iter.next().ok_or(Error::UnexpectedEndOfStream)? {
             Token::Separator(separator) => Ok(separator),
-            t => Err(Error::UnexpectedToken(t)),
+            t => Err(Error::UnexpectedToken(Backtrace::new(), t)),
         }
     }
 
@@ -239,7 +248,7 @@ impl Model {
         if token.eq_ignore_ascii_case(&text) {
             Ok(())
         } else {
-            Err(Error::ExpectedSeparatorGot(text.into(), token))
+            Err(Error::ExpectedSeparatorGot(Backtrace::new(), text.into(), token))
         }
     }
 
@@ -287,6 +296,7 @@ pub enum Role {
     Integer((i64, i64)),
     UnsignedMaxInteger,
     UTF8String,
+    OctetString,
     Custom(String),
 }
 
@@ -322,6 +332,7 @@ pub enum RustType {
     U64,
     I64,
     String,
+    VecU8,
     /// Indicates a complex, custom type that is
     /// not one of rusts known types
     Complex(String),
@@ -361,6 +372,7 @@ impl From<Role> for RustType {
             }
             Role::UnsignedMaxInteger => RustType::U64,
             Role::UTF8String => RustType::String,
+            Role::OctetString => RustType::VecU8,
             Role::Custom(name) => RustType::Complex(name.clone()),
         }
     }
@@ -377,6 +389,7 @@ impl From<ProtobufType> for RustType {
             ProtobufType::SInt32 => RustType::I32,
             ProtobufType::SInt64 => RustType::I64,
             ProtobufType::String => RustType::String,
+            ProtobufType::Bytes => RustType::VecU8,
             ProtobufType::Complex(name) => RustType::Complex(name.clone()),
         }
     }
@@ -395,6 +408,7 @@ impl ToString for RustType {
             RustType::U64 => "u64",
             RustType::I64 => "i64",
             RustType::String => "String",
+            RustType::VecU8 => "Vec<u8>",
             RustType::Complex(name) => return name.clone(),
         }.into()
     }
@@ -410,6 +424,7 @@ pub enum ProtobufType {
     SInt32,
     SInt64,
     String,
+    Bytes,
     /// Indicates a complex, custom type that is
     /// not one of rusts known types
     Complex(String),
@@ -444,8 +459,9 @@ impl From<Role> for ProtobufType {
                 }
             }
             Role::UnsignedMaxInteger => ProtobufType::UInt64,
-            Role::Custom(name) => ProtobufType::Complex(name.clone()),
             Role::UTF8String => ProtobufType::String,
+            Role::OctetString => ProtobufType::Bytes,
+            Role::Custom(name) => ProtobufType::Complex(name.clone()),
         }
     }
 }
@@ -463,6 +479,7 @@ impl From<RustType> for ProtobufType {
             RustType::U64 => ProtobufType::UInt64,
             RustType::I64 => ProtobufType::SInt64,
             RustType::String => ProtobufType::String,
+            RustType::VecU8 => ProtobufType::Bytes,
             RustType::Complex(name) => ProtobufType::Complex(name.clone()),
         }
     }
@@ -479,6 +496,7 @@ impl ToString for ProtobufType {
             ProtobufType::SInt32 => "sint32",
             ProtobufType::SInt64 => "sint64",
             ProtobufType::String => "string",
+            ProtobufType::Bytes => "bytes",
             ProtobufType::Complex(name) => return name.clone(),
         }.into()
     }

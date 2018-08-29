@@ -6,6 +6,7 @@ use codegen::Scope;
 use model::Definition;
 use model::Field;
 use model::ProtobufType;
+use model::RustType;
 use model::Role;
 
 use gen::rust::GeneratorSupplement;
@@ -312,6 +313,12 @@ impl ProtobufGenerator {
                             } else {
                                 "&self."
                             }
+                        } else if RustType::VecU8 == r.clone().into_protobuf().into_rust() {
+                            if field.optional {
+                                ""
+                            } else {
+                                "&self."
+                            }
                         } else {
                             if field.optional {
                                 "*"
@@ -408,6 +415,7 @@ impl ProtobufGenerator {
             ProtobufType::SInt32 => format!("{}Format::VarInt", Self::CODEC),
             ProtobufType::SInt64 => format!("{}Format::VarInt", Self::CODEC),
             ProtobufType::String => format!("{}Format::LengthDelimited", Self::CODEC),
+            ProtobufType::Bytes => format!("{}Format::LengthDelimited", Self::CODEC),
             ProtobufType::Complex(complex) => {
                 format!("{}::{}_format()", complex, Self::CODEC.to_lowercase())
             }
