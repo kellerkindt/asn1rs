@@ -220,13 +220,10 @@ impl UperWriter for BitBuffer {
                 len -= 1;
             }
             len
-        };
+        }.max(1);
         self.write_length_determinant(byte_len)?;
-        if byte_len > 0 {
-            let bit_offset = (buffer.len() - byte_len) * BYTE_LEN;
-            self.write_bit_string_till_end(&buffer, bit_offset)?;
-        }
-
+        let bit_offset = (buffer.len() - byte_len) * BYTE_LEN;
+        self.write_bit_string_till_end(&buffer, bit_offset)?;
         Ok(())
     }
 
@@ -549,6 +546,20 @@ mod tests {
         }
 
         assert_eq!(int, buffer.read_int_max()?);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_int_max_0() -> Result<(), UperError> {
+        const INT: u64 = 0;
+        let mut buffer = BitBuffer::default();
+        buffer.write_int_max(INT)?;
+        // Can be represented in 1 byte,
+        // therefore the first byte is written
+        // with 0x00 (header) | 1 (byte len).
+        // The second byte is then the actual value
+        assert_eq!(buffer.content(), &[0x00 | 1, INT as u8]);
+        check_int_max(&mut buffer, INT)?;
         Ok(())
     }
 
@@ -910,6 +921,18 @@ mod tests {
         buffer.write_octet_string(BYTES, None)?;
         assert_eq!(
             &[0x04, 0x2a, 0x2b, 0x96, 0xff],
+            &buffer.content(),
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_octet_string_empty() -> Result<(), UperError> {
+        const BYTES: &[u8] = &[];
+        let mut buffer = BitBuffer::default();
+        buffer.write_octet_string(BYTES, None)?;
+        assert_eq!(
+            &[0x00],
             &buffer.content(),
         );
         Ok(())
