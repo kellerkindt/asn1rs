@@ -17,6 +17,7 @@ mod uper;
 
 use self::protobuf::ProtobufGenerator;
 use self::uper::UperGenerator;
+use codegen::Block;
 
 const KEYWORDS: [&str; 9] = [
     "use", "mod", "const", "type", "pub", "enum", "struct", "impl", "trait",
@@ -301,6 +302,7 @@ impl RustCodeGenerator {
         let implementation = scope.new_impl(name);
 
         Self::impl_enumerated_values_fn(implementation, &name, variants);
+        Self::impl_enumerated_ordinal_fn(implementation, &name, variants);
     }
 
     fn impl_enumerated_values_fn(implementation: &mut Impl, name: &str, variants: &[String]) {
@@ -314,6 +316,26 @@ impl RustCodeGenerator {
             values_fn.line(format!("{}::{},", name, Self::rust_variant_name(variant)));
         }
         values_fn.line("]");
+    }
+
+    fn impl_enumerated_ordinal_fn(implementation: &mut Impl, name: &str, variants: &[String]) {
+        let ordinal_fn = implementation
+            .new_fn("ordinal")
+            .arg_ref_self()
+            .vis("pub")
+            .ret("usize");
+
+        let mut block = Block::new("match self");
+        variants.iter().enumerate().for_each(|(ordinal, variant)| {
+            block.line(format!(
+                "{}::{} => {},",
+                name,
+                Self::rust_variant_name(variant),
+                ordinal
+            ));
+        });
+
+        ordinal_fn.push_block(block);
     }
 
     fn add_min_max_fn_if_applicable(implementation: &mut Impl, name: &str, role: &Role) {

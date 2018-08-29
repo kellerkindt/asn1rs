@@ -6,8 +6,8 @@ use codegen::Scope;
 use model::Definition;
 use model::Field;
 use model::ProtobufType;
-use model::RustType;
 use model::Role;
+use model::RustType;
 
 use gen::rust::GeneratorSupplement;
 use gen::rust::RustCodeGenerator;
