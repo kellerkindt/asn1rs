@@ -385,6 +385,23 @@ impl RustType {
     pub fn into_protobuf(self) -> ProtobufType {
         ProtobufType::from(self)
     }
+
+    pub fn is_primitive(&self) -> bool {
+        match self {
+            RustType::Bool => true,
+            RustType::U8 => true,
+            RustType::I8 => true,
+            RustType::U16 => true,
+            RustType::I16 => true,
+            RustType::U32 => true,
+            RustType::I32 => true,
+            RustType::U64 => true,
+            RustType::I64 => true,
+            RustType::String => false,
+            RustType::VecU8 => false,
+            RustType::Complex(_) => false,
+        }
+    }
 }
 
 impl From<Role> for RustType {

@@ -209,7 +209,9 @@ impl ProtobufGenerator {
         function.push_block(block_match);
     }
 
-    fn impl_read_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Role)]) {}
+    fn impl_read_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Role)]) {
+
+    }
 
     fn new_write_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
         RustCodeGenerator::new_write_fn(implementation, Self::CODEC)

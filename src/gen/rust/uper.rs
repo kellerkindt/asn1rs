@@ -99,48 +99,11 @@ impl UperGenerator {
             }
         }
         for field in fields.iter() {
-            let line = match field.role {
-                Role::Boolean => format!(
-                    "me.{} = {}reader.read_bit()?{};",
-                    RustCodeGenerator::rust_field_name(&field.name, true),
-                    if field.optional { "Some(" } else { "" },
-                    if field.optional { ")" } else { "" },
-                ),
-                Role::Integer(_) => format!(
-                    "me.{} = {}reader.read_int((Self::{}_min() as i64, Self::{}_max() as i64))? as {}{};",
-                    RustCodeGenerator::rust_field_name(&field.name, true),
-                    if field.optional { "Some(" } else { "" },
-                    RustCodeGenerator::rust_field_name(&field.name, false),
-                    RustCodeGenerator::rust_field_name(&field.name, false),
-                    field.role.clone().into_rust().to_string(),
-                    if field.optional { ")" } else { "" },
-                ),
-                Role::UnsignedMaxInteger => format!(
-                    "me.{} = {}reader.read_int_max()?{};",
-                    RustCodeGenerator::rust_field_name(&field.name, true),
-                    if field.optional { "Some(" } else { "" },
-                    if field.optional { ")" } else { "" },
-                ),
-                Role::UTF8String => format!(
-                    "me.{} = {}reader.read_utf8_string()?{};",
-                    RustCodeGenerator::rust_field_name(&field.name, true),
-                    if field.optional { "Some(" } else { "" },
-                    if field.optional { ")" } else { "" },
-                ),
-                Role::OctetString => format!(
-                    "me.{} = {}reader.read_octet_string(None)?{};",
-                    RustCodeGenerator::rust_field_name(&field.name, true),
-                    if field.optional { "Some(" } else { "" },
-                    if field.optional { ")" } else { "" },
-                ),
-                Role::Custom(ref _type) => format!(
-                    "me.{} = {}{}::read_uper(reader)?{};",
-                    RustCodeGenerator::rust_field_name(&field.name, true),
-                    if field.optional { "Some(" } else { "" },
-                    field.role.clone().into_rust().to_string(),
-                    if field.optional { ")" } else { "" },
-                ),
-            };
+            let line = format!(
+                "me.{} = {}",
+                RustCodeGenerator::rust_field_name(&field.name, true),
+                Self::read_field(&field.name, &field.role, field.optional)
+            );
             if field.optional {
                 let mut block_if = Block::new(&format!(
                     "if {}",
@@ -182,7 +145,57 @@ impl UperGenerator {
         function.push_block(block_match);
     }
 
-    fn impl_read_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Role)]) {}
+    fn impl_read_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Role)]) {
+        if variants.len() > 1 {
+            function.line(&format!(
+                "let variant = reader.read_int((0, {}))?;",
+                variants.len() - 1
+            ));
+            let mut block = Block::new("match variant");
+            for (i, (variant, role)) in variants.iter().enumerate() {
+                let mut block_case = Block::new(&format!("{} =>", i));
+                block_case.line(format!(
+                    "let read = {}",
+                    &Self::read_field(
+                        if role.clone().into_rust().is_primitive() {
+                            "*value"
+                        } else {
+                            "value"
+                        },
+                        role,
+                        false,
+                    )
+                ));
+                block_case.line(format!(
+                    "Ok({}::{}(read))",
+                    name,
+                    RustCodeGenerator::rust_variant_name(variant),
+                ));
+                block.push_block(block_case);
+            }
+            block.line(format!(
+                "_ => Err(UperError::ValueNotInRange(variant, 0, {}))",
+                variants.len() - 1
+            ));
+            function.push_block(block);
+        } else {
+            function.line(&format!(
+                "Ok({}::{}({}))",
+                name,
+                RustCodeGenerator::rust_variant_name(&variants[0].0),
+                &Self::write_field(
+                    if variants[0].1.clone().into_rust().is_primitive() {
+                        "*value"
+                    } else {
+                        "value"
+                    },
+                    &variants[0].1,
+                    false,
+                    false,
+                )
+            ));
+        }
+    }
 
     fn new_write_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
         RustCodeGenerator::new_write_fn(implementation, Self::CODEC)
@@ -236,40 +249,7 @@ impl UperGenerator {
         }
 
         for field in fields.iter() {
-            let line = match field.role {
-                Role::Boolean => format!(
-                    "writer.write_bit({}{})?;",
-                    if field.optional { "*" } else { "self." },
-                    RustCodeGenerator::rust_field_name(&field.name, true),
-                ),
-                Role::Integer(_) => format!(
-                    "writer.write_int({}{} as i64, (Self::{}_min() as i64, Self::{}_max() as i64))?;",
-                    if field.optional { "*" } else { "self." },
-                    RustCodeGenerator::rust_field_name(&field.name, true),
-                    RustCodeGenerator::rust_field_name(&field.name, false),
-                    RustCodeGenerator::rust_field_name(&field.name, false),
-                ),
-                Role::UnsignedMaxInteger => format!(
-                    "writer.write_int_max({}{})?;",
-                    if field.optional { "*" } else { "self." },
-                    RustCodeGenerator::rust_field_name(&field.name, true),
-                ),
-                Role::OctetString => format!(
-                    "writer.write_octet_string(&{}{}, None)?;",
-                    if field.optional { "" } else { "self." },
-                    RustCodeGenerator::rust_field_name(&field.name, true),
-                ),
-                Role::UTF8String => format!(
-                    "writer.write_utf8_string(&{}{})?;",
-                    if field.optional { "" } else { "self." },
-                    RustCodeGenerator::rust_field_name(&field.name, true),
-                ),
-                Role::Custom(ref _type) => format!(
-                    "{}{}.write_uper(writer)?;",
-                    if field.optional { "" } else { "self." },
-                    RustCodeGenerator::rust_field_name(&field.name, true),
-                ),
-            };
+            let line = Self::write_field(&field.name, &field.role, true, field.optional);
             if field.optional {
                 let mut b = Block::new(&format!(
                     "if let Some(ref {}) = self.{}",
@@ -298,5 +278,122 @@ impl UperGenerator {
         function.push_block(block);
     }
 
-    fn impl_write_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Role)]) {}
+    fn impl_write_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Role)]) {
+        let mut block = Block::new("match self");
+        for (i, (variant, role)) in variants.iter().enumerate() {
+            let mut block_case = Block::new(&format!(
+                "{}::{}(value) =>",
+                name,
+                RustCodeGenerator::rust_variant_name(&variant),
+            ));
+            if variants.len() > 1 {
+                block_case.line(format!(
+                    "writer.write_int({}, (0, {}))?;",
+                    i,
+                    variants.len() - 1
+                ));
+            }
+            block_case.line(&Self::write_field(
+                if role.clone().into_rust().is_primitive() {
+                    "*value"
+                } else {
+                    "value"
+                },
+                role,
+                false,
+                false,
+            ));
+            block.push_block(block_case);
+        }
+        function.push_block(block);
+    }
+
+    fn read_field(field_name: &str, role: &Role, optional: bool) -> String {
+        match role {
+            Role::Boolean => format!(
+                "{}reader.read_bit()?{};",
+                if optional { "Some(" } else { "" },
+                if optional { ")" } else { "" },
+            ),
+            Role::Integer(_) => format!(
+                "{}reader.read_int((Self::{}_min() as i64, Self::{}_max() as i64))? as {}{};",
+                if optional { "Some(" } else { "" },
+                RustCodeGenerator::rust_field_name(&field_name, false),
+                RustCodeGenerator::rust_field_name(&field_name, false),
+                role.clone().into_rust().to_string(),
+                if optional { ")" } else { "" },
+            ),
+            Role::UnsignedMaxInteger => format!(
+                "{}reader.read_int_max()?{};",
+                if optional { "Some(" } else { "" },
+                if optional { ")" } else { "" },
+            ),
+            Role::UTF8String => format!(
+                "{}reader.read_utf8_string()?{};",
+                if optional { "Some(" } else { "" },
+                if optional { ")" } else { "" },
+            ),
+            Role::OctetString => format!(
+                "{}reader.read_octet_string(None)?{};",
+                if optional { "Some(" } else { "" },
+                if optional { ")" } else { "" },
+            ),
+            Role::Custom(ref _type) => format!(
+                "{}{}::read_uper(reader)?{};",
+                if optional { "Some(" } else { "" },
+                role.clone().into_rust().to_string(),
+                if optional { ")" } else { "" },
+            ),
+        }
+    }
+
+    fn write_field(field_name: &str, role: &Role, prefix_self: bool, optional: bool) -> String {
+        let prefix = if prefix_self {
+            if optional {
+                "*"
+            } else {
+                "self."
+            }
+        } else {
+            if optional {
+                "*"
+            } else {
+                ""
+            }
+        };
+        match role {
+            Role::Boolean => format!(
+                "writer.write_bit({}{})?;",
+                prefix,
+                RustCodeGenerator::rust_field_name(field_name, true),
+            ),
+            Role::Integer(_) => format!(
+                "writer.write_int({}{} as i64, (Self::{}_min() as i64, Self::{}_max() as i64))?;",
+                prefix,
+                RustCodeGenerator::rust_field_name(field_name, true),
+                RustCodeGenerator::rust_field_name(field_name, false),
+                RustCodeGenerator::rust_field_name(field_name, false),
+            ),
+            Role::UnsignedMaxInteger => format!(
+                "writer.write_int_max({}{})?;",
+                prefix,
+                RustCodeGenerator::rust_field_name(field_name, true),
+            ),
+            Role::OctetString => format!(
+                "writer.write_octet_string(&{}{}, None)?;",
+                prefix,
+                RustCodeGenerator::rust_field_name(field_name, true),
+            ),
+            Role::UTF8String => format!(
+                "writer.write_utf8_string(&{}{})?;",
+                prefix,
+                RustCodeGenerator::rust_field_name(field_name, true),
+            ),
+            Role::Custom(ref _type) => format!(
+                "{}{}.write_uper(writer)?;",
+                prefix,
+                RustCodeGenerator::rust_field_name(field_name, true),
+            ),
+        }
+    }
 }
