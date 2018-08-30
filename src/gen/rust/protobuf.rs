@@ -178,12 +178,9 @@ impl ProtobufGenerator {
                 RustCodeGenerator::rust_field_name(&field.name, false),
                 Self::get_as_rust_type_statement(&field.role),
                 if field.optional {
-                    "".into()
+                    ""
                 } else {
-                    format!(
-                        ".unwrap_or({}::default())",
-                        field.role.clone().into_rust().to_string()
-                    )
+                    ".unwrap_or_default()"
                 },
             ));
         }
