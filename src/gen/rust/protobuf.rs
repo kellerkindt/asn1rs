@@ -172,11 +172,16 @@ impl ProtobufGenerator {
         function.push_block(block_reader_loop);
         let mut return_block = Block::new(&format!("Ok({}", name));
         for field in fields.iter() {
+            let as_rust_statement = Self::get_as_rust_type_statement(&field.role);
             return_block.line(&format!(
-                "{}: read_{}.map(|v| v{}){},",
+                "{}: read_{}{}{},",
                 RustCodeGenerator::rust_field_name(&field.name, true),
                 RustCodeGenerator::rust_field_name(&field.name, false),
-                Self::get_as_rust_type_statement(&field.role),
+                if as_rust_statement.is_empty() {
+                    "".into()
+                } else {
+                    format!(".map(|v| v{})", as_rust_statement)
+                },
                 if field.optional {
                     ""
                 } else {
