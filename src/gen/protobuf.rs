@@ -2,7 +2,6 @@ use std::fmt::Error as FmtError;
 use std::fmt::Write;
 
 use model::Definition;
-use model::Field;
 use model::Model;
 use model::Role;
 
@@ -108,7 +107,7 @@ impl ProtobufDefGenerator {
                 writeln!(target, "message {} {{", name)?;
                 writeln!(target, "    oneof value {{")?;
                 for (prev_tag, (name, role)) in variants.iter().enumerate() {
-                    write!(target, "    ");
+                    write!(target, "    ")?;
                     Self::append_field(target, model, &name, role, prev_tag + 1)?;
                 }
                 writeln!(target, "    }}")?;

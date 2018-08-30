@@ -72,20 +72,12 @@ impl UperReader for BitBuffer {
     fn read_int(&mut self, range: (i64, i64)) -> Result<i64, UperError> {
         let (lower, upper) = range;
         let range = (upper - lower) as u64;
-        let bit_length_range = {
-            let mut range = range;
-            let mut bit_length: u8 = 0;
-            while range > 0 {
-                bit_length += 1;
-                range /= 2;
-            }
-            bit_length
-        };
+        let leading_zeros = range.leading_zeros();
 
         let mut buffer = [0u8; 8];
         let buffer_bits = buffer.len() * BYTE_LEN as usize;
         debug_assert!(buffer_bits == 64);
-        self.read_bit_string_till_end(&mut buffer[..], buffer_bits - bit_length_range as usize)?;
+        self.read_bit_string_till_end(&mut buffer[..], leading_zeros as usize)?;
         let value = NetworkEndian::read_u64(&buffer[..]) as i64;
         Ok(value + lower)
     }
@@ -188,22 +180,14 @@ impl UperWriter for BitBuffer {
             (value - lower) as u64
         };
         let range = (upper - lower) as u64;
-        let bit_length_range = {
-            let mut range = range;
-            let mut bit_length: u8 = 0;
-            while range > 0 {
-                bit_length += 1;
-                range /= 2;
-            }
-            bit_length
-        };
+        let leading_zeros = range.leading_zeros();
 
         let mut buffer = [0u8; 8];
         NetworkEndian::write_u64(&mut buffer[..], value);
         let buffer_bits = buffer.len() * BYTE_LEN as usize;
         debug_assert!(buffer_bits == 64);
 
-        self.write_bit_string_till_end(&buffer[..], buffer_bits - bit_length_range as usize)?;
+        self.write_bit_string_till_end(&buffer[..], leading_zeros as usize)?;
 
         Ok(())
     }

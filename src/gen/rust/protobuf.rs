@@ -522,7 +522,7 @@ impl ProtobufGenerator {
             }
             Definition::Choice(name, variants) => {
                 let mut block_match = Block::new("match self");
-                for (variant, role) in variants.iter() {
+                for (variant, _role) in variants.iter() {
                     let mut block_case = Block::new(&format!(
                         "{}::{}(value) => ",
                         name,

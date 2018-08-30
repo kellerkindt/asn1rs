@@ -147,7 +147,7 @@ pub trait Writer {
     }
 
     fn write_tagged_bytes(&mut self, field: u32, value: &[u8]) -> Result<(), Error> {
-        self.write_tag(field, Format::VarInt);
+        self.write_tag(field, Format::VarInt)?;
         self.write_bytes(value)
     }
 
