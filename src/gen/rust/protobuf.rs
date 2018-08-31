@@ -217,7 +217,7 @@ impl ProtobufGenerator {
         for (field, (variant, role)) in variants.iter().enumerate() {
             let mut block_case = Block::new(&format!(
                 "{}{} =>",
-                field,
+                field + 1, // + 1 for protobuf offset
                 if role.clone().into_protobuf().is_primitive() {
                     "".into()
                 } else {
@@ -419,7 +419,7 @@ impl ProtobufGenerator {
             if role.clone().into_protobuf().is_primitive() {
                 block_case.line(&format!(
                     "writer.write_tag({}, value.{}_format())?;",
-                    field,
+                    field + 1, // + 1 for protobuf offset
                     Self::CODEC.to_lowercase()
                 ));
                 block_case.line(format!(
@@ -440,7 +440,7 @@ impl ProtobufGenerator {
                 ));
                 block_case.line(&format!(
                     "writer.write_tag({}, {}Format::LengthDelimited)?;",
-                    field,
+                    field + 1, // + 1 for protobuf offset
                     Self::CODEC
                 ));
                 block_case.line("writer.write_bytes(&vec[..])?;");
