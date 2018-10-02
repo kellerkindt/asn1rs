@@ -6,8 +6,8 @@ use codegen::Scope;
 use model::Definition;
 use model::Field;
 use model::ProtobufType;
-use model::Role;
-use model::RustType;
+use model::Asn;
+use model::Rust;
 
 use gen::rust::GeneratorSupplement;
 use gen::rust::RustCodeGenerator;
@@ -82,7 +82,7 @@ impl ProtobufGenerator {
         };
     }
 
-    fn impl_read_fn_for_sequence_of(function: &mut Function, _name: &str, aliased: &Role) {
+    fn impl_read_fn_for_sequence_of(function: &mut Function, _name: &str, aliased: &Asn) {
         function.line("let mut me = Self::default();");
 
         let mut block_while = Block::new("while let Ok(tag) = reader.read_tag()");
@@ -98,7 +98,7 @@ impl ProtobufGenerator {
             Self::CODEC
         ));
         match aliased {
-            Role::Custom(custom) => block_reader.line(format!(
+            Asn::TypeReference(custom) => block_reader.line(format!(
                 "me.values.push({}::read_protobuf(reader)?);",
                 custom
             )),
@@ -127,7 +127,7 @@ impl ProtobufGenerator {
 
         for (prev_tag, field) in fields.iter().enumerate() {
             match &field.role {
-                Role::Custom(name) => {
+                Asn::TypeReference(name) => {
                     let mut block_case = Block::new(&format!(
                         "{} => read_{} = Some(",
                         prev_tag + 1,
@@ -211,7 +211,7 @@ impl ProtobufGenerator {
         function.push_block(block_match);
     }
 
-    fn impl_read_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Role)]) {
+    fn impl_read_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Asn)]) {
         function.line("let tag = reader.read_tag()?;");
         let mut block_match = Block::new("match tag.0");
         for (field, (variant, role)) in variants.iter().enumerate() {
@@ -225,12 +225,12 @@ impl ProtobufGenerator {
                 },
             ));
             let complex_name = match role {
-                Role::Boolean => None,
-                Role::Integer(_) => None,
-                Role::UnsignedMaxInteger => None,
-                Role::UTF8String => None,
-                Role::OctetString => None,
-                Role::Custom(name) => Some(name.clone()),
+                Asn::Boolean => None,
+                Asn::Integer(_) => None,
+                Asn::UnsignedMaxInteger => None,
+                Asn::UTF8String => None,
+                Asn::OctetString => None,
+                Asn::TypeReference(name) => Some(name.clone()),
             };
             if let Some(complex_name) = complex_name {
                 block_case.line("let bytes = reader.read_bytes()?;");
@@ -283,7 +283,7 @@ impl ProtobufGenerator {
         function.line("Ok(())");
     }
 
-    fn impl_write_fn_for_sequence_of(function: &mut Function, _name: &str, aliased: &Role) {
+    fn impl_write_fn_for_sequence_of(function: &mut Function, _name: &str, aliased: &Asn) {
         let mut block_writer = Block::new("");
         let mut block_for = Block::new("for value in self.values.iter()");
         block_for.line(format!(
@@ -292,7 +292,7 @@ impl ProtobufGenerator {
         ));
         block_for.line("let mut bytes = Vec::new();");
         match aliased {
-            Role::Custom(_custom) => {
+            Asn::TypeReference(_custom) => {
                 block_for.line(format!(
                     "value.write_protobuf(&mut bytes as &mut {}Writer)?;",
                     Self::CODEC
@@ -326,7 +326,7 @@ impl ProtobufGenerator {
             };
 
             match &field.role {
-                Role::Custom(_custom) => {
+                Asn::TypeReference(_custom) => {
                     let format_line = format!(
                         "{}{}.{}_format()",
                         if field.optional { "" } else { "self." },
@@ -373,7 +373,7 @@ impl ProtobufGenerator {
                             } else {
                                 "&self."
                             }
-                        } else if RustType::VecU8 == r.clone().into_protobuf().into_rust() {
+                        } else if Rust::VecU8 == r.clone().into_protobuf().into_rust() {
                             if field.optional {
                                 ""
                             } else {
@@ -408,7 +408,7 @@ impl ProtobufGenerator {
         function.push_block(outer_block);
     }
 
-    fn impl_write_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Role)]) {
+    fn impl_write_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Asn)]) {
         let mut block_match = Block::new("match self");
         for (field, (variant, role)) in variants.iter().enumerate() {
             let mut block_case = Block::new(&format!(
@@ -548,7 +548,7 @@ impl ProtobufGenerator {
         }
     }
 
-    fn role_to_format(role: &Role, complex_name: &str) -> String {
+    fn role_to_format(role: &Asn, complex_name: &str) -> String {
         match role.clone().into_protobuf() {
             ProtobufType::Bool => format!("{}Format::VarInt", Self::CODEC),
             ProtobufType::SFixed32 => format!("{}Format::Fixed32", Self::CODEC),
@@ -565,7 +565,7 @@ impl ProtobufGenerator {
         }
     }
 
-    fn get_as_protobuf_type_statement(role: &Role) -> String {
+    fn get_as_protobuf_type_statement(role: &Asn) -> String {
         let role_rust = role.clone().into_rust();
         let proto_rust = role.clone().into_protobuf().into_rust();
 
@@ -576,7 +576,7 @@ impl ProtobufGenerator {
         }
     }
 
-    fn get_as_rust_type_statement(role: &Role) -> String {
+    fn get_as_rust_type_statement(role: &Asn) -> String {
         let role_rust = role.clone().into_rust();
         let proto_rust = role.clone().into_protobuf().into_rust();
 

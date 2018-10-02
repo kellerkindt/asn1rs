@@ -5,7 +5,7 @@ use codegen::Scope;
 
 use model::Definition;
 use model::Field;
-use model::Role;
+use model::Asn;
 
 use gen::rust::GeneratorSupplement;
 use gen::rust::RustCodeGenerator;
@@ -60,26 +60,26 @@ impl UperGenerator {
         };
     }
 
-    fn impl_read_fn_for_sequence_of(function: &mut Function, _name: &str, aliased: &Role) {
+    fn impl_read_fn_for_sequence_of(function: &mut Function, _name: &str, aliased: &Asn) {
         function.line("let mut me = Self::default();");
         function.line("let len = reader.read_length_determinant()?;");
         let mut block_for = Block::new("for _ in 0..len");
         match aliased {
-            Role::Boolean => block_for.line("me.values.push(reader.read_bit()?);"),
-            Role::Integer(_) => block_for.line(format!(
+            Asn::Boolean => block_for.line("me.values.push(reader.read_bit()?);"),
+            Asn::Integer(_) => block_for.line(format!(
                 "me.values.push(reader.read_int((Self::value_min() as i64, Self::value_max() as i64))? as {});",
                 aliased.clone().into_rust().to_string(),
             )),
-            Role::UnsignedMaxInteger => {
+            Asn::UnsignedMaxInteger => {
                 block_for.line("me.values.push(reader.read_int_max()?);")
             }
-            Role::UTF8String => {
+            Asn::UTF8String => {
                 block_for.line(format!("me.values.push(reader.read_utf8_string()?);"))
             }
-            Role::OctetString => {
+            Asn::OctetString => {
                 block_for.line("me.values.push(reader.read_octet_string(None)?);")
             }
-            Role::Custom(custom) => block_for
+            Asn::TypeReference(custom) => block_for
                 .line(format!("me.values.push({}::read_uper(reader)?);", custom)),
         };
         function.push_block(block_for);
@@ -145,7 +145,7 @@ impl UperGenerator {
         function.push_block(block_match);
     }
 
-    fn impl_read_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Role)]) {
+    fn impl_read_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Asn)]) {
         if variants.len() > 1 {
             function.line(&format!(
                 "let variant = reader.read_int((0, {}))?;",
@@ -219,20 +219,20 @@ impl UperGenerator {
         function.line("Ok(())");
     }
 
-    fn impl_write_fn_for_sequence_of(function: &mut Function, _name: &str, aliased: &Role) {
+    fn impl_write_fn_for_sequence_of(function: &mut Function, _name: &str, aliased: &Asn) {
         function.line("writer.write_length_determinant(self.values.len())?;");
         let mut block_for = Block::new("for value in self.values.iter()");
         match aliased {
-            Role::Boolean => block_for.line("writer.write_bit(value)?;"),
-            Role::Integer(_) => block_for.line(format!(
+            Asn::Boolean => block_for.line("writer.write_bit(value)?;"),
+            Asn::Integer(_) => block_for.line(format!(
                 "writer.write_int(*value as i64, (Self::value_min() as i64, Self::value_max() as i64))?;"
             )),
-            Role::UnsignedMaxInteger => {
+            Asn::UnsignedMaxInteger => {
                 block_for.line("writer.write_int_max(*value)?;")
             }
-            Role::UTF8String => block_for.line("writer.write_utf8_string(&value)?;"),
-            Role::OctetString => block_for.line("writer.write_octet_string(&value[..], None)?;"),
-            Role::Custom(_custom) => block_for.line("value.write_uper(writer)?;"),
+            Asn::UTF8String => block_for.line("writer.write_utf8_string(&value)?;"),
+            Asn::OctetString => block_for.line("writer.write_octet_string(&value[..], None)?;"),
+            Asn::TypeReference(_custom) => block_for.line("value.write_uper(writer)?;"),
         };
         function.push_block(block_for);
     }
@@ -283,7 +283,7 @@ impl UperGenerator {
         function.push_block(block);
     }
 
-    fn impl_write_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Role)]) {
+    fn impl_write_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Asn)]) {
         let mut block = Block::new("match self");
         for (i, (variant, role)) in variants.iter().enumerate() {
             let mut block_case = Block::new(&format!(
@@ -313,14 +313,14 @@ impl UperGenerator {
         function.push_block(block);
     }
 
-    fn read_field(field_name: &str, role: &Role, optional: bool) -> String {
+    fn read_field(field_name: &str, role: &Asn, optional: bool) -> String {
         match role {
-            Role::Boolean => format!(
+            Asn::Boolean => format!(
                 "{}reader.read_bit()?{};",
                 if optional { "Some(" } else { "" },
                 if optional { ")" } else { "" },
             ),
-            Role::Integer(_) => format!(
+            Asn::Integer(_) => format!(
                 "{}reader.read_int((Self::{}_min() as i64, Self::{}_max() as i64))? as {}{};",
                 if optional { "Some(" } else { "" },
                 RustCodeGenerator::rust_field_name(&field_name, false),
@@ -328,22 +328,22 @@ impl UperGenerator {
                 role.clone().into_rust().to_string(),
                 if optional { ")" } else { "" },
             ),
-            Role::UnsignedMaxInteger => format!(
+            Asn::UnsignedMaxInteger => format!(
                 "{}reader.read_int_max()?{};",
                 if optional { "Some(" } else { "" },
                 if optional { ")" } else { "" },
             ),
-            Role::UTF8String => format!(
+            Asn::UTF8String => format!(
                 "{}reader.read_utf8_string()?{};",
                 if optional { "Some(" } else { "" },
                 if optional { ")" } else { "" },
             ),
-            Role::OctetString => format!(
+            Asn::OctetString => format!(
                 "{}reader.read_octet_string(None)?{};",
                 if optional { "Some(" } else { "" },
                 if optional { ")" } else { "" },
             ),
-            Role::Custom(ref _type) => format!(
+            Asn::TypeReference(ref _type) => format!(
                 "{}{}::read_uper(reader)?{};",
                 if optional { "Some(" } else { "" },
                 role.clone().into_rust().to_string(),
@@ -352,7 +352,7 @@ impl UperGenerator {
         }
     }
 
-    fn write_field(field_name: &str, role: &Role, primitive: bool, no_self_prefix: bool) -> String {
+    fn write_field(field_name: &str, role: &Asn, primitive: bool, no_self_prefix: bool) -> String {
         let prefix = if no_self_prefix {
             if primitive {
                 "*"
@@ -363,34 +363,34 @@ impl UperGenerator {
             "self."
         };
         match role {
-            Role::Boolean => format!(
+            Asn::Boolean => format!(
                 "writer.write_bit({}{})?;",
                 prefix,
                 RustCodeGenerator::rust_field_name(field_name, true),
             ),
-            Role::Integer(_) => format!(
+            Asn::Integer(_) => format!(
                 "writer.write_int({}{} as i64, (Self::{}_min() as i64, Self::{}_max() as i64))?;",
                 prefix,
                 RustCodeGenerator::rust_field_name(field_name, true),
                 RustCodeGenerator::rust_field_name(field_name, false),
                 RustCodeGenerator::rust_field_name(field_name, false),
             ),
-            Role::UnsignedMaxInteger => format!(
+            Asn::UnsignedMaxInteger => format!(
                 "writer.write_int_max({}{})?;",
                 prefix,
                 RustCodeGenerator::rust_field_name(field_name, true),
             ),
-            Role::OctetString => format!(
+            Asn::OctetString => format!(
                 "writer.write_octet_string(&{}{}, None)?;",
                 prefix,
                 RustCodeGenerator::rust_field_name(field_name, true),
             ),
-            Role::UTF8String => format!(
+            Asn::UTF8String => format!(
                 "writer.write_utf8_string(&{}{})?;",
                 prefix,
                 RustCodeGenerator::rust_field_name(field_name, true),
             ),
-            Role::Custom(ref _type) => format!(
+            Asn::TypeReference(ref _type) => format!(
                 "{}{}.write_uper(writer)?;",
                 prefix,
                 RustCodeGenerator::rust_field_name(field_name, true),

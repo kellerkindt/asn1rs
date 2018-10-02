@@ -7,8 +7,8 @@ use codegen::Struct;
 use model::Definition;
 use model::Field;
 use model::Model;
-use model::Role;
-use model::RustType;
+use model::Asn;
+use model::Rust;
 
 use gen::Generator;
 
@@ -114,7 +114,7 @@ impl RustCodeGenerator {
         }
     }
 
-    fn add_sequence_of(str_ct: &mut Struct, _name: &str, aliased: &Role) {
+    fn add_sequence_of(str_ct: &mut Struct, _name: &str, aliased: &Asn) {
         str_ct.field(
             "values",
             format!("Vec<{}>", aliased.clone().into_rust().to_string()),
@@ -140,7 +140,7 @@ impl RustCodeGenerator {
         }
     }
 
-    fn add_choice(en_m: &mut Enum, _name: &str, variants: &[(String, Role)]) {
+    fn add_choice(en_m: &mut Enum, _name: &str, variants: &[(String, Asn)]) {
         for (variant, role) in variants.iter() {
             en_m.new_variant(&format!(
                 "{}({})",
@@ -172,7 +172,7 @@ impl RustCodeGenerator {
         }
     }
 
-    fn impl_sequence_of_deref(scope: &mut Scope, name: &str, aliased: &RustType) {
+    fn impl_sequence_of_deref(scope: &mut Scope, name: &str, aliased: &Rust) {
         scope
             .new_impl(&name)
             .impl_trait("::std::ops::Deref")
@@ -183,7 +183,7 @@ impl RustCodeGenerator {
             .line(format!("&self.values"));
     }
 
-    fn impl_sequence_of_deref_mut(scope: &mut Scope, name: &str, aliased: &RustType) {
+    fn impl_sequence_of_deref_mut(scope: &mut Scope, name: &str, aliased: &Rust) {
         scope
             .new_impl(&name)
             .impl_trait("::std::ops::DerefMut")
@@ -193,7 +193,7 @@ impl RustCodeGenerator {
             .line(format!("&mut self.values"));
     }
 
-    fn impl_sequence_of(scope: &mut Scope, name: &str, aliased: &Role) {
+    fn impl_sequence_of(scope: &mut Scope, name: &str, aliased: &Asn) {
         let implementation = scope.new_impl(name);
         let rust_type = aliased.clone().into_rust().to_string();
 
@@ -356,14 +356,14 @@ impl RustCodeGenerator {
         ordinal_fn.push_block(block);
     }
 
-    fn impl_choice(scope: &mut Scope, name: &str, variants: &[(String, Role)]) {
+    fn impl_choice(scope: &mut Scope, name: &str, variants: &[(String, Asn)]) {
         let implementation = scope.new_impl(name);
 
         Self::impl_choice_values_fn(implementation, &name, variants);
         Self::impl_choice_value_index_fn(implementation, &name, variants);
     }
 
-    fn impl_choice_values_fn(implementation: &mut Impl, name: &str, variants: &[(String, Role)]) {
+    fn impl_choice_values_fn(implementation: &mut Impl, name: &str, variants: &[(String, Asn)]) {
         let values_fn = implementation
             .new_fn("variants")
             .vis("pub")
@@ -376,7 +376,7 @@ impl RustCodeGenerator {
         values_fn.line("]");
     }
 
-    fn impl_choice_value_index_fn(implementation: &mut Impl, name: &str, variants: &[(String, Role)]) {
+    fn impl_choice_value_index_fn(implementation: &mut Impl, name: &str, variants: &[(String, Asn)]) {
         let ordinal_fn = implementation
             .new_fn("value_index")
             .arg_ref_self()
@@ -396,7 +396,7 @@ impl RustCodeGenerator {
         ordinal_fn.push_block(block);
     }
 
-    fn impl_choice_default(scope: &mut Scope, name: &str, variants: &[(String, Role)]) {
+    fn impl_choice_default(scope: &mut Scope, name: &str, variants: &[(String, Asn)]) {
         scope
             .new_impl(&name)
             .impl_trait("Default")
@@ -409,14 +409,14 @@ impl RustCodeGenerator {
             ));
     }
 
-    fn add_min_max_fn_if_applicable(implementation: &mut Impl, name: &str, role: &Role) {
+    fn add_min_max_fn_if_applicable(implementation: &mut Impl, name: &str, role: &Asn) {
         let min_max = match role {
-            Role::Boolean => None,
-            Role::Integer((lower, upper)) => Some((*lower, *upper)),
-            Role::UnsignedMaxInteger => Some((0, ::std::i64::MAX)),
-            Role::UTF8String => None,
-            Role::OctetString => None,
-            Role::Custom(_) => None,
+            Asn::Boolean => None,
+            Asn::Integer((lower, upper)) => Some((*lower, *upper)),
+            Asn::UnsignedMaxInteger => Some((0, ::std::i64::MAX)),
+            Asn::UTF8String => None,
+            Asn::OctetString => None,
+            Asn::TypeReference(_) => None,
         };
 
         if let Some((min, max)) = min_max {
@@ -433,7 +433,7 @@ impl RustCodeGenerator {
         }
     }
 
-    fn rust_field_name(name: &str, check_for_keywords: bool) -> String {
+    pub fn rust_field_name(name: &str, check_for_keywords: bool) -> String {
         let mut name = name.replace("-", "_");
         if check_for_keywords {
             for keyword in KEYWORDS.iter() {
@@ -446,7 +446,7 @@ impl RustCodeGenerator {
         name
     }
 
-    fn rust_variant_name(name: &str) -> String {
+    pub fn rust_variant_name(name: &str) -> String {
         let mut out = String::new();
         let mut next_upper = true;
         for c in name.chars() {
@@ -462,7 +462,11 @@ impl RustCodeGenerator {
         out
     }
 
-    fn rust_module_name(name: &str) -> String {
+    pub fn rust_struct_or_enum_name(name: &str) -> String {
+        Self::rust_module_name(name)
+    }
+
+    pub fn rust_module_name(name: &str) -> String {
         let mut out = String::new();
         let mut prev_lowered = false;
         let mut chars = name.chars().peekable();

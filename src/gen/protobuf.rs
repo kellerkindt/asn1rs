@@ -3,7 +3,7 @@ use std::fmt::Write;
 
 use model::Definition;
 use model::Model;
-use model::Role;
+use model::Asn;
 
 use gen::Generator;
 
@@ -121,7 +121,7 @@ impl ProtobufDefGenerator {
         target: &mut Write,
         model: &Model,
         name: &str,
-        role: &Role,
+        role: &Asn,
         tag: usize,
     ) -> Result<(), Error> {
         writeln!(
@@ -139,9 +139,9 @@ impl ProtobufDefGenerator {
         Ok(())
     }
 
-    pub fn role_to_full_type(role: &Role, model: &Model) -> String {
+    pub fn role_to_full_type(role: &Asn, model: &Model) -> String {
         let type_name = match role {
-            Role::Custom(name) => {
+            Asn::TypeReference(name) => {
                 let mut prefixed = String::new();
                 'outer: for import in model.imports.iter() {
                     for what in import.what.iter() {
