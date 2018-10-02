@@ -1,4 +1,5 @@
 mod rust;
+mod protobuf;
 
 use std::vec::IntoIter;
 
@@ -14,6 +15,7 @@ pub enum Error {
     MissingModuleName,
     UnexpectedEndOfStream,
     InvalidRangeValue,
+    IllegalModel(String, Backtrace),
 }
 
 #[derive(Debug, Clone)]
@@ -680,85 +682,4 @@ pub enum Asn {
     Enumerated(Vec<String>),
     Choice(Vec<ChoiceEntry>),
     TypeReference(String),
-}
-/*
-impl From<ProtobufType> for Rust {
-    fn from(proto: ProtobufType) -> Self {
-        match proto {
-            ProtobufType::Bool => Rust::Bool,
-            ProtobufType::SFixed32 => Rust::I32,
-            ProtobufType::SFixed64 => Rust::I64,
-            ProtobufType::UInt32 => Rust::U32,
-            ProtobufType::UInt64 => Rust::U64,
-            ProtobufType::SInt32 => Rust::I32,
-            ProtobufType::SInt64 => Rust::I64,
-            ProtobufType::String => Rust::String,
-            ProtobufType::Bytes => Rust::VecU8,
-            ProtobufType::Complex(name) => Rust::Complex(name.clone()),
-        }
-    }
-}*/
-
-
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub enum ProtobufType {
-    Bool,
-    SFixed32,
-    SFixed64,
-    UInt32,
-    UInt64,
-    SInt32,
-    SInt64,
-    String,
-    Bytes,
-    /// Indicates a complex, custom type that is
-    /// not one of rusts known types
-    Complex(String),
-}
-
-impl ProtobufType {
-    pub fn is_primitive(&self) -> bool {
-        if let ProtobufType::Complex(_) = self {
-            false
-        } else {
-            true
-        }
-    }
-}
-
-/*
-impl From<Rust> for ProtobufType {
-    fn from(rust: Rust) -> Self {
-        match rust {
-            Rust::Bool => ProtobufType::Bool,
-            Rust::U8(_) => ProtobufType::UInt32,
-            Rust::I8(_) => ProtobufType::SInt32,
-            Rust::U16(_) => ProtobufType::UInt32,
-            Rust::I16(_) => ProtobufType::SInt32,
-            Rust::U32(_) => ProtobufType::UInt32,
-            Rust::I32(_) => ProtobufType::SInt32,
-            Rust::U64(_) => ProtobufType::UInt64,
-            Rust::I64(_) => ProtobufType::SInt64,
-            Rust::String => ProtobufType::String,
-            Rust::VecU8 => ProtobufType::Bytes,
-            Rust::Complex(name) => ProtobufType::Complex(name.clone()),
-        }
-    }
-}*/
-
-impl ToString for ProtobufType {
-    fn to_string(&self) -> String {
-        match self {
-            ProtobufType::Bool => "bool",
-            ProtobufType::SFixed32 => "sfixed32",
-            ProtobufType::SFixed64 => "sfixed64",
-            ProtobufType::UInt32 => "uint32",
-            ProtobufType::UInt64 => "uint64",
-            ProtobufType::SInt32 => "sint32",
-            ProtobufType::SInt64 => "sint64",
-            ProtobufType::String => "string",
-            ProtobufType::Bytes => "bytes",
-            ProtobufType::Complex(name) => return name.clone(),
-        }.into()
-    }
 }

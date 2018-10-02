@@ -1,6 +1,5 @@
 use model::*;
 
-
 const I8_MAX: i64 = ::std::i8::MAX as i64;
 const I16_MAX: i64 = ::std::i16::MAX as i64;
 const I32_MAX: i64 = ::std::i32::MAX as i64;
@@ -11,8 +10,12 @@ const U16_MAX: u64 = ::std::u16::MAX as u64;
 const U32_MAX: u64 = ::std::u32::MAX as u64;
 const U64_MAX: u64 = ::std::u64::MAX as u64;
 
+const KEYWORDS: [&str; 9] = [
+    "use", "mod", "const", "type", "pub", "enum", "struct", "impl", "trait",
+];
+
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub enum Rust {
+pub enum RustType {
     Bool,
     U8(Range<u8>),
     I8(Range<i8>),
@@ -24,63 +27,194 @@ pub enum Rust {
     I64(Range<i64>),
     String,
     VecU8,
-    Vec(Box<Rust>),
-    Option(Box<Rust>),
-    Struct(Vec<(String, Rust)>),
-    Enum(Vec<String>),
-    DataEnum(Vec<(String, Rust)>),
-    TupleStruct(Box<Rust>),
+    Vec(Box<RustType>),
+    Option(Box<RustType>),
+
     /// Indicates a complex, custom type that is
-    /// not one of rusts known types
+    /// not one of rusts known types. This can be
+    /// thought of as a "ReferenceType"; declaring usage,
+    /// but not being declared here
     Complex(String),
 }
 
-impl Rust {
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub enum Rust {
+    Struct(Vec<(String, RustType)>),
+    Enum(Vec<String>),
+    DataEnum(Vec<(String, RustType)>),
+
+    /// Used to represent a single, unnamed inner type
+    TupleStruct(RustType),
+}
+
+impl RustType {
     pub fn is_primitive(&self) -> bool {
         match self {
-            Rust::Bool => true,
-            Rust::U8(_) => true,
-            Rust::I8(_) => true,
-            Rust::U16(_) => true,
-            Rust::I16(_) => true,
-            Rust::U32(_) => true,
-            Rust::I32(_) => true,
-            Rust::U64(_) => true,
-            Rust::I64(_) => true,
-            Rust::String => false,
+            RustType::Bool => true,
+            RustType::U8(_) => true,
+            RustType::I8(_) => true,
+            RustType::U16(_) => true,
+            RustType::I16(_) => true,
+            RustType::U32(_) => true,
+            RustType::I32(_) => true,
+            RustType::U64(_) => true,
+            RustType::I64(_) => true,
             _ => false,
         }
     }
 }
 
-impl ToString for Rust {
+impl ToString for RustType {
     fn to_string(&self) -> String {
         match self {
-            Rust::Bool => "bool",
-            Rust::U8(_) => "u8",
-            Rust::I8(_) => "i8",
-            Rust::U16(_) => "u16",
-            Rust::I16(_) => "i16",
-            Rust::U32(_) => "u32",
-            Rust::I32(_) => "i32",
-            Rust::U64(_) => "u64",
-            Rust::I64(_) => "i64",
-            Rust::String => "String",
-            Rust::VecU8 => "Vec<u8>",
-            Rust::Vec(inner) => return format!("Vec<{}>", inner.to_string()),
-            Rust::Option(inner) => return format!("Option<{}>", inner.to_string()),
-            Rust::Struct(_) => unimplemented!(),      // TODO
-            Rust::TupleStruct(_) => unimplemented!(), // TODO
-            Rust::Enum(_) => unimplemented!(),        // TODO
-            Rust::DataEnum(_) => unimplemented!(),    // TODO
-            Rust::Complex(name) => return name.clone(),
+            RustType::Bool => "bool",
+            RustType::U8(_) => "u8",
+            RustType::I8(_) => "i8",
+            RustType::U16(_) => "u16",
+            RustType::I16(_) => "i16",
+            RustType::U32(_) => "u32",
+            RustType::I32(_) => "i32",
+            RustType::U64(_) => "u64",
+            RustType::I64(_) => "i64",
+            RustType::String => "String",
+            RustType::VecU8 => "Vec<u8>",
+            RustType::Vec(inner) => return format!("Vec<{}>", inner.to_string()),
+            RustType::Option(inner) => return format!("Option<{}>", inner.to_string()),
+            RustType::Complex(name) => return name.clone(),
         }.into()
     }
 }
 
-const KEYWORDS: [&str; 9] = [
-    "use", "mod", "const", "type", "pub", "enum", "struct", "impl", "trait",
-];
+impl Model<Rust> {
+    pub fn convert_asn_to_rust(asn_model: &Model<Asn>) -> Model<Rust> {
+        let mut model = Model {
+            name: rust_module_name(&asn_model.name),
+            imports: asn_model.imports.clone(),
+            definitions: Vec::with_capacity(asn_model.definitions.len()),
+        };
+        for Definition(name, asn) in asn_model.definitions.iter() {
+            let rust_name = rust_struct_or_enum_name(name);
+            Self::definition_to_rust(&rust_name, asn, &mut model.definitions);
+        }
+        model
+    }
+
+    /// Converts the given `Asn` value to `Rust`, adding new `Defintion`s as
+    /// necessary (inlined types cannot be represented in rust and thus need to
+    /// be extracted to their own types).
+    /// The returned value is what shall be used to reference to the definition
+    /// and can therefore be used to be inserted in the parent element.
+    ///
+    /// The name is expected in a valid and rusty way
+    pub fn definition_to_rust(name: &str, asn: &Asn, defs: &mut Vec<Definition<Rust>>) {
+        match asn {
+            Asn::Boolean
+            | Asn::Integer(_)
+            | Asn::UTF8String
+            | Asn::OctetString
+            | Asn::TypeReference(_) => {
+                let rust_type = Self::definition_type_to_rust_type(name, asn, defs);
+                defs.push(Definition(name.into(), Rust::TupleStruct(rust_type)));
+            }
+
+            Asn::Sequence(fields) => {
+                let mut rust_fields = Vec::with_capacity(fields.len());
+
+                for field in fields.iter() {
+                    let rust_name = format!("{}{}", name, rust_struct_or_enum_name(&field.name));
+                    let rust_role =
+                        Self::definition_type_to_rust_type(&rust_name, &field.role, defs);
+                    let rust_field_name = rust_field_name(&field.name, true);
+                    if field.optional {
+                        rust_fields.push((rust_field_name, RustType::Option(Box::new(rust_role))));
+                    } else {
+                        rust_fields.push((rust_field_name, rust_role));
+                    }
+                }
+
+                defs.push(Definition(name.into(), Rust::Struct(rust_fields)));
+            }
+
+            Asn::SequenceOf(asn) => {
+                let inner = RustType::Vec(Box::new(Self::definition_type_to_rust_type(
+                    &name, asn, defs,
+                )));
+                defs.push(Definition(name.into(), Rust::TupleStruct(inner)));
+            }
+
+            Asn::Choice(entries) => {
+                let mut rust_entries = Vec::with_capacity(entries.len());
+
+                for ChoiceEntry(entry_name, asn) in entries.iter() {
+                    let rust_name = format!("{}{}", name, rust_struct_or_enum_name(entry_name));
+                    let rust_role = Self::definition_type_to_rust_type(&rust_name, asn, defs);
+                    let rust_field_name = rust_field_name(entry_name, true);
+                    rust_entries.push((rust_field_name, rust_role));
+                }
+
+                defs.push(Definition(name.into(), Rust::DataEnum(rust_entries)));
+            }
+
+            Asn::Enumerated(variants) => {
+                let mut rust_variants = Vec::with_capacity(variants.len());
+
+                for variant in variants.iter() {
+                    rust_variants.push(rust_variant_name(variant));
+                }
+
+                defs.push(Definition(name.into(), Rust::Enum(rust_variants)));
+            }
+        }
+    }
+
+    pub fn definition_type_to_rust_type(
+        name: &str,
+        asn: &Asn,
+        defs: &mut Vec<Definition<Rust>>,
+    ) -> RustType {
+        match asn {
+            Asn::Boolean => RustType::Bool,
+            Asn::Integer(Some(Range(min, max))) => {
+                let min = *min;
+                let max = *max;
+                if min >= 0 {
+                    match max as u64 {
+                        0...U8_MAX => RustType::U8(Range(min as u8, max as u8)),
+                        0...U16_MAX => RustType::U16(Range(min as u16, max as u16)),
+                        0...U32_MAX => RustType::U32(Range(min as u32, max as u32)),
+                        0...U64_MAX => RustType::U64(Some(Range(min as u64, max as u64))),
+                        _ => panic!("This should never happen, since max (as u64 frm i64) cannot be greater than U64_MAX")
+                    }
+                } else {
+                    let max_amplitude = (min - 1).abs().max(max);
+                    match max_amplitude {
+                        0...I8_MAX => RustType::I8(Range(min as i8, max as i8)),
+                        0...I16_MAX => RustType::I16(Range(min as i16, max as i16)),
+                        0...I32_MAX => RustType::I32(Range(min as i32, max as i32)),
+                        0...I64_MAX => RustType::I64(Range(min as i64, max as i64)),
+                        _ => panic!("This should never happen, since max (being i64) cannot be greater than I64_MAX")
+                    }
+                }
+            }
+            Asn::Integer(None) => RustType::U64(None),
+            Asn::UTF8String => RustType::String,
+            Asn::OctetString => RustType::VecU8,
+            Asn::SequenceOf(asn) => RustType::Vec(Box::new(Self::definition_type_to_rust_type(
+                name, asn, defs,
+            ))),
+            Asn::Sequence(_) | Asn::Enumerated(_) | Asn::Choice(_) => {
+                let name = rust_struct_or_enum_name(name);
+                Self::definition_to_rust(&name, asn, defs);
+                RustType::Complex(name)
+            }
+            Asn::TypeReference(name) => RustType::Complex(name.clone()),
+        }
+    }
+
+    pub fn to_protobuf(&self) -> Model<protobuf::Protobuf> {
+        Model::convert_rust_to_protobuf(self)
+    }
+}
 
 pub fn rust_field_name(name: &str, check_for_keywords: bool) -> String {
     let mut name = rust_module_name(name);
@@ -146,132 +280,11 @@ pub fn rust_module_name(name: &str) -> String {
     out
 }
 
-
-impl Model<Rust> {
-    pub fn convert_asn_to_rust(asn_model: &Model<Asn>) -> Model<Rust> {
-        let mut model = Model {
-            name: rust_module_name(&asn_model.name),
-            imports: asn_model.imports.clone(),
-            definitions: Vec::with_capacity(asn_model.definitions.len()),
-        };
-        for Definition(name, asn) in asn_model.definitions.iter() {
-            let rust_name = rust_struct_or_enum_name(name);
-            Self::definition_to_rust(&rust_name, asn, &mut model.definitions);
-        }
-        model
-    }
-
-    pub fn definition_to_rust(name: &str, asn: &Asn, defs: &mut Vec<Definition<Rust>>) -> Rust {
-        match asn {
-            Asn::Boolean => Rust::Bool,
-            Asn::Integer(Some(Range(min, max))) => {
-                let min = *min;
-                let max = *max;
-                if min >= 0 {
-                    match max as u64 {
-                        0...U8_MAX => Rust::U8(Range(min as u8, max as u8)),
-                        0...U16_MAX => Rust::U16(Range(min as u16, max as u16)),
-                        0...U32_MAX => Rust::U32(Range(min as u32, max as u32)),
-                        0...U64_MAX => Rust::U64(Some(Range(min as u64, max as u64))),
-                        _ => panic!("This should never happen, since max (as u64 frm i64) cannot be greater than U64_MAX")
-                    }
-                } else {
-                    let max_amplitude = (min - 1).abs().max(max);
-                    match max_amplitude {
-                        0...I8_MAX => Rust::I8(Range(min as i8, max as i8)),
-                        0...I16_MAX => Rust::I16(Range(min as i16, max as i16)),
-                        0...I32_MAX => Rust::I32(Range(min as i32, max as i32)),
-                        0...I64_MAX => Rust::I64(Range(min as i64, max as i64)),
-                        _ => panic!("This should never happen, since max (being i64) cannot be greater than I64_MAX")
-                    }
-                }
-            }
-            Asn::Integer(None) => Rust::U64(None),
-            Asn::UTF8String => Rust::String,
-            Asn::OctetString => Rust::VecU8,
-            Asn::TypeReference(name) => Rust::Complex(name.clone()),
-
-            Asn::Sequence(fields) => {
-                let mut rust_fields = Vec::with_capacity(fields.len());
-                let name = rust_struct_or_enum_name(name);
-
-                for field in fields.iter() {
-                    let rust_name = format!("{}{}", name, rust_struct_or_enum_name(&field.name));
-                    let rust_role =
-                        Self::unfold_asn_sequence_of_to_rust_vec(&rust_name, &field.role, defs);
-                    let rust_field_name = rust_field_name(&field.name, true);
-                    if field.optional {
-                        rust_fields.push((rust_field_name, Rust::Option(Box::new(rust_role))));
-                    } else {
-                        rust_fields.push((rust_field_name, rust_role));
-                    }
-                }
-
-                defs.push(Definition(name.clone(), Rust::Struct(rust_fields)));
-                Rust::Complex(name)
-            }
-
-            Asn::SequenceOf(asn) => {
-                let name = rust_struct_or_enum_name(name);
-
-                let inner = Rust::Vec(Box::new(Self::unfold_asn_sequence_of_to_rust_vec(
-                    &name, asn, defs,
-                )));
-                defs.push(Definition(name.clone(), Rust::TupleStruct(Box::new(inner))));
-
-                Rust::Complex(name)
-            }
-
-            Asn::Choice(entries) => {
-                let name = rust_struct_or_enum_name(name);
-                let mut rust_entries = Vec::with_capacity(entries.len());
-
-                for ChoiceEntry(entry_name, asn) in entries.iter() {
-                    let rust_name = format!("{}{}", name, rust_struct_or_enum_name(entry_name));
-                    let rust_role = Self::unfold_asn_sequence_of_to_rust_vec(&rust_name, asn, defs);
-                    let rust_field_name = rust_field_name(entry_name, true);
-                    rust_entries.push((rust_field_name, rust_role));
-                }
-
-                defs.push(Definition(name.clone(), Rust::DataEnum(rust_entries)));
-                Rust::Complex(name)
-            }
-
-            Asn::Enumerated(variants) => {
-                let name = rust_struct_or_enum_name(name);
-                let mut rust_variants = Vec::with_capacity(variants.len());
-
-                for variant in variants.iter() {
-                    rust_variants.push(rust_variant_name(variant));
-                }
-
-                defs.push(Definition(name.clone(), Rust::Enum(rust_variants)));
-                Rust::Complex(name)
-            }
-        }
-    }
-
-    fn unfold_asn_sequence_of_to_rust_vec(
-        name: &str,
-        asn: &Asn,
-        defs: &mut Vec<Definition<Rust>>,
-    ) -> Rust {
-        if let Asn::SequenceOf(asn) = asn {
-            Rust::Vec(Box::new(Self::unfold_asn_sequence_of_to_rust_vec(
-                name, asn, defs,
-            )))
-        } else {
-            Model::definition_to_rust(&name, asn, defs)
-        }
-    }
-
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
-    use parser::Parser;
     use model::test::*;
+    use parser::Parser;
 
     #[test]
     fn test_simple_asn_sequence_represented_correctly_as_rust_model() {
@@ -286,10 +299,13 @@ mod test {
             Definition(
                 "Simple".into(),
                 Rust::Struct(vec![
-                    ("small".into(), Rust::U8(Range(0, 255))),
-                    ("bigger".into(), Rust::U16(Range(0, 65535))),
-                    ("negative".into(), Rust::I16(Range(-1, 255))),
-                    ("unlimited".into(), Rust::Option(Box::new(Rust::U64(None)))),
+                    ("small".into(), RustType::U8(Range(0, 255))),
+                    ("bigger".into(), RustType::U16(Range(0, 65535))),
+                    ("negative".into(), RustType::I16(Range(-1, 255))),
+                    (
+                        "unlimited".into(),
+                        RustType::Option(Box::new(RustType::U64(None)))
+                    ),
                 ])
             ),
             model_rust.definitions[0]
@@ -323,7 +339,7 @@ mod test {
                 "Woah".into(),
                 Rust::Struct(vec![(
                     "decision".into(),
-                    Rust::Option(Box::new(Rust::Complex("WoahDecision".into())))
+                    RustType::Option(Box::new(RustType::Complex("WoahDecision".into())))
                 )])
             ),
             modle_rust.definitions[1]
@@ -342,16 +358,16 @@ mod test {
         assert_eq!(
             Definition(
                 "Ones".into(),
-                Rust::TupleStruct(Box::new(Rust::Vec(Box::new(Rust::U8(Range(0, 1))))))
+                Rust::TupleStruct(RustType::Vec(Box::new(RustType::U8(Range(0, 1)))))
             ),
             model_rust.definitions[0]
         );
         assert_eq!(
             Definition(
                 "NestedOnes".into(),
-                Rust::TupleStruct(Box::new(Rust::Vec(Box::new(Rust::Vec(Box::new(
-                    Rust::U8(Range(0, 1))
-                ))))))
+                Rust::TupleStruct(RustType::Vec(Box::new(RustType::Vec(Box::new(
+                    RustType::U8(Range(0, 1))
+                )))))
             ),
             model_rust.definitions[1]
         );
@@ -361,17 +377,17 @@ mod test {
                 Rust::Struct(vec![
                     (
                         "also_ones".into(),
-                        Rust::Vec(Box::new(Rust::U8(Range(0, 1))))
+                        RustType::Vec(Box::new(RustType::U8(Range(0, 1))))
                     ),
                     (
                         "nesteds".into(),
-                        Rust::Vec(Box::new(Rust::Vec(Box::new(Rust::U8(Range(0, 1))))))
+                        RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::U8(Range(0, 1))))))
                     ),
                     (
                         "optionals".into(),
-                        Rust::Option(Box::new(Rust::Vec(Box::new(Rust::Vec(Box::new(
-                            Rust::U64(None)
-                        ))))))
+                        RustType::Option(Box::new(RustType::Vec(Box::new(RustType::Vec(
+                            Box::new(RustType::U64(None))
+                        )))))
                     )
                 ])
             ),
@@ -391,16 +407,16 @@ mod test {
         assert_eq!(
             Definition(
                 "This".into(),
-                Rust::TupleStruct(Box::new(Rust::Vec(Box::new(Rust::U8(Range(0, 1))))))
+                Rust::TupleStruct(RustType::Vec(Box::new(RustType::U8(Range(0, 1)))))
             ),
             model_rust.definitions[0]
         );
         assert_eq!(
             Definition(
                 "That".into(),
-                Rust::TupleStruct(Box::new(Rust::Vec(Box::new(Rust::Vec(Box::new(
-                    Rust::U8(Range(0, 1))
-                ))))))
+                Rust::TupleStruct(RustType::Vec(Box::new(RustType::Vec(Box::new(
+                    RustType::U8(Range(0, 1))
+                )))))
             ),
             model_rust.definitions[1]
         );
@@ -415,9 +431,9 @@ mod test {
             Definition(
                 "WoahDecision".into(),
                 Rust::DataEnum(vec![
-                    ("this".into(), Rust::Complex("This".into())),
-                    ("that".into(), Rust::Complex("That".into())),
-                    ("neither".into(), Rust::Complex("Neither".into())),
+                    ("this".into(), RustType::Complex("This".into())),
+                    ("that".into(), RustType::Complex("That".into())),
+                    ("neither".into(), RustType::Complex("Neither".into())),
                 ])
             ),
             model_rust.definitions[3]
@@ -427,7 +443,7 @@ mod test {
                 "Woah".into(),
                 Rust::Struct(vec![(
                     "decision".into(),
-                    Rust::Complex("WoahDecision".into())
+                    RustType::Complex("WoahDecision".into())
                 )])
             ),
             model_rust.definitions[4]
@@ -447,14 +463,16 @@ mod test {
             Definition(
                 "WoahComplex".into(),
                 Rust::Struct(vec![
-                    ("ones".into(), Rust::U8(Range(0, 1))),
+                    ("ones".into(), RustType::U8(Range(0, 1))),
                     (
                         "list_ones".into(),
-                        Rust::Vec(Box::new(Rust::U8(Range(0, 1))))
+                        RustType::Vec(Box::new(RustType::U8(Range(0, 1))))
                     ),
                     (
                         "optional_ones".into(),
-                        Rust::Option(Box::new(Rust::Vec(Box::new(Rust::U8(Range(0, 1))))))
+                        RustType::Option(Box::new(RustType::Vec(Box::new(RustType::U8(Range(
+                            0, 1
+                        ))))))
                     ),
                 ])
             ),
@@ -465,7 +483,7 @@ mod test {
                 "Woah".into(),
                 Rust::Struct(vec![(
                     "complex".into(),
-                    Rust::Option(Box::new(Rust::Complex("WoahComplex".into())))
+                    RustType::Option(Box::new(RustType::Complex("WoahComplex".into())))
                 )])
             ),
             model_rust.definitions[1]
@@ -514,8 +532,8 @@ mod test {
             Definition(
                 "SimpleChoiceTest".into(),
                 Rust::DataEnum(vec![
-                    ("bernd_das_brot".into(), Rust::String),
-                    ("noch_so_ein_brot".into(), Rust::VecU8),
+                    ("bernd_das_brot".into(), RustType::String),
+                    ("noch_so_ein_brot".into(), RustType::VecU8),
                 ])
             ),
             model_rust.definitions[0]
@@ -546,10 +564,13 @@ mod test {
             Definition(
                 "ListChoiceTestWithNestedList".into(),
                 Rust::DataEnum(vec![
-                    ("normal_list".into(), Rust::Vec(Box::new(Rust::String))),
+                    (
+                        "normal_list".into(),
+                        RustType::Vec(Box::new(RustType::String))
+                    ),
                     (
                         "nested_list".into(),
-                        Rust::Vec(Box::new(Rust::Vec(Box::new(Rust::VecU8))))
+                        RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::VecU8))))
                     ),
                 ])
             ),
@@ -572,7 +593,7 @@ mod test {
         assert_eq!(
             Definition(
                 "TupleTest".into(),
-                Rust::TupleStruct(Box::new(Rust::Vec(Box::new(Rust::String))))
+                Rust::TupleStruct(RustType::Vec(Box::new(RustType::String)))
             ),
             model_rust.definitions[0]
         );
@@ -593,9 +614,9 @@ mod test {
         assert_eq!(
             Definition(
                 "NestedTupleTest".into(),
-                Rust::TupleStruct(Box::new(Rust::Vec(Box::new(Rust::Vec(Box::new(
-                    Rust::String
-                ))))))
+                Rust::TupleStruct(RustType::Vec(Box::new(RustType::Vec(Box::new(
+                    RustType::String
+                )))))
             ),
             model_rust.definitions[0]
         );
@@ -622,7 +643,7 @@ mod test {
                 "OptionalStructListTest".into(),
                 Rust::Struct(vec![(
                     "strings".into(),
-                    Rust::Option(Box::new(Rust::Vec(Box::new(Rust::String))))
+                    RustType::Option(Box::new(RustType::Vec(Box::new(RustType::String))))
                 )])
             ),
             model_rust.definitions[0]
@@ -648,7 +669,10 @@ mod test {
         assert_eq!(
             Definition(
                 "StructListTest".into(),
-                Rust::Struct(vec![("strings".into(), Rust::Vec(Box::new(Rust::String)))])
+                Rust::Struct(vec![(
+                    "strings".into(),
+                    RustType::Vec(Box::new(RustType::String))
+                )])
             ),
             model_rust.definitions[0]
         );
@@ -675,7 +699,7 @@ mod test {
                 "NestedStructListTest".into(),
                 Rust::Struct(vec![(
                     "strings".into(),
-                    Rust::Vec(Box::new(Rust::Vec(Box::new(Rust::String))))
+                    RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::String))))
                 )])
             ),
             model_rust.definitions[0]
