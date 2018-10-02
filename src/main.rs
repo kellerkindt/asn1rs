@@ -3,9 +3,9 @@ extern crate byteorder;
 extern crate clap;
 extern crate codegen;
 
-// mod converter;
-// mod gen;
-// mod io;
+//mod converter;
+//mod gen;
+mod io;
 mod model;
 mod parser;
 
@@ -57,5 +57,6 @@ pub fn main() {
                     .for_each(|f| println!("                          => {}", f));
             }
         }
-    }*/
+    }
+    */
 }
