@@ -1,5 +1,5 @@
-use gen::protobuf::Error as ProtobufGeneratorError;
-use gen::protobuf::ProtobufDefGenerator as ProtobufGenerator;
+//use gen::protobuf::Error as ProtobufGeneratorError;
+//use gen::protobuf::ProtobufDefGenerator as ProtobufGenerator;
 use gen::rust::RustCodeGenerator as RustGenerator;
 use gen::Generator;
 
@@ -14,17 +14,17 @@ use std::path::Path;
 #[derive(Debug)]
 pub enum Error {
     RustGenerator,
-    ProtobufGenerator(ProtobufGeneratorError),
+//    ProtobufGenerator(ProtobufGeneratorError),
     Model(ModelError),
     Parser(ParserError),
     Io(IoError),
 }
-
+/*
 impl From<ProtobufGeneratorError> for Error {
     fn from(g: ProtobufGeneratorError) -> Self {
         Error::ProtobufGenerator(g)
     }
-}
+}*/
 
 impl From<ModelError> for Error {
     fn from(m: ModelError) -> Self {
@@ -52,7 +52,7 @@ pub fn convert_to_rust<F: AsRef<Path>, D: AsRef<Path>>(
     let tokens = Parser::new().parse(&input)?;
     let model = Model::try_from(tokens)?;
     let mut generator = RustGenerator::default();
-    generator.add_model(model);
+    generator.add_model(model.to_rust());
 
     let output = generator.to_string().map_err(|_| Error::RustGenerator)?;
 
@@ -64,7 +64,7 @@ pub fn convert_to_rust<F: AsRef<Path>, D: AsRef<Path>>(
     }
     Ok(files)
 }
-
+/*
 pub fn convert_to_proto<F: AsRef<Path>, D: AsRef<Path>>(
     file: F,
     dir: D,
@@ -83,4 +83,4 @@ pub fn convert_to_proto<F: AsRef<Path>, D: AsRef<Path>>(
         files.push(file);
     }
     Ok(files)
-}
+}*/

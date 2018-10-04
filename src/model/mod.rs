@@ -1,5 +1,11 @@
-mod rust;
-mod protobuf;
+pub mod rust;
+pub mod protobuf;
+
+pub use self::rust::Rust;
+pub use self::rust::RustType;
+
+pub use self::protobuf::Protobuf;
+pub use self::protobuf::ProtobufType;
 
 use std::vec::IntoIter;
 
@@ -658,10 +664,10 @@ pub struct Import {
 pub struct ChoiceEntry(String, Asn);
 
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
-pub struct Range<T>(T, T);
+pub struct Range<T>(pub T, pub T);
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub struct Definition<T>(String, T);
+pub struct Definition<T>(pub String, pub T);
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct Field<T> {

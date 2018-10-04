@@ -37,17 +37,22 @@ pub enum RustType {
     Complex(String),
 }
 
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub enum Rust {
-    Struct(Vec<(String, RustType)>),
-    Enum(Vec<String>),
-    DataEnum(Vec<(String, RustType)>),
-
-    /// Used to represent a single, unnamed inner type
-    TupleStruct(RustType),
-}
-
 impl RustType {
+    pub fn to_inner(&self) -> Option<String> {
+        if self.is_primitive() {
+            return Some(self.to_string())
+        }
+        match self {
+            RustType::Vec(inner) => inner.to_inner(),
+            RustType::Option(inner) => inner.to_inner(),
+            _ => None,
+        }
+    }
+
+    pub fn to_inner_type_string(&self) -> String {
+        self.to_inner().unwrap_or(self.to_string())
+    }
+
     pub fn is_primitive(&self) -> bool {
         match self {
             RustType::Bool => true,
@@ -62,6 +67,48 @@ impl RustType {
             _ => false,
         }
     }
+
+    pub fn integer_range_str(&self) -> Option<Range<String>> {
+        match self {
+            RustType::Bool => None,
+            RustType::U8(Range(min, max)) => Some(Range(min.to_string(), max.to_string())),
+            RustType::I8(Range(min, max)) => Some(Range(min.to_string(), max.to_string())),
+            RustType::U16(Range(min, max)) => Some(Range(min.to_string(), max.to_string())),
+            RustType::I16(Range(min, max)) => Some(Range(min.to_string(), max.to_string())),
+            RustType::U32(Range(min, max)) => Some(Range(min.to_string(), max.to_string())),
+            RustType::I32(Range(min, max)) => Some(Range(min.to_string(), max.to_string())),
+            RustType::U64(None) => None,
+            RustType::U64(Some(Range(min, max))) => Some(Range(min.to_string(), max.to_string())),
+            RustType::I64(Range(min, max)) => Some(Range(min.to_string(), max.to_string())),
+            RustType::String => None,
+            RustType::VecU8 => None,
+            RustType::Vec(inner) => inner.integer_range_str(),
+            RustType::Option(inner) => inner.integer_range_str(),
+            RustType::Complex(_) => None,
+        }
+    }
+
+    pub fn integer_range_value_str(&self) -> Option<Range<String>> {
+        match self {
+            RustType::Option(inner) => match inner.integer_range_value_str() {
+                None => None,
+                Some(Range(min, max)) => {
+                    Some(Range(format!("Some({})", min), format!("Some({})", max)))
+                }
+            },
+            _ => self.integer_range_str(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub enum Rust {
+    Struct(Vec<(String, RustType)>),
+    Enum(Vec<String>),
+    DataEnum(Vec<(String, RustType)>),
+
+    /// Used to represent a single, unnamed inner type
+    TupleStruct(RustType),
 }
 
 impl ToString for RustType {
@@ -89,7 +136,13 @@ impl Model<Rust> {
     pub fn convert_asn_to_rust(asn_model: &Model<Asn>) -> Model<Rust> {
         let mut model = Model {
             name: rust_module_name(&asn_model.name),
-            imports: asn_model.imports.clone(),
+            imports: asn_model
+                .imports
+                .iter()
+                .map(|i| Import {
+                    what: i.what.iter().map(|w| rust_struct_or_enum_name(w)).collect(),
+                    from: rust_module_name(&i.from),
+                }).collect(),
             definitions: Vec::with_capacity(asn_model.definitions.len()),
         };
         for Definition(name, asn) in asn_model.definitions.iter() {
@@ -148,7 +201,7 @@ impl Model<Rust> {
                 for ChoiceEntry(entry_name, asn) in entries.iter() {
                     let rust_name = format!("{}{}", name, rust_struct_or_enum_name(entry_name));
                     let rust_role = Self::definition_type_to_rust_type(&rust_name, asn, defs);
-                    let rust_field_name = rust_field_name(entry_name, true);
+                    let rust_field_name = rust_variant_name(entry_name);
                     rust_entries.push((rust_field_name, rust_role));
                 }
 

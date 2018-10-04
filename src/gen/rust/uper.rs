@@ -10,8 +10,8 @@ use model::Asn;
 use gen::rust::GeneratorSupplement;
 use gen::rust::RustCodeGenerator;
 
-pub struct UperGenerator;
-impl GeneratorSupplement for UperGenerator {
+pub struct UperSerializer;
+impl GeneratorSupplement for UperSerializer {
     fn add_imports(&self, scope: &mut Scope) {
         scope.import("asn1c::io::uper", Self::CODEC);
         scope.import("asn1c::io::uper", &format!("Error as {}Error", Self::CODEC));
@@ -32,7 +32,7 @@ impl GeneratorSupplement for UperGenerator {
     }
 }
 
-impl UperGenerator {
+impl UperSerializer {
     const CODEC: &'static str = "Uper";
 
     fn new_uper_serializable_impl<'a>(scope: &'a mut Scope, impl_for: &str) -> &'a mut Impl {

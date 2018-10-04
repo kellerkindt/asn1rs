@@ -14,8 +14,9 @@ use gen::rust::RustCodeGenerator;
 
 use io::protobuf::Format as ProtobufFormat;
 
-pub struct ProtobufGenerator;
-impl GeneratorSupplement for ProtobufGenerator {
+pub struct ProtobufSerializer;
+
+impl GeneratorSupplement<Rust> for ProtobufSerializer {
     fn add_imports(&self, scope: &mut Scope) {
         scope.import("asn1c::io::protobuf", Self::CODEC);
         scope.import(
@@ -54,7 +55,7 @@ impl GeneratorSupplement for ProtobufGenerator {
     }
 }
 
-impl ProtobufGenerator {
+impl ProtobufSerializer {
     const CODEC: &'static str = "Protobuf";
 
     fn new_protobuf_serializable_impl<'a>(scope: &'a mut Scope, impl_for: &str) -> &'a mut Impl {
