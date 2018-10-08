@@ -236,7 +236,9 @@ impl UperSerializer {
                 }
                 Self::impl_write_fn_for_struct(function, name, fields);
             }
-            Rust::Enum(_) => {}
+            Rust::Enum(variants) => {
+                Self::impl_write_fn_for_enum(function, name, &variants[..]);
+            }
             Rust::DataEnum(_) => {}
         }
         /*
@@ -395,6 +397,20 @@ impl UperSerializer {
         function.push_block(block);
     }
 
+    fn impl_write_fn_for_enum(function: &mut Function, name: &str, variants: &[String]) {
+        let mut block = Block::new("match self");
+        for (i, variant) in variants.iter().enumerate() {
+            block.line(format!(
+                "{}::{} => writer.write_int({}, (0, {}))?,",
+                name,
+                &variant,
+                i,
+                variants.len() - 1
+            ));
+        }
+        function.push_block(block);
+    }
+
     /*
 
     fn impl_write_fn_for_sequence_of(function: &mut Function, _name: &str, aliased: &Asn) {
@@ -445,20 +461,6 @@ impl UperSerializer {
                 function.line(line);
             }
         }
-    }
-
-    fn impl_write_fn_for_enumeration(function: &mut Function, name: &str, variants: &[String]) {
-        let mut block = Block::new("match self");
-        for (i, variant) in variants.iter().enumerate() {
-            block.line(format!(
-                "{}::{} => writer.write_int({}, (0, {}))?,",
-                name,
-                RustCodeGenerator::rust_variant_name(&variant),
-                i,
-                variants.len() - 1
-            ));
-        }
-        function.push_block(block);
     }
 
     fn impl_write_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Asn)]) {
