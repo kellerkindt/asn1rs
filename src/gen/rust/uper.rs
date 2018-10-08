@@ -225,7 +225,15 @@ impl UperSerializer {
         RustCodeGenerator::new_write_fn(implementation, Self::CODEC)
     }
 
-    fn impl_write_fn(function: &mut Function, definition: &Definition<Rust>) {
+    fn impl_write_fn(function: &mut Function, Definition(name, rust): &Definition<Rust>) {
+        match rust {
+            Rust::TupleStruct(inner) => {
+                Self::impl_write_fn_for_tuple_struct(function, name, inner);
+            }
+            Rust::Struct(_) => {}
+            Rust::Enum(_) => {}
+            Rust::DataEnum(_) => {}
+        }
         /*
         match definition {
             Definition::SequenceOf(name, aliased) => {
@@ -243,6 +251,123 @@ impl UperSerializer {
         };
         function.line("Ok(())");
         */
+    }
+
+    fn impl_write_fn_for_tuple_struct(function: &mut Function, name: &str, aliased: &RustType) {
+        Self::impl_write_fn_header_for_type(function, "self.0", aliased);
+        function.push_block({
+            let mut block = Block::new("");
+            Self::impl_write_fn_for_type(
+                &mut block,
+                &aliased.to_inner_type_string(),
+                if aliased.is_primitive() {
+                    Some("self.0")
+                } else {
+                    Some("&self.0")
+                },
+                aliased,
+            );
+            block
+        });
+    }
+
+    fn impl_write_fn_header_for_type(function: &mut Function, name: &str, aliased: &RustType) {
+        if let RustType::Option(_) = aliased {
+            function.line(&format!("writer.write_bit({}.is_some())?;", name));
+        }
+    }
+
+    fn impl_write_fn_for_type(
+        block: &mut Block,
+        type_name: &str,
+        field_name: Option<&str>,
+        rust: &RustType,
+    ) {
+        match rust {
+            RustType::Bool => {
+                block.line(format!(
+                    "reader.write_bit({})?;",
+                    field_name.unwrap_or("value")
+                ));
+            }
+            RustType::U8(_)
+            | RustType::I8(_)
+            | RustType::U16(_)
+            | RustType::I16(_)
+            | RustType::U32(_)
+            | RustType::I32(_)
+            | RustType::U64(Some(_))
+            | RustType::I64(_) => {
+                block.line(format!(
+                    "writer.write_int({} as i64, (Self::{}min() as i64, Self::{}max() as i64))?;",
+                    field_name.unwrap_or("value"),
+                    if let Some(field_name) = field_name {
+                        format!("{}_", field_name)
+                    } else {
+                        String::default()
+                    },
+                    if let Some(field_name) = field_name {
+                        format!("{}_", field_name)
+                    } else {
+                        String::default()
+                    },
+                ));
+            }
+            RustType::U64(None) => {
+                block.line(&format!(
+                    "writer.write_int_max({})?;",
+                    field_name.unwrap_or("value")
+                ));
+            }
+            RustType::String => {
+                block.line(&format!(
+                    "writer.write_utf8_string({})?;",
+                    field_name.unwrap_or("value")
+                ));
+            }
+            RustType::VecU8 => {
+                block.line(format!(
+                    "writer.writer_octet_string({}, None)?;",
+                    field_name.unwrap_or("value")
+                ));
+            }
+            RustType::Vec(inner) => {
+                let mut for_block = Block::new(&format!(
+                    "for value in {}.iter()",
+                    field_name.unwrap_or("value")
+                ));
+                Self::impl_write_fn_for_type(
+                    &mut for_block,
+                    &inner.to_inner_type_string(),
+                    if inner.is_primitive() {
+                        Some("*value")
+                    } else {
+                        Some("value")
+                    },
+                    inner,
+                );
+                block.push_block(for_block);
+            }
+            RustType::Option(inner) => {
+                let mut if_block = Block::new(&format!(
+                    "if let Some(value) = {}",
+                    field_name.unwrap_or("value")
+                ));
+                Self::impl_write_fn_for_type(
+                    &mut if_block,
+                    &inner.to_inner_type_string(),
+                    Some("value"),
+                    inner,
+                );
+                block.push_block(if_block);
+            }
+            RustType::Complex(inner) => {
+                block.line(format!(
+                    "{}.write_uper(writer)?;",
+                    field_name.unwrap_or("value")
+                ));
+            }
+        }
     }
     /*
 
