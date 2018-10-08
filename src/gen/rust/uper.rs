@@ -230,7 +230,12 @@ impl UperSerializer {
             Rust::TupleStruct(inner) => {
                 Self::impl_write_fn_for_tuple_struct(function, name, inner);
             }
-            Rust::Struct(_) => {}
+            Rust::Struct(fields) => {
+                for (field_name, field_type) in fields.iter() {
+                    Self::impl_write_fn_header_for_type(function, field_name, field_type);
+                }
+                Self::impl_write_fn_for_struct(function, name, fields);
+            }
             Rust::Enum(_) => {}
             Rust::DataEnum(_) => {}
         }
@@ -356,7 +361,11 @@ impl UperSerializer {
                 Self::impl_write_fn_for_type(
                     &mut if_block,
                     &inner.to_inner_type_string(),
-                    Some("value"),
+                    if inner.is_primitive() {
+                        Some("*value")
+                    } else {
+                        Some("value")
+                    },
                     inner,
                 );
                 block.push_block(if_block);
@@ -369,6 +378,23 @@ impl UperSerializer {
             }
         }
     }
+    fn impl_write_fn_for_struct(
+        function: &mut Function,
+        name: &str,
+        fields: &[(String, RustType)],
+    ) {
+        let mut block = Block::new("");
+        for (field_name, field_type) in fields.iter() {
+            Self::impl_write_fn_for_type(
+                &mut block,
+                &field_type.to_inner_type_string(),
+                Some(&format!("self.{}", field_name)),
+                field_type,
+            );
+        }
+        function.push_block(block);
+    }
+
     /*
 
     fn impl_write_fn_for_sequence_of(function: &mut Function, _name: &str, aliased: &Asn) {
