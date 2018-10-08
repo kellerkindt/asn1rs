@@ -1,5 +1,5 @@
 //mod protobuf;
-//mod uper;
+mod uper;
 
 use codegen::Block;
 use codegen::Enum;
@@ -19,7 +19,7 @@ use model::RustType;
 use gen::Generator;
 
 //use self::protobuf::ProtobufSerializer;
-//use self::uper::UperSerializer;
+use self::uper::UperSerializer;
 
 const KEYWORDS: [&str; 9] = [
     "use", "mod", "const", "type", "pub", "enum", "struct", "impl", "trait",
@@ -55,7 +55,7 @@ impl Generator<Rust> for RustCodeGenerator {
         for model in self.models.iter() {
             files.push(RustCodeGenerator::model_to_file(
                 model,
-                &[], // TODO &[&UperSerializer, &ProtobufSerializer],
+                &[&UperSerializer], // TODO &[, &ProtobufSerializer],
             ));
         }
         Ok(files)

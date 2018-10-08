@@ -5,13 +5,15 @@ use codegen::Scope;
 
 use model::Definition;
 use model::Field;
-use model::Asn;
+use model::Range;
+use model::Rust;
+use model::RustType;
 
 use gen::rust::GeneratorSupplement;
 use gen::rust::RustCodeGenerator;
 
 pub struct UperSerializer;
-impl GeneratorSupplement for UperSerializer {
+impl GeneratorSupplement<Rust> for UperSerializer {
     fn add_imports(&self, scope: &mut Scope) {
         scope.import("asn1c::io::uper", Self::CODEC);
         scope.import("asn1c::io::uper", &format!("Error as {}Error", Self::CODEC));
@@ -25,8 +27,8 @@ impl GeneratorSupplement for UperSerializer {
         );
     }
 
-    fn impl_supplement(&self, scope: &mut Scope, impl_for: &str, definition: &Definition) {
-        let serializable_implementation = Self::new_uper_serializable_impl(scope, impl_for);
+    fn impl_supplement(&self, scope: &mut Scope, definition: &Definition<Rust>) {
+        let serializable_implementation = Self::new_uper_serializable_impl(scope, &definition.0);
         Self::impl_read_fn(Self::new_read_fn(serializable_implementation), definition);
         Self::impl_write_fn(Self::new_write_fn(serializable_implementation), definition);
     }
@@ -43,100 +45,147 @@ impl UperSerializer {
         RustCodeGenerator::new_read_fn(implementation, Self::CODEC)
     }
 
-    fn impl_read_fn(function: &mut Function, definition: &Definition) {
-        match definition {
-            Definition::SequenceOf(name, aliased) => {
-                Self::impl_read_fn_for_sequence_of(function, name, aliased);
+    fn impl_read_fn(function: &mut Function, Definition(name, rust): &Definition<Rust>) {
+        match rust {
+            Rust::TupleStruct(aliased) => {
+                Self::impl_read_fn_for_tuple_struct(function, name, aliased);
             }
-            Definition::Sequence(name, fields) => {
-                Self::impl_read_fn_for_sequence(function, name, &fields[..]);
+            Rust::Struct(fields) => {
+                for (field_name, field_type) in fields.iter() {
+                    Self::impl_read_fn_header_for_type(function, field_name, field_type);
+                }
+                Self::impl_read_fn_for_struct(function, name, fields);
             }
-            Definition::Enumerated(name, variants) => {
-                Self::impl_read_fn_for_enumerated(function, name, &variants[..]);
+            Rust::Enum(variants) => {
+                Self::impl_read_fn_for_enum(function, name, &variants[..]);
             }
-            Definition::Choice(name, variants) => {
-                Self::impl_read_fn_for_choice(function, name, &variants[..]);
+            Rust::DataEnum(variants) => {
+                Self::impl_read_fn_for_data_enum(function, name, &variants[..]);
             }
         };
     }
 
-    fn impl_read_fn_for_sequence_of(function: &mut Function, _name: &str, aliased: &Asn) {
-        function.line("let mut me = Self::default();");
-        function.line("let len = reader.read_length_determinant()?;");
-        let mut block_for = Block::new("for _ in 0..len");
-        match aliased {
-            Asn::Boolean => block_for.line("me.values.push(reader.read_bit()?);"),
-            Asn::Integer(_) => block_for.line(format!(
-                "me.values.push(reader.read_int((Self::value_min() as i64, Self::value_max() as i64))? as {});",
-                aliased.clone().into_rust().to_string(),
-            )),
-            Asn::UnsignedMaxInteger => {
-                block_for.line("me.values.push(reader.read_int_max()?);")
-            }
-            Asn::UTF8String => {
-                block_for.line(format!("me.values.push(reader.read_utf8_string()?);"))
-            }
-            Asn::OctetString => {
-                block_for.line("me.values.push(reader.read_octet_string(None)?);")
-            }
-            Asn::TypeReference(custom) => block_for
-                .line(format!("me.values.push({}::read_uper(reader)?);", custom)),
-        };
-        function.push_block(block_for);
-        function.line("Ok(me)");
+    fn impl_read_fn_for_tuple_struct(function: &mut Function, name: &str, aliased: &RustType) {
+        Self::impl_read_fn_header_for_type(function, name, aliased);
+        function.push_block({
+            let mut block = Block::new(&format!("Ok({}(", name));
+            Self::impl_read_fn_for_type(&mut block, &aliased.to_inner_type_string(), None, aliased);
+            block.after("))");
+            block
+        });
     }
 
-    fn impl_read_fn_for_sequence(function: &mut Function, _name: &str, fields: &[Field]) {
-        function.line("let mut me = Self::default();");
+    fn impl_read_fn_header_for_type(function: &mut Function, name: &str, aliased: &RustType) {
+        if let RustType::Option(_) = aliased {
+            function.line(&format!("let {} = reader.read_bit()?;", name));
+        }
+    }
 
-        // bitmask for optional fields
-        for field in fields.iter() {
-            if field.optional {
-                function.line(format!(
-                    "let {} = reader.read_bit()?;",
-                    RustCodeGenerator::rust_field_name(&field.name, true),
+    fn impl_read_fn_for_type(
+        block: &mut Block,
+        type_name: &str,
+        field_name: Option<&str>,
+        rust: &RustType,
+    ) {
+        match rust {
+            RustType::Bool => {
+                block.line("reader.read_bit()?");
+            }
+            RustType::U8(_)
+            | RustType::I8(_)
+            | RustType::U16(_)
+            | RustType::I16(_)
+            | RustType::U32(_)
+            | RustType::I32(_)
+            | RustType::U64(Some(_))
+            | RustType::I64(_) => {
+                block.line(format!(
+                    "reader.read_int((Self::{}min() as i64, Self::{}max() as i64))?.into()",
+                    if let Some(field_name) = field_name {
+                        format!("{}_", field_name)
+                    } else {
+                        String::default()
+                    },
+                    if let Some(field_name) = field_name {
+                        format!("{}_", field_name)
+                    } else {
+                        String::default()
+                    },
                 ));
             }
-        }
-        for field in fields.iter() {
-            let line = format!(
-                "me.{} = {}",
-                RustCodeGenerator::rust_field_name(&field.name, true),
-                Self::read_field(&field.name, &field.role, field.optional)
+            RustType::U64(None) => {
+                block.line("reader.read_int_max()?");
+            }
+            RustType::String => {
+                block.line("reader.read_utf8_string()?");
+            }
+            RustType::VecU8 => {
+                block.line("reader.read_octet_string(None)?");
+            }
+            RustType::Vec(inner) => {
+                block.line("let len = reader.read_length_determinant()?;");
+                block.line("let mut values = Vec::with_capacity(len);");
+                let mut for_block = Block::new("for _ in 0..len");
+                for_block.push_block({
+                    let mut inner_block = Block::new("values.push(");
+                    Self::impl_read_fn_for_type(
+                        &mut inner_block,
+                        &inner.to_inner_type_string(),
+                        None,
+                        inner,
+                    );
+                    inner_block.after(");");
+                    inner_block
+                });
+                block.push_block(for_block);
+                block.line("values");
+            }
+            RustType::Option(inner) => {
+                let mut if_block = Block::new(&format!("if {}", field_name.unwrap_or("value")));
+                let mut if_true_block = Block::new("Some(");
+                Self::impl_read_fn_for_type(
+                    &mut if_true_block,
+                    &inner.to_inner_type_string(),
+                    field_name,
+                    inner,
+                );
+                if_true_block.after(")");
+                if_block.push_block(if_true_block);
+                let mut else_block = Block::new("else");
+                else_block.line("None");
+                block.push_block(if_block);
+                block.push_block(else_block);
+            }
+            RustType::Complex(inner) => {
+                block.line(format!("{}::read_uper(reader)?", type_name));
+            }
+        };
+    }
+
+    fn impl_read_fn_for_struct(function: &mut Function, name: &str, fields: &[(String, RustType)]) {
+        function.line("let mut me = Self::default();");
+        for (field_name, field_type) in fields.iter() {
+            let mut block = Block::new(&format!("me.{} = ", field_name));
+            Self::impl_read_fn_for_type(
+                &mut block,
+                &field_type.to_inner_type_string(),
+                Some(field_name),
+                field_type,
             );
-            if field.optional {
-                let mut block_if = Block::new(&format!(
-                    "if {}",
-                    RustCodeGenerator::rust_field_name(&field.name, true),
-                ));
-                block_if.line(line);
-                let mut block_else = Block::new("else");
-                block_else.line(format!(
-                    "me.{} = None;",
-                    RustCodeGenerator::rust_field_name(&field.name, true),
-                ));
-                function.push_block(block_if);
-                function.push_block(block_else);
-            } else {
-                function.line(line);
-            }
+            block.after(";");
+            function.push_block(block);
         }
         function.line("Ok(me)");
     }
 
-    fn impl_read_fn_for_enumerated(function: &mut Function, name: &str, variants: &[String]) {
+    fn impl_read_fn_for_enum(function: &mut Function, name: &str, variants: &[String]) {
         function.line(format!(
             "let id = reader.read_int((0, {}))?;",
             variants.len() - 1
         ));
         let mut block_match = Block::new("match id");
         for (i, variant) in variants.iter().enumerate() {
-            block_match.line(format!(
-                "{} => Ok({}::{}),",
-                i,
-                name,
-                RustCodeGenerator::rust_variant_name(&variant),
-            ));
+            block_match.line(format!("{} => Ok({}::{}),", i, name, variant));
         }
         block_match.line(format!(
             "_ => Err(UperError::ValueNotInRange(id, 0, {}))",
@@ -145,63 +194,39 @@ impl UperSerializer {
         function.push_block(block_match);
     }
 
-    fn impl_read_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Asn)]) {
+    fn impl_read_fn_for_data_enum(
+        function: &mut Function,
+        name: &str,
+        variants: &[(String, RustType)],
+    ) {
         if variants.len() > 1 {
             function.line(&format!(
                 "let variant = reader.read_int((0, {}))?;",
                 variants.len() - 1
             ));
-            let mut block = Block::new("match variant");
-            for (i, (variant, role)) in variants.iter().enumerate() {
-                let mut block_case = Block::new(&format!("{} =>", i));
-                block_case.line(format!(
-                    "let read = {}",
-                    &Self::read_field(
-                        if role.clone().into_rust().is_primitive() {
-                            "*value"
-                        } else {
-                            "value"
-                        },
-                        role,
-                        false,
-                    )
-                ));
-                block_case.line(format!(
-                    "Ok({}::{}(read))",
-                    name,
-                    RustCodeGenerator::rust_variant_name(variant),
-                ));
-                block.push_block(block_case);
-            }
-            block.line(format!(
-                "_ => Err(UperError::ValueNotInRange(variant, 0, {}))",
-                variants.len() - 1
-            ));
-            function.push_block(block);
         } else {
-            function.line(&format!(
-                "Ok({}::{}({}))",
-                name,
-                RustCodeGenerator::rust_variant_name(&variants[0].0),
-                &Self::write_field(
-                    if variants[0].1.clone().into_rust().is_primitive() {
-                        "*value"
-                    } else {
-                        "value"
-                    },
-                    &variants[0].1,
-                    variants[0].1.clone().into_rust().is_primitive(),
-                    false,
-                )
-            ));
+            function.line("let variant = 0");
         }
+        let mut block = Block::new("match variant");
+        for (i, (variant, role)) in variants.iter().enumerate() {
+            let mut block_case = Block::new(&format!("{} => Ok({}::{}(", i, name, variant));
+            Self::impl_read_fn_for_type(&mut block_case, &role.to_inner_type_string(), None, role);
+            block_case.after("))");
+            block.push_block(block_case);
+        }
+        block.line(format!(
+            "_ => Err(UperError::ValueNotInRange(variant, 0, {}))",
+            variants.len() - 1
+        ));
+        function.push_block(block);
     }
 
     fn new_write_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
         RustCodeGenerator::new_write_fn(implementation, Self::CODEC)
     }
 
-    fn impl_write_fn(function: &mut Function, definition: &Definition) {
+    fn impl_write_fn(function: &mut Function, definition: &Definition<Rust>) {
+        /*
         match definition {
             Definition::SequenceOf(name, aliased) => {
                 Self::impl_write_fn_for_sequence_of(function, name, aliased);
@@ -217,7 +242,9 @@ impl UperSerializer {
             }
         };
         function.line("Ok(())");
+        */
     }
+    /*
 
     fn impl_write_fn_for_sequence_of(function: &mut Function, _name: &str, aliased: &Asn) {
         function.line("writer.write_length_determinant(self.values.len())?;");
@@ -396,5 +423,5 @@ impl UperSerializer {
                 RustCodeGenerator::rust_field_name(field_name, true),
             ),
         }
-    }
+    }*/
 }
