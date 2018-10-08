@@ -3,7 +3,8 @@ use std::fmt::Write;
 
 use model::Definition;
 use model::Model;
-use model::Asn;
+use model::Protobuf;
+use model::ProtobufType;
 
 use gen::Generator;
 
@@ -20,25 +21,25 @@ impl From<FmtError> for Error {
 
 #[derive(Debug, Default)]
 pub struct ProtobufDefGenerator {
-    models: Vec<Model>,
+    models: Vec<Model<Protobuf>>,
 }
 
-impl Generator for ProtobufDefGenerator {
+impl Generator<Protobuf> for ProtobufDefGenerator {
     type Error = Error;
 
-    fn add_model(&mut self, model: Model) {
+    fn add_model(&mut self, model: Model<Protobuf>) {
         self.models.push(model);
     }
 
-    fn models(&self) -> &[Model] {
+    fn models(&self) -> &[Model<Protobuf>] {
         &self.models[..]
     }
 
-    fn models_mut(&mut self) -> &mut [Model] {
+    fn models_mut(&mut self) -> &mut [Model<Protobuf>] {
         &mut self.models[..]
     }
 
-    fn to_string(&self) -> Result<Vec<(String, String)>, <Self as Generator>::Error> {
+    fn to_string(&self) -> Result<Vec<(String, String)>, <Self as Generator<Protobuf>>::Error> {
         let mut files = Vec::new();
         for model in self.models.iter() {
             files.push(Self::generate_file(model)?);
@@ -48,7 +49,7 @@ impl Generator for ProtobufDefGenerator {
 }
 
 impl ProtobufDefGenerator {
-    pub fn generate_file(model: &Model) -> Result<(String, String), Error> {
+    pub fn generate_file(model: &Model<Protobuf>) -> Result<(String, String), Error> {
         let file_name = Self::model_file_name(&model.name);
         let mut content = String::new();
         Self::append_header(&mut content, model)?;
@@ -59,14 +60,14 @@ impl ProtobufDefGenerator {
         Ok((file_name, content))
     }
 
-    pub fn append_header(target: &mut Write, model: &Model) -> Result<(), Error> {
+    pub fn append_header(target: &mut Write, model: &Model<Protobuf>) -> Result<(), Error> {
         writeln!(target, "syntax = 'proto3';")?;
         writeln!(target, "package {};", Self::model_to_package(&model.name))?;
         writeln!(target)?;
         Ok(())
     }
 
-    pub fn append_imports(target: &mut Write, model: &Model) -> Result<(), Error> {
+    pub fn append_imports(target: &mut Write, model: &Model<Protobuf>) -> Result<(), Error> {
         for import in model.imports.iter() {
             writeln!(target, "import '{}';", Self::model_file_name(&import.from))?;
         }
@@ -76,41 +77,22 @@ impl ProtobufDefGenerator {
 
     pub fn append_definition(
         target: &mut Write,
-        model: &Model,
-        definition: &Definition,
+        model: &Model<Protobuf>,
+        Definition(name, protobuf): &Definition<Protobuf>,
     ) -> Result<(), Error> {
-        match definition {
-            Definition::Enumerated(name, variants) => {
+        match protobuf {
+            Protobuf::Enum(variants) => {
                 writeln!(target, "enum {} {{", name)?;
                 for (tag, variant) in variants.iter().enumerate() {
                     Self::append_variant(target, &variant, tag)?;
                 }
                 writeln!(target, "}}")?;
             }
-            Definition::Sequence(name, fields) => {
+            Protobuf::Message(fields) => {
                 writeln!(target, "message {} {{", name)?;
-                for (prev_tag, field) in fields.iter().enumerate() {
-                    Self::append_field(target, model, &field.name, &field.role, prev_tag + 1)?;
+                for (prev_tag, (field_name, field_type)) in fields.iter().enumerate() {
+                    Self::append_field(target, model, &field_name, &field_type, prev_tag + 1)?;
                 }
-                writeln!(target, "}}")?;
-            }
-            Definition::SequenceOf(name, aliased) => {
-                writeln!(target, "message {} {{", name)?;
-                writeln!(
-                    target,
-                    "    repeated {} values = 1;",
-                    Self::role_to_full_type(&aliased, model)
-                )?;
-                writeln!(target, "}}")?;
-            }
-            Definition::Choice(name, variants) => {
-                writeln!(target, "message {} {{", name)?;
-                writeln!(target, "    oneof value {{")?;
-                for (prev_tag, (name, role)) in variants.iter().enumerate() {
-                    write!(target, "    ")?;
-                    Self::append_field(target, model, &name, role, prev_tag + 1)?;
-                }
-                writeln!(target, "    }}")?;
                 writeln!(target, "}}")?;
             }
         }
@@ -119,17 +101,33 @@ impl ProtobufDefGenerator {
 
     pub fn append_field(
         target: &mut Write,
-        model: &Model,
+        model: &Model<Protobuf>,
         name: &str,
-        role: &Asn,
+        role: &ProtobufType,
         tag: usize,
     ) -> Result<(), Error> {
         writeln!(
             target,
-            "    {} {} = {};",
+            "    {} {}{};",
             Self::role_to_full_type(role, model),
             Self::field_name(name),
-            tag
+            if let ProtobufType::OneOf(variants) = role {
+                let mut inner = String::new();
+                writeln!(&mut inner, " {{");
+                for (index, (variant_name, variant_type)) in variants.iter().enumerate() {
+                    writeln!(
+                        &mut inner,
+                        "      {} {} = {};",
+                        Self::role_to_full_type(variant_type, model),
+                        variant_name,
+                        index + 1
+                    );
+                }
+                write!(&mut inner, "    }}");
+                inner
+            } else {
+                format!(" = {}", tag)
+            }
         )?;
         Ok(())
     }
@@ -139,9 +137,9 @@ impl ProtobufDefGenerator {
         Ok(())
     }
 
-    pub fn role_to_full_type(role: &Asn, model: &Model) -> String {
+    pub fn role_to_full_type(role: &ProtobufType, model: &Model<Protobuf>) -> String {
         let type_name = match role {
-            Asn::TypeReference(name) => {
+            ProtobufType::Complex(name) => {
                 let mut prefixed = String::new();
                 'outer: for import in model.imports.iter() {
                     for what in import.what.iter() {
@@ -155,7 +153,10 @@ impl ProtobufDefGenerator {
                 prefixed.push_str(&name);
                 prefixed
             }
-            r => r.clone().into_protobuf().to_string(),
+            ProtobufType::Repeated(inner) => {
+                format!("repeated {}", Self::role_to_full_type(inner, model))
+            }
+            r => r.to_string(),
         };
         type_name
     }

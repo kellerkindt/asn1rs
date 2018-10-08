@@ -1,4 +1,4 @@
-//pub mod protobuf;
+pub mod protobuf;
 pub mod rust;
 
 pub use self::rust::RustCodeGenerator;

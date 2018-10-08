@@ -53,7 +53,7 @@ impl ToString for ProtobufType {
             ProtobufType::SInt64 => "sint64",
             ProtobufType::String => "string",
             ProtobufType::Bytes => "bytes",
-            ProtobufType::OneOf(_) => panic!("Cannot be represented as simple string!"), // TODO
+            ProtobufType::OneOf(_) => "oneof",
             ProtobufType::Complex(name) => return name.clone(),
             ProtobufType::Repeated(name) => return format!("repeated {}", name.to_string()),
         }.into()
