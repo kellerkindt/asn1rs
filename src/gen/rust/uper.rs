@@ -4,8 +4,6 @@ use codegen::Impl;
 use codegen::Scope;
 
 use model::Definition;
-use model::Field;
-use model::Range;
 use model::Rust;
 use model::RustType;
 
@@ -54,7 +52,7 @@ impl UperSerializer {
                 for (field_name, field_type) in fields.iter() {
                     Self::impl_read_fn_header_for_type(function, field_name, field_type);
                 }
-                Self::impl_read_fn_for_struct(function, name, fields);
+                Self::impl_read_fn_for_struct(function, fields);
             }
             Rust::Enum(variants) => {
                 Self::impl_read_fn_for_enum(function, name, &variants[..]);
@@ -84,7 +82,7 @@ impl UperSerializer {
     fn impl_read_fn_for_type(
         block: &mut Block,
         type_name: &str,
-        field_name: Option<&str>,
+        field_name: Option<Member>,
         rust: &RustType,
     ) {
         match rust {
@@ -100,17 +98,18 @@ impl UperSerializer {
             | RustType::U64(Some(_))
             | RustType::I64(_) => {
                 block.line(format!(
-                    "reader.read_int((Self::{}min() as i64, Self::{}max() as i64))?.into()",
-                    if let Some(field_name) = field_name {
-                        format!("{}_", field_name)
+                    "reader.read_int((Self::{}min() as i64, Self::{}max() as i64))? as {}",
+                    if let Some(ref field_name) = field_name {
+                        format!("{}_", field_name.name())
                     } else {
                         String::default()
                     },
-                    if let Some(field_name) = field_name {
-                        format!("{}_", field_name)
+                    if let Some(ref field_name) = field_name {
+                        format!("{}_", field_name.name())
                     } else {
                         String::default()
                     },
+                    rust.to_string(),
                 ));
             }
             RustType::U64(None) => {
@@ -131,7 +130,14 @@ impl UperSerializer {
                     Self::impl_read_fn_for_type(
                         &mut inner_block,
                         &inner.to_inner_type_string(),
-                        None,
+                        Some(Member::Local(
+                            field_name
+                                .clone()
+                                .map(|f| f.name().to_string())
+                                .unwrap_or("value".into()),
+                            false,
+                            false,
+                        )),
                         inner,
                     );
                     inner_block.after(");");
@@ -141,7 +147,13 @@ impl UperSerializer {
                 block.line("values");
             }
             RustType::Option(inner) => {
-                let mut if_block = Block::new(&format!("if {}", field_name.unwrap_or("value")));
+                let mut if_block = Block::new(&format!(
+                    "if {}",
+                    field_name
+                        .clone()
+                        .map(|f| f.name().to_string())
+                        .unwrap_or("value".into())
+                ));
                 let mut if_true_block = Block::new("Some(");
                 Self::impl_read_fn_for_type(
                     &mut if_true_block,
@@ -156,20 +168,20 @@ impl UperSerializer {
                 block.push_block(if_block);
                 block.push_block(else_block);
             }
-            RustType::Complex(inner) => {
+            RustType::Complex(_inner) => {
                 block.line(format!("{}::read_uper(reader)?", type_name));
             }
         };
     }
 
-    fn impl_read_fn_for_struct(function: &mut Function, name: &str, fields: &[(String, RustType)]) {
+    fn impl_read_fn_for_struct(function: &mut Function, fields: &[(String, RustType)]) {
         function.line("let mut me = Self::default();");
         for (field_name, field_type) in fields.iter() {
             let mut block = Block::new(&format!("me.{} = ", field_name));
             Self::impl_read_fn_for_type(
                 &mut block,
                 &field_type.to_inner_type_string(),
-                Some(field_name),
+                Some(Member::Instance(field_name.clone(), false, false)),
                 field_type,
             );
             block.after(";");
@@ -211,7 +223,7 @@ impl UperSerializer {
         for (i, (variant, role)) in variants.iter().enumerate() {
             let mut block_case = Block::new(&format!("{} => Ok({}::{}(", i, name, variant));
             Self::impl_read_fn_for_type(&mut block_case, &role.to_inner_type_string(), None, role);
-            block_case.after("))");
+            block_case.after(")),");
             block.push_block(block_case);
         }
         block.line(format!(
@@ -228,13 +240,13 @@ impl UperSerializer {
     fn impl_write_fn(function: &mut Function, Definition(name, rust): &Definition<Rust>) {
         match rust {
             Rust::TupleStruct(inner) => {
-                Self::impl_write_fn_for_tuple_struct(function, name, inner);
+                Self::impl_write_fn_for_tuple_struct(function, inner);
             }
             Rust::Struct(fields) => {
                 for (field_name, field_type) in fields.iter() {
                     Self::impl_write_fn_header_for_type(function, field_name, field_type);
                 }
-                Self::impl_write_fn_for_struct(function, name, fields);
+                Self::impl_write_fn_for_struct(function, fields);
             }
             Rust::Enum(variants) => {
                 Self::impl_write_fn_for_enum(function, name, &variants[..]);
@@ -245,41 +257,39 @@ impl UperSerializer {
         }
     }
 
-    fn impl_write_fn_for_tuple_struct(function: &mut Function, name: &str, aliased: &RustType) {
+    fn impl_write_fn_for_tuple_struct(function: &mut Function, aliased: &RustType) {
         Self::impl_write_fn_header_for_type(function, "self.0", aliased);
         function.push_block({
             let mut block = Block::new("");
             Self::impl_write_fn_for_type(
                 &mut block,
-                &aliased.to_inner_type_string(),
-                if aliased.is_primitive() {
-                    Some("self.0")
-                } else {
-                    Some("&self.0")
-                },
+                Some(Member::Instance("0".into(), !aliased.is_primitive(), false)),
                 aliased,
             );
             block
         });
+        function.line("Ok(())");
     }
 
     fn impl_write_fn_header_for_type(function: &mut Function, name: &str, aliased: &RustType) {
         if let RustType::Option(_) = aliased {
-            function.line(&format!("writer.write_bit({}.is_some())?;", name));
+            function.line(&format!("writer.write_bit(self.{}.is_some())?;", name));
         }
     }
 
     fn impl_write_fn_for_type(
         block: &mut Block,
-        type_name: &str,
-        field_name: Option<&str>,
+        field_name: Option<Member>,
         rust: &RustType,
     ) {
         match rust {
             RustType::Bool => {
                 block.line(format!(
-                    "reader.write_bit({})?;",
-                    field_name.unwrap_or("value")
+                    "writer.write_bit({})?;",
+                    field_name
+                        .clone()
+                        .map(|f| f.to_string())
+                        .unwrap_or("value".into()),
                 ));
             }
             RustType::U8(_)
@@ -292,14 +302,17 @@ impl UperSerializer {
             | RustType::I64(_) => {
                 block.line(format!(
                     "writer.write_int({} as i64, (Self::{}min() as i64, Self::{}max() as i64))?;",
-                    field_name.unwrap_or("value"),
-                    if let Some(field_name) = field_name {
-                        format!("{}_", field_name)
+                    field_name
+                        .clone()
+                        .map(|f| f.to_string())
+                        .unwrap_or("value".into()),
+                    if let Some(ref field_name) = field_name {
+                        format!("{}_", field_name.name())
                     } else {
                         String::default()
                     },
-                    if let Some(field_name) = field_name {
-                        format!("{}_", field_name)
+                    if let Some(ref field_name) = field_name {
+                        format!("{}_", field_name.name())
                     } else {
                         String::default()
                     },
@@ -308,78 +321,93 @@ impl UperSerializer {
             RustType::U64(None) => {
                 block.line(&format!(
                     "writer.write_int_max({})?;",
-                    field_name.unwrap_or("value")
+                    field_name
+                        .clone()
+                        .map(|f| f.to_string())
+                        .unwrap_or("value".into()),
                 ));
             }
             RustType::String => {
                 block.line(&format!(
-                    "writer.write_utf8_string({})?;",
-                    field_name.unwrap_or("value")
+                    "writer.write_utf8_string(&{})?;",
+                    field_name
+                        .clone()
+                        .map(|f| f.to_string())
+                        .unwrap_or("value".into()),
                 ));
             }
             RustType::VecU8 => {
                 block.line(format!(
-                    "writer.writer_octet_string({}, None)?;",
-                    field_name.unwrap_or("value")
+                    "writer.write_octet_string(&{}[..], None)?;",
+                    field_name
+                        .clone()
+                        .map(|f| f.to_string())
+                        .unwrap_or("value".into()),
                 ));
             }
             RustType::Vec(inner) => {
                 let mut for_block = Block::new(&format!(
                     "for value in {}.iter()",
-                    field_name.unwrap_or("value")
+                    field_name
+                        .clone()
+                        .map(|f| f.no_ref().to_string())
+                        .unwrap_or("value".into()),
                 ));
                 Self::impl_write_fn_for_type(
                     &mut for_block,
-                    &inner.to_inner_type_string(),
-                    if inner.is_primitive() {
-                        Some("*value")
-                    } else {
-                        Some("value")
-                    },
+                    Some(Member::Local("value".into(), false, inner.is_primitive())),
                     inner,
                 );
                 block.push_block(for_block);
             }
             RustType::Option(inner) => {
                 let mut if_block = Block::new(&format!(
-                    "if let Some(value) = {}",
-                    field_name.unwrap_or("value")
+                    "if let Some({}) = {}",
+                    field_name
+                        .clone()
+                        .map(|f| f.name().to_string())
+                        .unwrap_or("value".into()),
+                    field_name
+                        .clone()
+                        .map(|f| f.to_string())
+                        .unwrap_or("value".into()),
                 ));
                 Self::impl_write_fn_for_type(
                     &mut if_block,
-                    &inner.to_inner_type_string(),
-                    if inner.is_primitive() {
-                        Some("*value")
-                    } else {
-                        Some("value")
-                    },
+                    Some(Member::Local(
+                        field_name
+                            .clone()
+                            .map(|f| f.name().to_string())
+                            .unwrap_or("value".into()),
+                        false,
+                        false,
+                    )),
                     inner,
                 );
                 block.push_block(if_block);
             }
-            RustType::Complex(inner) => {
+            RustType::Complex(_inner) => {
                 block.line(format!(
                     "{}.write_uper(writer)?;",
-                    field_name.unwrap_or("value")
+                    field_name
+                        .clone()
+                        .map(|f| f.to_string())
+                        .unwrap_or("value".into()),
                 ));
             }
         }
     }
-    fn impl_write_fn_for_struct(
-        function: &mut Function,
-        name: &str,
-        fields: &[(String, RustType)],
-    ) {
+    fn impl_write_fn_for_struct(function: &mut Function, fields: &[(String, RustType)]) {
         let mut block = Block::new("");
         for (field_name, field_type) in fields.iter() {
             Self::impl_write_fn_for_type(
                 &mut block,
-                &field_type.to_inner_type_string(),
-                Some(&format!("self.{}", field_name)),
+                Some(Member::Instance(field_name.clone(), false, false)),
                 field_type,
             );
         }
         function.push_block(block);
+        function.line("Ok(())");
     }
 
     fn impl_write_fn_for_enum(function: &mut Function, name: &str, variants: &[String]) {
@@ -394,6 +422,7 @@ impl UperSerializer {
             ));
         }
         function.push_block(block);
+        function.line("Ok(())");
     }
 
     fn impl_write_fn_for_data_enum(
@@ -413,16 +442,82 @@ impl UperSerializer {
             }
             Self::impl_write_fn_for_type(
                 &mut block_case,
-                &role.to_inner_type_string(),
-                if role.is_primitive() {
-                    Some("*value")
-                } else {
-                    Some("value")
-                },
-                role
+                Some(Member::Local("value".into(), false, role.is_primitive())),
+                role,
             );
             block.push_block(block_case);
         }
         function.push_block(block);
+        function.line("Ok(())");
+    }
+}
+
+#[derive(Clone, PartialEq, PartialOrd)]
+pub enum Member {
+    Local(String, bool, bool),
+    #[allow(dead_code)]
+    Static(String, bool, bool),
+    Instance(String, bool, bool),
+}
+
+impl Member {
+    pub fn name(&self) -> &str {
+        match self {
+            Member::Local(name, _, _) => &name,
+            Member::Static(name, _, _) => &name,
+            Member::Instance(name, _, _) => &name,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn prefix_ref(&self) -> bool {
+        match self {
+            Member::Local(_, prefix, _) => *prefix,
+            Member::Static(_, prefix, _) => *prefix,
+            Member::Instance(_, prefix, _) => *prefix,
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn prefix_deref(&self) -> bool {
+        match self {
+            Member::Local(_, _, prefix) => *prefix,
+            Member::Static(_, _, prefix) => *prefix,
+            Member::Instance(_, _, prefix) => *prefix,
+        }
+    }
+
+    pub fn no_ref(mut self) -> Self {
+        *match self {
+            Member::Local(_, ref mut prefix, _) => prefix,
+            Member::Static(_, ref mut prefix, _) => prefix,
+            Member::Instance(_, ref mut prefix, _) => prefix,
+        } = false;
+        self
+    }
+}
+
+impl ToString for Member {
+    fn to_string(&self) -> String {
+        match self {
+            Member::Local(name, prefix_ref, prefix_deref) => format!(
+                "{}{}{}",
+                if *prefix_ref { "&" } else { "" },
+                if *prefix_deref { "*" } else { "" },
+                name.clone()
+            ),
+            Member::Static(name, prefix_ref, prefix_deref) => format!(
+                "{}{}Self::{}",
+                if *prefix_ref { "&" } else { "" },
+                if *prefix_deref { "*" } else { "" },
+                name.clone()
+            ),
+            Member::Instance(name, prefix_ref, prefix_deref) => format!(
+                "{}{}self.{}",
+                if *prefix_ref { "&" } else { "" },
+                if *prefix_deref { "*" } else { "" },
+                name.clone()
+            ),
+        }
     }
 }

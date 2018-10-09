@@ -8,9 +8,7 @@ use codegen::Impl;
 use codegen::Scope;
 use codegen::Struct;
 
-use model::Asn;
 use model::Definition;
-use model::Field;
 use model::Model;
 use model::Range;
 use model::Rust;
@@ -181,8 +179,6 @@ impl RustCodeGenerator {
 
     fn impl_tuple_struct(scope: &mut Scope, name: &str, rust: &RustType) {
         let implementation = scope.new_impl(name);
-        let rust_type = rust.to_string();
-
         Self::add_min_max_fn_if_applicable(implementation, "value", &rust);
     }
 
