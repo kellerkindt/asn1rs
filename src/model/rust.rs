@@ -486,9 +486,9 @@ mod test {
             Definition(
                 "WoahDecision".into(),
                 Rust::DataEnum(vec![
-                    ("this".into(), RustType::Complex("This".into())),
-                    ("that".into(), RustType::Complex("That".into())),
-                    ("neither".into(), RustType::Complex("Neither".into())),
+                    ("This".into(), RustType::Complex("This".into())),
+                    ("That".into(), RustType::Complex("That".into())),
+                    ("Neither".into(), RustType::Complex("Neither".into())),
                 ])
             ),
             model_rust.definitions[3]
@@ -587,8 +587,8 @@ mod test {
             Definition(
                 "SimpleChoiceTest".into(),
                 Rust::DataEnum(vec![
-                    ("bernd_das_brot".into(), RustType::String),
-                    ("noch_so_ein_brot".into(), RustType::VecU8),
+                    ("BerndDasBrot".into(), RustType::String),
+                    ("NochSoEinBrot".into(), RustType::VecU8),
                 ])
             ),
             model_rust.definitions[0]
@@ -620,11 +620,11 @@ mod test {
                 "ListChoiceTestWithNestedList".into(),
                 Rust::DataEnum(vec![
                     (
-                        "normal_list".into(),
+                        "NormalList".into(),
                         RustType::Vec(Box::new(RustType::String))
                     ),
                     (
-                        "nested_list".into(),
+                        "NESTEDList".into(),
                         RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::VecU8))))
                     ),
                 ])
