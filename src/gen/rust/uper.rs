@@ -351,6 +351,13 @@ impl UperSerializer {
                 ));
             }
             RustType::Vec(inner) => {
+                block.line(format!(
+                    "writer.write_length_determinant({}.len())?;",
+                    field_name
+                        .clone()
+                        .map(|f| f.no_ref().to_string())
+                        .unwrap_or("value".into())
+                ));
                 let mut for_block = Block::new(&format!(
                     "for value in {}.iter()",
                     field_name
@@ -368,11 +375,7 @@ impl UperSerializer {
             RustType::Option(inner) => {
                 let mut if_block = Block::new(&format!(
                     "if let Some({}{}) = {}",
-                    if inner.is_primitive() {
-                        ""
-                    } else {
-                        "ref "
-                    },
+                    if inner.is_primitive() { "" } else { "ref " },
                     field_name
                         .clone()
                         .map(|f| f.name().to_string())
@@ -399,15 +402,14 @@ impl UperSerializer {
             RustType::Complex(_inner) => {
                 block.line(format!(
                     "{}.write_uper(writer)?;",
-
-                        &field_name
-                            .clone()
-                            .map(|mut f| {
-                                let name = RustCodeGenerator::rust_field_name(f.name(), true).to_string();
-                                *f.name_mut() = name;
-                                f.to_string()
-                            })
-                            .unwrap_or("value".into()),
+                    &field_name
+                        .clone()
+                        .map(|mut f| {
+                            let name =
+                                RustCodeGenerator::rust_field_name(f.name(), true).to_string();
+                            *f.name_mut() = name;
+                            f.to_string()
+                        }).unwrap_or("value".into()),
                 ));
             }
         }
