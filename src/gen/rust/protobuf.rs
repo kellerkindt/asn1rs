@@ -4,8 +4,7 @@ use codegen::Impl;
 use codegen::Scope;
 
 use model::Definition;
-use model::Field;
-use model::Protobuf;
+
 use model::ProtobufType;
 use model::Rust;
 use model::RustType;
@@ -48,7 +47,7 @@ impl GeneratorSupplement<Rust> for ProtobufSerializer {
             definition,
         );
 
-        let Definition(name, rust) = definition;
+        let Definition(name, _) = definition;
         let serializable_impl = Self::new_protobuf_serializable_impl(scope, name);
 
         Self::impl_format_fn(Self::new_format_fn(serializable_impl), definition);
@@ -118,7 +117,7 @@ impl ProtobufSerializer {
     }
 
     fn impl_read_fn_for_struct(function: &mut Function, name: &str, fields: &[(String, RustType)]) {
-        for (field_name, field_type) in fields.iter() {
+        for (field_name, _field_type) in fields.iter() {
             function.line(format!(
                 "let mut read_{} = None;",
                 RustCodeGenerator::rust_field_name(&field_name, false)
@@ -523,7 +522,7 @@ impl ProtobufSerializer {
                 ));
             }
             Rust::Struct(fields) => {
-                for (num, (field_name, field_type)) in fields.iter().enumerate() {
+                for (num, (field_name, _field_type)) in fields.iter().enumerate() {
                     if num > 0 {
                         function.line("&&");
                     }
