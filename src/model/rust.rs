@@ -88,7 +88,7 @@ impl RustType {
             RustType::I16(Range(min, max)) => Some(Range(min.to_string(), max.to_string())),
             RustType::U32(Range(min, max)) => Some(Range(min.to_string(), max.to_string())),
             RustType::I32(Range(min, max)) => Some(Range(min.to_string(), max.to_string())),
-            RustType::U64(None) => Some(Range("0".into(), ::std::u64::MAX.to_string())),
+            RustType::U64(None) => Some(Range("0".into(), ::std::i64::MAX.to_string())), // i64 max!
             RustType::U64(Some(Range(min, max))) => Some(Range(min.to_string(), max.to_string())),
             RustType::I64(Range(min, max)) => Some(Range(min.to_string(), max.to_string())),
             RustType::String => None,
