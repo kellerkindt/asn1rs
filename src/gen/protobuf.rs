@@ -203,6 +203,6 @@ impl ProtobufDefGenerator {
     }
 
     pub fn model_to_package(model: &str) -> String {
-        Self::model_name(model, '.')
+        Self::model_name(&model.replace("_", "."), '.')
     }
 }
