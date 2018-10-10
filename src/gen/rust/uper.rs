@@ -367,7 +367,12 @@ impl UperSerializer {
             }
             RustType::Option(inner) => {
                 let mut if_block = Block::new(&format!(
-                    "if let Some({}) = {}",
+                    "if let Some({}{}) = {}",
+                    if inner.is_primitive() {
+                        ""
+                    } else {
+                        "ref "
+                    },
                     field_name
                         .clone()
                         .map(|f| f.name().to_string())
