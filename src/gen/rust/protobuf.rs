@@ -5,9 +5,10 @@ use codegen::Scope;
 
 use model::Definition;
 use model::Field;
+use model::Protobuf;
 use model::ProtobufType;
-use model::Asn;
 use model::Rust;
+use model::RustType;
 
 use gen::rust::GeneratorSupplement;
 use gen::rust::RustCodeGenerator;
@@ -41,13 +42,14 @@ impl GeneratorSupplement<Rust> for ProtobufSerializer {
         );
     }
 
-    fn impl_supplement(&self, scope: &mut Scope, impl_for: &str, definition: &Definition) {
+    fn impl_supplement(&self, scope: &mut Scope, definition: &Definition<Rust>) {
         Self::impl_eq_fn(
-            Self::new_eq_fn(Self::new_eq_impl(scope, impl_for)),
+            Self::new_eq_fn(Self::new_eq_impl(scope, &definition.0)),
             definition,
         );
 
-        let serializable_impl = Self::new_protobuf_serializable_impl(scope, impl_for);
+        let Definition(name, rust) = definition;
+        let serializable_impl = Self::new_protobuf_serializable_impl(scope, name);
 
         Self::impl_format_fn(Self::new_format_fn(serializable_impl), definition);
         Self::impl_read_fn(Self::new_read_fn(serializable_impl), definition);
@@ -55,6 +57,7 @@ impl GeneratorSupplement<Rust> for ProtobufSerializer {
     }
 }
 
+// TODO refactor, see UperSerializer (recursive type serialization), current impl does not support nested Vec<_>s
 impl ProtobufSerializer {
     const CODEC: &'static str = "Protobuf";
 
@@ -66,24 +69,24 @@ impl ProtobufSerializer {
         RustCodeGenerator::new_read_fn(implementation, Self::CODEC)
     }
 
-    fn impl_read_fn(function: &mut Function, definition: &Definition) {
-        match definition {
-            Definition::SequenceOf(name, aliased) => {
-                Self::impl_read_fn_for_sequence_of(function, name, aliased);
+    fn impl_read_fn(function: &mut Function, Definition(name, rust): &Definition<Rust>) {
+        match rust {
+            Rust::TupleStruct(aliased) => {
+                Self::impl_read_fn_for_tuple_struct(function, aliased);
             }
-            Definition::Sequence(name, fields) => {
-                Self::impl_read_fn_for_sequence(function, name, &fields[..]);
+            Rust::Struct(fields) => {
+                Self::impl_read_fn_for_struct(function, name, &fields[..]);
             }
-            Definition::Enumerated(name, variants) => {
-                Self::impl_read_fn_for_enumerated(function, name, &variants[..]);
+            Rust::Enum(variants) => {
+                Self::impl_read_fn_for_enum(function, name, &variants[..]);
             }
-            Definition::Choice(name, variants) => {
-                Self::impl_read_fn_for_choice(function, name, &variants[..]);
+            Rust::DataEnum(variants) => {
+                Self::impl_read_fn_for_data_enum(function, name, &variants[..]);
             }
         };
     }
 
-    fn impl_read_fn_for_sequence_of(function: &mut Function, _name: &str, aliased: &Asn) {
+    fn impl_read_fn_for_tuple_struct(function: &mut Function, aliased: &RustType) {
         function.line("let mut me = Self::default();");
 
         let mut block_while = Block::new("while let Ok(tag) = reader.read_tag()");
@@ -98,15 +101,15 @@ impl ProtobufSerializer {
             "let reader = &mut &bytes[..] as &mut {}Reader;",
             Self::CODEC
         ));
-        match aliased {
-            Asn::TypeReference(custom) => block_reader.line(format!(
-                "me.values.push({}::read_protobuf(reader)?);",
-                custom
-            )),
+
+        match aliased.clone().into_inner_type() {
+            RustType::Complex(custom) => {
+                block_reader.line(format!("me.0.push({}::read_protobuf(reader)?);", custom))
+            }
             r => block_reader.line(format!(
-                "me.values.push(reader.read_{}()?{});",
-                r.clone().into_protobuf().to_string(),
-                Self::get_as_rust_type_statement(r),
+                "me.0.push(reader.read_{}()?{});",
+                r.to_protobuf().to_string(),
+                Self::get_as_rust_type_statement(&r),
             )),
         };
         block_while.push_block(block_reader);
@@ -114,11 +117,11 @@ impl ProtobufSerializer {
         function.line("Ok(me)");
     }
 
-    fn impl_read_fn_for_sequence(function: &mut Function, name: &str, fields: &[Field]) {
-        for field in fields.iter() {
+    fn impl_read_fn_for_struct(function: &mut Function, name: &str, fields: &[(String, RustType)]) {
+        for (field_name, field_type) in fields.iter() {
             function.line(format!(
                 "let mut read_{} = None;",
-                RustCodeGenerator::rust_field_name(&field.name, false)
+                RustCodeGenerator::rust_field_name(&field_name, false)
             ));
         }
 
@@ -126,13 +129,13 @@ impl ProtobufSerializer {
         let mut block_match_tag = Block::new("match tag.0");
         block_match_tag.line("0 => break,");
 
-        for (prev_tag, field) in fields.iter().enumerate() {
-            match &field.role {
-                Asn::TypeReference(name) => {
+        for (prev_tag, (field_name, field_type)) in fields.iter().enumerate() {
+            match &field_type.clone().into_inner_type() {
+                RustType::Complex(name) => {
                     let mut block_case = Block::new(&format!(
                         "{} => read_{} = Some(",
                         prev_tag + 1,
-                        RustCodeGenerator::rust_field_name(&field.name, false)
+                        RustCodeGenerator::rust_field_name(&field_name, false)
                     ));
                     let mut block_case_if = Block::new(&format!(
                         "if tag.1 == {}Format::LengthDelimited",
@@ -155,11 +158,8 @@ impl ProtobufSerializer {
                     block_match_tag.line(format!(
                         "{} => read_{} = Some({}),",
                         prev_tag + 1,
-                        RustCodeGenerator::rust_field_name(&field.name, false),
-                        format!(
-                            "reader.read_{}()?",
-                            role.clone().into_protobuf().to_string(),
-                        )
+                        RustCodeGenerator::rust_field_name(&field_name, false),
+                        format!("reader.read_{}()?", role.to_protobuf().to_string(),)
                     ));
                 }
             }
@@ -172,18 +172,19 @@ impl ProtobufSerializer {
         block_reader_loop.push_block(block_match_tag);
         function.push_block(block_reader_loop);
         let mut return_block = Block::new(&format!("Ok({}", name));
-        for field in fields.iter() {
-            let as_rust_statement = Self::get_as_rust_type_statement(&field.role);
+        for (field_name, field_type) in fields.iter() {
+            let as_rust_statement =
+                Self::get_as_rust_type_statement(&field_type.clone().into_inner_type());
             return_block.line(&format!(
                 "{}: read_{}{}{},",
-                RustCodeGenerator::rust_field_name(&field.name, true),
-                RustCodeGenerator::rust_field_name(&field.name, false),
+                RustCodeGenerator::rust_field_name(&field_name, true),
+                RustCodeGenerator::rust_field_name(&field_name, false),
                 if as_rust_statement.is_empty() {
                     "".into()
                 } else {
                     format!(".map(|v| v{})", as_rust_statement)
                 },
-                if field.optional {
+                if let RustType::Option(_) = field_type {
                     ""
                 } else {
                     ".unwrap_or_default()"
@@ -195,7 +196,7 @@ impl ProtobufSerializer {
         function.push_block(return_block);
     }
 
-    fn impl_read_fn_for_enumerated(function: &mut Function, name: &str, variants: &[String]) {
+    fn impl_read_fn_for_enum(function: &mut Function, name: &str, variants: &[String]) {
         let mut block_match = Block::new("match reader.read_varint()?");
         for (field, variant) in variants.iter().enumerate() {
             block_match.line(format!(
@@ -212,26 +213,27 @@ impl ProtobufSerializer {
         function.push_block(block_match);
     }
 
-    fn impl_read_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Asn)]) {
+    fn impl_read_fn_for_data_enum(
+        function: &mut Function,
+        name: &str,
+        variants: &[(String, RustType)],
+    ) {
         function.line("let tag = reader.read_tag()?;");
         let mut block_match = Block::new("match tag.0");
         for (field, (variant, role)) in variants.iter().enumerate() {
             let mut block_case = Block::new(&format!(
                 "{}{} =>",
                 field + 1, // + 1 for protobuf offset
-                if role.clone().into_protobuf().is_primitive() {
+                if role.to_protobuf().is_primitive() {
                     "".into()
                 } else {
                     format!(" if tag.1 == {}Format::LengthDelimited", Self::CODEC)
                 },
             ));
-            let complex_name = match role {
-                Asn::Boolean => None,
-                Asn::Integer(_) => None,
-                Asn::UnsignedMaxInteger => None,
-                Asn::UTF8String => None,
-                Asn::OctetString => None,
-                Asn::TypeReference(name) => Some(name.clone()),
+            let complex_name = if let RustType::Complex(name) = role.clone().into_inner_type() {
+                Some(name)
+            } else {
+                None
             };
             if let Some(complex_name) = complex_name {
                 block_case.line("let bytes = reader.read_bytes()?;");
@@ -245,7 +247,7 @@ impl ProtobufSerializer {
                 // primitive
                 block_case.line(format!(
                     "let value = reader.read_{}()?;",
-                    role.clone().into_protobuf().to_string()
+                    role.to_protobuf().to_string()
                 ));
             }
             block_case.line(format!(
@@ -266,34 +268,34 @@ impl ProtobufSerializer {
         RustCodeGenerator::new_write_fn(implementation, Self::CODEC)
     }
 
-    fn impl_write_fn(function: &mut Function, definition: &Definition) {
-        match definition {
-            Definition::SequenceOf(name, aliased) => {
-                Self::impl_write_fn_for_sequence_of(function, name, aliased);
+    fn impl_write_fn(function: &mut Function, Definition(name, rust): &Definition<Rust>) {
+        match rust {
+            Rust::TupleStruct(aliased) => {
+                Self::impl_write_fn_for_tuple_struct(function, aliased);
             }
-            Definition::Sequence(name, fields) => {
-                Self::impl_write_fn_for_sequence(function, name, &fields[..]);
+            Rust::Struct(fields) => {
+                Self::impl_write_fn_for_struct(function, &fields[..]);
             }
-            Definition::Enumerated(name, variants) => {
-                Self::impl_write_fn_for_enumerated(function, name, &variants[..]);
+            Rust::Enum(variants) => {
+                Self::impl_write_fn_for_enum(function, name, &variants[..]);
             }
-            Definition::Choice(name, variants) => {
-                Self::impl_write_fn_for_choice(function, name, &variants[..]);
+            Rust::DataEnum(variants) => {
+                Self::impl_write_fn_for_data_enum(function, name, &variants[..]);
             }
         };
         function.line("Ok(())");
     }
 
-    fn impl_write_fn_for_sequence_of(function: &mut Function, _name: &str, aliased: &Asn) {
+    fn impl_write_fn_for_tuple_struct(function: &mut Function, aliased: &RustType) {
         let mut block_writer = Block::new("");
-        let mut block_for = Block::new("for value in self.values.iter()");
+        let mut block_for = Block::new("for value in self.0.iter()");
         block_for.line(format!(
             "writer.write_tag(1, {})?;",
             Self::role_to_format(aliased, "value"),
         ));
         block_for.line("let mut bytes = Vec::new();");
-        match aliased {
-            Asn::TypeReference(_custom) => {
+        match aliased.clone().into_inner_type() {
+            RustType::Complex(_) => {
                 block_for.line(format!(
                     "value.write_protobuf(&mut bytes as &mut {}Writer)?;",
                     Self::CODEC
@@ -303,8 +305,8 @@ impl ProtobufSerializer {
                 block_for.line(format!(
                     "(&mut bytes as &mut {}Writer).write_{}(*value{})?;",
                     Self::CODEC,
-                    r.clone().into_protobuf().to_string(),
-                    Self::get_as_protobuf_type_statement(r),
+                    r.to_protobuf().to_string(),
+                    Self::get_as_protobuf_type_statement(&r),
                 ));
             }
         };
@@ -313,25 +315,29 @@ impl ProtobufSerializer {
         function.push_block(block_writer);
     }
 
-    fn impl_write_fn_for_sequence(function: &mut Function, _name: &str, fields: &[Field]) {
-        for (prev_tag, field) in fields.iter().enumerate() {
+    fn impl_write_fn_for_struct(function: &mut Function, fields: &[(String, RustType)]) {
+        for (prev_tag, (field_name, field_type)) in fields.iter().enumerate() {
             let block_: &mut Function = function;
-            let mut block = if field.optional {
+            let mut block = if let RustType::Option(_) = field_type {
                 Block::new(&format!(
                     "if let Some(ref {}) = self.{}",
-                    RustCodeGenerator::rust_field_name(&field.name, true),
-                    RustCodeGenerator::rust_field_name(&field.name, true),
+                    RustCodeGenerator::rust_field_name(&field_name, true),
+                    RustCodeGenerator::rust_field_name(&field_name, true),
                 ))
             } else {
                 Block::new("")
             };
 
-            match &field.role {
-                Asn::TypeReference(_custom) => {
+            match &field_type.clone().into_inner_type() {
+                RustType::Complex(_) => {
                     let format_line = format!(
                         "{}{}.{}_format()",
-                        if field.optional { "" } else { "self." },
-                        RustCodeGenerator::rust_field_name(&field.name, true),
+                        if let RustType::Option(_) = field_type {
+                            ""
+                        } else {
+                            "self."
+                        },
+                        RustCodeGenerator::rust_field_name(&field_name, true),
                         Self::CODEC.to_lowercase()
                     );
                     block.line(format!(
@@ -347,8 +353,12 @@ impl ProtobufSerializer {
                     block_if.line("let mut vec = Vec::new();");
                     block_if.line(format!(
                         "{}{}.write_protobuf(&mut vec as &mut {}Writer)?;",
-                        if field.optional { "" } else { "self." },
-                        RustCodeGenerator::rust_field_name(&field.name, true),
+                        if let RustType::Option(_) = field_type {
+                            ""
+                        } else {
+                            "self."
+                        },
+                        RustCodeGenerator::rust_field_name(&field_name, true),
                         Self::CODEC,
                     ));
                     block_if.line("writer.write_bytes(&vec[..])?;");
@@ -356,8 +366,12 @@ impl ProtobufSerializer {
                     let mut block_el = Block::new("else");
                     block_el.line(format!(
                         "{}{}.write_protobuf(writer)?;",
-                        if field.optional { "" } else { "self." },
-                        RustCodeGenerator::rust_field_name(&field.name, true),
+                        if let RustType::Option(_) = field_type {
+                            ""
+                        } else {
+                            "self."
+                        },
+                        RustCodeGenerator::rust_field_name(&field_name, true),
                     ));
 
                     block.push_block(block_if);
@@ -366,28 +380,28 @@ impl ProtobufSerializer {
                 r => {
                     block.line(format!(
                         "writer.write_tagged_{}({}, {}{}{})?;",
-                        r.clone().into_protobuf().to_string(),
+                        r.to_protobuf().to_string(),
                         prev_tag + 1,
-                        if ProtobufType::String == r.clone().into_protobuf() {
-                            if field.optional {
+                        if ProtobufType::String == r.to_protobuf() {
+                            if let RustType::Option(_) = field_type {
                                 ""
                             } else {
                                 "&self."
                             }
-                        } else if Rust::VecU8 == r.clone().into_protobuf().into_rust() {
-                            if field.optional {
+                        } else if RustType::VecU8 == r.to_protobuf().to_rust() {
+                            if let RustType::Option(_) = field_type {
                                 ""
                             } else {
                                 "&self."
                             }
                         } else {
-                            if field.optional {
+                            if let RustType::Option(_) = field_type {
                                 "*"
                             } else {
                                 "self."
                             }
                         },
-                        RustCodeGenerator::rust_field_name(&field.name, true),
+                        RustCodeGenerator::rust_field_name(&field_name, true),
                         Self::get_as_protobuf_type_statement(r),
                     ));
                 }
@@ -396,7 +410,7 @@ impl ProtobufSerializer {
         }
     }
 
-    fn impl_write_fn_for_enumerated(function: &mut Function, name: &str, variants: &[String]) {
+    fn impl_write_fn_for_enum(function: &mut Function, name: &str, variants: &[String]) {
         let mut outer_block = Block::new("match self");
         for (field, variant) in variants.iter().enumerate() {
             outer_block.line(format!(
@@ -409,7 +423,11 @@ impl ProtobufSerializer {
         function.push_block(outer_block);
     }
 
-    fn impl_write_fn_for_choice(function: &mut Function, name: &str, variants: &[(String, Asn)]) {
+    fn impl_write_fn_for_data_enum(
+        function: &mut Function,
+        name: &str,
+        variants: &[(String, RustType)],
+    ) {
         let mut block_match = Block::new("match self");
         for (field, (variant, role)) in variants.iter().enumerate() {
             let mut block_case = Block::new(&format!(
@@ -417,7 +435,7 @@ impl ProtobufSerializer {
                 name,
                 RustCodeGenerator::rust_variant_name(&variant),
             ));
-            if role.clone().into_protobuf().is_primitive() {
+            if role.to_protobuf().is_primitive() {
                 block_case.line(&format!(
                     "writer.write_tag({}, value.{}_format())?;",
                     field + 1, // + 1 for protobuf offset
@@ -425,8 +443,8 @@ impl ProtobufSerializer {
                 ));
                 block_case.line(format!(
                     "writer.write_{}({}value)?;",
-                    role.clone().into_protobuf().to_string(),
-                    if role.clone().into_rust().is_primitive() {
+                    role.to_protobuf().to_string(),
+                    if role.to_protobuf().is_primitive() {
                         "*"
                     } else {
                         ""
@@ -458,12 +476,12 @@ impl ProtobufSerializer {
             .ret(format!("{}Format", Self::CODEC))
     }
 
-    fn impl_format_fn(function: &mut Function, definition: &Definition) {
-        let format = match definition {
-            Definition::SequenceOf(_, _) => Some(ProtobufFormat::LengthDelimited),
-            Definition::Sequence(_, _) => Some(ProtobufFormat::LengthDelimited),
-            Definition::Enumerated(_, _) => Some(ProtobufFormat::VarInt),
-            Definition::Choice(name, variants) => {
+    fn impl_format_fn(function: &mut Function, Definition(name, rust): &Definition<Rust>) {
+        let format = match rust {
+            Rust::TupleStruct(_) => Some(ProtobufFormat::LengthDelimited),
+            Rust::Struct(_) => Some(ProtobufFormat::LengthDelimited),
+            Rust::Enum(_) => Some(ProtobufFormat::VarInt),
+            Rust::DataEnum(variants) => {
                 let mut block_match = Block::new("match self");
                 for (variant, role) in variants.iter() {
                     block_match.line(format!(
@@ -496,20 +514,20 @@ impl ProtobufSerializer {
             .arg("other", format!("&Self"))
     }
 
-    fn impl_eq_fn(function: &mut Function, definition: &Definition) {
-        match definition {
-            Definition::SequenceOf(_, _) => {
+    fn impl_eq_fn(function: &mut Function, Definition(name, rust): &Definition<Rust>) {
+        match rust {
+            Rust::TupleStruct(_) => {
                 function.line(format!(
-                    "self.values.{}_eq(&other.values)",
+                    "self.0.{}_eq(&other.0)",
                     Self::CODEC.to_lowercase()
                 ));
             }
-            Definition::Sequence(_, fields) => {
-                for (num, field) in fields.iter().enumerate() {
+            Rust::Struct(fields) => {
+                for (num, (field_name, field_type)) in fields.iter().enumerate() {
                     if num > 0 {
                         function.line("&&");
                     }
-                    let field_name = RustCodeGenerator::rust_field_name(&field.name, true);
+                    let field_name = RustCodeGenerator::rust_field_name(&field_name, true);
                     function.line(&format!(
                         "self.{}.{}_eq(&other.{})",
                         field_name,
@@ -518,10 +536,10 @@ impl ProtobufSerializer {
                     ));
                 }
             }
-            Definition::Enumerated(_, _) => {
+            Rust::Enum(_) => {
                 function.line("self == other");
             }
-            Definition::Choice(name, variants) => {
+            Rust::DataEnum(variants) => {
                 let mut block_match = Block::new("match self");
                 for (variant, _role) in variants.iter() {
                     let mut block_case = Block::new(&format!(
@@ -549,8 +567,8 @@ impl ProtobufSerializer {
         }
     }
 
-    fn role_to_format(role: &Asn, complex_name: &str) -> String {
-        match role.clone().into_protobuf() {
+    fn role_to_format(role: &RustType, complex_name: &str) -> String {
+        match role.to_protobuf() {
             ProtobufType::Bool => format!("{}Format::VarInt", Self::CODEC),
             ProtobufType::SFixed32 => format!("{}Format::Fixed32", Self::CODEC),
             ProtobufType::SFixed64 => format!("{}Format::Fixed64", Self::CODEC),
@@ -560,28 +578,28 @@ impl ProtobufSerializer {
             ProtobufType::SInt64 => format!("{}Format::VarInt", Self::CODEC),
             ProtobufType::String => format!("{}Format::LengthDelimited", Self::CODEC),
             ProtobufType::Bytes => format!("{}Format::LengthDelimited", Self::CODEC),
+            ProtobufType::OneOf(_) => format!("{}Format::LengthDelimited", Self::CODEC),
+            ProtobufType::Repeated(_) => format!("{}Format::LengthDelimited", Self::CODEC),
             ProtobufType::Complex(_complex_type) => {
                 format!("{}.{}_format(),", complex_name, Self::CODEC.to_lowercase())
             }
         }
     }
 
-    fn get_as_protobuf_type_statement(role: &Asn) -> String {
-        let role_rust = role.clone().into_rust();
-        let proto_rust = role.clone().into_protobuf().into_rust();
+    fn get_as_protobuf_type_statement(role_rust: &RustType) -> String {
+        let proto_rust = role_rust.to_protobuf().to_rust();
 
-        if role_rust != proto_rust {
+        if role_rust.ne(&proto_rust) {
             format!(" as {}", proto_rust.to_string())
         } else {
             "".into()
         }
     }
 
-    fn get_as_rust_type_statement(role: &Asn) -> String {
-        let role_rust = role.clone().into_rust();
-        let proto_rust = role.clone().into_protobuf().into_rust();
+    fn get_as_rust_type_statement(role_rust: &RustType) -> String {
+        let proto_rust = role_rust.to_protobuf().to_rust();
 
-        if role_rust != proto_rust {
+        if role_rust.ne(&proto_rust) {
             format!(" as {}", role_rust.to_string())
         } else {
             "".into()

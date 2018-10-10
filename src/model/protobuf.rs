@@ -1,5 +1,5 @@
-use model::rust::*;
 use model::*;
+use model::rust::*;
 
 const TUPLE_VARIABLE_NAME_REPLACEMENT: &str = "value";
 const DATAENUM_VARIABLE_NAME_REPLACEMENT: &str = "value";
@@ -23,6 +23,27 @@ pub enum ProtobufType {
 }
 
 impl ProtobufType {
+    pub fn from(rust: &RustType) -> ProtobufType {
+        Model::definition_type_to_protobuf_type(rust)
+    }
+
+    pub fn to_rust(&self) -> RustType {
+        match self {
+            ProtobufType::Bool => RustType::Bool,
+            ProtobufType::SFixed32 => RustType::I32(Range(0, ::std::i32::MAX)),
+            ProtobufType::SFixed64 => RustType::I64(Range(0, ::std::i64::MAX)),
+            ProtobufType::UInt32 => RustType::U32(Range(0, ::std::u32::MAX)),
+            ProtobufType::UInt64 => RustType::U64(None),
+            ProtobufType::SInt32 => RustType::I32(Range(0, ::std::i32::MAX)),
+            ProtobufType::SInt64 => RustType::I64(Range(0, ::std::i64::MAX)),
+            ProtobufType::String => RustType::String,
+            ProtobufType::Bytes => RustType::VecU8,
+            ProtobufType::Repeated(inner) => RustType::Vec(Box::new(inner.to_rust())),
+            ProtobufType::OneOf(_) => panic!("ProtobufType::OneOf cannot be mapped to a RustType"),
+            ProtobufType::Complex(name) => RustType::Complex(name.clone()),
+        }
+    }
+
     pub fn is_primitive(&self) -> bool {
         match self {
             ProtobufType::Bool => true,

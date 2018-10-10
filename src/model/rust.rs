@@ -38,6 +38,21 @@ pub enum RustType {
 }
 
 impl RustType {
+    pub fn to_protobuf(&self) -> ProtobufType {
+        ProtobufType::from(self)
+    }
+
+    pub fn into_inner_type(self) -> RustType {
+        if self.is_primitive() {
+            return self;
+        }
+        match self.clone() {
+            RustType::Vec(inner) => inner.into_inner_type(),
+            RustType::Option(inner) => inner.into_inner_type(),
+            _ => self,
+        }
+    }
+
     pub fn to_inner(&self) -> Option<String> {
         if self.is_primitive() {
             return Some(self.to_string())
