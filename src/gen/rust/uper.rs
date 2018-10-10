@@ -75,7 +75,10 @@ impl UperSerializer {
 
     fn impl_read_fn_header_for_type(function: &mut Function, name: &str, aliased: &RustType) {
         if let RustType::Option(_) = aliased {
-            function.line(&format!("let {} = reader.read_bit()?;", name));
+            function.line(&format!(
+                "let {} = reader.read_bit()?;",
+                RustCodeGenerator::rust_field_name(name, true)
+            ));
         }
     }
 
@@ -177,7 +180,10 @@ impl UperSerializer {
     fn impl_read_fn_for_struct(function: &mut Function, fields: &[(String, RustType)]) {
         function.line("let mut me = Self::default();");
         for (field_name, field_type) in fields.iter() {
-            let mut block = Block::new(&format!("me.{} = ", field_name));
+            let mut block = Block::new(&format!(
+                "me.{} = ",
+                RustCodeGenerator::rust_field_name(field_name, true)
+            ));
             Self::impl_read_fn_for_type(
                 &mut block,
                 &field_type.to_inner_type_string(),
@@ -273,15 +279,14 @@ impl UperSerializer {
 
     fn impl_write_fn_header_for_type(function: &mut Function, name: &str, aliased: &RustType) {
         if let RustType::Option(_) = aliased {
-            function.line(&format!("writer.write_bit(self.{}.is_some())?;", name));
+            function.line(&format!(
+                "writer.write_bit(self.{}.is_some())?;",
+                RustCodeGenerator::rust_field_name(name, true)
+            ));
         }
     }
 
-    fn impl_write_fn_for_type(
-        block: &mut Block,
-        field_name: Option<Member>,
-        rust: &RustType,
-    ) {
+    fn impl_write_fn_for_type(block: &mut Block, field_name: Option<Member>, rust: &RustType) {
         match rust {
             RustType::Bool => {
                 block.line(format!(
@@ -389,10 +394,15 @@ impl UperSerializer {
             RustType::Complex(_inner) => {
                 block.line(format!(
                     "{}.write_uper(writer)?;",
-                    field_name
-                        .clone()
-                        .map(|f| f.to_string())
-                        .unwrap_or("value".into()),
+
+                        &field_name
+                            .clone()
+                            .map(|mut f| {
+                                let name = RustCodeGenerator::rust_field_name(f.name(), true).to_string();
+                                *f.name_mut() = name;
+                                f.to_string()
+                            })
+                            .unwrap_or("value".into()),
                 ));
             }
         }
@@ -466,6 +476,14 @@ impl Member {
             Member::Local(name, _, _) => &name,
             Member::Static(name, _, _) => &name,
             Member::Instance(name, _, _) => &name,
+        }
+    }
+
+    pub fn name_mut(&mut self) -> &mut String {
+        match self {
+            Member::Local(ref mut name, _, _) => name,
+            Member::Static(ref mut name, _, _) => name,
+            Member::Instance(ref mut name, _, _) => name,
         }
     }
 

@@ -186,8 +186,6 @@ impl RustCodeGenerator {
         let implementation = scope.new_impl(name);
 
         for (field_name, field_type) in fields.iter() {
-            let field_name = Self::rust_field_name(field_name, true);
-            let field_name = &field_name;
             Self::impl_struct_field_get(implementation, field_name, field_type);
             Self::impl_struct_field_get_mut(implementation, field_name, field_type);
             Self::impl_struct_field_set(implementation, field_name, field_type);
@@ -198,11 +196,11 @@ impl RustCodeGenerator {
 
     fn impl_struct_field_get(implementation: &mut Impl, field_name: &str, field_type: &RustType) {
         implementation
-            .new_fn(field_name)
+            .new_fn(&Self::rust_field_name(field_name, true))
             .vis("pub")
             .arg_ref_self()
             .ret(format!("&{}", field_type.to_string()))
-            .line(format!("&self.{}", field_name));
+            .line(format!("&self.{}", Self::rust_field_name(field_name, true)));
     }
 
     fn impl_struct_field_get_mut(
@@ -215,7 +213,7 @@ impl RustCodeGenerator {
             .vis("pub")
             .arg_mut_self()
             .ret(format!("&mut {}", field_type.to_string()))
-            .line(format!("&mut self.{}", field_name));
+            .line(format!("&mut self.{}", Self::rust_field_name(field_name, true)));
     }
 
     fn impl_struct_field_set(implementation: &mut Impl, field_name: &str, field_type: &RustType) {
@@ -224,7 +222,7 @@ impl RustCodeGenerator {
             .vis("pub")
             .arg_mut_self()
             .arg("value", field_type.to_string())
-            .line(format!("self.{} = value;", field_name));
+            .line(format!("self.{} = value;", Self::rust_field_name(field_name, true)));
     }
 
     fn impl_default_default(scope: &mut Scope, name: &str, variants: &[String]) {

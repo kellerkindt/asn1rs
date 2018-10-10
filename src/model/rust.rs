@@ -10,10 +10,6 @@ const U16_MAX: u64 = ::std::u16::MAX as u64;
 const U32_MAX: u64 = ::std::u32::MAX as u64;
 const U64_MAX: u64 = ::std::u64::MAX as u64;
 
-const KEYWORDS: [&str; 9] = [
-    "use", "mod", "const", "type", "pub", "enum", "struct", "impl", "trait",
-];
-
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum RustType {
     Bool,
@@ -192,7 +188,7 @@ impl Model<Rust> {
                     let rust_name = format!("{}{}", name, rust_struct_or_enum_name(&field.name));
                     let rust_role =
                         Self::definition_type_to_rust_type(&rust_name, &field.role, defs);
-                    let rust_field_name = rust_field_name(&field.name, true);
+                    let rust_field_name = rust_field_name(&field.name);
                     if field.optional {
                         rust_fields.push((rust_field_name, RustType::Option(Box::new(rust_role))));
                     } else {
@@ -284,17 +280,8 @@ impl Model<Rust> {
     }
 }
 
-pub fn rust_field_name(name: &str, check_for_keywords: bool) -> String {
-    let mut name = rust_module_name(name);
-    if check_for_keywords {
-        for keyword in KEYWORDS.iter() {
-            if keyword.eq(&name) {
-                name.push_str("_");
-                return name;
-            }
-        }
-    }
-    name
+pub fn rust_field_name(name: &str) -> String {
+    rust_module_name(name)
 }
 
 pub fn rust_variant_name(name: &str) -> String {
