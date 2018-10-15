@@ -177,7 +177,7 @@ impl ProtobufDefGenerator {
     pub fn model_name(model: &str, separator: char) -> String {
         let mut out = String::new();
         let mut prev_lowered = false;
-        let mut chars = model.clone().chars().peekable();
+        let mut chars = model.chars().peekable();
         while let Some(c) = chars.next() {
             let mut lowered = false;
             if c.is_uppercase() {

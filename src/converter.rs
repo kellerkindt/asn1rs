@@ -56,10 +56,9 @@ pub fn convert_to_rust<F: AsRef<Path>, D: AsRef<Path>>(
 
     let output = generator.to_string().map_err(|_| Error::RustGenerator)?;
 
-    let dir = dir.as_ref().clone();
     let mut files = Vec::new();
     for (file, content) in output {
-        ::std::fs::write(dir.join(&file), content)?;
+        ::std::fs::write(dir.as_ref().join(&file), content)?;
         files.push(file);
     }
     Ok(files)
@@ -76,10 +75,9 @@ pub fn convert_to_proto<F: AsRef<Path>, D: AsRef<Path>>(
     generator.add_model(model.to_rust().to_protobuf());
     let output = generator.to_string()?;
 
-    let dir = dir.as_ref().clone();
     let mut files = Vec::new();
     for (file, content) in output {
-        ::std::fs::write(dir.join(&file), content)?;
+        ::std::fs::write(dir.as_ref().join(&file), content)?;
         files.push(file);
     }
     Ok(files)

@@ -381,13 +381,9 @@ impl ProtobufSerializer {
                         "writer.write_tagged_{}({}, {}{}{})?;",
                         r.to_protobuf().to_string(),
                         prev_tag + 1,
-                        if ProtobufType::String == r.to_protobuf() {
-                            if let RustType::Option(_) = field_type {
-                                ""
-                            } else {
-                                "&self."
-                            }
-                        } else if RustType::VecU8 == r.to_protobuf().to_rust() {
+                        if ProtobufType::String == r.to_protobuf()
+                            || RustType::VecU8 == r.to_protobuf().to_rust()
+                        {
                             if let RustType::Option(_) = field_type {
                                 ""
                             } else {
