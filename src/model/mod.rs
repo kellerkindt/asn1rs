@@ -1,5 +1,5 @@
-pub mod rust;
 pub mod protobuf;
+pub mod rust;
 
 pub use self::rust::Rust;
 pub use self::rust::RustType;

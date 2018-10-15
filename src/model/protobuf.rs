@@ -1,5 +1,5 @@
-use model::*;
 use model::rust::*;
+use model::*;
 
 const TUPLE_VARIABLE_NAME_REPLACEMENT: &str = "value";
 const DATAENUM_VARIABLE_NAME_REPLACEMENT: &str = "value";

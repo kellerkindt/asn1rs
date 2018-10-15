@@ -102,7 +102,9 @@ impl RustCodeGenerator {
             Rust::DataEnum(variants) => {
                 Self::add_data_enum(Self::new_enum(scope, name, false), name, variants)
             }
-            Rust::TupleStruct(inner) => Self::add_tuple_struct(Self::new_struct(scope, name), name, inner),
+            Rust::TupleStruct(inner) => {
+                Self::add_tuple_struct(Self::new_struct(scope, name), name, inner)
+            }
         }
     }
 
@@ -213,7 +215,10 @@ impl RustCodeGenerator {
             .vis("pub")
             .arg_mut_self()
             .ret(format!("&mut {}", field_type.to_string()))
-            .line(format!("&mut self.{}", Self::rust_field_name(field_name, true)));
+            .line(format!(
+                "&mut self.{}",
+                Self::rust_field_name(field_name, true)
+            ));
     }
 
     fn impl_struct_field_set(implementation: &mut Impl, field_name: &str, field_type: &RustType) {
@@ -222,7 +227,10 @@ impl RustCodeGenerator {
             .vis("pub")
             .arg_mut_self()
             .arg("value", field_type.to_string())
-            .line(format!("self.{} = value;", Self::rust_field_name(field_name, true)));
+            .line(format!(
+                "self.{} = value;",
+                Self::rust_field_name(field_name, true)
+            ));
     }
 
     fn impl_default_default(scope: &mut Scope, name: &str, variants: &[String]) {

@@ -891,10 +891,7 @@ mod tests {
         const RANGE: (i64, i64) = (1, 20);
         let mut buffer = BitBuffer::default();
         buffer.write_octet_string(BYTES, Some(RANGE))?;
-        assert_eq!(
-            &[0x19, 0x51, 0x5c, 0xb7, 0xf8],
-            &buffer.content(),
-        );
+        assert_eq!(&[0x19, 0x51, 0x5c, 0xb7, 0xf8], &buffer.content(),);
         Ok(())
     }
 
@@ -903,10 +900,7 @@ mod tests {
         const BYTES: &[u8] = &[0x2A, 0x2B, 0x96, 0xFF];
         let mut buffer = BitBuffer::default();
         buffer.write_octet_string(BYTES, None)?;
-        assert_eq!(
-            &[0x04, 0x2a, 0x2b, 0x96, 0xff],
-            &buffer.content(),
-        );
+        assert_eq!(&[0x04, 0x2a, 0x2b, 0x96, 0xff], &buffer.content(),);
         Ok(())
     }
 
@@ -915,10 +909,7 @@ mod tests {
         const BYTES: &[u8] = &[];
         let mut buffer = BitBuffer::default();
         buffer.write_octet_string(BYTES, None)?;
-        assert_eq!(
-            &[0x00],
-            &buffer.content(),
-        );
+        assert_eq!(&[0x00], &buffer.content(),);
         Ok(())
     }
 }

@@ -51,7 +51,7 @@ impl RustType {
 
     pub fn to_inner(&self) -> Option<String> {
         if self.is_primitive() {
-            return Some(self.to_string())
+            return Some(self.to_string());
         }
         match self {
             RustType::Vec(inner) => inner.to_inner(),
