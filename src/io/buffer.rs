@@ -852,7 +852,7 @@ mod tests {
         // [0; 127] are 128 numbers, so they
         // have to fit in 7 bit
         assert_eq!(buffer.content(), &[(INT as u8) << 1]);
-        check_int(&mut buffer, INT, RANGE);
+        check_int(&mut buffer, INT, RANGE)?;
         // be sure write_bit writes at the 8th bit
         buffer.write_bit(true)?;
         assert_eq!(buffer.content(), &[(INT as u8) << 1 | 0b0000_0001]);
@@ -868,7 +868,7 @@ mod tests {
         // [-128; 127] are 255 numbers, so they
         // have to fit in one byte
         assert_eq!(buffer.content(), &[(INT - RANGE.0) as u8]);
-        check_int(&mut buffer, INT, RANGE);
+        check_int(&mut buffer, INT, RANGE)?;
         Ok(())
     }
 
@@ -896,7 +896,7 @@ mod tests {
                 ((INT - RANGE.0) as u8) << 7 | 0b0100_0000
             ]
         );
-        check_int(&mut buffer, INT, RANGE);
+        check_int(&mut buffer, INT, RANGE)?;
         Ok(())
     }
 
