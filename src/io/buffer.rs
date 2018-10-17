@@ -15,7 +15,12 @@ pub struct BitBuffer {
 
 impl BitBuffer {
     #[allow(unused)]
-    pub fn from(buffer: Vec<u8>, bit_length: usize) -> BitBuffer {
+    pub fn from_bytes(buffer: Vec<u8>) -> BitBuffer {
+        let bits = buffer.len() * 8;
+        Self::from_bits(buffer, bits)
+    }
+
+    pub fn from_bits(buffer: Vec<u8>, bit_length: usize) -> BitBuffer {
         assert!(bit_length <= buffer.len() * 8);
         BitBuffer {
             buffer,
@@ -316,7 +321,7 @@ mod tests {
 
         assert_eq!(buffer.content(), &[0b1001_1110, 0b1011_1110, 0b1010_0000]);
 
-        let mut buffer = BitBuffer::from(buffer.content().into(), buffer.bit_len());
+        let mut buffer = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
         assert!(buffer.read_bit()?);
         assert!(!buffer.read_bit()?);
         assert!(!buffer.read_bit()?);
@@ -355,7 +360,7 @@ mod tests {
         assert_eq!(buffer.content(), content);
 
         {
-            let mut buffer2 = BitBuffer::from(buffer.content().into(), buffer.bit_len());
+            let mut buffer2 = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
             let mut content2 = vec![0u8; content.len()];
             buffer2.read_bit_string_till_end(&mut content2[..], 0)?;
             assert_eq!(&content[..], &content2[..]);
@@ -379,7 +384,7 @@ mod tests {
         );
 
         {
-            let mut buffer2 = BitBuffer::from(buffer.content().into(), buffer.bit_len());
+            let mut buffer2 = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
             let mut content2 = vec![0xFFu8; content.len()];
             content2[0] = content[0] & 0b1111_1110; // since we are skipping the first 7 bits
             buffer2.read_bit_string_till_end(&mut content2[..], 7)?;
@@ -402,7 +407,7 @@ mod tests {
         assert_eq!(buffer.content(), &[0b1011_1010, 0b0101_0000]);
 
         {
-            let mut buffer2 = BitBuffer::from(buffer.content().into(), buffer.bit_len());
+            let mut buffer2 = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
             let mut content2 = vec![0u8; content.len()];
             // since we are skipping the first 7 bits
             let content = &[
@@ -437,7 +442,7 @@ mod tests {
         assert_eq!(buffer.content(), &[0x00 | DET as u8]);
 
         {
-            let mut buffer2 = BitBuffer::from(buffer.content().into(), buffer.bit_len());
+            let mut buffer2 = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
             assert_eq!(DET, buffer2.read_length_determinant()?);
         }
 
@@ -454,7 +459,7 @@ mod tests {
         assert_eq!(buffer.content(), &[0x00 | DET as u8]);
 
         {
-            let mut buffer2 = BitBuffer::from(buffer.content().into(), buffer.bit_len());
+            let mut buffer2 = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
             assert_eq!(DET, buffer2.read_length_determinant()?);
         }
 
@@ -470,7 +475,7 @@ mod tests {
         assert_eq!(buffer.content(), &[0x00 | DET as u8]);
 
         {
-            let mut buffer2 = BitBuffer::from(buffer.content().into(), buffer.bit_len());
+            let mut buffer2 = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
             assert_eq!(DET, buffer2.read_length_determinant()?);
         }
 
@@ -491,7 +496,7 @@ mod tests {
         assert_eq!(buffer.content(), &[0x80 | 0x00, 0x00 | DET as u8]);
 
         {
-            let mut buffer2 = BitBuffer::from(buffer.content().into(), buffer.bit_len());
+            let mut buffer2 = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
             assert_eq!(DET, buffer2.read_length_determinant()?);
         }
 
@@ -515,7 +520,7 @@ mod tests {
         );
 
         {
-            let mut buffer2 = BitBuffer::from(buffer.content().into(), buffer.bit_len());
+            let mut buffer2 = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
             assert_eq!(DET, buffer2.read_length_determinant()?);
         }
 
@@ -525,7 +530,7 @@ mod tests {
 
     fn check_int_max(buffer: &mut BitBuffer, int: u64) -> Result<(), UperError> {
         {
-            let mut buffer2 = BitBuffer::from(buffer.content().into(), buffer.bit_len());
+            let mut buffer2 = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
             assert_eq!(int, buffer2.read_int_max()?);
         }
 
@@ -820,7 +825,7 @@ mod tests {
 
     fn check_int(buffer: &mut BitBuffer, int: i64, range: (i64, i64)) -> Result<(), UperError> {
         {
-            let mut buffer2 = BitBuffer::from(buffer.content().into(), buffer.bit_len());
+            let mut buffer2 = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
             assert_eq!(int, buffer2.read_int(range)?);
         }
         assert_eq!(int, buffer.read_int(range)?);
