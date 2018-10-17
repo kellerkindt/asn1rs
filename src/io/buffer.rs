@@ -14,7 +14,6 @@ pub struct BitBuffer {
 }
 
 impl BitBuffer {
-    #[allow(unused)]
     pub fn from_bytes(buffer: Vec<u8>) -> BitBuffer {
         let bits = buffer.len() * 8;
         Self::from_bits(buffer, bits)
@@ -54,6 +53,18 @@ impl BitBuffer {
     #[allow(unused)]
     pub fn byte_len(&self) -> usize {
         self.buffer.len()
+    }
+}
+
+impl Into<Vec<u8>> for BitBuffer {
+    fn into(self) -> Vec<u8> {
+        self.buffer
+    }
+}
+
+impl From<Vec<u8>> for BitBuffer {
+    fn from(buffer: Vec<u8>) -> Self {
+        Self::from_bytes(buffer)
     }
 }
 
