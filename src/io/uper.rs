@@ -234,14 +234,14 @@ pub trait Writer {
     fn write_bit(&mut self, bit: bool) -> Result<(), Error>;
 }
 
-impl<'a> Reader for (&'a [u8], u8) {
+impl<'a> Reader for (&'a [u8], usize) {
     fn read_bit(&mut self) -> Result<bool, Error> {
         if self.0.is_empty() {
             return Err(Error::EndOfStream);
         }
-        let bit = self.0[0] & (0x80 >> self.1) != 0;
-        self.1 = (self.1 + 1) % BYTE_LEN as u8;
-        if self.1 == 0 {
+        let bit = self.0[0] & (0x80 >> (self.1 % BYTE_LEN)) != 0;
+        self.1 += 1;
+        if self.1 % BYTE_LEN == 0 {
             self.0 = self.0.split_at(1).1;
         }
         Ok(bit)
@@ -260,16 +260,16 @@ impl<'a> Advancer for &'a mut [u8] {
     }
 }
 
-impl<'a> Writer for (&'a mut [u8], u8) {
+impl<'a> Writer for (&'a mut [u8], usize) {
     fn write_bit(&mut self, bit: bool) -> Result<(), Error> {
         if self.0.is_empty() {
             return Err(Error::EndOfStream);
         }
         if bit {
-            self.0[0] |= 0x80 >> self.1;
+            self.0[0] |= 0x80 >> (self.1 % BYTE_LEN);
         }
-        self.1 = (self.1 + 1) % BYTE_LEN as u8;
-        if self.1 == 0 {
+        self.1 += 1;
+        if self.1 % BYTE_LEN == 0 {
             self.0.advance_one();
         }
         Ok(())
