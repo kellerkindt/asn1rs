@@ -248,7 +248,18 @@ impl<'a> Reader for (&'a [u8], u8) {
     }
 }
 
-/*
+trait Advancer {
+    fn advance_one(&mut self);
+}
+
+impl<'a> Advancer for &'a mut [u8] {
+    fn advance_one(&mut self) {
+        let tmp = ::std::mem::replace(self, &mut []);
+        let (_front, back) = tmp.split_at_mut(1);
+        *self = back;
+    }
+}
+
 impl<'a> Writer for (&'a mut [u8], u8) {
     fn write_bit(&mut self, bit: bool) -> Result<(), Error> {
         if self.0.len() == 0 {
@@ -259,8 +270,8 @@ impl<'a> Writer for (&'a mut [u8], u8) {
         }
         self.1 = (self.1 + 1) % BYTE_LEN as u8;
         if self.1 == 0 {
-            self.0 = self.0.split_at_mut(1).1;
+            self.0.advance_one();
         }
         Ok(())
     }
-}*/
+}
