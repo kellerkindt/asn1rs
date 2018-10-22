@@ -236,7 +236,7 @@ pub trait Writer {
 
 impl<'a> Reader for (&'a [u8], u8) {
     fn read_bit(&mut self) -> Result<bool, Error> {
-        if self.0.len() == 0 {
+        if self.0.is_empty() {
             return Err(Error::EndOfStream);
         }
         let bit = self.0[0] & (0x80 >> self.1) != 0;
@@ -262,7 +262,7 @@ impl<'a> Advancer for &'a mut [u8] {
 
 impl<'a> Writer for (&'a mut [u8], u8) {
     fn write_bit(&mut self, bit: bool) -> Result<(), Error> {
-        if self.0.len() == 0 {
+        if self.0.is_empty() {
             return Err(Error::EndOfStream);
         }
         if bit {
