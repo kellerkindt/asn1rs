@@ -49,7 +49,7 @@ pub fn convert_to_rust<F: AsRef<Path>, D: AsRef<Path>>(
     dir: D,
 ) -> Result<Vec<String>, Error> {
     let input = ::std::fs::read_to_string(file)?;
-    let tokens = Parser::new().parse(&input)?;
+    let tokens = Parser::default().parse(&input)?;
     let model = Model::try_from(tokens)?;
     let mut generator = RustGenerator::default();
     generator.add_model(model.to_rust());
@@ -69,7 +69,7 @@ pub fn convert_to_proto<F: AsRef<Path>, D: AsRef<Path>>(
     dir: D,
 ) -> Result<Vec<String>, Error> {
     let input = ::std::fs::read_to_string(file)?;
-    let tokens = Parser::new().parse(&input)?;
+    let tokens = Parser::default().parse(&input)?;
     let model = Model::try_from(tokens)?;
     let mut generator = ProtobufGenerator::default();
     generator.add_model(model.to_rust().to_protobuf());

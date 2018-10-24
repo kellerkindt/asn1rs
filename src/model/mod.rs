@@ -95,7 +95,7 @@ impl Model<Asn> {
     }
 
     fn skip_after(iter: &mut IntoIter<Token>, token: &Token) -> Result<(), Error> {
-        while let Some(t) = iter.next() {
+        for t in iter {
             if t.eq(&token) {
                 return Ok(());
             }
@@ -329,7 +329,7 @@ impl Model<Asn> {
         } else {
             Err(Error::ExpectedSeparatorGot(
                 Backtrace::new(),
-                text.into(),
+                text,
                 token,
             ))
         }
@@ -337,13 +337,13 @@ impl Model<Asn> {
 
     pub fn make_names_nice(&mut self) {
         Self::make_name_nice(&mut self.name);
-        for import in self.imports.iter_mut() {
+        for import in &mut self.imports {
             Self::make_name_nice(&mut import.from);
         }
     }
 
     fn make_name_nice(name: &mut String) {
-        const TO_REMOVE_AT_END: &[&'static str] = &["_Module", "Module"];
+        const TO_REMOVE_AT_END: &[&str] = &["_Module", "Module"];
         for to_remove in TO_REMOVE_AT_END.iter() {
             if name.ends_with(to_remove) {
                 let new_len = name.len() - to_remove.len();

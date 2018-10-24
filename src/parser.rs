@@ -36,19 +36,16 @@ impl Token {
 #[derive(Debug)]
 pub enum Error {}
 
+#[derive(Default)]
 pub struct Parser;
 
 impl Parser {
-    pub fn new() -> Parser {
-        Parser
-    }
-
     pub fn parse(&self, asn: &str) -> Result<Vec<Token>, Error> {
-        let mut iter = asn.chars();
+        let iter = asn.chars();
         let mut previous = None;
         let mut tokens = Vec::new();
 
-        while let Some(char) = iter.next() {
+        for char in iter {
             let mut token = None;
             match char {
                 ':' | ';' | '=' | '(' | ')' | '{' | '}' | '.' | ',' => {

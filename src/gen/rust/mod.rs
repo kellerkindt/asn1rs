@@ -50,7 +50,7 @@ impl Generator<Rust> for RustCodeGenerator {
 
     fn to_string(&self) -> Result<Vec<(String, String)>, Self::Error> {
         let mut files = Vec::new();
-        for model in self.models.iter() {
+        for model in &self.models {
             files.push(RustCodeGenerator::model_to_file(
                 model,
                 &[&UperSerializer, &ProtobufSerializer],
@@ -74,14 +74,14 @@ impl RustCodeGenerator {
         let mut scope = Scope::new();
         generators.iter().for_each(|g| g.add_imports(&mut scope));
 
-        for import in model.imports.iter() {
+        for import in &model.imports {
             let from = format!("super::{}", &Self::rust_module_name(&import.from));
-            for what in import.what.iter() {
+            for what in &import.what {
                 scope.import(&from, &what);
             }
         }
 
-        for definition in model.definitions.iter() {
+        for definition in &model.definitions {
             Self::add_definition(&mut scope, definition);
             Self::impl_definition(&mut scope, definition);
 
@@ -376,7 +376,7 @@ impl RustCodeGenerator {
     pub fn rust_field_name(name: &str, check_for_keywords: bool) -> String {
         let mut name = name.replace("-", "_");
         if check_for_keywords {
-            for keyword in KEYWORDS.iter() {
+            for keyword in &KEYWORDS {
                 if keyword.eq(&name) {
                     name.push_str("_");
                     return name;

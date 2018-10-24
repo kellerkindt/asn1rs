@@ -64,7 +64,7 @@ impl ProtobufSerializer {
         RustCodeGenerator::new_serializable_impl(scope, impl_for, Self::CODEC)
     }
 
-    fn new_read_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
+    fn new_read_fn(implementation: &mut Impl) -> &mut Function {
         RustCodeGenerator::new_read_fn(implementation, Self::CODEC)
     }
 
@@ -263,7 +263,7 @@ impl ProtobufSerializer {
         function.push_block(block_match);
     }
 
-    fn new_write_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
+    fn new_write_fn(implementation: &mut Impl) -> &mut Function {
         RustCodeGenerator::new_write_fn(implementation, Self::CODEC)
     }
 
@@ -392,12 +392,10 @@ impl ProtobufSerializer {
                                     } else {
                                         "&self."
                                     }
+                                } else if let RustType::Option(_) = field_type {
+                                    "*"
                                 } else {
-                                    if let RustType::Option(_) = field_type {
-                                        "*"
-                                    } else {
-                                        "self."
-                                    }
+                                    "self."
                                 },
                                 RustCodeGenerator::rust_field_name(&field_name, true),
                             ),
@@ -469,7 +467,7 @@ impl ProtobufSerializer {
         function.push_block(block_match);
     }
 
-    fn new_format_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
+    fn new_format_fn(implementation: &mut Impl) -> &mut Function {
         implementation
             .new_fn(&format!("{}_format", Self::CODEC.to_lowercase()))
             .arg_ref_self()
@@ -506,12 +504,12 @@ impl ProtobufSerializer {
             .impl_trait(&format!("{}Eq", Self::CODEC))
     }
 
-    fn new_eq_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
+    fn new_eq_fn(implementation: &mut Impl) -> &mut Function {
         implementation
             .new_fn(&format!("{}_eq", Self::CODEC.to_lowercase()))
             .ret("bool")
             .arg_ref_self()
-            .arg("other", format!("&Self"))
+            .arg("other", "&Self".to_string())
     }
 
     fn impl_eq_fn(function: &mut Function, Definition(name, rust): &Definition<Rust>) {

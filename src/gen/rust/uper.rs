@@ -39,7 +39,7 @@ impl UperSerializer {
         RustCodeGenerator::new_serializable_impl(scope, impl_for, Self::CODEC)
     }
 
-    fn new_read_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
+    fn new_read_fn(implementation: &mut Impl) -> &mut Function {
         RustCodeGenerator::new_read_fn(implementation, Self::CODEC)
     }
 
@@ -137,7 +137,7 @@ impl UperSerializer {
                             field_name
                                 .clone()
                                 .map(|f| f.name().to_string())
-                                .unwrap_or("value".into()),
+                                .unwrap_or_else(|| "value".into()),
                             false,
                             false,
                         )),
@@ -155,7 +155,7 @@ impl UperSerializer {
                     field_name
                         .clone()
                         .map(|f| f.name().to_string())
-                        .unwrap_or("value".into())
+                        .unwrap_or_else(|| "value".into())
                 ));
                 let mut if_true_block = Block::new("Some(");
                 Self::impl_read_fn_for_type(
@@ -239,7 +239,7 @@ impl UperSerializer {
         function.push_block(block);
     }
 
-    fn new_write_fn<'a>(implementation: &'a mut Impl) -> &'a mut Function {
+    fn new_write_fn(implementation: &mut Impl) -> &mut Function {
         RustCodeGenerator::new_write_fn(implementation, Self::CODEC)
     }
 
@@ -294,7 +294,7 @@ impl UperSerializer {
                     field_name
                         .clone()
                         .map(|f| f.to_string())
-                        .unwrap_or("value".into()),
+                        .unwrap_or_else(|| "value".into()),
                 ));
             }
             RustType::U8(_)
@@ -310,13 +310,13 @@ impl UperSerializer {
                     field_name
                         .clone()
                         .map(|f| f.to_string())
-                        .unwrap_or("value".into()),
+                        .unwrap_or_else(|| "value".into()),
                     if let Some(ref field_name) = field_name {
                         format!("{}_", field_name.name())
                     } else {
                         String::default()
                     },
-                    if let Some(ref field_name) = field_name {
+                    if let Some(field_name) = field_name {
                         format!("{}_", field_name.name())
                     } else {
                         String::default()
@@ -327,27 +327,24 @@ impl UperSerializer {
                 block.line(&format!(
                     "writer.write_int_max({})?;",
                     field_name
-                        .clone()
                         .map(|f| f.to_string())
-                        .unwrap_or("value".into()),
+                        .unwrap_or_else(|| "value".into()),
                 ));
             }
             RustType::String => {
                 block.line(&format!(
                     "writer.write_utf8_string(&{})?;",
                     field_name
-                        .clone()
                         .map(|f| f.to_string())
-                        .unwrap_or("value".into()),
+                        .unwrap_or_else(|| "value".into()),
                 ));
             }
             RustType::VecU8 => {
                 block.line(format!(
                     "writer.write_octet_string(&{}[..], None)?;",
                     field_name
-                        .clone()
                         .map(|f| f.to_string())
-                        .unwrap_or("value".into()),
+                        .unwrap_or_else(|| "value".into()),
                 ));
             }
             RustType::Vec(inner) => {
@@ -356,14 +353,13 @@ impl UperSerializer {
                     field_name
                         .clone()
                         .map(|f| f.no_ref().to_string())
-                        .unwrap_or("value".into())
+                        .unwrap_or_else(|| "value".into())
                 ));
                 let mut for_block = Block::new(&format!(
                     "for value in &{}",
                     field_name
-                        .clone()
                         .map(|f| f.no_ref().to_string())
-                        .unwrap_or("value".into()),
+                        .unwrap_or_else(|| "value".into()),
                 ));
                 Self::impl_write_fn_for_type(
                     &mut for_block,
@@ -379,19 +375,18 @@ impl UperSerializer {
                     field_name
                         .clone()
                         .map(|f| f.name().to_string())
-                        .unwrap_or("value".into()),
+                        .unwrap_or_else(|| "value".into()),
                     field_name
                         .clone()
                         .map(|f| f.to_string())
-                        .unwrap_or("value".into()),
+                        .unwrap_or_else(|| "value".into()),
                 ));
                 Self::impl_write_fn_for_type(
                     &mut if_block,
                     Some(Member::Local(
                         field_name
-                            .clone()
                             .map(|f| f.name().to_string())
-                            .unwrap_or("value".into()),
+                            .unwrap_or_else(|| "value".into()),
                         false,
                         false,
                     )),
@@ -403,13 +398,12 @@ impl UperSerializer {
                 block.line(format!(
                     "{}.write_uper(writer)?;",
                     &field_name
-                        .clone()
                         .map(|mut f| {
                             let name =
                                 RustCodeGenerator::rust_field_name(f.name(), true).to_string();
                             *f.name_mut() = name;
                             f.to_string()
-                        }).unwrap_or("value".into()),
+                        }).unwrap_or_else(|| "value".into()),
                 ));
             }
         }

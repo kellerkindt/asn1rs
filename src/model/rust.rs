@@ -3,12 +3,12 @@ use model::*;
 const I8_MAX: i64 = ::std::i8::MAX as i64;
 const I16_MAX: i64 = ::std::i16::MAX as i64;
 const I32_MAX: i64 = ::std::i32::MAX as i64;
-const I64_MAX: i64 = ::std::i64::MAX as i64;
+//const I64_MAX: i64 = ::std::i64::MAX as i64;
 
 const U8_MAX: u64 = ::std::u8::MAX as u64;
 const U16_MAX: u64 = ::std::u16::MAX as u64;
 const U32_MAX: u64 = ::std::u32::MAX as u64;
-const U64_MAX: u64 = ::std::u64::MAX as u64;
+//const U64_MAX: u64 = ::std::u64::MAX as u64;
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum RustType {
@@ -61,7 +61,7 @@ impl RustType {
     }
 
     pub fn to_inner_type_string(&self) -> String {
-        self.to_inner().unwrap_or(self.to_string())
+        self.to_inner().unwrap_or_else(|| self.to_string())
     }
 
     pub fn is_primitive(&self) -> bool {
@@ -202,7 +202,7 @@ impl Model<Rust> {
                 }).collect(),
             definitions: Vec::with_capacity(asn_model.definitions.len()),
         };
-        for Definition(name, asn) in asn_model.definitions.iter() {
+        for Definition(name, asn) in &asn_model.definitions {
             let rust_name = rust_struct_or_enum_name(name);
             Self::definition_to_rust(&rust_name, asn, &mut model.definitions);
         }
@@ -289,20 +289,20 @@ impl Model<Rust> {
                 let max = *max;
                 if min >= 0 {
                     match max as u64 {
-                        0...U8_MAX => RustType::U8(Range(min as u8, max as u8)),
-                        0...U16_MAX => RustType::U16(Range(min as u16, max as u16)),
-                        0...U32_MAX => RustType::U32(Range(min as u32, max as u32)),
-                        0...U64_MAX => RustType::U64(Some(Range(min as u64, max as u64))),
-                        _ => panic!("This should never happen, since max (as u64 frm i64) cannot be greater than U64_MAX")
+                        m if m <= U8_MAX => RustType::U8(Range(min as u8, max as u8)),
+                        m if m <= U16_MAX => RustType::U16(Range(min as u16, max as u16)),
+                        m if m <= U32_MAX => RustType::U32(Range(min as u32, max as u32)),
+                        _/*m if m <= U64_MAX*/ => RustType::U64(Some(Range(min as u64, max as u64))),
+                        //_ => panic!("This should never happen, since max (as u64 frm i64) cannot be greater than U64_MAX")
                     }
                 } else {
                     let max_amplitude = (min - 1).abs().max(max);
                     match max_amplitude {
-                        0...I8_MAX => RustType::I8(Range(min as i8, max as i8)),
-                        0...I16_MAX => RustType::I16(Range(min as i16, max as i16)),
-                        0...I32_MAX => RustType::I32(Range(min as i32, max as i32)),
-                        0...I64_MAX => RustType::I64(Range(min as i64, max as i64)),
-                        _ => panic!("This should never happen, since max (being i64) cannot be greater than I64_MAX")
+                        _ if max_amplitude <= I8_MAX => RustType::I8(Range(min as i8, max as i8)),
+                        _ if max_amplitude <= I16_MAX => RustType::I16(Range(min as i16, max as i16)),
+                        _ if max_amplitude <= I32_MAX => RustType::I32(Range(min as i32, max as i32)),
+                        _/*if max_amplitude <= I64_MAX*/ => RustType::I64(Range(min as i64, max as i64)),
+                        //_ => panic!("This should never happen, since max (being i64) cannot be greater than I64_MAX")
                     }
                 }
             }

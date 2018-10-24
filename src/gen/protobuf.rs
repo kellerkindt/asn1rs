@@ -41,7 +41,7 @@ impl Generator<Protobuf> for ProtobufDefGenerator {
 
     fn to_string(&self) -> Result<Vec<(String, String)>, <Self as Generator<Protobuf>>::Error> {
         let mut files = Vec::new();
-        for model in self.models.iter() {
+        for model in &self.models {
             files.push(Self::generate_file(model)?);
         }
         Ok(files)
@@ -54,7 +54,7 @@ impl ProtobufDefGenerator {
         let mut content = String::new();
         Self::append_header(&mut content, model)?;
         Self::append_imports(&mut content, model)?;
-        for definition in model.definitions.iter() {
+        for definition in &model.definitions {
             Self::append_definition(&mut content, model, definition)?;
         }
         Ok((file_name, content))
@@ -68,7 +68,7 @@ impl ProtobufDefGenerator {
     }
 
     pub fn append_imports(target: &mut Write, model: &Model<Protobuf>) -> Result<(), Error> {
-        for import in model.imports.iter() {
+        for import in &model.imports {
             writeln!(target, "import '{}';", Self::model_file_name(&import.from))?;
         }
         writeln!(target)?;
@@ -138,11 +138,11 @@ impl ProtobufDefGenerator {
     }
 
     pub fn role_to_full_type(role: &ProtobufType, model: &Model<Protobuf>) -> String {
-        let type_name = match role {
+        match role {
             ProtobufType::Complex(name) => {
                 let mut prefixed = String::new();
-                'outer: for import in model.imports.iter() {
-                    for what in import.what.iter() {
+                'outer: for import in &model.imports {
+                    for what in &import.what {
                         if what.eq(name) {
                             prefixed.push_str(&Self::model_to_package(&import.from));
                             prefixed.push('.');
@@ -157,8 +157,7 @@ impl ProtobufDefGenerator {
                 format!("repeated {}", Self::role_to_full_type(inner, model))
             }
             r => r.to_string(),
-        };
-        type_name
+        }
     }
 
     pub fn variant_name(name: &str) -> String {
