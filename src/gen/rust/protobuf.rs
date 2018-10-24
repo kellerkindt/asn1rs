@@ -257,7 +257,7 @@ impl ProtobufSerializer {
             block_match.push_block(block_case);
         }
         block_match.line(format!(
-            "_ => return Err({}Error::unexpected_tag(tag))",
+            "_ => Err({}Error::unexpected_tag(tag))",
             Self::CODEC
         ));
         function.push_block(block_match);
