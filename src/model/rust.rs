@@ -389,7 +389,7 @@ mod test {
 
     #[test]
     fn test_simple_asn_sequence_represented_correctly_as_rust_model() {
-        let model_rust = Model::try_from(Parser::new().parse(SIMPLE_INTEGER_STRUCT_ASN).unwrap())
+        let model_rust = Model::try_from(Parser::default().parse(SIMPLE_INTEGER_STRUCT_ASN).unwrap())
             .unwrap()
             .to_rust();
 
@@ -415,7 +415,7 @@ mod test {
 
     #[test]
     fn test_inline_asn_enumerated_represented_correctly_as_rust_model() {
-        let modle_rust = Model::try_from(Parser::new().parse(INLINE_ASN_WITH_ENUM).unwrap())
+        let modle_rust = Model::try_from(Parser::default().parse(INLINE_ASN_WITH_ENUM).unwrap())
             .unwrap()
             .to_rust();
 
@@ -449,7 +449,7 @@ mod test {
 
     #[test]
     fn test_inline_asn_sequence_of_represented_correctly_as_rust_model() {
-        let model_rust = Model::try_from(Parser::new().parse(INLINE_ASN_WITH_SEQUENCE_OF).unwrap())
+        let model_rust = Model::try_from(Parser::default().parse(INLINE_ASN_WITH_SEQUENCE_OF).unwrap())
             .unwrap()
             .to_rust();
 
@@ -498,7 +498,7 @@ mod test {
 
     #[test]
     fn test_inline_asn_choice_represented_correctly_as_rust_model() {
-        let model_rust = Model::try_from(Parser::new().parse(INLINE_ASN_WITH_CHOICE).unwrap())
+        let model_rust = Model::try_from(Parser::default().parse(INLINE_ASN_WITH_CHOICE).unwrap())
             .unwrap()
             .to_rust();
 
@@ -553,7 +553,7 @@ mod test {
 
     #[test]
     fn test_inline_asn_sequence_represented_correctly_as_rust_model() {
-        let model_rust = Model::try_from(Parser::new().parse(INLINE_ASN_WITH_SEQUENCE).unwrap())
+        let model_rust = Model::try_from(Parser::default().parse(INLINE_ASN_WITH_SEQUENCE).unwrap())
             .unwrap()
             .to_rust();
 

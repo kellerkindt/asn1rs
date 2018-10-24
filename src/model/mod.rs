@@ -378,7 +378,7 @@ pub(crate) mod test {
     #[test]
     fn test_simple_asn_sequence_represented_correctly_as_asn_model() {
         let model =
-            Model::try_from(Parser::new().parse(SIMPLE_INTEGER_STRUCT_ASN).unwrap()).unwrap();
+            Model::try_from(Parser::default().parse(SIMPLE_INTEGER_STRUCT_ASN).unwrap()).unwrap();
 
         assert_eq!("SimpleSchema", model.name);
         assert_eq!(true, model.imports.is_empty());
@@ -431,7 +431,7 @@ pub(crate) mod test {
 
     #[test]
     fn test_inline_asn_enumerated_represented_correctly_as_asn_model() {
-        let model = Model::try_from(Parser::new().parse(INLINE_ASN_WITH_ENUM).unwrap()).unwrap();
+        let model = Model::try_from(Parser::default().parse(INLINE_ASN_WITH_ENUM).unwrap()).unwrap();
 
         assert_eq!("SimpleSchema", model.name);
         assert_eq!(true, model.imports.is_empty());
@@ -474,7 +474,7 @@ pub(crate) mod test {
     #[test]
     fn test_inline_asn_sequence_of_represented_correctly_as_asn_model() {
         let model =
-            Model::try_from(Parser::new().parse(INLINE_ASN_WITH_SEQUENCE_OF).unwrap()).unwrap();
+            Model::try_from(Parser::default().parse(INLINE_ASN_WITH_SEQUENCE_OF).unwrap()).unwrap();
 
         assert_eq!("SimpleSchema", model.name);
         assert_eq!(true, model.imports.is_empty());
@@ -549,7 +549,7 @@ pub(crate) mod test {
 
     #[test]
     fn test_inline_asn_choice_represented_correctly_as_asn_model() {
-        let model = Model::try_from(Parser::new().parse(INLINE_ASN_WITH_CHOICE).unwrap()).unwrap();
+        let model = Model::try_from(Parser::default().parse(INLINE_ASN_WITH_CHOICE).unwrap()).unwrap();
 
         assert_eq!("SimpleSchema", model.name);
         assert_eq!(true, model.imports.is_empty());
@@ -611,7 +611,7 @@ pub(crate) mod test {
     #[test]
     fn test_inline_asn_sequence_represented_correctly_as_asn_model() {
         let model =
-            Model::try_from(Parser::new().parse(INLINE_ASN_WITH_SEQUENCE).unwrap()).unwrap();
+            Model::try_from(Parser::default().parse(INLINE_ASN_WITH_SEQUENCE).unwrap()).unwrap();
 
         assert_eq!("SimpleSchema", model.name);
         assert_eq!(true, model.imports.is_empty());
