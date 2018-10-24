@@ -364,13 +364,28 @@ impl RustCodeGenerator {
                 .new_fn(&format!("{}_min", field_name))
                 .vis("pub")
                 .ret(&field_type.to_inner_type_string())
-                .line(&min);
+                .line(&Self::format_number_nicely(&min));
             implementation
                 .new_fn(&format!("{}_max", field_name))
                 .vis("pub")
                 .ret(&field_type.to_inner_type_string())
-                .line(&max);
+                .line(&Self::format_number_nicely(&max));
         }
+    }
+
+    fn format_number_nicely(string: &str) -> String {
+        let mut out = String::with_capacity(string.len() * 2);
+        let mut pos = (3 - string.len() % 3) % 3;
+        for char in string.chars() {
+            out.push(char);
+            pos = (pos + 1) % 3;
+            if pos == 0 && char.is_numeric() {
+                out.push('_');
+            }
+        }
+        let len = out.len();
+        out.remove(len - 1);
+        out
     }
 
     pub fn rust_field_name(name: &str, check_for_keywords: bool) -> String {
@@ -400,10 +415,6 @@ impl RustCodeGenerator {
             }
         }
         out
-    }
-
-    pub fn rust_struct_or_enum_name(name: &str) -> String {
-        Self::rust_module_name(name)
     }
 
     pub fn rust_module_name(name: &str) -> String {
