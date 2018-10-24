@@ -110,17 +110,17 @@ pub trait Writer {
     fn write_bytes(&mut self, value: &[u8]) -> Result<(), Error>;
 
     fn write_tag(&mut self, field: u32, format: Format) -> Result<(), Error> {
-        self.write_varint((field << 3 | (format as u32)) as u64)
+        self.write_varint(u64::from(field << 3 | (format as u32)))
     }
 
     fn write_enum_variant(&mut self, variant: u32) -> Result<(), Error> {
-        self.write_varint(variant as u64)
+        self.write_varint(u64::from(variant))
     }
 
     fn write_sfixed32(&mut self, value: i32) -> Result<(), Error>;
 
     fn write_uint32(&mut self, value: u32) -> Result<(), Error> {
-        self.write_varint(value as u64)
+        self.write_varint(u64::from(value))
     }
 
     fn write_uint64(&mut self, value: u64) -> Result<(), Error> {
@@ -187,7 +187,7 @@ pub trait Writer {
     }
 
     fn write_tagged_enum_variant(&mut self, field: u32, value: u32) -> Result<(), Error> {
-        self.write_tagged_varint(field, value as u64)
+        self.write_tagged_varint(field, u64::from(value))
     }
 }
 
@@ -197,7 +197,8 @@ impl<W: Write> Writer for W {
             self.write_u8(((value as u8) & 0x7F) | 0x80)?;
             value >>= 7;
         }
-        Ok(self.write_u8(value as u8)?)
+        self.write_u8(value as u8)?;
+        Ok(())
     }
 
     fn write_bytes(&mut self, value: &[u8]) -> Result<(), Error> {
@@ -271,7 +272,7 @@ impl<R: Read> Reader for R {
         let mut shift = 0_usize;
         while shift < 64 {
             let read = self.read_u8()?;
-            value |= ((read & 0x7F) as u64) << shift;
+            value |= u64::from(read & 0x7F) << shift;
             shift += 7;
             if read & 0x80 == 0 {
                 break;

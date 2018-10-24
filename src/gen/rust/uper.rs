@@ -101,7 +101,7 @@ impl UperSerializer {
             | RustType::U64(Some(_))
             | RustType::I64(_) => {
                 block.line(format!(
-                    "reader.read_int((Self::{}min() as i64, Self::{}max() as i64))? as {}",
+                    "reader.read_int((i64::from(Self::{}min()), i64::from(Self::{}max())))? as {}",
                     if let Some(ref field_name) = field_name {
                         format!("{}_", field_name.name())
                     } else {
