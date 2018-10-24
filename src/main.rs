@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 extern crate backtrace;
 extern crate byteorder;
 extern crate clap;
