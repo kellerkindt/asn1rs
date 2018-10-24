@@ -589,7 +589,7 @@ impl ProtobufSerializer {
     fn get_as_protobuf_type_statement(string: String, role_rust: &RustType) -> String {
         let proto_rust = role_rust.to_protobuf().to_rust();
 
-        if role_rust.ne(&proto_rust) {
+        if !role_rust.similar(&proto_rust) {
             format!("{}::from({})", proto_rust.to_string(), string)
         } else {
             string

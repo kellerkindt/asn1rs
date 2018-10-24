@@ -110,6 +110,52 @@ impl RustType {
             _ => self.integer_range_str(),
         }
     }
+
+    pub fn similar(&self, other: &Self) -> bool {
+        match self {
+            RustType::Bool => return *other == RustType::Bool,
+            RustType::U8(_) => if let RustType::U8(_) = other {
+                return true;
+            },
+            RustType::I8(_) => if let RustType::I8(_) = other {
+                return true
+            },
+            RustType::U16(_) => if let RustType::U16(_) = other {
+                return true;
+            },
+            RustType::I16(_) => if let RustType::I16(_) = other {
+                return true;
+            },
+            RustType::U32(_) => if let RustType::U32(_) = other {
+                return true;
+            },
+            RustType::I32(_) => if let RustType::I32(_) = other {
+                return true;
+            },
+            RustType::U64(_) => if let RustType::U64(_) = other {
+                return true;
+            },
+            RustType::I64(_) => if let RustType::I64(_) = other {
+                return true;
+            },
+            RustType::String => if let RustType::String = other {
+                return true;
+            },
+            RustType::VecU8 => if let RustType::VecU8 = other {
+                return true;
+            },
+            RustType::Vec(inner_a) => if let RustType::Vec(inner_b) = other {
+                return inner_a.similar(inner_b);
+            },
+            RustType::Option(inner_a) => if let RustType::Option(inner_b) = other {
+                return inner_a.similar(inner_b);
+            },
+            RustType::Complex(inner_a) => if let RustType::Complex(inner_b) = other {
+                return inner_a.eq(inner_b);
+            },
+        };
+        false
+    }
 }
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
