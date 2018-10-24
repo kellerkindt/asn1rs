@@ -99,18 +99,6 @@ impl RustType {
         }
     }
 
-    pub fn integer_range_value_str(&self) -> Option<Range<String>> {
-        match self {
-            RustType::Option(inner) => match inner.integer_range_value_str() {
-                None => None,
-                Some(Range(min, max)) => {
-                    Some(Range(format!("Some({})", min), format!("Some({})", max)))
-                }
-            },
-            _ => self.integer_range_str(),
-        }
-    }
-
     pub fn similar(&self, other: &Self) -> bool {
         match self {
             RustType::Bool => return *other == RustType::Bool,

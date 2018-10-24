@@ -7,7 +7,9 @@ const DATAENUM_VARIABLE_NAME_REPLACEMENT: &str = "value";
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum ProtobufType {
     Bool,
+    #[allow(dead_code)]
     SFixed32,
+    #[allow(dead_code)]
     SFixed64,
     UInt32,
     UInt64,

@@ -21,7 +21,6 @@ pub enum Error {
     MissingModuleName,
     UnexpectedEndOfStream,
     InvalidRangeValue,
-    IllegalModel(String, Backtrace),
 }
 
 #[derive(Debug, Clone)]
