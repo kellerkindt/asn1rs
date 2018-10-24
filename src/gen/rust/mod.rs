@@ -269,7 +269,7 @@ impl RustCodeGenerator {
     fn impl_enum_value_index_fn(implementation: &mut Impl, name: &str, variants: &[String]) {
         let ordinal_fn = implementation
             .new_fn("value_index")
-            .arg_ref_self()
+            .arg_self()
             .vis("pub")
             .ret("usize");
 
