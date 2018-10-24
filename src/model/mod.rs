@@ -41,16 +41,6 @@ impl<T> Default for Model<T> {
 }
 
 impl Model<Asn> {
-    pub fn new<I: Into<String>>(name: I) -> Self {
-        let mut model = Model {
-            name: name.into(),
-            imports: Default::default(),
-            definitions: Default::default(),
-        };
-        model.make_names_nice();
-        model
-    }
-
     pub fn try_from(value: Vec<Token>) -> Result<Self, Error> {
         let mut model = Model::default();
         let mut iter = value.into_iter();
@@ -646,10 +636,23 @@ pub(crate) mod test {
 
     #[test]
     fn test_nice_names() {
-        assert_eq!("simple_test", Model::new("SimpleTest").to_rust().name);
-        assert_eq!("simple_test", Model::new("SIMPLE_Test").to_rust().name);
-        assert_eq!("dry", Model::new("DRY_Module").to_rust().name);
-        assert_eq!("dry", Model::new("DRYModule").to_rust().name);
+        let mut model = Model::default();
+
+        model.name = "SimpleTest".into();
+        model.make_names_nice();
+        assert_eq!("simple_test", model.to_rust().name);
+
+        model.name = "SIMPLE_Test".into();
+        model.make_names_nice();
+        assert_eq!("simple_test", model.to_rust().name);
+
+        model.name = "DRY_Module".into();
+        model.make_names_nice();
+        assert_eq!("dry", model.to_rust().name);
+
+        model.name = "DRYModule".into();
+        model.make_names_nice();
+        assert_eq!("dry", model.to_rust().name);
     }
 }
 
