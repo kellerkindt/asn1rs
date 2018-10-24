@@ -45,12 +45,11 @@ impl Parser {
 
     pub fn parse(&self, asn: &str) -> Result<Vec<Token>, Error> {
         let mut iter = asn.chars();
-        let mut token = None;
         let mut previous = None;
         let mut tokens = Vec::new();
 
         while let Some(char) = iter.next() {
-            token = None;
+            let mut token = None;
             match char {
                 ':' | ';' | '=' | '(' | ')' | '{' | '}' | '.' | ',' => {
                     token = Some(Token::Separator(char))
@@ -84,7 +83,7 @@ impl Parser {
             }
         }
 
-        if let Some(token) = token {
+        if let Some(token) = previous {
             tokens.push(token);
         }
         Ok(tokens)
