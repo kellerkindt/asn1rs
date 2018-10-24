@@ -302,10 +302,10 @@ impl ProtobufSerializer {
             }
             r => {
                 block_for.line(format!(
-                    "(&mut bytes as &mut {}Writer).write_{}(*value{})?;",
+                    "(&mut bytes as &mut {}Writer).write_{}({})?;",
                     Self::CODEC,
                     r.to_protobuf().to_string(),
-                    Self::get_as_protobuf_type_statement(&r),
+                    Self::get_as_protobuf_type_statement("*value".to_string(), &r),
                 ));
             }
         };
@@ -378,26 +378,31 @@ impl ProtobufSerializer {
                 }
                 r => {
                     block.line(format!(
-                        "writer.write_tagged_{}({}, {}{}{})?;",
+                        "writer.write_tagged_{}({}, {})?;",
                         r.to_protobuf().to_string(),
                         prev_tag + 1,
-                        if ProtobufType::String == r.to_protobuf()
-                            || RustType::VecU8 == r.to_protobuf().to_rust()
-                        {
-                            if let RustType::Option(_) = field_type {
-                                ""
-                            } else {
-                                "&self."
-                            }
-                        } else {
-                            if let RustType::Option(_) = field_type {
-                                "*"
-                            } else {
-                                "self."
-                            }
-                        },
-                        RustCodeGenerator::rust_field_name(&field_name, true),
-                        Self::get_as_protobuf_type_statement(r),
+                        Self::get_as_protobuf_type_statement(
+                            format!(
+                                "{}{}",
+                                if ProtobufType::String == r.to_protobuf()
+                                    || RustType::VecU8 == r.to_protobuf().to_rust()
+                                {
+                                    if let RustType::Option(_) = field_type {
+                                        ""
+                                    } else {
+                                        "&self."
+                                    }
+                                } else {
+                                    if let RustType::Option(_) = field_type {
+                                        "*"
+                                    } else {
+                                        "self."
+                                    }
+                                },
+                                RustCodeGenerator::rust_field_name(&field_name, true),
+                            ),
+                            r
+                        ),
                     ));
                 }
             };
@@ -581,13 +586,13 @@ impl ProtobufSerializer {
         }
     }
 
-    fn get_as_protobuf_type_statement(role_rust: &RustType) -> String {
+    fn get_as_protobuf_type_statement(string: String, role_rust: &RustType) -> String {
         let proto_rust = role_rust.to_protobuf().to_rust();
 
         if role_rust.ne(&proto_rust) {
-            format!(" as {}", proto_rust.to_string())
+            format!("{}::from({})", proto_rust.to_string(), string)
         } else {
-            "".into()
+            string
         }
     }
 

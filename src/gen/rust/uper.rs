@@ -306,7 +306,7 @@ impl UperSerializer {
             | RustType::U64(Some(_))
             | RustType::I64(_) => {
                 block.line(format!(
-                    "writer.write_int({} as i64, (Self::{}min() as i64, Self::{}max() as i64))?;",
+                    "writer.write_int(i64::from({}), (i64::from(Self::{}min()), i64::from(Self::{}max())))?;",
                     field_name
                         .clone()
                         .map(|f| f.to_string())
