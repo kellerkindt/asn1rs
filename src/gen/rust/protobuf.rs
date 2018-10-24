@@ -287,7 +287,7 @@ impl ProtobufSerializer {
 
     fn impl_write_fn_for_tuple_struct(function: &mut Function, aliased: &RustType) {
         let mut block_writer = Block::new("");
-        let mut block_for = Block::new("for value in self.0.iter()");
+        let mut block_for = Block::new("for value in &self.0");
         block_for.line(format!(
             "writer.write_tag(1, {})?;",
             Self::role_to_format(aliased, "value"),

@@ -359,7 +359,7 @@ impl UperSerializer {
                         .unwrap_or("value".into())
                 ));
                 let mut for_block = Block::new(&format!(
-                    "for value in {}.iter()",
+                    "for value in &{}",
                     field_name
                         .clone()
                         .map(|f| f.no_ref().to_string())
