@@ -1,4 +1,9 @@
-use model::*;
+use model::Definition;
+use model::Model;
+use model::Range;
+use model::Asn;
+use model::ChoiceEntry;
+use model::Import;
 
 const I8_MAX: i64 = ::std::i8::MAX as i64;
 const I16_MAX: i64 = ::std::i16::MAX as i64;
@@ -34,10 +39,6 @@ pub enum RustType {
 }
 
 impl RustType {
-    pub fn to_protobuf(&self) -> ProtobufType {
-        ProtobufType::from(self)
-    }
-
     pub fn into_inner_type(self) -> RustType {
         if self.is_primitive() {
             return self;
@@ -106,7 +107,7 @@ impl RustType {
                 return true;
             },
             RustType::I8(_) => if let RustType::I8(_) = other {
-                return true
+                return true;
             },
             RustType::U16(_) => if let RustType::U16(_) = other {
                 return true;
@@ -308,10 +309,6 @@ impl Model<Rust> {
             Asn::TypeReference(name) => RustType::Complex(name.clone()),
         }
     }
-
-    pub fn to_protobuf(&self) -> Model<protobuf::Protobuf> {
-        Model::convert_rust_to_protobuf(self)
-    }
 }
 
 pub fn rust_field_name(name: &str) -> String {
@@ -377,9 +374,10 @@ mod test {
 
     #[test]
     fn test_simple_asn_sequence_represented_correctly_as_rust_model() {
-        let model_rust = Model::try_from(Parser::default().parse(SIMPLE_INTEGER_STRUCT_ASN).unwrap())
-            .unwrap()
-            .to_rust();
+        let model_rust =
+            Model::try_from(Parser::default().parse(SIMPLE_INTEGER_STRUCT_ASN).unwrap())
+                .unwrap()
+                .to_rust();
 
         assert_eq!("simple_schema", model_rust.name);
         assert_eq!(true, model_rust.imports.is_empty());
@@ -437,9 +435,12 @@ mod test {
 
     #[test]
     fn test_inline_asn_sequence_of_represented_correctly_as_rust_model() {
-        let model_rust = Model::try_from(Parser::default().parse(INLINE_ASN_WITH_SEQUENCE_OF).unwrap())
-            .unwrap()
-            .to_rust();
+        let model_rust = Model::try_from(
+            Parser::default()
+                .parse(INLINE_ASN_WITH_SEQUENCE_OF)
+                .unwrap(),
+        ).unwrap()
+        .to_rust();
 
         assert_eq!("simple_schema", model_rust.name);
         assert_eq!(true, model_rust.imports.is_empty());
@@ -541,9 +542,10 @@ mod test {
 
     #[test]
     fn test_inline_asn_sequence_represented_correctly_as_rust_model() {
-        let model_rust = Model::try_from(Parser::default().parse(INLINE_ASN_WITH_SEQUENCE).unwrap())
-            .unwrap()
-            .to_rust();
+        let model_rust =
+            Model::try_from(Parser::default().parse(INLINE_ASN_WITH_SEQUENCE).unwrap())
+                .unwrap()
+                .to_rust();
 
         assert_eq!("simple_schema", model_rust.name);
         assert_eq!(true, model_rust.imports.is_empty());

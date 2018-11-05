@@ -5,6 +5,8 @@ use gen::Generator;
 
 use model::Error as ModelError;
 use model::Model;
+use model::protobuf::ToProtobufModel;
+
 use parser::Error as ParserError;
 use parser::Parser;
 

@@ -83,6 +83,16 @@ impl ToString for ProtobufType {
     }
 }
 
+pub trait ToProtobufType {
+    fn to_protobuf(&self) -> ProtobufType;
+}
+
+impl ToProtobufType for RustType {
+    fn to_protobuf(&self) -> ProtobufType {
+        ProtobufType::from(self)
+    }
+}
+
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum Protobuf {
     Message(Vec<(String, ProtobufType)>),
@@ -166,6 +176,16 @@ impl Model<Protobuf> {
                 ProtobufType::Repeated(Box::new(Self::definition_type_to_protobuf_type(inner)))
             }
         }
+    }
+}
+
+pub trait ToProtobufModel {
+    fn to_protobuf(&self) -> Model<Protobuf>;
+}
+
+impl ToProtobufModel for Model<Rust> {
+    fn to_protobuf(&self) -> Model<Protobuf> {
+        Model::convert_rust_to_protobuf(self)
     }
 }
 
