@@ -101,23 +101,16 @@ impl Model<Sql> {
         definitions: &mut Vec<Definition<Sql>>,
     ) {
         let mut columns = Vec::with_capacity(fields.len() + 1);
-        // TODO
-        if !fields
-            .iter()
-            .map(|(name, _)| FOREIGN_KEY_DEFAULT_COLUMN.eq_ignore_ascii_case(&name))
-            .any(|found| found)
-        {
-            columns.push(Column {
-                name: FOREIGN_KEY_DEFAULT_COLUMN.into(),
-                sql: SqlType::Serial,
-                primary_key: true,
-            });
-        }
+        columns.push(Column {
+            name: FOREIGN_KEY_DEFAULT_COLUMN.into(),
+            sql: SqlType::Serial,
+            primary_key: true,
+        });
         for (column, rust) in fields {
             columns.push(Column {
-                name: column.clone(),
+                name: Self::sql_column_name(&column),
                 sql: rust.to_sql(),
-                primary_key: column.eq_ignore_ascii_case(FOREIGN_KEY_DEFAULT_COLUMN),
+                primary_key: false,
             });
         }
         definitions.push(Definition(
@@ -145,12 +138,10 @@ impl Model<Sql> {
             });
         }
         for (column, rust) in fields {
-            let column = ::gen::RustCodeGenerator::rust_module_name(&column);
-            let primary_key = column.eq_ignore_ascii_case(FOREIGN_KEY_DEFAULT_COLUMN);
             columns.push(Column {
-                name: column,
+                name: Self::sql_column_name(&column),
                 sql: rust.to_sql().nullable(),
-                primary_key,
+                primary_key: false,
             });
         }
         definitions.push(Definition(
@@ -219,6 +210,16 @@ impl Model<Sql> {
                     ])],
                 )),
             ));
+        }
+    }
+
+    pub fn sql_column_name(name: &str) -> String {
+        if FOREIGN_KEY_DEFAULT_COLUMN.eq_ignore_ascii_case(name.trim()) {
+            let mut string = ::gen::RustCodeGenerator::rust_module_name(name);
+            string.push('_');
+            string
+        } else {
+            ::gen::RustCodeGenerator::rust_module_name(name)
         }
     }
 }
