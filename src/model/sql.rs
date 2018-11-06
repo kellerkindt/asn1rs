@@ -23,6 +23,15 @@ pub enum SqlType {
     References(String, String),
 }
 
+impl SqlType {
+    pub fn nullable(self) -> Self {
+        match self {
+            SqlType::NotNull(inner) => *inner,
+            other => other,
+        }
+    }
+}
+
 impl ToString for SqlType {
     fn to_string(&self) -> String {
         match self {
@@ -53,6 +62,7 @@ pub struct Column {
 #[derive(Debug, Clone)]
 pub enum Constraint {
     CombinedPrimaryKey(Vec<String>),
+    OneNotNull(Vec<String>),
 }
 
 #[derive(Debug, Clone)]
@@ -78,7 +88,7 @@ impl Model<Sql> {
         match rust {
             Rust::Struct(fields) => Self::rust_struct_to_sql_table(name, fields, definitions),
             Rust::Enum(variants) => Self::rust_enum_to_sql_enum(name, variants, definitions),
-            Rust::DataEnum(fields) => Self::rust_struct_to_sql_table(name, fields, definitions),
+            Rust::DataEnum(fields) => Self::rust_data_enum_to_sql_table(name, fields, definitions),
             Rust::TupleStruct(rust) => {
                 Self::rust_tuple_struct_to_sql_table(name, rust, definitions)
             }
@@ -113,6 +123,47 @@ impl Model<Sql> {
         definitions.push(Definition(
             name.into(),
             Sql::Table((columns, Default::default())),
+        ));
+    }
+
+    pub fn rust_data_enum_to_sql_table(
+        name: &str,
+        fields: &[(String, RustType)],
+        definitions: &mut Vec<Definition<Sql>>,
+    ) {
+        let mut columns = Vec::with_capacity(fields.len() + 1);
+        // TODO
+        if !fields
+            .iter()
+            .map(|(name, _)| FOREIGN_KEY_DEFAULT_COLUMN.eq_ignore_ascii_case(&name))
+            .fold(false, |found_prev, found_now| found_prev || found_now)
+        {
+            columns.push(Column {
+                name: FOREIGN_KEY_DEFAULT_COLUMN.into(),
+                sql: SqlType::Serial,
+                primary_key: true,
+            });
+        }
+        for (column, rust) in fields {
+            let column = ::gen::RustCodeGenerator::rust_module_name(&column);
+            let primary_key = column.eq_ignore_ascii_case(FOREIGN_KEY_DEFAULT_COLUMN);
+            columns.push(Column {
+                name: column,
+                sql: rust.to_sql().nullable(),
+                primary_key,
+            });
+        }
+        definitions.push(Definition(
+            name.into(),
+            Sql::Table((
+                columns,
+                vec![Constraint::OneNotNull(
+                    fields
+                        .iter()
+                        .map(|(name, _)| ::gen::RustCodeGenerator::rust_module_name(&name))
+                        .collect::<Vec<String>>(),
+                )],
+            )),
         ));
     }
 

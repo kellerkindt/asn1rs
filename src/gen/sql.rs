@@ -120,6 +120,9 @@ impl SqlDefGenerator {
             Constraint::CombinedPrimaryKey(columns) => {
                 write!(target, "    PRIMARY KEY({})", columns.join(", "))?;
             },
+            Constraint::OneNotNull(columns) => {
+                write!(target, "    CHECK (num_nonnulls({}) = 1)", columns.join(", "))?;
+            }
         }
         Ok(())
     }
