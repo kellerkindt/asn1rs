@@ -1,9 +1,9 @@
-use model::Definition;
-use model::Model;
-use model::Range;
 use model::Asn;
 use model::ChoiceEntry;
+use model::Definition;
 use model::Import;
+use model::Model;
+use model::Range;
 
 const I8_MAX: i64 = ::std::i8::MAX as i64;
 const I16_MAX: i64 = ::std::i16::MAX as i64;
@@ -370,6 +370,7 @@ pub fn rust_module_name(name: &str) -> String {
 mod test {
     use super::*;
     use model::test::*;
+    use model::Field;
     use parser::Parser;
 
     #[test]
