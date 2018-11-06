@@ -25,7 +25,11 @@ pub struct SqlDefGenerator {
 impl Generator<Sql> for SqlDefGenerator {
     type Error = Error;
 
-    fn add_model(&mut self, model: Model<Sql>) {
+    fn add_model(&mut self, mut model: Model<Sql>) {
+        for m in &mut self.models {
+            m.update_enum_references(&model.definitions);
+            model.update_enum_references(&m.definitions);
+        }
         self.models.push(model);
     }
 
@@ -40,16 +44,19 @@ impl Generator<Sql> for SqlDefGenerator {
     fn to_string(&self) -> Result<Vec<(String, String)>, <Self as Generator<Sql>>::Error> {
         let mut files = Vec::with_capacity(self.models.len());
         for model in &self.models {
-            let mut string = String::new();
+            let mut drop = String::new();
+            let mut create = String::new();
             for Definition(name, sql) in &model.definitions {
+                writeln!(drop, "DROP TABLE IF EXISTS {} CASCADE;", name);
                 match sql {
                     Sql::Table((columns, constraints)) => {
-                        Self::append_create_table(&mut string, name, columns, constraints)?;
+                        Self::append_create_table(&mut create, name, columns, constraints)?;
                     }
-                    Sql::Enum(variants) => Self::append_create_enum(&mut string, name, variants)?,
+                    Sql::Enum(variants) => Self::append_create_enum(&mut create, name, variants)?,
                 }
             }
-            files.push((format!("{}.sql", model.name), string));
+            drop.push_str(&create);
+            files.push((format!("{}.sql", model.name), drop));
         }
         Ok(files)
     }
@@ -65,7 +72,14 @@ impl SqlDefGenerator {
         writeln!(target, "CREATE TABLE {} (", name)?;
         for (index, column) in columns.iter().enumerate() {
             Self::append_column_statement(target, column)?;
-            if index + 1 < columns.len() {
+            if index + 1 < columns.len() || !constraints.is_empty() {
+                write!(target, ",");
+            }
+            writeln!(target);
+        }
+        for (index, constraint) in constraints.iter().enumerate() {
+            Self::append_constraint(target, constraint)?;
+            if index + 1 < constraints.len() {
                 write!(target, ",");
             }
             writeln!(target);
@@ -87,14 +101,30 @@ impl SqlDefGenerator {
         name: &String,
         variants: &[String],
     ) -> Result<(), Error> {
-        write!(target, "CREATE TYPE {} AS ENUM (", name)?;
+        writeln!(target, "CREATE TABLE {} (", name)?;
+        writeln!(target, "    id SERIAL PRIMARY KEY,")?;
+        writeln!(target, "    name TEXT NOT NULL")?;
+        writeln!(target, ");")?;
+
+        writeln!(target, "INSERT INTO {} (id, name) VALUES", name);
         for (index, variant) in variants.iter().enumerate() {
-            write!(target, "'{}'", variant)?;
+            write!  (target, "    ({}, '{}')", index, variant)?;
             if index + 1 < variants.len() {
                 write!(target, ", ")?;
+            } else {
+                write!(target, ";")?;
             }
+            writeln!(target)?;
         }
-        writeln!(target, ");");
+        Ok(())
+    }
+
+    fn append_constraint(target: &mut Write, constraint: &Constraint) -> Result<(), Error> {
+        match constraint {
+            Constraint::CombinedPrimaryKey(columns) => {
+                write!(target, "    PRIMARY KEY({})", columns.join(", "))?;
+            },
+        }
         Ok(())
     }
 }

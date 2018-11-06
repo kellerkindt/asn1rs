@@ -96,14 +96,16 @@ pub fn convert_to_proto<F: AsRef<Path>, D: AsRef<Path>>(
 }
 
 pub fn convert_to_sql<F: AsRef<Path>, D: AsRef<Path>>(
-    file: F,
+    files: &[F],
     dir: D,
 ) -> Result<Vec<String>, Error> {
-    let input = ::std::fs::read_to_string(file)?;
-    let tokens = Parser::default().parse(&input)?;
-    let model = Model::try_from(tokens)?;
     let mut generator = SqlGenerator::default();
-    generator.add_model(model.to_rust().to_sql());
+    for file in files {
+        let input = ::std::fs::read_to_string(file)?;
+        let tokens = Parser::default().parse(&input)?;
+        let model = Model::try_from(tokens)?;
+        generator.add_model(model.to_rust().to_sql());
+    }
     let output = generator.to_string()?;
 
     let mut files = Vec::new();

@@ -40,20 +40,31 @@ pub fn main() {
     let destination = matches.value_of("DESTINATION_DIR").unwrap();
     let sources = matches.values_of("SOURCE_FILES").unwrap();
 
-    for source in sources {
-        let result = match matches.value_of("CONVERSION_TARGET").unwrap() {
-            "rust" => converter::convert_to_rust(source, destination),
-            "proto" => converter::convert_to_proto(source, destination),
-            "sql" => converter::convert_to_sql(source, destination),
-            e => panic!("Unexpected CONVERSION_TARGET={}", e),
-        };
-        match result {
-            Err(e) => println!("Failed to convert {}, reason: {:?}", source, e),
-            Ok(mut files) => {
-                println!("Successfully converted {} => {}", source, files.remove(0));
-                files
-                    .iter()
-                    .for_each(|f| println!("                          => {}", f));
+    if "sql".eq(matches.value_of("CONVERSION_TARGET").unwrap()) {
+        match converter::convert_to_sql(&sources.into_iter().map(|s| s.into()).collect::<Vec<String>>(), destination) {
+            Err(e) => println!("Failed to convert, reason: {:?}", e),
+            Ok(files) => {
+                println!("Successfully converted");
+                for file in files {
+                    println!(" + created file {}", file);
+                }
+            }
+        }
+    } else {
+        for source in sources {
+            let result = match matches.value_of("CONVERSION_TARGET").unwrap() {
+                "rust" => converter::convert_to_rust(source, destination),
+                "proto" => converter::convert_to_proto(source, destination),
+                e => panic!("Unexpected CONVERSION_TARGET={}", e),
+            };
+            match result {
+                Err(e) => println!("Failed to convert {}, reason: {:?}", source, e),
+                Ok(mut files) => {
+                    println!("Successfully converted {} => {}", source, files.remove(0));
+                    files
+                        .iter()
+                        .for_each(|f| println!("                          => {}", f));
+                }
             }
         }
     }

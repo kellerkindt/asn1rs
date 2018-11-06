@@ -8,7 +8,7 @@ const FOREIGN_KEY_DEFAULT_COLUMN: &str = "id";
 const TUPLE_LIST_ENTRY_PARENT_COLUMN: &str = "list";
 const TUPLE_LIST_ENTRY_VALUE_COLUMN: &str = "value";
 
-#[derive(Debug, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum SqlType {
     SmallInt, // 2byte
     Integer,  // 4byte
@@ -43,19 +43,19 @@ impl ToString for SqlType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Column {
     pub name: String,
     pub sql: SqlType,
     pub primary_key: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Constraint {
     CombinedPrimaryKey(Vec<String>),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Sql {
     Table((Vec<Column>, Vec<Constraint>)),
     Enum(Vec<String>),
@@ -91,16 +91,23 @@ impl Model<Sql> {
         definitions: &mut Vec<Definition<Sql>>,
     ) {
         let mut columns = Vec::with_capacity(fields.len() + 1);
-        columns.push(Column {
-            name: FOREIGN_KEY_DEFAULT_COLUMN.into(),
-            sql: SqlType::Serial,
-            primary_key: true,
-        });
+        // TODO
+        if !fields
+            .iter()
+            .map(|(name, _)| FOREIGN_KEY_DEFAULT_COLUMN.eq_ignore_ascii_case(&name))
+            .fold(false, |found_prev, found_now| found_prev || found_now)
+        {
+            columns.push(Column {
+                name: FOREIGN_KEY_DEFAULT_COLUMN.into(),
+                sql: SqlType::Serial,
+                primary_key: true,
+            });
+        }
         for (column, rust) in fields {
             columns.push(Column {
                 name: column.clone(),
                 sql: rust.to_sql(),
-                primary_key: false,
+                primary_key: column.eq_ignore_ascii_case(FOREIGN_KEY_DEFAULT_COLUMN),
             });
         }
         definitions.push(Definition(
@@ -143,10 +150,10 @@ impl Model<Sql> {
                     vec![
                         Column {
                             name: TUPLE_LIST_ENTRY_PARENT_COLUMN.into(),
-                            sql: SqlType::References(
+                            sql: SqlType::NotNull(Box::new(SqlType::References(
                                 name.into(),
                                 FOREIGN_KEY_DEFAULT_COLUMN.into(),
-                            ),
+                            ))),
                             primary_key: false,
                         },
                         Column {
@@ -161,6 +168,29 @@ impl Model<Sql> {
                     ])],
                 )),
             ));
+        }
+    }
+
+    pub fn update_enum_references(&mut self, definitions: &[Definition<Sql>]) {
+        for Definition(_name, sql) in &mut self.definitions {
+            if let Sql::Table((columns, _constraints)) = sql {
+                for column in columns {
+                    let mut replace_by = None;
+                    if let SqlType::References(ref other, _) = column.sql {
+                        for Definition(other_name, other_sql) in definitions {
+                            if other.eq(other_name) {
+                                if let Sql::Enum(_) = other_sql {
+                                    replace_by = Some(SqlType::Enum(other.clone()));
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    if let Some(replacement) = replace_by.take() {
+                        column.sql = replacement;
+                    }
+                }
+            }
         }
     }
 }
