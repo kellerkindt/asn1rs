@@ -25,11 +25,7 @@ pub struct SqlDefGenerator {
 impl Generator<Sql> for SqlDefGenerator {
     type Error = Error;
 
-    fn add_model(&mut self, mut model: Model<Sql>) {
-        for m in &mut self.models {
-            m.update_enum_references(&model.definitions);
-            model.update_enum_references(&m.definitions);
-        }
+    fn add_model(&mut self, model: Model<Sql>) {
         self.models.push(model);
     }
 

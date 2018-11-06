@@ -170,29 +170,6 @@ impl Model<Sql> {
             ));
         }
     }
-
-    pub fn update_enum_references(&mut self, definitions: &[Definition<Sql>]) {
-        for Definition(_name, sql) in &mut self.definitions {
-            if let Sql::Table((columns, _constraints)) = sql {
-                for column in columns {
-                    let mut replace_by = None;
-                    if let SqlType::References(ref other, _) = column.sql {
-                        for Definition(other_name, other_sql) in definitions {
-                            if other.eq(other_name) {
-                                if let Sql::Enum(_) = other_sql {
-                                    replace_by = Some(SqlType::Enum(other.clone()));
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    if let Some(replacement) = replace_by.take() {
-                        column.sql = replacement;
-                    }
-                }
-            }
-        }
-    }
 }
 
 pub trait ToSqlModel {
