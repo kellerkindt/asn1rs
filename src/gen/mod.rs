@@ -1,5 +1,6 @@
 pub mod protobuf;
 pub mod rust;
+pub mod sql;
 
 pub use self::rust::RustCodeGenerator;
 

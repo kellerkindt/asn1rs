@@ -5,10 +5,10 @@ use codegen::Scope;
 
 use model::Definition;
 
+use model::protobuf::ToProtobufType;
 use model::ProtobufType;
 use model::Rust;
 use model::RustType;
-use model::protobuf::ToProtobufType;
 
 use gen::rust::GeneratorSupplement;
 use gen::rust::RustCodeGenerator;

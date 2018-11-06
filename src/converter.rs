@@ -1,11 +1,14 @@
 use gen::protobuf::Error as ProtobufGeneratorError;
 use gen::protobuf::ProtobufDefGenerator as ProtobufGenerator;
 use gen::rust::RustCodeGenerator as RustGenerator;
+use gen::sql::Error as SqlGeneratorError;
+use gen::sql::SqlDefGenerator as SqlGenerator;
 use gen::Generator;
 
+use model::protobuf::ToProtobufModel;
+use model::sql::ToSqlModel;
 use model::Error as ModelError;
 use model::Model;
-use model::protobuf::ToProtobufModel;
 
 use parser::Error as ParserError;
 use parser::Parser;
@@ -17,6 +20,7 @@ use std::path::Path;
 pub enum Error {
     RustGenerator,
     ProtobufGenerator(ProtobufGeneratorError),
+    SqlGenerator(SqlGeneratorError),
     Model(ModelError),
     Parser(ParserError),
     Io(IoError),
@@ -25,6 +29,12 @@ pub enum Error {
 impl From<ProtobufGeneratorError> for Error {
     fn from(g: ProtobufGeneratorError) -> Self {
         Error::ProtobufGenerator(g)
+    }
+}
+
+impl From<SqlGeneratorError> for Error {
+    fn from(e: SqlGeneratorError) -> Self {
+        Error::SqlGenerator(e)
     }
 }
 
@@ -75,6 +85,25 @@ pub fn convert_to_proto<F: AsRef<Path>, D: AsRef<Path>>(
     let model = Model::try_from(tokens)?;
     let mut generator = ProtobufGenerator::default();
     generator.add_model(model.to_rust().to_protobuf());
+    let output = generator.to_string()?;
+
+    let mut files = Vec::new();
+    for (file, content) in output {
+        ::std::fs::write(dir.as_ref().join(&file), content)?;
+        files.push(file);
+    }
+    Ok(files)
+}
+
+pub fn convert_to_sql<F: AsRef<Path>, D: AsRef<Path>>(
+    file: F,
+    dir: D,
+) -> Result<Vec<String>, Error> {
+    let input = ::std::fs::read_to_string(file)?;
+    let tokens = Parser::default().parse(&input)?;
+    let model = Model::try_from(tokens)?;
+    let mut generator = SqlGenerator::default();
+    generator.add_model(model.to_rust().to_sql());
     let output = generator.to_string()?;
 
     let mut files = Vec::new();

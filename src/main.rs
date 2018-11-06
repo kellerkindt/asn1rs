@@ -24,7 +24,7 @@ pub fn main() {
                 .multiple(false)
                 .value_name("CONVERSION_TARGET")
                 .default_value("rust")
-                .possible_values(&["rust", "proto"]),
+                .possible_values(&["rust", "proto", "sql"]),
         ).arg(
             Arg::with_name("DESTINATION_DIR")
                 .required(true)
@@ -44,6 +44,7 @@ pub fn main() {
         let result = match matches.value_of("CONVERSION_TARGET").unwrap() {
             "rust" => converter::convert_to_rust(source, destination),
             "proto" => converter::convert_to_proto(source, destination),
+            "sql" => converter::convert_to_sql(source, destination),
             e => panic!("Unexpected CONVERSION_TARGET={}", e),
         };
         match result {
