@@ -105,7 +105,7 @@ impl Model<Sql> {
         if !fields
             .iter()
             .map(|(name, _)| FOREIGN_KEY_DEFAULT_COLUMN.eq_ignore_ascii_case(&name))
-            .fold(false, |found_prev, found_now| found_prev || found_now)
+            .any(|found| found)
         {
             columns.push(Column {
                 name: FOREIGN_KEY_DEFAULT_COLUMN.into(),
@@ -136,7 +136,7 @@ impl Model<Sql> {
         if !fields
             .iter()
             .map(|(name, _)| FOREIGN_KEY_DEFAULT_COLUMN.eq_ignore_ascii_case(&name))
-            .fold(false, |found_prev, found_now| found_prev || found_now)
+            .any(|found| found)
         {
             columns.push(Column {
                 name: FOREIGN_KEY_DEFAULT_COLUMN.into(),

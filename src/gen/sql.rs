@@ -61,7 +61,7 @@ impl Generator<Sql> for SqlDefGenerator {
 impl SqlDefGenerator {
     pub fn append_create_table(
         target: &mut Write,
-        name: &String,
+        name: &str,
         columns: &[Column],
         constraints: &[Constraint],
     ) -> Result<(), Error> {
@@ -94,7 +94,7 @@ impl SqlDefGenerator {
 
     pub fn append_create_enum(
         target: &mut Write,
-        name: &String,
+        name: &str,
         variants: &[String],
     ) -> Result<(), Error> {
         writeln!(target, "CREATE TABLE {} (", name)?;
