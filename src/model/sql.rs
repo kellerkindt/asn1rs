@@ -46,7 +46,7 @@ impl ToString for SqlType {
             SqlType::NotNull(inner) => format!("{} NOT NULL", inner.to_string()),
             SqlType::ByteArray => "BYTEA".into(),
             SqlType::References(table, column) => {
-                format!("INTEGER REFERENCES {}({})", table, column)
+                format!("INTEGER REFERENCES {}({}) ON DELETE CASCADE", table, column)
             }
         }
     }
