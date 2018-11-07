@@ -43,12 +43,24 @@ impl Generator<Sql> for SqlDefGenerator {
             let mut drop = String::new();
             let mut create = String::new();
             for Definition(name, sql) in &model.definitions {
-                writeln!(drop, "DROP TABLE IF EXISTS {} CASCADE;", name);
+                writeln!(create);
                 match sql {
                     Sql::Table((columns, constraints)) => {
+                        // TODO
+                        writeln!(drop, "DROP TABLE IF EXISTS {} CASCADE;", name);
                         Self::append_create_table(&mut create, name, columns, constraints)?;
                     }
-                    Sql::Enum(variants) => Self::append_create_enum(&mut create, name, variants)?,
+                    Sql::Enum(variants) => {
+                        // TODO
+                        writeln!(drop, "DROP TABLE IF EXISTS {} CASCADE;", name);
+                        Self::append_create_enum(&mut create, name, variants)?
+                    },
+                    Sql::Index(table, columns) => {
+                        Self::append_index(&mut create, name, table, &columns[..])?;
+                    }
+                    Sql::AbandonChildrenFunction(table, children) => {
+                        Self::append_abandon_children(&mut create, table, name, &children[..])?;
+                    }
                 }
             }
             drop.push_str(&create);
@@ -104,7 +116,7 @@ impl SqlDefGenerator {
 
         writeln!(target, "INSERT INTO {} (id, name) VALUES", name);
         for (index, variant) in variants.iter().enumerate() {
-            write!  (target, "    ({}, '{}')", index, variant)?;
+            write!(target, "    ({}, '{}')", index, variant)?;
             if index + 1 < variants.len() {
                 write!(target, ", ")?;
             } else {
@@ -119,11 +131,62 @@ impl SqlDefGenerator {
         match constraint {
             Constraint::CombinedPrimaryKey(columns) => {
                 write!(target, "    PRIMARY KEY({})", columns.join(", "))?;
-            },
+            }
             Constraint::OneNotNull(columns) => {
-                write!(target, "    CHECK (num_nonnulls({}) = 1)", columns.join(", "))?;
+                write!(
+                    target,
+                    "    CHECK (num_nonnulls({}) = 1)",
+                    columns.join(", ")
+                )?;
             }
         }
+        Ok(())
+    }
+
+    fn append_index(
+        target: &mut Write,
+        name: &str,
+        table: &str,
+        columns: &[String],
+    ) -> Result<(), Error> {
+        writeln!(
+            target,
+            "CREATE INDEX {} ON {}({});",
+            name,
+            table,
+            columns.join(", ")
+        )?;
+        Ok(())
+    }
+
+    fn append_abandon_children(
+        target: &mut Write,
+        table: &str,
+        name: &str,
+        children: &[(String, String, String)],
+    ) -> Result<(), Error> {
+        writeln!(
+            target,
+            "CREATE OR REPLACE FUNCTION {}() RETURNS TRIGGER AS",
+            name
+        )?;
+        writeln!(target, "$$ BEGIN")?;
+        for (column, other_table, other_column) in children {
+            writeln!(
+                target,
+                "    DELETE FROM {} WHERE {} = OLD.{};",
+                other_table, other_column, column
+            )?;
+        }
+        writeln!(target, "    RETURN NULL;")?;
+        writeln!(target, "END; $$ LANGUAGE plpgsql;")?;
+        writeln!(
+            target,
+            "CREATE TRIGGER OnDelete{} AFTER DELETE ON {}",
+            name, table
+        )?;
+        writeln!(target, "    FOR EACH ROW")?;
+        writeln!(target, "    EXECUTE PROCEDURE {}();", name)?;
         Ok(())
     }
 }

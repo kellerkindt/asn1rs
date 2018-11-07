@@ -41,7 +41,7 @@ impl SqlType {
             SqlType::Array(inner) => RustType::Vec(Box::new(inner.to_rust())),
             SqlType::NotNull(inner) => return inner.to_rust().no_option(),
             SqlType::ByteArray => RustType::VecU8,
-            SqlType::References(name, _) => RustType::Complex(name.clone())
+            SqlType::References(name, _) => RustType::Complex(name.clone()),
         }))
     }
 }
@@ -82,6 +82,8 @@ pub enum Constraint {
 pub enum Sql {
     Table((Vec<Column>, Vec<Constraint>)),
     Enum(Vec<String>),
+    Index(String, Vec<String>),
+    AbandonChildrenFunction(String, Vec<(String, String, String)>),
 }
 
 impl Model<Sql> {
@@ -130,6 +132,8 @@ impl Model<Sql> {
             name.into(),
             Sql::Table((columns, Default::default())),
         ));
+
+        Self::append_index_and_abandon_function(name, fields, definitions);
     }
 
     pub fn rust_data_enum_to_sql_table(
@@ -169,6 +173,22 @@ impl Model<Sql> {
                 )],
             )),
         ));
+
+        Self::append_index_and_abandon_function(name, fields, definitions);
+    }
+
+    fn add_index_if_applicable(
+        table: &str,
+        column: &str,
+        rust: &RustType,
+        definitions: &mut Vec<Definition<Sql>>,
+    ) {
+        if let SqlType::References(_, _) = rust.to_sql().nullable() {
+            definitions.push(Definition(
+                String::default(),
+                Sql::Index(table.into(), vec![column.into()]),
+            ));
+        }
     }
 
     pub fn rust_enum_to_sql_enum(
@@ -234,6 +254,35 @@ impl Model<Sql> {
         } else {
             ::gen::RustCodeGenerator::rust_module_name(name)
         }
+    }
+
+    fn append_index_and_abandon_function(
+        name: &str,
+        fields: &[(String, RustType)],
+        definitions: &mut Vec<Definition<Sql>>,
+    ) {
+        let mut children = Vec::new();
+        for (column, rust) in fields {
+            let column = Self::sql_column_name(column);
+            Self::add_index_if_applicable(name, &column, rust, definitions);
+            if let SqlType::References(other_table, other_column) = rust.to_sql().nullable() {
+                children.push((column, other_table, other_column));
+            }
+        }
+        if !children.is_empty() {
+            Self::add_abandon_children(name, children, definitions);
+        }
+    }
+
+    fn add_abandon_children(
+        name: &str,
+        children: Vec<(String, String, String)>,
+        definitions: &mut Vec<Definition<Sql>>,
+    ) {
+        definitions.push(Definition(
+            format!("AbandonChildrenOf{}", name),
+            Sql::AbandonChildrenFunction(name.into(), children),
+        ));
     }
 }
 
