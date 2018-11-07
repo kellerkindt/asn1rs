@@ -521,6 +521,123 @@ mod tests {
     }
 
     #[test]
+    fn test_conversion_tuple_struct() {
+        let model = Model {
+            name: "Hurray".into(),
+            imports: vec![Import {
+                what: vec!["a".into(), "b".into()],
+                from: "to_be_ignored".into(),
+            }],
+            definitions: vec![
+                Definition("Whatever".into(), Rust::TupleStruct(RustType::String)),
+                Definition(
+                    "Whatelse".into(),
+                    Rust::TupleStruct(RustType::Complex("Whatever".into())),
+                ),
+            ],
+        }.to_sql();
+        assert_eq!("Hurray", &model.name);
+        assert!(model.imports.is_empty());
+        assert_eq!(
+            &vec![
+                Definition(
+                    "Whatever".into(),
+                    Sql::Table((
+                        vec![Column {
+                            name: "id".into(),
+                            sql: SqlType::Serial,
+                            primary_key: true
+                        },],
+                        vec![]
+                    ))
+                ),
+                Definition(
+                    "WhateverListEntry".into(),
+                    Sql::Table((
+                        vec![
+                            Column {
+                                name: "list".into(),
+                                sql: SqlType::NotNull(
+                                    SqlType::References(
+                                        "Whatever".into(),
+                                        "id".into(),
+                                        Some(Action::Cascade),
+                                        Some(Action::Cascade),
+                                    ).into()
+                                ),
+                                primary_key: false
+                            },
+                            Column {
+                                name: "value".into(),
+                                sql: SqlType::NotNull(SqlType::Text.into()),
+                                primary_key: false
+                            },
+                        ],
+                        vec![Constraint::CombinedPrimaryKey(vec![
+                            "list".into(),
+                            "value".into()
+                        ])]
+                    ))
+                ),
+                Definition(
+                    "Whatelse".into(),
+                    Sql::Table((
+                        vec![Column {
+                            name: "id".into(),
+                            sql: SqlType::Serial,
+                            primary_key: true
+                        },],
+                        vec![]
+                    ))
+                ),
+                Definition(
+                    "WhatelseListEntry".into(),
+                    Sql::Table((
+                        vec![
+                            Column {
+                                name: "list".into(),
+                                sql: SqlType::NotNull(
+                                    SqlType::References(
+                                        "Whatelse".into(),
+                                        "id".into(),
+                                        Some(Action::Cascade),
+                                        Some(Action::Cascade),
+                                    ).into()
+                                ),
+                                primary_key: false
+                            },
+                            Column {
+                                name: "value".into(),
+                                sql: SqlType::NotNull(
+                                    SqlType::References(
+                                        "Whatever".into(),
+                                        FOREIGN_KEY_DEFAULT_COLUMN.into(),
+                                        Some(Action::Cascade),
+                                        Some(Action::Cascade),
+                                    ).into()
+                                ),
+                                primary_key: false
+                            },
+                        ],
+                        vec![Constraint::CombinedPrimaryKey(vec![
+                            "list".into(),
+                            "value".into()
+                        ])]
+                    ))
+                ),
+                Definition(
+                    "AbandonChildrenOfPersonWhatelseListEntry".into(),
+                    Sql::AbandonChildrenFunction(
+                        "Whatever".into(),
+                        vec![("value".into(), "Whatever".into(), "id".into())],
+                    )
+                )
+            ],
+            &model.definitions
+        );
+    }
+
+    #[test]
     fn test_rust_to_sql_to_rust() {
         assert_eq!(RustType::Bool.to_sql().to_rust(), RustType::Bool);
         assert_eq!(
