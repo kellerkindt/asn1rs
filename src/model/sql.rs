@@ -58,9 +58,10 @@ impl ToString for SqlType {
             SqlType::Array(inner) => format!("{}[]", inner.to_string()),
             SqlType::NotNull(inner) => format!("{} NOT NULL", inner.to_string()),
             SqlType::ByteArray => "BYTEA".into(),
-            SqlType::References(table, column) => {
-                format!("INTEGER REFERENCES {}({}) ON DELETE CASCADE ON UPDATE CASCADE", table, column)
-            }
+            SqlType::References(table, column) => format!(
+                "INTEGER REFERENCES {}({}) ON DELETE CASCADE ON UPDATE CASCADE",
+                table, column
+            ),
         }
     }
 }
@@ -302,36 +303,98 @@ pub trait ToSql {
 
 impl ToSql for RustType {
     fn to_sql(&self) -> SqlType {
-        fn to_sql_internal(rust: &RustType) -> SqlType {
-            match rust {
-                RustType::Bool => SqlType::Boolean,
-                RustType::U8(_) => SqlType::SmallInt,
-                RustType::I8(_) => SqlType::SmallInt,
-                RustType::U16(Range(_, upper)) if *upper < ::std::i16::MAX as u16 => {
-                    SqlType::SmallInt
-                }
-                RustType::U16(_) => SqlType::Integer,
-                RustType::I16(_) => SqlType::SmallInt,
-                RustType::U32(Range(_, upper)) if *upper < ::std::i32::MAX as u32 => {
-                    SqlType::Integer
-                }
-                RustType::U32(_) => SqlType::BigInt,
-                RustType::I32(_) => SqlType::Integer,
-                RustType::U64(_) => SqlType::BigInt,
-                RustType::I64(_) => SqlType::BigInt,
-                RustType::String => SqlType::Text,
-                RustType::VecU8 => SqlType::ByteArray,
-                RustType::Vec(inner) => SqlType::Array(to_sql_internal(inner).into()),
-                RustType::Option(inner) => to_sql_internal(inner),
-                RustType::Complex(name) => {
-                    SqlType::References(name.clone(), FOREIGN_KEY_DEFAULT_COLUMN.into())
-                }
+        SqlType::NotNull(Box::new(match self {
+            RustType::Bool => SqlType::Boolean,
+            RustType::U8(_) => SqlType::SmallInt,
+            RustType::I8(_) => SqlType::SmallInt,
+            RustType::U16(Range(_, upper)) if *upper <= ::std::i16::MAX as u16 => SqlType::SmallInt,
+            RustType::U16(_) => SqlType::Integer,
+            RustType::I16(_) => SqlType::SmallInt,
+            RustType::U32(Range(_, upper)) if *upper <= ::std::i32::MAX as u32 => SqlType::Integer,
+            RustType::U32(_) => SqlType::BigInt,
+            RustType::I32(_) => SqlType::Integer,
+            RustType::U64(_) => SqlType::BigInt,
+            RustType::I64(_) => SqlType::BigInt,
+            RustType::String => SqlType::Text,
+            RustType::VecU8 => SqlType::ByteArray,
+            RustType::Vec(inner) => SqlType::Array(inner.to_sql().into()),
+            RustType::Option(inner) => return inner.to_sql().nullable(),
+            RustType::Complex(name) => {
+                SqlType::References(name.clone(), FOREIGN_KEY_DEFAULT_COLUMN.into())
             }
-        }
-        if let RustType::Option(_) = self {
-            to_sql_internal(self)
-        } else {
-            SqlType::NotNull(Box::new(to_sql_internal(self)))
-        }
+        }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn to_from_sql() {
+        assert_eq!(RustType::Bool.to_sql().to_rust(), RustType::Bool);
+        assert_eq!(
+            RustType::I8(Range(0, ::std::i8::MAX)).to_sql().to_rust(),
+            RustType::I16(Range(0, ::std::i16::MAX))
+        );
+        assert_eq!(
+            RustType::U8(Range(0, ::std::u8::MAX)).to_sql().to_rust(),
+            RustType::I16(Range(0, ::std::i16::MAX))
+        );
+        assert_eq!(
+            RustType::I16(Range(0, ::std::i16::MAX)).to_sql().to_rust(),
+            RustType::I16(Range(0, ::std::i16::MAX))
+        );
+        assert_eq!(
+            RustType::U16(Range(0, ::std::i16::MAX as u16)).to_sql().to_rust(),
+            RustType::I16(Range(0, ::std::i16::MAX))
+        );
+        assert_eq!(
+            RustType::U16(Range(0, ::std::u16::MAX)).to_sql().to_rust(),
+            RustType::I32(Range(0, ::std::i32::MAX))
+        );
+        assert_eq!(
+            RustType::I32(Range(0, ::std::i32::MAX)).to_sql().to_rust(),
+            RustType::I32(Range(0, ::std::i32::MAX))
+        );
+        assert_eq!(
+            RustType::U32(Range(0, ::std::i32::MAX as u32)).to_sql().to_rust(),
+            RustType::I32(Range(0, ::std::i32::MAX))
+        );
+        assert_eq!(
+            RustType::U32(Range(0, ::std::u32::MAX)).to_sql().to_rust(),
+            RustType::I64(Range(0, ::std::i64::MAX))
+        );
+        assert_eq!(
+            RustType::I64(Range(0, ::std::i64::MAX)).to_sql().to_rust(),
+            RustType::I64(Range(0, ::std::i64::MAX))
+        );
+        assert_eq!(
+            RustType::U64(None).to_sql().to_rust(),
+            RustType::I64(Range(0, ::std::i64::MAX))
+        );
+        assert_eq!(
+            RustType::U64(Some(Range(0, ::std::u64::MAX)))
+                .to_sql()
+                .to_rust(),
+            RustType::I64(Range(0, ::std::i64::MAX))
+        );
+
+        assert_eq!(RustType::String.to_sql().to_rust(), RustType::String,);
+        assert_eq!(RustType::VecU8.to_sql().to_rust(), RustType::VecU8,);
+        assert_eq!(
+            RustType::Vec(Box::new(RustType::String)).to_sql().to_rust(),
+            RustType::Vec(Box::new(RustType::String)),
+        );
+        assert_eq!(
+            RustType::Option(Box::new(RustType::VecU8))
+                .to_sql()
+                .to_rust(),
+            RustType::Option(Box::new(RustType::VecU8)),
+        );
+        assert_eq!(
+            RustType::Complex("MuchComplex".into()).to_sql().to_rust(),
+            RustType::Complex("MuchComplex".into()),
+        );
     }
 }
