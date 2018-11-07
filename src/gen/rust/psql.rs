@@ -4,10 +4,8 @@ use codegen::Impl;
 use codegen::Scope;
 use gen::rust::GeneratorSupplement;
 use gen::rust::RustCodeGenerator;
-use model::sql::SqlType;
 use model::sql::ToSql;
 use model::Definition;
-use model::Field;
 use model::Rust;
 use model::RustType;
 
@@ -30,30 +28,34 @@ impl GeneratorSupplement<Rust> for PsqlInserter {
                     name,
                     &fields[..],
                 );
-                Self::impl_struct_insert_fn(Self::new_insert_fn(implementation), name, &fields[..]);
+                Self::impl_struct_insert_fn(
+                    Self::new_insert_fn(implementation, true),
+                    name,
+                    &fields[..],
+                );
             }
             Rust::DataEnum(fields) => {
-                Self::impl_struct_insert_statement(
+                Self::impl_data_enum_insert_statement(
                     Self::new_insert_statement_fn(implementation),
                     name,
                     &fields[..],
                 );
                 Self::impl_data_enum_insert_fn(
-                    Self::new_insert_fn(implementation),
+                    Self::new_insert_fn(implementation, true),
                     name,
                     &fields[..],
                 );
             }
             Rust::Enum(_) => {
                 Self::impl_enum_insert_statement(Self::new_insert_statement_fn(implementation));
-                Self::impl_enum_insert_fn(Self::new_insert_fn(implementation));
+                Self::impl_enum_insert_fn(Self::new_insert_fn(implementation, false));
             }
             Rust::TupleStruct(rust) => {
                 Self::impl_tuple_insert_statement(
                     Self::new_insert_statement_fn(implementation),
                     name,
                 );
-                Self::impl_tuple_insert_fn(Self::new_insert_fn(implementation), name, rust);
+                Self::impl_tuple_insert_fn(Self::new_insert_fn(implementation, true), name, rust);
             }
         }
     }
@@ -70,12 +72,18 @@ impl PsqlInserter {
             .ret("&'static str")
     }
 
-    fn new_insert_fn(implementation: &mut Impl) -> &mut Function {
+    fn new_insert_fn(implementation: &mut Impl, using_transaction: bool) -> &mut Function {
         implementation
             .new_fn("insert_with")
             .arg_ref_self()
-            .arg("transaction", "&Transaction")
-            .ret("Result<i32, PsqlError>")
+            .arg(
+                if using_transaction {
+                    "transaction"
+                } else {
+                    "_"
+                },
+                "&Transaction",
+            ).ret("Result<i32, PsqlError>")
     }
 
     fn impl_struct_insert_statement(
@@ -104,6 +112,32 @@ impl PsqlInserter {
         }
     }
 
+    fn impl_data_enum_insert_statement(
+        function: &mut Function,
+        name: &str,
+        fields: &[(String, RustType)],
+    ) {
+        if fields.is_empty() {
+            Self::impl_tuple_insert_statement(function, name);
+        } else {
+            function.line(&format!(
+                "\"INSERT INTO {}({}) VALUES({}) RETURNING id\"",
+                name,
+                fields
+                    .iter()
+                    .map(|(name, _)| RustCodeGenerator::rust_module_name(name))
+                    .collect::<Vec<String>>()
+                    .join(", "),
+                fields
+                    .iter()
+                    .enumerate()
+                    .map(|(num, _)| format!("${}", num + 1))
+                    .collect::<Vec<String>>()
+                    .join(", "),
+            ));
+        }
+    }
+
     fn impl_enum_insert_statement(function: &mut Function) {
         function.line("\"\"");
     }
@@ -115,7 +149,7 @@ impl PsqlInserter {
         ));
     }
 
-    fn impl_struct_insert_fn(function: &mut Function, name: &str, fields: &[(String, RustType)]) {
+    fn impl_struct_insert_fn(function: &mut Function, _name: &str, fields: &[(String, RustType)]) {
         let mut variables = Vec::with_capacity(fields.len());
         for (name, rust) in fields {
             let name = RustCodeGenerator::rust_field_name(name, true);
@@ -267,6 +301,6 @@ impl PsqlInserter {
     }
 
     fn list_entry_insert_statement(name: &str) -> String {
-        format!("INSERT INTO {}ListEntry(list, value) ($1, $2)", name)
+        format!("INSERT INTO {}ListEntry(list, value) VALUES ($1, $2)", name)
     }
 }
