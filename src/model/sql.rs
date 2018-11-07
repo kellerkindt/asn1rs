@@ -430,6 +430,30 @@ mod tests {
     }
 
     #[test]
+    fn test_conversion_enum() {
+        let model = Model {
+            name: "Alfred".into(),
+            imports: vec![Import {
+                what: vec!["a".into(), "b".into()],
+                from: "to_be_ignored".into(),
+            }],
+            definitions: vec![Definition(
+                "City".into(),
+                Rust::Enum(vec!["Esslingen".into(), "Stuttgart".into()]),
+            )],
+        }.to_sql();
+        assert_eq!("Alfred", &model.name);
+        assert!(model.imports.is_empty());
+        assert_eq!(
+            &vec![Definition(
+                "City".into(),
+                Sql::Enum(vec!["Esslingen".into(), "Stuttgart".into(),],)
+            ),],
+            &model.definitions
+        );
+    }
+
+    #[test]
     fn test_rust_to_sql_to_rust() {
         assert_eq!(RustType::Bool.to_sql().to_rust(), RustType::Bool);
         assert_eq!(
