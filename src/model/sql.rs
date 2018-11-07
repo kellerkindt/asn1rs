@@ -443,6 +443,18 @@ mod tests {
     }
 
     #[test]
+    fn test_nullable() {
+        assert_eq!(
+            SqlType::NotNull(SqlType::Serial.into()).nullable(),
+            SqlType::Serial
+        );
+        assert_eq!(
+            SqlType::Serial.nullable(),
+            SqlType::Serial
+        );
+    }
+
+    #[test]
     fn test_to_string() {
         assert_eq!("SMALLINT", &SqlType::SmallInt.to_string());
         assert_eq!("INTEGER", &SqlType::Integer.to_string());
