@@ -19,7 +19,22 @@ pub enum SqlType {
     Array(Box<SqlType>),
     NotNull(Box<SqlType>),
     ByteArray,
-    References(String, String),
+    References(String, String, Option<Action>, Option<Action>),
+}
+
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub enum Action {
+    Cascade,
+    Restrict,
+}
+
+impl ToString for Action {
+    fn to_string(&self) -> String {
+        match self {
+            Action::Cascade => "CASCADE",
+            Action::Restrict => "RESTRICT",
+        }.into()
+    }
 }
 
 impl SqlType {
@@ -41,7 +56,7 @@ impl SqlType {
             SqlType::Array(inner) => RustType::Vec(Box::new(inner.to_rust())),
             SqlType::NotNull(inner) => return inner.to_rust().no_option(),
             SqlType::ByteArray => RustType::VecU8,
-            SqlType::References(name, _) => RustType::Complex(name.clone()),
+            SqlType::References(name, _, _, _) => RustType::Complex(name.clone()),
         }))
     }
 }
@@ -58,9 +73,20 @@ impl ToString for SqlType {
             SqlType::Array(inner) => format!("{}[]", inner.to_string()),
             SqlType::NotNull(inner) => format!("{} NOT NULL", inner.to_string()),
             SqlType::ByteArray => "BYTEA".into(),
-            SqlType::References(table, column) => format!(
-                "INTEGER REFERENCES {}({}) ON DELETE CASCADE ON UPDATE CASCADE",
-                table, column
+            SqlType::References(table, column, on_delete, on_update) => format!(
+                "INTEGER REFERENCES {}({}){}{}",
+                table,
+                column,
+                if let Some(cascade) = on_delete {
+                    format!(" ON DELETE {}", cascade.to_string())
+                } else {
+                    "".into()
+                },
+                if let Some(cascade) = on_update {
+                    format!(" ON UPDATE {}", cascade.to_string())
+                } else {
+                    "".into()
+                },
             ),
         }
     }
@@ -184,7 +210,7 @@ impl Model<Sql> {
         rust: &RustType,
         definitions: &mut Vec<Definition<Sql>>,
     ) {
-        if let SqlType::References(_, _) = rust.to_sql().nullable() {
+        if let SqlType::References(..) = rust.to_sql().nullable() {
             definitions.push(Definition(
                 String::default(),
                 Sql::Index(table.into(), vec![column.into()]),
@@ -229,6 +255,8 @@ impl Model<Sql> {
                             sql: SqlType::NotNull(Box::new(SqlType::References(
                                 name.into(),
                                 FOREIGN_KEY_DEFAULT_COLUMN.into(),
+                                Some(Action::Cascade),
+                                Some(Action::Cascade),
                             ))),
                             primary_key: false,
                         },
@@ -266,7 +294,7 @@ impl Model<Sql> {
         for (column, rust) in fields {
             let column = Self::sql_column_name(column);
             Self::add_index_if_applicable(name, &column, rust, definitions);
-            if let SqlType::References(other_table, other_column) = rust.to_sql().nullable() {
+            if let SqlType::References(other_table, other_column, _, _) = rust.to_sql().nullable() {
                 children.push((column, other_table, other_column));
             }
         }
@@ -319,9 +347,12 @@ impl ToSql for RustType {
             RustType::VecU8 => SqlType::ByteArray,
             RustType::Vec(inner) => SqlType::Array(inner.to_sql().into()),
             RustType::Option(inner) => return inner.to_sql().nullable(),
-            RustType::Complex(name) => {
-                SqlType::References(name.clone(), FOREIGN_KEY_DEFAULT_COLUMN.into())
-            }
+            RustType::Complex(name) => SqlType::References(
+                name.clone(),
+                FOREIGN_KEY_DEFAULT_COLUMN.into(),
+                Some(Action::Cascade),
+                Some(Action::Cascade),
+            ),
         }))
     }
 }
@@ -331,7 +362,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn to_from_sql() {
+    fn test_rust_to_sql_to_rust() {
         assert_eq!(RustType::Bool.to_sql().to_rust(), RustType::Bool);
         assert_eq!(
             RustType::I8(Range(0, ::std::i8::MAX)).to_sql().to_rust(),
@@ -346,7 +377,9 @@ mod tests {
             RustType::I16(Range(0, ::std::i16::MAX))
         );
         assert_eq!(
-            RustType::U16(Range(0, ::std::i16::MAX as u16)).to_sql().to_rust(),
+            RustType::U16(Range(0, ::std::i16::MAX as u16))
+                .to_sql()
+                .to_rust(),
             RustType::I16(Range(0, ::std::i16::MAX))
         );
         assert_eq!(
@@ -358,7 +391,9 @@ mod tests {
             RustType::I32(Range(0, ::std::i32::MAX))
         );
         assert_eq!(
-            RustType::U32(Range(0, ::std::i32::MAX as u32)).to_sql().to_rust(),
+            RustType::U32(Range(0, ::std::i32::MAX as u32))
+                .to_sql()
+                .to_rust(),
             RustType::I32(Range(0, ::std::i32::MAX))
         );
         assert_eq!(
@@ -395,6 +430,54 @@ mod tests {
         assert_eq!(
             RustType::Complex("MuchComplex".into()).to_sql().to_rust(),
             RustType::Complex("MuchComplex".into()),
+        );
+    }
+
+    #[test]
+    fn test_to_string() {
+        assert_eq!("SMALLINT", &SqlType::SmallInt.to_string());
+        assert_eq!("INTEGER", &SqlType::Integer.to_string());
+        assert_eq!("BIGINT", &SqlType::BigInt.to_string());
+        assert_eq!("SERIAL", &SqlType::Serial.to_string());
+        assert_eq!("BOOLEAN", &SqlType::Boolean.to_string());
+        assert_eq!("TEXT", &SqlType::Text.to_string());
+        assert_eq!(
+            "SMALLINT[]",
+            &SqlType::Array(SqlType::SmallInt.into()).to_string()
+        );
+        assert_eq!(
+            "TEXT NOT NULL",
+            &SqlType::NotNull(SqlType::Text.into()).to_string()
+        );
+        assert_eq!(
+            "INTEGER REFERENCES tablo(columno)",
+            &SqlType::References("tablo".into(), "columno".into(), None, None).to_string()
+        );
+        assert_eq!(
+            "INTEGER REFERENCES tablo(columno) ON DELETE CASCADE ON UPDATE RESTRICT",
+            &SqlType::References(
+                "tablo".into(),
+                "columno".into(),
+                Some(Action::Cascade),
+                Some(Action::Restrict),
+            ).to_string()
+        );
+        assert_eq!(
+            "INTEGER REFERENCES table(column) NOT NULL",
+            &SqlType::NotNull(
+                SqlType::References("table".into(), "column".into(), None, None).into()
+            ).to_string()
+        );
+        assert_eq!(
+            "INTEGER REFERENCES table(column) ON DELETE RESTRICT ON UPDATE CASCADE NOT NULL",
+            &SqlType::NotNull(
+                SqlType::References(
+                    "table".into(),
+                    "column".into(),
+                    Some(Action::Restrict),
+                    Some(Action::Cascade),
+                ).into()
+            ).to_string()
         );
     }
 }
