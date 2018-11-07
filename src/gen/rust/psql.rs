@@ -168,21 +168,24 @@ impl PsqlInserter {
                 ));
                 let inner_sql = rust.clone().into_inner_type().to_sql();
                 let inner_rust = rust.clone().into_inner_type();
-                if inner_sql.to_rust().into_inner_type() != inner_rust {
+                if !inner_sql.to_rust().into_inner_type().similar(&inner_rust) {
+                    let rust_from_sql = inner_sql.to_rust().into_inner_type();
+                    let as_target = rust_from_sql.to_string();
+                    let use_from_instead_of_as =
+                        rust_from_sql.is_primitive() && rust_from_sql > inner_rust;
                     function.line(format!(
-                        "let {} = {}{} as {}{};",
-                        name,
+                        "let {} = {};",
                         name,
                         if let RustType::Option(_) = rust {
-                            ".map(|v| v"
+                            if use_from_instead_of_as {
+                                format!("{}.map({}::from)", name, as_target)
+                            } else {
+                                format!("{}.map(|v| v as {})", name, as_target)
+                            }
+                        } else if use_from_instead_of_as {
+                            format!("{}::from({})", as_target, name)
                         } else {
-                            ""
-                        },
-                        inner_sql.to_rust().into_inner_type().to_string(),
-                        if let RustType::Option(_) = rust {
-                            ")"
-                        } else {
-                            ""
+                            format!("{} as {}", name, as_target)
                         },
                     ));
                 }
@@ -214,7 +217,7 @@ impl PsqlInserter {
             "let result = statement.query(&[{}])?;",
             variables.join(", ")
         ));
-        function.line("PsqlError::expect_returned_index(result)");
+        function.line("PsqlError::expect_returned_index(&result)");
     }
 
     fn impl_data_enum_insert_fn(
@@ -249,7 +252,7 @@ impl PsqlInserter {
             "let result = statement.query(&[{}])?;",
             variables.join(", ")
         ));
-        function.line("PsqlError::expect_returned_index(result)");
+        function.line("PsqlError::expect_returned_index(&result)");
     }
 
     fn impl_enum_insert_fn(function: &mut Function) {
@@ -259,7 +262,7 @@ impl PsqlInserter {
     fn impl_tuple_insert_fn(function: &mut Function, name: &str, rust: &RustType) {
         function.line("let statement = transaction.prepare_cached(Self::insert_statement())?;");
         function.line("let result = statement.query(&[])?;");
-        function.line("let list = PsqlError::expect_returned_index(result)?;");
+        function.line("let list = PsqlError::expect_returned_index(&result)?;");
         function.line(format!(
             "let statement = transaction.prepare_cached(\"{}\")?;",
             Self::list_entry_insert_statement(name)
@@ -271,19 +274,23 @@ impl PsqlInserter {
         } else {
             let inner_sql = rust.clone().into_inner_type().to_sql();
             let inner_rust = rust.clone().into_inner_type();
-            if inner_sql.to_rust().into_inner_type() != inner_rust {
+            if !inner_sql.to_rust().into_inner_type().similar(&inner_rust) {
+                let rust_from_sql = inner_sql.to_rust().into_inner_type();
+                let as_target = rust_from_sql.to_string();
+                let use_from_instead_of_as =
+                    rust_from_sql.is_primitive() && rust_from_sql > inner_rust;
                 block_for.line(format!(
-                    "let value = *value{} as {}{};",
+                    "let value = {};",
                     if let RustType::Option(_) = rust {
-                        ".map(|v| v"
+                        if use_from_instead_of_as {
+                            format!("value.map({}::from)", as_target)
+                        } else {
+                            format!("value.map(|v| v as {})", as_target)
+                        }
+                    } else if use_from_instead_of_as {
+                        format!("{}::from(*value)", as_target)
                     } else {
-                        ""
-                    },
-                    inner_sql.to_rust().into_inner_type().to_string(),
-                    if let RustType::Option(_) = rust {
-                        ")"
-                    } else {
-                        ""
+                        format!("*value as {}", as_target)
                     },
                 ));
             }

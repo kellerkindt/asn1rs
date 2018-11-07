@@ -1,30 +1,27 @@
-use postgres::rows::Rows;
 use backtrace::Backtrace;
+use postgres::rows::Rows;
 
-pub use postgres::Error as PostgresError;
 pub use postgres::transaction::Transaction;
-
+pub use postgres::Error as PostgresError;
 
 #[derive(Debug)]
 pub enum Error {
     Postgres(Backtrace, PostgresError),
-    MissingReturnedIndex(Backtrace)
+    MissingReturnedIndex(Backtrace),
 }
 
 impl Error {
-    pub fn expect_returned_index(rows: Rows) -> Result<i32, Error> {
+    pub fn expect_returned_index(rows: &Rows) -> Result<i32, Error> {
         if rows.is_empty() {
             Err(Error::MissingReturnedIndex(Backtrace::new()))
         } else {
             let row = rows.get(0);
             if row.is_empty() {
                 Err(Error::MissingReturnedIndex(Backtrace::new()))
+            } else if let Some(value) = row.get_opt(0) {
+                Ok(value?)
             } else {
-                if let Some(value) = row.get_opt(0) {
-                    Ok(value?)
-                } else {
-                    Err(Error::MissingReturnedIndex(Backtrace::new()))
-                }
+                Err(Error::MissingReturnedIndex(Backtrace::new()))
             }
         }
     }

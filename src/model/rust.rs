@@ -15,17 +15,21 @@ const U16_MAX: u64 = ::std::u16::MAX as u64;
 const U32_MAX: u64 = ::std::u32::MAX as u64;
 //const U64_MAX: u64 = ::std::u64::MAX as u64;
 
+/// Integers are ordered where Ixx < Uxx so
+/// that when comparing two instances `RustType`
+/// and a > b, then the integer type of a can
+/// use ::from(..) to cast from b
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum RustType {
     Bool,
-    U8(Range<u8>),
     I8(Range<i8>),
-    U16(Range<u16>),
+    U8(Range<u8>),
     I16(Range<i16>),
-    U32(Range<u32>),
+    U16(Range<u16>),
     I32(Range<i32>),
-    U64(Option<Range<u64>>),
+    U32(Range<u32>),
     I64(Range<i64>),
+    U64(Option<Range<u64>>),
     String,
     VecU8,
     Vec(Box<RustType>),
