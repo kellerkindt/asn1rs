@@ -5,6 +5,9 @@ extern crate byteorder;
 extern crate clap;
 extern crate codegen;
 
+#[cfg(feature = "psql")]
+extern crate postgres;
+
 mod converter;
 mod gen;
 mod io;

@@ -15,7 +15,6 @@ pub enum SqlType {
     BigInt,   // 8byte
     Serial,   // 4byte
     Boolean,
-    Enum(String),
     Text,
     Array(Box<SqlType>),
     NotNull(Box<SqlType>),
@@ -30,6 +29,21 @@ impl SqlType {
             other => other,
         }
     }
+
+    pub fn to_rust(&self) -> RustType {
+        RustType::Option(Box::new(match self {
+            SqlType::SmallInt => RustType::I16(Range(0, ::std::i16::MAX)),
+            SqlType::Integer => RustType::I32(Range(0, ::std::i32::MAX)),
+            SqlType::BigInt => RustType::I64(Range(0, ::std::i64::MAX)),
+            SqlType::Serial => RustType::I32(Range(0, ::std::i32::MAX)),
+            SqlType::Boolean => RustType::Bool,
+            SqlType::Text => RustType::String,
+            SqlType::Array(inner) => RustType::Vec(Box::new(inner.to_rust())),
+            SqlType::NotNull(inner) => return inner.to_rust().no_option(),
+            SqlType::ByteArray => RustType::VecU8,
+            SqlType::References(name, _) => RustType::Complex(name.clone())
+        }))
+    }
 }
 
 impl ToString for SqlType {
@@ -40,7 +54,6 @@ impl ToString for SqlType {
             SqlType::BigInt => "BIGINT".into(),
             SqlType::Serial => "SERIAL".into(),
             SqlType::Boolean => "BOOLEAN".into(),
-            SqlType::Enum(inner) => inner.clone(),
             SqlType::Text => "TEXT".into(),
             SqlType::Array(inner) => format!("{}[]", inner.to_string()),
             SqlType::NotNull(inner) => format!("{} NOT NULL", inner.to_string()),

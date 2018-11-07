@@ -65,6 +65,13 @@ impl RustType {
         self.to_inner().unwrap_or_else(|| self.to_string())
     }
 
+    pub fn no_option(self) -> Self {
+        match self {
+            RustType::Option(inner) => inner.no_option(),
+            rust => rust
+        }
+    }
+
     pub fn is_primitive(&self) -> bool {
         match self {
             RustType::Bool => true,

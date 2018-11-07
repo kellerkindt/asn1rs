@@ -1,6 +1,9 @@
 mod protobuf;
 mod uper;
 
+#[cfg(feature = "psql")]
+mod psql;
+
 use codegen::Block;
 use codegen::Enum;
 use codegen::Function;
@@ -18,6 +21,9 @@ use gen::Generator;
 
 use self::protobuf::ProtobufSerializer;
 use self::uper::UperSerializer;
+
+#[cfg(feature = "psql")]
+use self::psql::PsqlInserter;
 
 const KEYWORDS: [&str; 9] = [
     "use", "mod", "const", "type", "pub", "enum", "struct", "impl", "trait",
@@ -53,7 +59,12 @@ impl Generator<Rust> for RustCodeGenerator {
         for model in &self.models {
             files.push(RustCodeGenerator::model_to_file(
                 model,
-                &[&UperSerializer, &ProtobufSerializer],
+                &[
+                    &UperSerializer,
+                    &ProtobufSerializer,
+                    #[cfg(feature = "psql")]
+                    &PsqlInserter,
+                ],
             ));
         }
         Ok(files)
