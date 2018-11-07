@@ -434,6 +434,15 @@ mod tests {
     }
 
     #[test]
+    fn test_sql_to_rust() {
+        // only cases that are not already tested by above
+        assert_eq!(
+            SqlType::NotNull(SqlType::Serial.into()).to_rust(),
+            RustType::I32(Range(0, ::std::i32::MAX))
+        );
+    }
+
+    #[test]
     fn test_to_string() {
         assert_eq!("SMALLINT", &SqlType::SmallInt.to_string());
         assert_eq!("INTEGER", &SqlType::Integer.to_string());
