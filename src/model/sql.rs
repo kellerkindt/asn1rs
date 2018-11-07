@@ -92,20 +92,20 @@ impl ToString for SqlType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Column {
     pub name: String,
     pub sql: SqlType,
     pub primary_key: bool,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Constraint {
     CombinedPrimaryKey(Vec<String>),
     OneNotNull(Vec<String>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Sql {
     Table((Vec<Column>, Vec<Constraint>)),
     Enum(Vec<String>),
@@ -360,6 +360,74 @@ impl ToSql for RustType {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use model::Import;
+    use model::Model;
+
+    #[test]
+    fn test_conversion_struct() {
+        let model = Model {
+            name: "Manfred".into(),
+            imports: vec![Import {
+                what: vec!["a".into(), "b".into()],
+                from: "to_be_ignored".into(),
+            }],
+            definitions: vec![Definition(
+                "Person".into(),
+                Rust::Struct(vec![
+                    ("name".into(), RustType::String),
+                    ("birth".into(), RustType::Complex("City".into())),
+                ]),
+            )],
+        }.to_sql();
+        assert_eq!("Manfred", &model.name);
+        assert!(model.imports.is_empty());
+        assert_eq!(
+            &vec![
+                Definition(
+                    "Person".into(),
+                    Sql::Table((
+                        vec![
+                            Column {
+                                name: "id".into(),
+                                sql: SqlType::Serial,
+                                primary_key: true
+                            },
+                            Column {
+                                name: "name".into(),
+                                sql: SqlType::NotNull(SqlType::Text.into()),
+                                primary_key: false
+                            },
+                            Column {
+                                name: "birth".into(),
+                                sql: SqlType::NotNull(
+                                    SqlType::References(
+                                        "City".into(),
+                                        FOREIGN_KEY_DEFAULT_COLUMN.into(),
+                                        Some(Action::Cascade),
+                                        Some(Action::Cascade),
+                                    ).into()
+                                ),
+                                primary_key: false
+                            },
+                        ],
+                        vec![]
+                    ))
+                ),
+                Definition(
+                    String::default(),
+                    Sql::Index("Person".into(), vec!["birth".into()])
+                ),
+                Definition(
+                    "AbandonChildrenOfPerson".into(),
+                    Sql::AbandonChildrenFunction(
+                        "Person".into(),
+                        vec![("birth".into(), "City".into(), "id".into())],
+                    )
+                )
+            ],
+            &model.definitions
+        );
+    }
 
     #[test]
     fn test_rust_to_sql_to_rust() {
@@ -448,10 +516,7 @@ mod tests {
             SqlType::NotNull(SqlType::Serial.into()).nullable(),
             SqlType::Serial
         );
-        assert_eq!(
-            SqlType::Serial.nullable(),
-            SqlType::Serial
-        );
+        assert_eq!(SqlType::Serial.nullable(), SqlType::Serial);
     }
 
     #[test]
