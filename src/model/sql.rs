@@ -430,6 +430,73 @@ mod tests {
     }
 
     #[test]
+    fn test_conversion_data_enum() {
+        let model = Model {
+            name: "Hurray".into(),
+            imports: vec![Import {
+                what: vec!["a".into(), "b".into()],
+                from: "to_be_ignored".into(),
+            }],
+            definitions: vec![Definition(
+                "PersonState".into(),
+                Rust::DataEnum(vec![
+                    ("DeadSince".into(), RustType::String),
+                    ("Alive".into(), RustType::Complex("Person".into())),
+                ]),
+            )],
+        }.to_sql();
+        assert_eq!("Hurray", &model.name);
+        assert!(model.imports.is_empty());
+        assert_eq!(
+            &vec![
+                Definition(
+                    "PersonState".into(),
+                    Sql::Table((
+                        vec![
+                            Column {
+                                name: "id".into(),
+                                sql: SqlType::Serial,
+                                primary_key: true
+                            },
+                            Column {
+                                name: "dead_since".into(),
+                                sql: SqlType::Text.into(),
+                                primary_key: false
+                            },
+                            Column {
+                                name: "alive".into(),
+                                sql: SqlType::References(
+                                    "Person".into(),
+                                    FOREIGN_KEY_DEFAULT_COLUMN.into(),
+                                    Some(Action::Cascade),
+                                    Some(Action::Cascade),
+                                ).into(),
+                                primary_key: false
+                            },
+                        ],
+                        vec![Constraint::OneNotNull(vec![
+                            "dead_since".into(),
+                            "alive".into(),
+                        ])]
+                    ))
+                ),
+                Definition(
+                    String::default(),
+                    Sql::Index("PersonState".into(), vec!["alive".into()])
+                ),
+                Definition(
+                    "AbandonChildrenOfPersonState".into(),
+                    Sql::AbandonChildrenFunction(
+                        "PersonState".into(),
+                        vec![("alive".into(), "Person".into(), "id".into())],
+                    )
+                )
+            ],
+            &model.definitions
+        );
+    }
+
+    #[test]
     fn test_conversion_enum() {
         let model = Model {
             name: "Alfred".into(),
