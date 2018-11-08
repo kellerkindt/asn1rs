@@ -33,7 +33,7 @@ impl From<PostgresError> for Error {
     }
 }
 
-pub trait PsqlInsertable {
-    fn insert_statement() -> &'static str;
+pub trait Insertable {
+    fn insert_statement(&self) -> &'static str;
     fn insert_with(&self, transaction: &Transaction) -> Result<i32, Error>;
 }

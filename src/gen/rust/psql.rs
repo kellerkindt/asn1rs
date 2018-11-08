@@ -16,7 +16,7 @@ pub struct PsqlInserter;
 impl GeneratorSupplement<Rust> for PsqlInserter {
     fn add_imports(&self, scope: &mut Scope) {
         scope.import("asn1c::io::psql", "Error as PsqlError");
-        scope.import("asn1c::io::psql", TRAIT_PSQL_INSERTABLE);
+        scope.import("asn1c::io::psql", &format!("Insertable as {}", TRAIT_PSQL_INSERTABLE));
         scope.import("asn1c::io::psql", "Transaction");
     }
 
@@ -70,6 +70,7 @@ impl PsqlInserter {
     fn new_insert_statement_fn(implementation: &mut Impl) -> &mut Function {
         implementation
             .new_fn("insert_statement")
+            .arg_ref_self()
             .ret("&'static str")
     }
 
@@ -213,7 +214,7 @@ impl PsqlInserter {
                 ));
             };
         }
-        function.line("let statement = transaction.prepare_cached(Self::insert_statement())?;");
+        function.line("let statement = transaction.prepare_cached(self.insert_statement())?;");
         function.line(format!(
             "let result = statement.query(&[{}])?;",
             variables.join(", ")
@@ -248,7 +249,7 @@ impl PsqlInserter {
             block_if.after(" else { None };");
             function.push_block(block_if);
         }
-        function.line("let statement = transaction.prepare_cached(Self::insert_statement())?;");
+        function.line("let statement = transaction.prepare_cached(self.insert_statement())?;");
         function.line(format!(
             "let result = statement.query(&[{}])?;",
             variables.join(", ")
@@ -261,7 +262,7 @@ impl PsqlInserter {
     }
 
     fn impl_tuple_insert_fn(function: &mut Function, name: &str, rust: &RustType) {
-        function.line("let statement = transaction.prepare_cached(Self::insert_statement())?;");
+        function.line("let statement = transaction.prepare_cached(self.insert_statement())?;");
         function.line("let result = statement.query(&[])?;");
         function.line("let list = PsqlError::expect_returned_index(&result)?;");
         function.line(format!(
