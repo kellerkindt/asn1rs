@@ -110,6 +110,7 @@ pub enum Sql {
     Table((Vec<Column>, Vec<Constraint>)),
     Enum(Vec<String>),
     Index(String, Vec<String>),
+    /// Table bein affected to ->
     AbandonChildrenFunction(String, Vec<(String, String, String)>),
 }
 
@@ -246,8 +247,10 @@ impl Model<Sql> {
             ));
         }
         {
+            let list_entry_name = format!("{}ListEntry", name);
+            let value_sql_type = rust_inner.clone().into_inner_type().to_sql();
             definitions.push(Definition(
-                format!("{}ListEntry", name),
+                list_entry_name.clone(),
                 Sql::Table((
                     vec![
                         Column {
@@ -262,7 +265,7 @@ impl Model<Sql> {
                         },
                         Column {
                             name: TUPLE_LIST_ENTRY_VALUE_COLUMN.into(),
-                            sql: rust_inner.clone().into_inner_type().to_sql(),
+                            sql: value_sql_type.clone(),
                             primary_key: false,
                         },
                     ],
@@ -272,6 +275,17 @@ impl Model<Sql> {
                     ])],
                 )),
             ));
+            if let SqlType::References(other_table, other_column, ..) = value_sql_type.clone().nullable() {
+                Self::add_abandon_children(
+                    &list_entry_name,
+                    vec![(
+                        TUPLE_LIST_ENTRY_VALUE_COLUMN.into(),
+                        other_table,
+                        other_column,
+                    )],
+                    definitions,
+                );
+            }
         }
     }
 
@@ -595,7 +609,7 @@ mod tests {
                     Sql::Table((
                         vec![
                             Column {
-                                name: "list".into(),
+                                name: TUPLE_LIST_ENTRY_PARENT_COLUMN.into(),
                                 sql: SqlType::NotNull(
                                     SqlType::References(
                                         "Whatelse".into(),
@@ -607,7 +621,7 @@ mod tests {
                                 primary_key: false
                             },
                             Column {
-                                name: "value".into(),
+                                name: TUPLE_LIST_ENTRY_VALUE_COLUMN.into(),
                                 sql: SqlType::NotNull(
                                     SqlType::References(
                                         "Whatever".into(),
@@ -620,16 +634,16 @@ mod tests {
                             },
                         ],
                         vec![Constraint::CombinedPrimaryKey(vec![
-                            "list".into(),
-                            "value".into()
+                            TUPLE_LIST_ENTRY_PARENT_COLUMN.into(),
+                            TUPLE_LIST_ENTRY_VALUE_COLUMN.into()
                         ])]
                     ))
                 ),
                 Definition(
-                    "AbandonChildrenOfPersonWhatelseListEntry".into(),
+                    "AbandonChildrenOfWhatelseListEntry".into(),
                     Sql::AbandonChildrenFunction(
-                        "Whatever".into(),
-                        vec![("value".into(), "Whatever".into(), "id".into())],
+                        "WhatelseListEntry".into(),
+                        vec![(TUPLE_LIST_ENTRY_VALUE_COLUMN.into(), "Whatever".into(), "id".into())],
                     )
                 )
             ],
