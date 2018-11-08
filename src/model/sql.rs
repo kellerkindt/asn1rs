@@ -537,10 +537,16 @@ mod tests {
         assert_eq!("Alfred", &model.name);
         assert!(model.imports.is_empty());
         assert_eq!(
-            &vec![Definition(
-                "City".into(),
-                Sql::Enum(vec!["Esslingen".into(), "Stuttgart".into(),],)
-            ),],
+            &vec![
+                Definition(
+                    "City".into(),
+                    Sql::Enum(vec!["Esslingen".into(), "Stuttgart".into(),],)
+                ),
+                Definition(
+                    "SilentlyPreventAnyDeleteOnCity".into(),
+                    Sql::SilentlyPreventAnyDelete("City".into())
+                )
+            ],
             &model.definitions
         );
     }
