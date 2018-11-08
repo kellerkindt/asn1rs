@@ -45,7 +45,7 @@ impl Generator<Sql> for SqlDefGenerator {
             for Definition(name, sql) in &model.definitions {
                 writeln!(create);
                 match sql {
-                    Sql::Table((columns, constraints)) => {
+                    Sql::Table(columns, constraints) => {
                         // TODO
                         writeln!(drop, "DROP TABLE IF EXISTS {} CASCADE;", name);
                         Self::append_create_table(&mut create, name, columns, constraints)?;

@@ -107,7 +107,7 @@ pub enum Constraint {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Sql {
-    Table((Vec<Column>, Vec<Constraint>)),
+    Table(Vec<Column>, Vec<Constraint>),
     Enum(Vec<String>),
     Index(String, Vec<String>),
     /// Table bein affected to ->
@@ -158,7 +158,7 @@ impl Model<Sql> {
         }
         definitions.push(Definition(
             name.into(),
-            Sql::Table((columns, Default::default())),
+            Sql::Table(columns, Default::default()),
         ));
 
         Self::append_index_and_abandon_function(name, fields, definitions);
@@ -191,7 +191,7 @@ impl Model<Sql> {
         }
         definitions.push(Definition(
             name.into(),
-            Sql::Table((
+            Sql::Table(
                 columns,
                 vec![Constraint::OneNotNull(
                     fields
@@ -199,7 +199,7 @@ impl Model<Sql> {
                         .map(|(name, _)| ::gen::RustCodeGenerator::rust_module_name(&name))
                         .collect::<Vec<String>>(),
                 )],
-            )),
+            ),
         ));
 
         Self::append_index_and_abandon_function(name, fields, definitions);
@@ -236,14 +236,14 @@ impl Model<Sql> {
         {
             definitions.push(Definition(
                 name.into(),
-                Sql::Table((
+                Sql::Table(
                     vec![Column {
                         name: FOREIGN_KEY_DEFAULT_COLUMN.into(),
                         sql: SqlType::Serial,
                         primary_key: true,
                     }],
                     Default::default(),
-                )),
+                ),
             ));
         }
         {
@@ -251,7 +251,7 @@ impl Model<Sql> {
             let value_sql_type = rust_inner.clone().into_inner_type().to_sql();
             definitions.push(Definition(
                 list_entry_name.clone(),
-                Sql::Table((
+                Sql::Table(
                     vec![
                         Column {
                             name: TUPLE_LIST_ENTRY_PARENT_COLUMN.into(),
@@ -273,9 +273,11 @@ impl Model<Sql> {
                         TUPLE_LIST_ENTRY_PARENT_COLUMN.into(),
                         TUPLE_LIST_ENTRY_VALUE_COLUMN.into(),
                     ])],
-                )),
+                ),
             ));
-            if let SqlType::References(other_table, other_column, ..) = value_sql_type.clone().nullable() {
+            if let SqlType::References(other_table, other_column, ..) =
+                value_sql_type.clone().nullable()
+            {
                 Self::add_abandon_children(
                     &list_entry_name,
                     vec![(
@@ -399,7 +401,7 @@ mod tests {
             &vec![
                 Definition(
                     "Person".into(),
-                    Sql::Table((
+                    Sql::Table(
                         vec![
                             Column {
                                 name: "id".into(),
@@ -425,7 +427,7 @@ mod tests {
                             },
                         ],
                         vec![]
-                    ))
+                    )
                 ),
                 Definition(
                     String::default(),
@@ -465,7 +467,7 @@ mod tests {
             &vec![
                 Definition(
                     "PersonState".into(),
-                    Sql::Table((
+                    Sql::Table(
                         vec![
                             Column {
                                 name: "id".into(),
@@ -492,7 +494,7 @@ mod tests {
                             "dead_since".into(),
                             "alive".into(),
                         ])]
-                    ))
+                    )
                 ),
                 Definition(
                     String::default(),
@@ -556,18 +558,18 @@ mod tests {
             &vec![
                 Definition(
                     "Whatever".into(),
-                    Sql::Table((
+                    Sql::Table(
                         vec![Column {
                             name: "id".into(),
                             sql: SqlType::Serial,
                             primary_key: true
                         },],
                         vec![]
-                    ))
+                    )
                 ),
                 Definition(
                     "WhateverListEntry".into(),
-                    Sql::Table((
+                    Sql::Table(
                         vec![
                             Column {
                                 name: "list".into(),
@@ -591,22 +593,22 @@ mod tests {
                             "list".into(),
                             "value".into()
                         ])]
-                    ))
+                    )
                 ),
                 Definition(
                     "Whatelse".into(),
-                    Sql::Table((
+                    Sql::Table(
                         vec![Column {
                             name: "id".into(),
                             sql: SqlType::Serial,
                             primary_key: true
                         },],
                         vec![]
-                    ))
+                    )
                 ),
                 Definition(
                     "WhatelseListEntry".into(),
-                    Sql::Table((
+                    Sql::Table(
                         vec![
                             Column {
                                 name: TUPLE_LIST_ENTRY_PARENT_COLUMN.into(),
@@ -637,16 +639,58 @@ mod tests {
                             TUPLE_LIST_ENTRY_PARENT_COLUMN.into(),
                             TUPLE_LIST_ENTRY_VALUE_COLUMN.into()
                         ])]
-                    ))
+                    )
                 ),
                 Definition(
                     "AbandonChildrenOfWhatelseListEntry".into(),
                     Sql::AbandonChildrenFunction(
                         "WhatelseListEntry".into(),
-                        vec![(TUPLE_LIST_ENTRY_VALUE_COLUMN.into(), "Whatever".into(), "id".into())],
+                        vec![(
+                            TUPLE_LIST_ENTRY_VALUE_COLUMN.into(),
+                            "Whatever".into(),
+                            "id".into()
+                        )],
                     )
                 )
             ],
+            &model.definitions
+        );
+    }
+
+    #[test]
+    fn test_conversion_on_first_level_name_clash() {
+        let model = Model {
+            name: "Alfred".into(),
+            imports: vec![Import {
+                what: vec!["a".into(), "b".into()],
+                from: "to_be_ignored".into(),
+            }],
+            definitions: vec![Definition(
+                "City".into(),
+                Rust::Struct(vec![("id".into(), RustType::String)]),
+            )],
+        }.to_sql();
+        assert_eq!("Alfred", &model.name);
+        assert!(model.imports.is_empty());
+        assert_eq!(
+            &vec![Definition(
+                "City".into(),
+                Sql::Table(
+                    vec![
+                        Column {
+                            name: FOREIGN_KEY_DEFAULT_COLUMN.into(),
+                            sql: SqlType::Serial,
+                            primary_key: true
+                        },
+                        Column {
+                            name: "id_".into(),
+                            sql: SqlType::NotNull(SqlType::Text.into()),
+                            primary_key: false
+                        },
+                    ],
+                    vec![]
+                )
+            ),],
             &model.definitions
         );
     }

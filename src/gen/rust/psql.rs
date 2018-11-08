@@ -8,6 +8,7 @@ use model::sql::ToSql;
 use model::Definition;
 use model::Rust;
 use model::RustType;
+use model::Model;
 
 const TRAIT_PSQL_INSERTABLE: &str = "PsqlInsertable";
 
@@ -99,7 +100,7 @@ impl PsqlInserter {
                 name,
                 fields
                     .iter()
-                    .map(|(name, _)| name.clone())
+                    .map(|(name, _)| Model::sql_column_name(name))
                     .collect::<Vec<String>>()
                     .join(", "),
                 fields
