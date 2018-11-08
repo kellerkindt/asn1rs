@@ -112,6 +112,7 @@ pub enum Sql {
     Index(String, Vec<String>),
     /// Table bein affected to ->
     AbandonChildrenFunction(String, Vec<(String, String, String)>),
+    SilentlyPreventAnyDelete(String),
 }
 
 impl Model<Sql> {
@@ -226,6 +227,7 @@ impl Model<Sql> {
     ) {
         let variants = Vec::from(variants);
         definitions.push(Definition(name.into(), Sql::Enum(variants)));
+        Self::add_silently_prevent_any_delete(name, definitions);
     }
 
     pub fn rust_tuple_struct_to_sql_table(
@@ -327,6 +329,13 @@ impl Model<Sql> {
         definitions.push(Definition(
             format!("AbandonChildrenOf{}", name),
             Sql::AbandonChildrenFunction(name.into(), children),
+        ));
+    }
+
+    fn add_silently_prevent_any_delete(name: &str, definitions: &mut Vec<Definition<Sql>>) {
+        definitions.push(Definition(
+            format!("SilentlyPreventAnyDeleteOn{}", name),
+            Sql::SilentlyPreventAnyDelete(name.into()),
         ));
     }
 }

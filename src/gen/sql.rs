@@ -54,12 +54,15 @@ impl Generator<Sql> for SqlDefGenerator {
                         // TODO
                         writeln!(drop, "DROP TABLE IF EXISTS {} CASCADE;", name);
                         Self::append_create_enum(&mut create, name, variants)?
-                    },
+                    }
                     Sql::Index(table, columns) => {
                         Self::append_index(&mut create, name, table, &columns[..])?;
                     }
                     Sql::AbandonChildrenFunction(table, children) => {
                         Self::append_abandon_children(&mut create, table, name, &children[..])?;
+                    }
+                    Sql::SilentlyPreventAnyDelete(table) => {
+                        Self::append_silently_prevent_any_delete(&mut create, name, table)?;
                     }
                 }
             }
@@ -187,6 +190,16 @@ impl SqlDefGenerator {
         )?;
         writeln!(target, "    FOR EACH ROW")?;
         writeln!(target, "    EXECUTE PROCEDURE {}();", name)?;
+        Ok(())
+    }
+
+    fn append_silently_prevent_any_delete(
+        target: &mut Write,
+        name: &str,
+        table: &str,
+    ) -> Result<(), Error> {
+        writeln!(target, "CREATE RULE {} AS ON DELETE TO {}", name, table)?;
+        writeln!(target, "    DO INSTEAD NOTHING;")?;
         Ok(())
     }
 }
