@@ -43,16 +43,16 @@ impl Generator<Sql> for SqlDefGenerator {
             let mut drop = String::new();
             let mut create = String::new();
             for Definition(name, sql) in &model.definitions {
-                writeln!(create);
+                writeln!(create)?;
                 match sql {
                     Sql::Table(columns, constraints) => {
                         // TODO
-                        writeln!(drop, "DROP TABLE IF EXISTS {} CASCADE;", name);
+                        writeln!(drop, "DROP TABLE IF EXISTS {} CASCADE;", name)?;
                         Self::append_create_table(&mut create, name, columns, constraints)?;
                     }
                     Sql::Enum(variants) => {
                         // TODO
-                        writeln!(drop, "DROP TABLE IF EXISTS {} CASCADE;", name);
+                        writeln!(drop, "DROP TABLE IF EXISTS {} CASCADE;", name)?;
                         Self::append_create_enum(&mut create, name, variants)?
                     }
                     Sql::Index(table, columns) => {
@@ -84,16 +84,16 @@ impl SqlDefGenerator {
         for (index, column) in columns.iter().enumerate() {
             Self::append_column_statement(target, column)?;
             if index + 1 < columns.len() || !constraints.is_empty() {
-                write!(target, ",");
+                write!(target, ",")?;
             }
-            writeln!(target);
+            writeln!(target)?;
         }
         for (index, constraint) in constraints.iter().enumerate() {
             Self::append_constraint(target, constraint)?;
             if index + 1 < constraints.len() {
-                write!(target, ",");
+                write!(target, ",")?;
             }
-            writeln!(target);
+            writeln!(target)?;
         }
         writeln!(target, ");")?;
         Ok(())
@@ -102,7 +102,7 @@ impl SqlDefGenerator {
     pub fn append_column_statement(target: &mut Write, column: &Column) -> Result<(), Error> {
         write!(target, "    {} {}", column.name, column.sql.to_string())?;
         if column.primary_key {
-            write!(target, " PRIMARY KEY");
+            write!(target, " PRIMARY KEY")?;
         }
         Ok(())
     }
@@ -117,7 +117,7 @@ impl SqlDefGenerator {
         writeln!(target, "    name TEXT NOT NULL")?;
         writeln!(target, ");")?;
 
-        writeln!(target, "INSERT INTO {} (id, name) VALUES", name);
+        writeln!(target, "INSERT INTO {} (id, name) VALUES", name)?;
         for (index, variant) in variants.iter().enumerate() {
             write!(target, "    ({}, '{}')", index, variant)?;
             if index + 1 < variants.len() {

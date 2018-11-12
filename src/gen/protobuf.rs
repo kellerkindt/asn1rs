@@ -113,7 +113,7 @@ impl ProtobufDefGenerator {
             Self::field_name(name),
             if let ProtobufType::OneOf(variants) = role {
                 let mut inner = String::new();
-                writeln!(&mut inner, " {{");
+                writeln!(&mut inner, " {{")?;
                 for (index, (variant_name, variant_type)) in variants.iter().enumerate() {
                     writeln!(
                         &mut inner,
@@ -121,9 +121,9 @@ impl ProtobufDefGenerator {
                         Self::role_to_full_type(variant_type, model),
                         variant_name,
                         index + 1
-                    );
+                    )?;
                 }
-                write!(&mut inner, "    }}");
+                write!(&mut inner, "    }}")?;
                 inner
             } else {
                 format!(" = {}", tag)
