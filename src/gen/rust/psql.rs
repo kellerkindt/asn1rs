@@ -6,9 +6,9 @@ use gen::rust::GeneratorSupplement;
 use gen::rust::RustCodeGenerator;
 use model::sql::ToSql;
 use model::Definition;
+use model::Model;
 use model::Rust;
 use model::RustType;
-use model::Model;
 
 const TRAIT_PSQL_INSERTABLE: &str = "PsqlInsertable";
 
@@ -16,12 +16,16 @@ pub struct PsqlInserter;
 impl GeneratorSupplement<Rust> for PsqlInserter {
     fn add_imports(&self, scope: &mut Scope) {
         scope.import("asn1c::io::psql", "Error as PsqlError");
-        scope.import("asn1c::io::psql", &format!("Insertable as {}", TRAIT_PSQL_INSERTABLE));
+        scope.import(
+            "asn1c::io::psql",
+            &format!("Insertable as {}", TRAIT_PSQL_INSERTABLE),
+        );
         scope.import("asn1c::io::psql", "Transaction");
     }
 
     fn impl_supplement(&self, scope: &mut Scope, Definition(name, rust): &Definition<Rust>) {
         let implementation = Self::new_impl(scope, &name);
+        Self::impl_table_name(Self::new_table_name_fn(implementation), name);
         match rust {
             Rust::Struct(fields) => {
                 Self::impl_struct_insert_statement(
@@ -67,6 +71,13 @@ impl PsqlInserter {
         scope.new_impl(name).impl_trait(TRAIT_PSQL_INSERTABLE)
     }
 
+    fn new_table_name_fn(implementation: &mut Impl) -> &mut Function {
+        implementation
+            .new_fn("table_name")
+            .arg_ref_self()
+            .ret("&'static str")
+    }
+
     fn new_insert_statement_fn(implementation: &mut Impl) -> &mut Function {
         implementation
             .new_fn("insert_statement")
@@ -86,6 +97,10 @@ impl PsqlInserter {
                 },
                 "&Transaction",
             ).ret("Result<i32, PsqlError>")
+    }
+
+    fn impl_table_name(function: &mut Function, name: &str) {
+        function.line(&format!("\"{}\"", name));
     }
 
     fn impl_struct_insert_statement(
