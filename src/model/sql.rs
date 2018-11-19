@@ -277,6 +277,20 @@ impl Model<Sql> {
                     ])],
                 ),
             ));
+            definitions.push(Definition(
+                Default::default(),
+                Sql::Index(
+                    list_entry_name.clone(),
+                    vec![TUPLE_LIST_ENTRY_PARENT_COLUMN.into()],
+                ),
+            ));
+            definitions.push(Definition(
+                Default::default(),
+                Sql::Index(
+                    list_entry_name.clone(),
+                    vec![TUPLE_LIST_ENTRY_VALUE_COLUMN.into()],
+                ),
+            ));
             if let SqlType::References(other_table, other_column, ..) =
                 value_sql_type.clone().nullable()
             {
@@ -611,6 +625,20 @@ mod tests {
                     )
                 ),
                 Definition(
+                    String::new(),
+                    Sql::Index(
+                        "WhateverListEntry".into(),
+                        vec![TUPLE_LIST_ENTRY_PARENT_COLUMN.into()]
+                    )
+                ),
+                Definition(
+                    String::new(),
+                    Sql::Index(
+                        "WhateverListEntry".into(),
+                        vec![TUPLE_LIST_ENTRY_VALUE_COLUMN.into()]
+                    )
+                ),
+                Definition(
                     "Whatelse".into(),
                     Sql::Table(
                         vec![Column {
@@ -654,6 +682,20 @@ mod tests {
                             TUPLE_LIST_ENTRY_PARENT_COLUMN.into(),
                             TUPLE_LIST_ENTRY_VALUE_COLUMN.into()
                         ])]
+                    )
+                ),
+                Definition(
+                    String::new(),
+                    Sql::Index(
+                        "WhatelseListEntry".into(),
+                        vec![TUPLE_LIST_ENTRY_PARENT_COLUMN.into()]
+                    )
+                ),
+                Definition(
+                    String::new(),
+                    Sql::Index(
+                        "WhatelseListEntry".into(),
+                        vec![TUPLE_LIST_ENTRY_VALUE_COLUMN.into()]
                     )
                 ),
                 Definition(
