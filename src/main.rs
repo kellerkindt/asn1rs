@@ -1,4 +1,5 @@
 #![allow(dead_code)]
+#![warn(unused_extern_crates)]
 
 extern crate backtrace;
 extern crate byteorder;

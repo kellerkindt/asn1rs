@@ -1,3 +1,5 @@
+#![warn(unused_extern_crates)]
+
 extern crate backtrace;
 extern crate byteorder;
 extern crate codegen;
