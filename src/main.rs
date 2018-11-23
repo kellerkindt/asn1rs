@@ -46,7 +46,7 @@ pub fn main() {
 
     for source in sources {
         let result = match matches.value_of("CONVERSION_TARGET").unwrap() {
-            "rust" => converter::convert_to_rust(source, destination),
+            "rust" => converter::convert_to_rust(source, destination, |_| {}),
             "proto" => converter::convert_to_proto(source, destination),
             "sql" => converter::convert_to_sql(source, destination),
             e => panic!("Unexpected CONVERSION_TARGET={}", e),

@@ -72,7 +72,7 @@ impl RustType {
     pub fn no_option(self) -> Self {
         match self {
             RustType::Option(inner) => *inner,
-            rust => rust
+            rust => rust,
         }
     }
 

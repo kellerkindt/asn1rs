@@ -56,15 +56,18 @@ impl From<IoError> for Error {
     }
 }
 
-pub fn convert_to_rust<F: AsRef<Path>, D: AsRef<Path>>(
+pub fn convert_to_rust<F: AsRef<Path>, D: AsRef<Path>, A: FnOnce(&mut RustGenerator)>(
     file: F,
     dir: D,
+    custom_adjustments: A,
 ) -> Result<Vec<String>, Error> {
     let input = ::std::fs::read_to_string(file)?;
     let tokens = Parser::default().parse(&input)?;
     let model = Model::try_from(tokens)?;
     let mut generator = RustGenerator::default();
     generator.add_model(model.to_rust());
+
+    custom_adjustments(&mut generator);
 
     let output = generator.to_string().map_err(|_| Error::RustGenerator)?;
 

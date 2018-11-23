@@ -37,6 +37,7 @@ pub trait GeneratorSupplement<T> {
 #[derive(Debug, Default)]
 pub struct RustCodeGenerator {
     models: Vec<Model<Rust>>,
+    global_derives: Vec<String>,
 }
 
 impl Generator<Rust> for RustCodeGenerator {
@@ -57,7 +58,7 @@ impl Generator<Rust> for RustCodeGenerator {
     fn to_string(&self) -> Result<Vec<(String, String)>, Self::Error> {
         let mut files = Vec::new();
         for model in &self.models {
-            files.push(RustCodeGenerator::model_to_file(
+            files.push(self.model_to_file(
                 model,
                 &[
                     &UperSerializer,
@@ -72,7 +73,12 @@ impl Generator<Rust> for RustCodeGenerator {
 }
 
 impl RustCodeGenerator {
+    pub fn add_global_derive<I: Into<String>>(&mut self, derive: I) {
+        self.global_derives.push(derive.into());
+    }
+
     pub fn model_to_file(
+        &self,
         model: &Model<Rust>,
         generators: &[&GeneratorSupplement<Rust>],
     ) -> (String, String) {
@@ -93,7 +99,7 @@ impl RustCodeGenerator {
         }
 
         for definition in &model.definitions {
-            Self::add_definition(&mut scope, definition);
+            self.add_definition(&mut scope, definition);
             Self::impl_definition(&mut scope, definition);
 
             generators
@@ -104,17 +110,17 @@ impl RustCodeGenerator {
         (file, scope.to_string())
     }
 
-    fn add_definition(scope: &mut Scope, Definition(name, rust): &Definition<Rust>) {
+    fn add_definition(&self, scope: &mut Scope, Definition(name, rust): &Definition<Rust>) {
         match rust {
-            Rust::Struct(fields) => Self::add_struct(Self::new_struct(scope, name), name, fields),
+            Rust::Struct(fields) => Self::add_struct(self.new_struct(scope, name), name, fields),
             Rust::Enum(variants) => {
-                Self::add_enum(Self::new_enum(scope, name, true), name, variants)
+                Self::add_enum(self.new_enum(scope, name, true), name, variants)
             }
             Rust::DataEnum(variants) => {
-                Self::add_data_enum(Self::new_enum(scope, name, false), name, variants)
+                Self::add_data_enum(self.new_enum(scope, name, false), name, variants)
             }
             Rust::TupleStruct(inner) => {
-                Self::add_tuple_struct(Self::new_struct(scope, name), name, inner)
+                Self::add_tuple_struct(self.new_struct(scope, name), name, inner)
             }
         }
     }
@@ -456,17 +462,21 @@ impl RustCodeGenerator {
         out
     }
 
-    fn new_struct<'a>(scope: &'a mut Scope, name: &str) -> &'a mut Struct {
-        scope
+    fn new_struct<'a>(&self, scope: &'a mut Scope, name: &str) -> &'a mut Struct {
+        let str_ct = scope
             .new_struct(name)
             .vis("pub")
             .derive("Default")
             .derive("Debug")
             .derive("Clone")
-            .derive("PartialEq")
+            .derive("PartialEq");
+        self.global_derives.iter().for_each(|derive| {
+            str_ct.derive(&derive);
+        });
+        str_ct
     }
 
-    fn new_enum<'a>(scope: &'a mut Scope, name: &str, c_enum: bool) -> &'a mut Enum {
+    fn new_enum<'a>(&self, scope: &'a mut Scope, name: &str, c_enum: bool) -> &'a mut Enum {
         let en_m = scope
             .new_enum(name)
             .vis("pub")
@@ -476,6 +486,9 @@ impl RustCodeGenerator {
         if c_enum {
             en_m.derive("Copy").derive("PartialOrd");
         }
+        self.global_derives.iter().for_each(|derive| {
+            en_m.derive(&derive);
+        });
         en_m
     }
 
