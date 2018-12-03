@@ -50,8 +50,18 @@ impl From<PostgresError> for Error {
     }
 }
 
-pub trait Insertable {
+pub trait Representable {
     fn table_name(&self) -> &'static str;
+}
+
+pub trait Insertable: Representable {
     fn insert_statement(&self) -> &'static str;
     fn insert_with(&self, transaction: &Transaction) -> Result<i32, Error>;
+}
+
+pub trait Queryable: Representable {
+    fn query_statement(&self) -> &'static str;
+    fn query_with(&self, transaction: &Transaction, id: i32) -> Result<Self, Error>
+    where
+        Self: Sized;
 }

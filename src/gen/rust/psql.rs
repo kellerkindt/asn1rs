@@ -10,6 +10,7 @@ use model::Model;
 use model::Rust;
 use model::RustType;
 
+const TRAIT_PSQL_REPRESENTABLE: &str = "PsqlRepresentable";
 const TRAIT_PSQL_INSERTABLE: &str = "PsqlInsertable";
 
 pub struct PsqlInserter;
@@ -18,14 +19,21 @@ impl GeneratorSupplement<Rust> for PsqlInserter {
         scope.import("asn1c::io::psql", "Error as PsqlError");
         scope.import(
             "asn1c::io::psql",
+            &format!("Representable as {}", TRAIT_PSQL_REPRESENTABLE),
+        );
+        scope.import(
+            "asn1c::io::psql",
             &format!("Insertable as {}", TRAIT_PSQL_INSERTABLE),
         );
         scope.import("asn1c::io::psql", "Transaction");
     }
 
     fn impl_supplement(&self, scope: &mut Scope, Definition(name, rust): &Definition<Rust>) {
-        let implementation = Self::new_impl(scope, &name);
-        Self::impl_table_name(Self::new_table_name_fn(implementation), name);
+        {
+            let implementation = Self::new_representable_impl(scope, &name);
+            Self::impl_table_name(Self::new_table_name_fn(implementation), name);
+        }
+        let implementation = Self::new_insertable_impl(scope, &name);
         match rust {
             Rust::Struct(fields) => {
                 Self::impl_struct_insert_statement(
@@ -67,7 +75,11 @@ impl GeneratorSupplement<Rust> for PsqlInserter {
 }
 
 impl PsqlInserter {
-    fn new_impl<'a>(scope: &'a mut Scope, name: &str) -> &'a mut Impl {
+    fn new_representable_impl<'a>(scope: &'a mut Scope, name: &str) -> &'a mut Impl {
+        scope.new_impl(name).impl_trait(TRAIT_PSQL_REPRESENTABLE)
+    }
+
+    fn new_insertable_impl<'a>(scope: &'a mut Scope, name: &str) -> &'a mut Impl {
         scope.new_impl(name).impl_trait(TRAIT_PSQL_INSERTABLE)
     }
 
