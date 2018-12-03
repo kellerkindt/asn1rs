@@ -404,11 +404,7 @@ impl PsqlInserter {
                 Self::impl_enum_load_fn(Self::new_load_fn(implementation, true), name);
             }
             Rust::TupleStruct(rust) => {
-                Self::impl_tupl_query_statement(
-                    Self::new_query_statement_fn(implementation),
-                    name,
-                    &rust.clone().into_inner_type().to_string(),
-                );
+                Self::impl_tupl_query_statement(Self::new_query_statement_fn(implementation), name);
                 Self::impl_tupl_struct_query_fn(
                     Self::new_query_fn(implementation, true),
                     name,
@@ -427,11 +423,8 @@ impl PsqlInserter {
         func.line("\"\"");
     }
 
-    fn impl_tupl_query_statement(func: &mut Function, name: &str, inner: &str) {
-        func.line(&format!(
-            "\"{}\"",
-            Self::list_entry_query_statement(name, inner)
-        ));
+    fn impl_tupl_query_statement(func: &mut Function, name: &str) {
+        func.line(&format!("\"{}\"", Self::list_entry_query_statement(name)));
     }
 
     fn impl_struct_query_fn(func: &mut Function, name: &str) {
@@ -451,7 +444,7 @@ impl PsqlInserter {
                 let load = format!(
                     "row.get_opt::<usize, {}>({}).ok_or({}::NoResult)??",
                     rust.to_sql().to_rust().to_string(),
-                    index,
+                    index + 1,
                     ERROR_TYPE,
                 );
                 block.line(&format!(
@@ -467,7 +460,7 @@ impl PsqlInserter {
                          }} else {{\
                          None\
                          }}",
-                        index,
+                        index + 1,
                         ERROR_TYPE,
                         inner.to_string(),
                     )
@@ -475,7 +468,7 @@ impl PsqlInserter {
                     format!(
                         "{}::query_with(transaction, row.get_opt({}).ok_or({}::NoResult)??)?",
                         inner.to_string(),
-                        index,
+                        index + 1,
                         ERROR_TYPE,
                     )
                 };
@@ -514,7 +507,7 @@ impl PsqlInserter {
         for (index, (variant, rust)) in variants.iter().enumerate() {
             block.line(&format!(
                 "{} => Ok({}::{}({}::query_with(transaction, id)?)),",
-                index,
+                index + 1,
                 name,
                 variant,
                 rust.clone().into_inner_type().to_string(),
@@ -620,10 +613,10 @@ impl PsqlInserter {
         format!("INSERT INTO {}ListEntry(list, value) VALUES ($1, $2)", name)
     }
 
-    fn list_entry_query_statement(name: &str, inner: &str) -> String {
+    fn list_entry_query_statement(name: &str) -> String {
         format!(
-            "SELECT * FROM {} WHERE {}.id = {}ListEntry.value AND {}ListEntry.list = $1",
-            inner, inner, name, name
+            "SELECT * FROM {} INNER JOIN {}ListEntry ON {}.id = {}ListEntry.value WHERE {}ListEntry.list = $1",
+            name, name, name, name, name
         )
     }
 }
