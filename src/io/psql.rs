@@ -1,6 +1,7 @@
 use backtrace::Backtrace;
 use postgres::rows::Rows;
 
+pub use postgres::rows::Row;
 pub use postgres::transaction::Transaction;
 pub use postgres::Error as PostgresError;
 
@@ -10,6 +11,7 @@ pub enum Error {
     MissingReturnedIndex(Backtrace),
     MissingRow(usize, Backtrace),
     MissingColumn(usize, Backtrace),
+    NoResult,
 }
 
 impl Error {
@@ -42,6 +44,21 @@ impl Error {
             }
         }
     }
+
+    pub fn first_not_null<T: postgres::types::FromSql>(
+        row: &Row,
+        columns: &[usize],
+    ) -> Result<(usize, T), Error> {
+        for column in columns {
+            match row.get_opt::<usize, Option<T>>(*column) {
+                Some(Ok(Some::<T>(value))) => return Ok((*column, value)),
+                Some(Ok(None::<T>)) => {} // null in db, ignore
+                Some(Err(e)) => return Err(Error::from(e)),
+                None => return Err(Error::MissingColumn(*column, Backtrace::new())),
+            };
+        }
+        Err(Error::NoResult)
+    }
 }
 
 impl From<PostgresError> for Error {
@@ -60,8 +77,11 @@ pub trait Insertable: Representable {
 }
 
 pub trait Queryable: Representable {
-    fn query_statement(&self) -> &'static str;
-    fn query_with(&self, transaction: &Transaction, id: i32) -> Result<Self, Error>
+    fn query_statement() -> &'static str;
+    fn query_with(transaction: &Transaction, id: i32) -> Result<Self, Error>
+    where
+        Self: Sized;
+    fn load_from(transaction: &Transaction, row: &Row) -> Result<Self, Error>
     where
         Self: Sized;
 }
