@@ -431,7 +431,7 @@ impl PsqlInserter {
         func.line("let statement = transaction.prepare_cached(Self::query_statement())?;");
         func.line("let rows = statement.query(&[&id])?;");
         func.line(&format!(
-            "Ok({}::load_from(transaction, &rows.iter().next().ok_or({}::no_result())?)?)",
+            "Ok({}::load_from(transaction, &rows.iter().next().ok_or_else({}::no_result)?)?)",
             name, ERROR_TYPE,
         ));
     }
@@ -442,7 +442,7 @@ impl PsqlInserter {
             let inner = rust.clone().into_inner_type();
             if Self::is_sql_primitive(&inner) {
                 let load = format!(
-                    "row.get_opt::<usize, {}>({}).ok_or({}::no_result())??",
+                    "row.get_opt::<usize, {}>({}).ok_or_else({}::no_result)??",
                     rust.to_sql().to_rust().to_string(),
                     index + 1,
                     ERROR_TYPE,
@@ -455,7 +455,7 @@ impl PsqlInserter {
             } else {
                 let load = if let RustType::Option(_) = rust {
                     format!(
-                        "if let Some(id) = row.get_opt::<usize, Option<i32>>({}).ok_or({}::no_result())?? {{\
+                        "if let Some(id) = row.get_opt::<usize, Option<i32>>({}).ok_or_else({}::no_result)?? {{\
                          Some({}::query_with(transaction, id)?)\
                          }} else {{\
                          None\
@@ -466,7 +466,7 @@ impl PsqlInserter {
                     )
                 } else {
                     format!(
-                        "{}::query_with(transaction, row.get_opt({}).ok_or({}::no_result())??)?",
+                        "{}::query_with(transaction, row.get_opt({}).ok_or_else({}::no_result)??)?",
                         inner.to_string(),
                         index + 1,
                         ERROR_TYPE,
@@ -488,7 +488,7 @@ impl PsqlInserter {
         func.line("let statement = transaction.prepare_cached(Self::query_statement())?;");
         func.line("let rows = statement.query(&[&id])?;");
         func.line(&format!(
-            "Ok({}::load_from(transaction, &rows.iter().next().ok_or({}::no_result())?)?)",
+            "Ok({}::load_from(transaction, &rows.iter().next().ok_or_else({}::no_result)?)?)",
             name, ERROR_TYPE
         ));
     }
@@ -528,7 +528,7 @@ impl PsqlInserter {
 
     fn impl_enum_load_fn(func: &mut Function, name: &str) {
         func.line(&format!(
-            "Ok({}::query_with(transaction, row.get_opt::<usize, i32>(0).ok_or({}::no_result())??)?)",
+            "Ok({}::query_with(transaction, row.get_opt::<usize, i32>(0).ok_or_else({}::no_result)??)?)",
             name, ERROR_TYPE,
         ));
     }
@@ -542,7 +542,7 @@ impl PsqlInserter {
             let mut block = Block::new("for (number, row) in rows.iter().enumerate()");
             let from_sql = inner.to_sql().to_rust();
             let load = format!(
-                "row.get_opt::<usize, {}>(number).ok_or({}::no_result())??",
+                "row.get_opt::<usize, {}>(number).ok_or_else({}::no_result)??",
                 from_sql.to_string(),
                 ERROR_TYPE,
             );
@@ -564,7 +564,7 @@ impl PsqlInserter {
 
     fn impl_tupl_struct_load_fn(func: &mut Function, name: &str) {
         func.line(&format!(
-            "Ok({}::query_with(transaction, row.get_opt(0).ok_or({}::no_result())??)?)",
+            "Ok({}::query_with(transaction, row.get_opt(0).ok_or_else({}::no_result)??)?)",
             name, ERROR_TYPE,
         ));
     }
