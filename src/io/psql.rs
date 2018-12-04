@@ -11,10 +11,15 @@ pub enum Error {
     MissingReturnedIndex(Backtrace),
     MissingRow(usize, Backtrace),
     MissingColumn(usize, Backtrace),
-    NoResult,
+    NoResult(Backtrace),
 }
 
 impl Error {
+    #[inline]
+    pub fn no_result() -> Self {
+        Error::NoResult(Backtrace::new())
+    }
+
     pub fn expect_returned_index(rows: &Rows) -> Result<i32, Error> {
         if rows.is_empty() {
             Err(Error::MissingReturnedIndex(Backtrace::new()))
@@ -57,7 +62,7 @@ impl Error {
                 None => return Err(Error::MissingColumn(*column, Backtrace::new())),
             };
         }
-        Err(Error::NoResult)
+        Err(Error::no_result())
     }
 }
 
