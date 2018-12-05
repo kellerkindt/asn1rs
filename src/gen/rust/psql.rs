@@ -404,7 +404,11 @@ impl PsqlInserter {
                 Self::impl_enum_load_fn(Self::new_load_fn(implementation, true), name);
             }
             Rust::TupleStruct(rust) => {
-                Self::impl_tupl_query_statement(Self::new_query_statement_fn(implementation), name);
+                Self::impl_tupl_query_statement(
+                    Self::new_query_statement_fn(implementation),
+                    name,
+                    &rust.clone().into_inner_type().to_string(),
+                );
                 Self::impl_tupl_struct_query_fn(
                     Self::new_query_fn(implementation, true),
                     name,
@@ -423,8 +427,11 @@ impl PsqlInserter {
         func.line("\"\"");
     }
 
-    fn impl_tupl_query_statement(func: &mut Function, name: &str) {
-        func.line(&format!("\"{}\"", Self::list_entry_query_statement(name)));
+    fn impl_tupl_query_statement(func: &mut Function, name: &str, inner: &str) {
+        func.line(&format!(
+            "\"{}\"",
+            Self::list_entry_query_statement(name, inner)
+        ));
     }
 
     fn impl_struct_query_fn(func: &mut Function, name: &str) {
@@ -613,10 +620,10 @@ impl PsqlInserter {
         format!("INSERT INTO {}ListEntry(list, value) VALUES ($1, $2)", name)
     }
 
-    fn list_entry_query_statement(name: &str) -> String {
+    fn list_entry_query_statement(name: &str, inner: &str) -> String {
         format!(
             "SELECT * FROM {} INNER JOIN {}ListEntry ON {}.id = {}ListEntry.value WHERE {}ListEntry.list = $1",
-            name, name, name, name, name
+            inner, name, inner, name, name
         )
     }
 }
