@@ -407,7 +407,7 @@ impl PsqlInserter {
                 Self::impl_tupl_query_statement(
                     Self::new_query_statement_fn(implementation),
                     name,
-                    &rust.clone().into_inner_type().to_string(),
+                    rust,
                 );
                 Self::impl_tupl_struct_query_fn(
                     Self::new_query_fn(implementation, true),
@@ -427,7 +427,7 @@ impl PsqlInserter {
         func.line("\"\"");
     }
 
-    fn impl_tupl_query_statement(func: &mut Function, name: &str, inner: &str) {
+    fn impl_tupl_query_statement(func: &mut Function, name: &str, inner: &RustType) {
         func.line(&format!(
             "\"{}\"",
             Self::list_entry_query_statement(name, inner)
@@ -546,10 +546,10 @@ impl PsqlInserter {
         func.line("let mut values = Vec::with_capacity(rows.len());");
         let inner = rust.clone().into_inner_type();
         if Self::is_sql_primitive(&inner) {
-            let mut block = Block::new("for (number, row) in rows.iter().enumerate()");
+            let mut block = Block::new("for row in rows.iter()");
             let from_sql = inner.to_sql().to_rust();
             let load = format!(
-                "row.get_opt::<usize, {}>(number).ok_or_else({}::no_result)??",
+                "row.get_opt::<usize, {}>(0).ok_or_else({}::no_result)??",
                 from_sql.to_string(),
                 ERROR_TYPE,
             );
@@ -620,10 +620,18 @@ impl PsqlInserter {
         format!("INSERT INTO {}ListEntry(list, value) VALUES ($1, $2)", name)
     }
 
-    fn list_entry_query_statement(name: &str, inner: &str) -> String {
-        format!(
-            "SELECT * FROM {} INNER JOIN {}ListEntry ON {}.id = {}ListEntry.value WHERE {}ListEntry.list = $1",
-            inner, name, inner, name, name
-        )
+    fn list_entry_query_statement(name: &str, inner: &RustType) -> String {
+        if Self::is_sql_primitive(inner) {
+            format!(
+                "SELECT value FROM {}ListEntry WHERE {}ListEntry.list = $1",
+                name, name
+            )
+        } else {
+            let inner = inner.clone().into_inner_type().to_string();
+            format!(
+                "SELECT * FROM {} INNER JOIN {}ListEntry ON {}.id = {}ListEntry.value WHERE {}ListEntry.list = $1",
+                inner, name, inner, name, name
+            )
+        }
     }
 }
