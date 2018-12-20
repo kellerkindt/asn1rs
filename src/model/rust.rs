@@ -408,7 +408,7 @@ pub fn rust_module_name(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::test::*;
+    use crate::model::tests::*;
     use crate::model::Field;
     use crate::parser::Parser;
 
