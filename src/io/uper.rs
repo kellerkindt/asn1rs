@@ -168,7 +168,8 @@ pub trait Writer {
                 len -= 1;
             }
             len
-        }.max(1);
+        }
+        .max(1);
         self.write_length_determinant(byte_len)?;
         let bit_offset = (buffer.len() - byte_len) * BYTE_LEN;
         self.write_bit_string_till_end(&buffer, bit_offset)?;

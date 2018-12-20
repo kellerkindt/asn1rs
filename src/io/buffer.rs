@@ -1,7 +1,7 @@
-use io::uper::Error as UperError;
-use io::uper::Reader as UperReader;
-use io::uper::Writer as UperWriter;
-use io::uper::BYTE_LEN;
+use crate::io::uper::Error as UperError;
+use crate::io::uper::Reader as UperReader;
+use crate::io::uper::Writer as UperWriter;
+use crate::io::uper::BYTE_LEN;
 
 #[derive(Debug, Default)]
 pub struct BitBuffer {

@@ -1,9 +1,9 @@
-use gen::Generator;
-use model::sql::Column;
-use model::sql::Constraint;
-use model::sql::Sql;
-use model::Definition;
-use model::Model;
+use crate::gen::Generator;
+use crate::model::sql::Column;
+use crate::model::sql::Constraint;
+use crate::model::sql::Sql;
+use crate::model::Definition;
+use crate::model::Model;
 use std::fmt::Write;
 
 #[derive(Debug)]

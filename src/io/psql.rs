@@ -1,9 +1,9 @@
-use backtrace::Backtrace;
-use postgres::rows::Rows;
-
 pub use postgres::rows::Row;
 pub use postgres::transaction::Transaction;
 pub use postgres::Error as PostgresError;
+
+use crate::postgres::rows::Rows;
+use backtrace::Backtrace;
 
 #[derive(Debug)]
 pub enum Error {

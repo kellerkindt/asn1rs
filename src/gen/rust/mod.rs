@@ -4,23 +4,20 @@ mod uper;
 #[cfg(feature = "psql")]
 mod psql;
 
+use self::protobuf::ProtobufSerializer;
+use self::uper::UperSerializer;
+use crate::gen::Generator;
+use crate::model::Definition;
+use crate::model::Model;
+use crate::model::Range;
+use crate::model::Rust;
+use crate::model::RustType;
 use codegen::Block;
 use codegen::Enum;
 use codegen::Function;
 use codegen::Impl;
 use codegen::Scope;
 use codegen::Struct;
-
-use model::Definition;
-use model::Model;
-use model::Range;
-use model::Rust;
-use model::RustType;
-
-use gen::Generator;
-
-use self::protobuf::ProtobufSerializer;
-use self::uper::UperSerializer;
 
 #[cfg(feature = "psql")]
 use self::psql::PsqlInserter;

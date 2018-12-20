@@ -1,18 +1,15 @@
-use gen::protobuf::Error as ProtobufGeneratorError;
-use gen::protobuf::ProtobufDefGenerator as ProtobufGenerator;
-use gen::rust::RustCodeGenerator as RustGenerator;
-use gen::sql::Error as SqlGeneratorError;
-use gen::sql::SqlDefGenerator as SqlGenerator;
-use gen::Generator;
-
-use model::protobuf::ToProtobufModel;
-use model::sql::ToSqlModel;
-use model::Error as ModelError;
-use model::Model;
-
-use parser::Error as ParserError;
-use parser::Parser;
-
+use crate::gen::protobuf::Error as ProtobufGeneratorError;
+use crate::gen::protobuf::ProtobufDefGenerator as ProtobufGenerator;
+use crate::gen::rust::RustCodeGenerator as RustGenerator;
+use crate::gen::sql::Error as SqlGeneratorError;
+use crate::gen::sql::SqlDefGenerator as SqlGenerator;
+use crate::gen::Generator;
+use crate::model::protobuf::ToProtobufModel;
+use crate::model::sql::ToSqlModel;
+use crate::model::Error as ModelError;
+use crate::model::Model;
+use crate::parser::Error as ParserError;
+use crate::parser::Parser;
 use std::io::Error as IoError;
 use std::path::Path;
 

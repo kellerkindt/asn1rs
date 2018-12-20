@@ -1,12 +1,10 @@
+use crate::gen::Generator;
+use crate::model::Definition;
+use crate::model::Model;
+use crate::model::Protobuf;
+use crate::model::ProtobufType;
 use std::fmt::Error as FmtError;
 use std::fmt::Write;
-
-use model::Definition;
-use model::Model;
-use model::Protobuf;
-use model::ProtobufType;
-
-use gen::Generator;
 
 #[derive(Debug)]
 pub enum Error {

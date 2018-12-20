@@ -8,11 +8,9 @@ pub use self::rust::RustType;
 pub use self::protobuf::Protobuf;
 pub use self::protobuf::ProtobufType;
 
-use std::vec::IntoIter;
-
+use crate::parser::Token;
 use backtrace::Backtrace;
-
-use parser::Token;
+use std::vec::IntoIter;
 
 #[derive(Debug)]
 pub enum Error {
@@ -81,7 +79,8 @@ impl Model<Asn> {
                 } else {
                     None
                 }
-            }).ok_or(Error::MissingModuleName)
+            })
+            .ok_or(Error::MissingModuleName)
     }
 
     fn skip_after(iter: &mut IntoIter<Token>, token: &Token) -> Result<(), Error> {
@@ -346,7 +345,7 @@ impl Model<Asn> {
 #[cfg(test)]
 pub(crate) mod test {
     use super::*;
-    use parser::Parser;
+    use crate::parser::Parser;
 
     pub(crate) const SIMPLE_INTEGER_STRUCT_ASN: &str = r"
         SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
@@ -464,7 +463,8 @@ pub(crate) mod test {
             Parser::default()
                 .parse(INLINE_ASN_WITH_SEQUENCE_OF)
                 .unwrap(),
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!("SimpleSchema", model.name);
         assert_eq!(true, model.imports.is_empty());

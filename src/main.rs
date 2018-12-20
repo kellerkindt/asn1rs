@@ -1,11 +1,6 @@
 #![allow(dead_code)]
 #![warn(unused_extern_crates)]
 
-extern crate backtrace;
-extern crate byteorder;
-extern crate clap;
-extern crate codegen;
-
 #[cfg(feature = "psql")]
 extern crate postgres;
 
@@ -29,17 +24,20 @@ pub fn main() {
                 .value_name("CONVERSION_TARGET")
                 .default_value("rust")
                 .possible_values(&["rust", "proto", "sql"]),
-        ).arg(
+        )
+        .arg(
             Arg::with_name("DESTINATION_DIR")
                 .required(true)
                 .multiple(false)
                 .value_name("DESTINATION_DIR"),
-        ).arg(
+        )
+        .arg(
             Arg::with_name("SOURCE_FILES")
                 .required(true)
                 .multiple(true)
                 .value_name("SOURCE_FILES"),
-        ).get_matches();
+        )
+        .get_matches();
 
     let destination = matches.value_of("DESTINATION_DIR").unwrap();
     let sources = matches.values_of("SOURCE_FILES").unwrap();

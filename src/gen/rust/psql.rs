@@ -1,14 +1,14 @@
+use crate::gen::rust::GeneratorSupplement;
+use crate::gen::rust::RustCodeGenerator;
+use crate::model::sql::ToSql;
+use crate::model::Definition;
+use crate::model::Model;
+use crate::model::Rust;
+use crate::model::RustType;
 use codegen::Block;
 use codegen::Function;
 use codegen::Impl;
 use codegen::Scope;
-use gen::rust::GeneratorSupplement;
-use gen::rust::RustCodeGenerator;
-use model::sql::ToSql;
-use model::Definition;
-use model::Model;
-use model::Rust;
-use model::RustType;
 
 const ERROR_TYPE: &str = "PsqlError";
 const ROW_TYPE: &str = "PsqlRow";
@@ -127,7 +127,8 @@ impl PsqlInserter {
                     "_"
                 },
                 "&Transaction",
-            ).ret(&format!("Result<i32, {}>", ERROR_TYPE))
+            )
+            .ret(&format!("Result<i32, {}>", ERROR_TYPE))
     }
 
     fn impl_table_name(function: &mut Function, name: &str) {
@@ -590,7 +591,8 @@ impl PsqlInserter {
                     "_"
                 },
                 "&Transaction",
-            ).arg("id", "i32")
+            )
+            .arg("id", "i32")
             .ret(&format!("Result<Self, {}>", ERROR_TYPE))
     }
 
@@ -604,7 +606,8 @@ impl PsqlInserter {
                     "_"
                 },
                 "&Transaction",
-            ).arg("row", &format!("&{}", ROW_TYPE))
+            )
+            .arg("row", &format!("&{}", ROW_TYPE))
             .ret(&format!("Result<Self, {}>", ERROR_TYPE))
     }
 

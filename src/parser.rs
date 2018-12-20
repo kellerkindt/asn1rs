@@ -54,9 +54,11 @@ impl Parser {
                 c if !c.is_control() && c != ' ' => {
                     token = Some(Token::Text(format!("{}", c)));
                 }
-                ' ' | '\r' | '\n' | '\t' => if let Some(token) = previous.take() {
-                    tokens.push(token);
-                },
+                ' ' | '\r' | '\n' | '\t' => {
+                    if let Some(token) = previous.take() {
+                        tokens.push(token);
+                    }
+                }
                 c => eprintln!(
                     "Ignoring unexpected character: {}-0x{:02x}-{:03}",
                     c, c as u8, c as u8

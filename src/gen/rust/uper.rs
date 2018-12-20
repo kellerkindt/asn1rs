@@ -1,14 +1,12 @@
+use crate::gen::rust::GeneratorSupplement;
+use crate::gen::rust::RustCodeGenerator;
+use crate::model::Definition;
+use crate::model::Rust;
+use crate::model::RustType;
 use codegen::Block;
 use codegen::Function;
 use codegen::Impl;
 use codegen::Scope;
-
-use model::Definition;
-use model::Rust;
-use model::RustType;
-
-use gen::rust::GeneratorSupplement;
-use gen::rust::RustCodeGenerator;
 
 pub struct UperSerializer;
 impl GeneratorSupplement<Rust> for UperSerializer {
@@ -403,7 +401,8 @@ impl UperSerializer {
                                 RustCodeGenerator::rust_field_name(f.name(), true).to_string();
                             *f.name_mut() = name;
                             f.to_string()
-                        }).unwrap_or_else(|| "value".into()),
+                        })
+                        .unwrap_or_else(|| "value".into()),
                 ));
             }
         }

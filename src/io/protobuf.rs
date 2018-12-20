@@ -2,7 +2,6 @@ use backtrace::Backtrace;
 use byteorder::LittleEndian as E;
 use byteorder::ReadBytesExt;
 use byteorder::WriteBytesExt;
-
 use std::io::Error as IoError;
 use std::io::Read;
 use std::io::Write;
@@ -67,7 +66,8 @@ impl ToString for Format {
             Format::Fixed64 => "Fixed64",
             Format::LengthDelimited => "LengthDelimited",
             Format::Fixed32 => "Fixed32",
-        }.into()
+        }
+        .into()
     }
 }
 

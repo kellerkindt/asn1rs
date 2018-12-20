@@ -1,19 +1,15 @@
+use crate::gen::rust::GeneratorSupplement;
+use crate::gen::rust::RustCodeGenerator;
+use crate::io::protobuf::Format as ProtobufFormat;
+use crate::model::protobuf::ToProtobufType;
+use crate::model::Definition;
+use crate::model::ProtobufType;
+use crate::model::Rust;
+use crate::model::RustType;
 use codegen::Block;
 use codegen::Function;
 use codegen::Impl;
 use codegen::Scope;
-
-use model::Definition;
-
-use model::protobuf::ToProtobufType;
-use model::ProtobufType;
-use model::Rust;
-use model::RustType;
-
-use gen::rust::GeneratorSupplement;
-use gen::rust::RustCodeGenerator;
-
-use io::protobuf::Format as ProtobufFormat;
 
 pub struct ProtobufSerializer;
 

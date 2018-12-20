@@ -1,5 +1,5 @@
-use model::rust::*;
-use model::*;
+use crate::model::rust::*;
+use crate::model::*;
 
 const TUPLE_VARIABLE_NAME_REPLACEMENT: &str = "value";
 const DATAENUM_VARIABLE_NAME_REPLACEMENT: &str = "value";
@@ -79,7 +79,8 @@ impl ToString for ProtobufType {
             ProtobufType::OneOf(_) => "oneof",
             ProtobufType::Complex(name) => return name.clone(),
             ProtobufType::Repeated(name) => return format!("repeated {}", name.to_string()),
-        }.into()
+        }
+        .into()
     }
 }
 

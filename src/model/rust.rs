@@ -1,9 +1,9 @@
-use model::Asn;
-use model::ChoiceEntry;
-use model::Definition;
-use model::Import;
-use model::Model;
-use model::Range;
+use crate::model::Asn;
+use crate::model::ChoiceEntry;
+use crate::model::Definition;
+use crate::model::Import;
+use crate::model::Model;
+use crate::model::Range;
 
 const I8_MAX: i64 = ::std::i8::MAX as i64;
 const I16_MAX: i64 = ::std::i16::MAX as i64;
@@ -114,45 +114,71 @@ impl RustType {
     pub fn similar(&self, other: &Self) -> bool {
         match self {
             RustType::Bool => return *other == RustType::Bool,
-            RustType::U8(_) => if let RustType::U8(_) = other {
-                return true;
-            },
-            RustType::I8(_) => if let RustType::I8(_) = other {
-                return true;
-            },
-            RustType::U16(_) => if let RustType::U16(_) = other {
-                return true;
-            },
-            RustType::I16(_) => if let RustType::I16(_) = other {
-                return true;
-            },
-            RustType::U32(_) => if let RustType::U32(_) = other {
-                return true;
-            },
-            RustType::I32(_) => if let RustType::I32(_) = other {
-                return true;
-            },
-            RustType::U64(_) => if let RustType::U64(_) = other {
-                return true;
-            },
-            RustType::I64(_) => if let RustType::I64(_) = other {
-                return true;
-            },
-            RustType::String => if let RustType::String = other {
-                return true;
-            },
-            RustType::VecU8 => if let RustType::VecU8 = other {
-                return true;
-            },
-            RustType::Vec(inner_a) => if let RustType::Vec(inner_b) = other {
-                return inner_a.similar(inner_b);
-            },
-            RustType::Option(inner_a) => if let RustType::Option(inner_b) = other {
-                return inner_a.similar(inner_b);
-            },
-            RustType::Complex(inner_a) => if let RustType::Complex(inner_b) = other {
-                return inner_a.eq(inner_b);
-            },
+            RustType::U8(_) => {
+                if let RustType::U8(_) = other {
+                    return true;
+                }
+            }
+            RustType::I8(_) => {
+                if let RustType::I8(_) = other {
+                    return true;
+                }
+            }
+            RustType::U16(_) => {
+                if let RustType::U16(_) = other {
+                    return true;
+                }
+            }
+            RustType::I16(_) => {
+                if let RustType::I16(_) = other {
+                    return true;
+                }
+            }
+            RustType::U32(_) => {
+                if let RustType::U32(_) = other {
+                    return true;
+                }
+            }
+            RustType::I32(_) => {
+                if let RustType::I32(_) = other {
+                    return true;
+                }
+            }
+            RustType::U64(_) => {
+                if let RustType::U64(_) = other {
+                    return true;
+                }
+            }
+            RustType::I64(_) => {
+                if let RustType::I64(_) = other {
+                    return true;
+                }
+            }
+            RustType::String => {
+                if let RustType::String = other {
+                    return true;
+                }
+            }
+            RustType::VecU8 => {
+                if let RustType::VecU8 = other {
+                    return true;
+                }
+            }
+            RustType::Vec(inner_a) => {
+                if let RustType::Vec(inner_b) = other {
+                    return inner_a.similar(inner_b);
+                }
+            }
+            RustType::Option(inner_a) => {
+                if let RustType::Option(inner_b) = other {
+                    return inner_a.similar(inner_b);
+                }
+            }
+            RustType::Complex(inner_a) => {
+                if let RustType::Complex(inner_b) = other {
+                    return inner_a.eq(inner_b);
+                }
+            }
         };
         false
     }
@@ -185,7 +211,8 @@ impl ToString for RustType {
             RustType::Vec(inner) => return format!("Vec<{}>", inner.to_string()),
             RustType::Option(inner) => return format!("Option<{}>", inner.to_string()),
             RustType::Complex(name) => return name.clone(),
-        }.into()
+        }
+        .into()
     }
 }
 
@@ -199,7 +226,8 @@ impl Model<Rust> {
                 .map(|i| Import {
                     what: i.what.iter().map(|w| rust_struct_or_enum_name(w)).collect(),
                     from: rust_module_name(&i.from),
-                }).collect(),
+                })
+                .collect(),
             definitions: Vec::with_capacity(asn_model.definitions.len()),
         };
         for Definition(name, asn) in &asn_model.definitions {
@@ -353,7 +381,7 @@ pub fn rust_module_name(name: &str) -> String {
     let mut chars = name.chars().peekable();
     while let Some(c) = chars.next() {
         let mut lowered = false;
-        let mut alphabetic = c.is_alphabetic();
+        let alphabetic = c.is_alphabetic();
         if c.is_uppercase() {
             if !out.is_empty() && prev_alphabetic {
                 if !prev_lowered {
@@ -380,9 +408,9 @@ pub fn rust_module_name(name: &str) -> String {
 #[cfg(test)]
 mod test {
     use super::*;
-    use model::test::*;
-    use model::Field;
-    use parser::Parser;
+    use crate::model::test::*;
+    use crate::model::Field;
+    use crate::parser::Parser;
 
     #[test]
     fn test_simple_asn_sequence_represented_correctly_as_rust_model() {
@@ -451,7 +479,8 @@ mod test {
             Parser::default()
                 .parse(INLINE_ASN_WITH_SEQUENCE_OF)
                 .unwrap(),
-        ).unwrap()
+        )
+        .unwrap()
         .to_rust();
 
         assert_eq!("simple_schema", model_rust.name);

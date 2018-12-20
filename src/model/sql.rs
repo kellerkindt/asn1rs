@@ -1,8 +1,9 @@
-use model::Definition;
-use model::Model;
-use model::Range;
-use model::Rust;
-use model::RustType;
+use crate::gen::RustCodeGenerator;
+use crate::model::Definition;
+use crate::model::Model;
+use crate::model::Range;
+use crate::model::Rust;
+use crate::model::RustType;
 
 const FOREIGN_KEY_DEFAULT_COLUMN: &str = "id";
 const TUPLE_LIST_ENTRY_PARENT_COLUMN: &str = "list";
@@ -33,7 +34,8 @@ impl ToString for Action {
         match self {
             Action::Cascade => "CASCADE",
             Action::Restrict => "RESTRICT",
-        }.into()
+        }
+        .into()
     }
 }
 
@@ -197,7 +199,7 @@ impl Model<Sql> {
                 vec![Constraint::OneNotNull(
                     fields
                         .iter()
-                        .map(|(name, _)| ::gen::RustCodeGenerator::rust_module_name(&name))
+                        .map(|(name, _)| RustCodeGenerator::rust_module_name(&name))
                         .collect::<Vec<String>>(),
                 )],
             ),
@@ -309,11 +311,11 @@ impl Model<Sql> {
 
     pub fn sql_column_name(name: &str) -> String {
         if FOREIGN_KEY_DEFAULT_COLUMN.eq_ignore_ascii_case(name.trim()) {
-            let mut string = ::gen::RustCodeGenerator::rust_module_name(name);
+            let mut string = RustCodeGenerator::rust_module_name(name);
             string.push('_');
             string
         } else {
-            ::gen::RustCodeGenerator::rust_module_name(name)
+            RustCodeGenerator::rust_module_name(name)
         }
     }
 
@@ -399,8 +401,8 @@ impl ToSql for RustType {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use model::Import;
-    use model::Model;
+    use crate::model::Import;
+    use crate::model::Model;
 
     #[test]
     fn test_conversion_struct() {
@@ -417,7 +419,8 @@ mod tests {
                     ("birth".into(), RustType::Complex("City".into())),
                 ]),
             )],
-        }.to_sql();
+        }
+        .to_sql();
         assert_eq!("Manfred", &model.name);
         assert!(model.imports.is_empty());
         assert_eq!(
@@ -444,7 +447,8 @@ mod tests {
                                         FOREIGN_KEY_DEFAULT_COLUMN.into(),
                                         Some(Action::Cascade),
                                         Some(Action::Cascade),
-                                    ).into()
+                                    )
+                                    .into()
                                 ),
                                 primary_key: false
                             },
@@ -483,7 +487,8 @@ mod tests {
                     ("Alive".into(), RustType::Complex("Person".into())),
                 ]),
             )],
-        }.to_sql();
+        }
+        .to_sql();
         assert_eq!("Hurray", &model.name);
         assert!(model.imports.is_empty());
         assert_eq!(
@@ -509,7 +514,8 @@ mod tests {
                                     FOREIGN_KEY_DEFAULT_COLUMN.into(),
                                     Some(Action::Cascade),
                                     Some(Action::Cascade),
-                                ).into(),
+                                )
+                                .into(),
                                 primary_key: false
                             },
                         ],
@@ -547,7 +553,8 @@ mod tests {
                 "City".into(),
                 Rust::Enum(vec!["Esslingen".into(), "Stuttgart".into()]),
             )],
-        }.to_sql();
+        }
+        .to_sql();
         assert_eq!("Alfred", &model.name);
         assert!(model.imports.is_empty());
         assert_eq!(
@@ -580,7 +587,8 @@ mod tests {
                     Rust::TupleStruct(RustType::Complex("Whatever".into())),
                 ),
             ],
-        }.to_sql();
+        }
+        .to_sql();
         assert_eq!("Hurray", &model.name);
         assert!(model.imports.is_empty());
         assert_eq!(
@@ -608,7 +616,8 @@ mod tests {
                                         "id".into(),
                                         Some(Action::Cascade),
                                         Some(Action::Cascade),
-                                    ).into()
+                                    )
+                                    .into()
                                 ),
                                 primary_key: false
                             },
@@ -661,7 +670,8 @@ mod tests {
                                         "id".into(),
                                         Some(Action::Cascade),
                                         Some(Action::Cascade),
-                                    ).into()
+                                    )
+                                    .into()
                                 ),
                                 primary_key: false
                             },
@@ -673,7 +683,8 @@ mod tests {
                                         FOREIGN_KEY_DEFAULT_COLUMN.into(),
                                         Some(Action::Cascade),
                                         Some(Action::Cascade),
-                                    ).into()
+                                    )
+                                    .into()
                                 ),
                                 primary_key: false
                             },
@@ -726,7 +737,8 @@ mod tests {
                 "City".into(),
                 Rust::Struct(vec![("id".into(), RustType::String)]),
             )],
-        }.to_sql();
+        }
+        .to_sql();
         assert_eq!("Alfred", &model.name);
         assert!(model.imports.is_empty());
         assert_eq!(
@@ -869,13 +881,15 @@ mod tests {
                 "columno".into(),
                 Some(Action::Cascade),
                 Some(Action::Restrict),
-            ).to_string()
+            )
+            .to_string()
         );
         assert_eq!(
             "INTEGER REFERENCES table(column) NOT NULL",
             &SqlType::NotNull(
                 SqlType::References("table".into(), "column".into(), None, None).into()
-            ).to_string()
+            )
+            .to_string()
         );
         assert_eq!(
             "INTEGER REFERENCES table(column) ON DELETE RESTRICT ON UPDATE CASCADE NOT NULL",
@@ -885,8 +899,10 @@ mod tests {
                     "column".into(),
                     Some(Action::Restrict),
                     Some(Action::Cascade),
-                ).into()
-            ).to_string()
+                )
+                .into()
+            )
+            .to_string()
         );
     }
 }

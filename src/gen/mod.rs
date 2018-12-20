@@ -4,7 +4,7 @@ pub mod sql;
 
 pub use self::rust::RustCodeGenerator;
 
-use model::Model;
+use crate::model::Model;
 
 pub trait Generator<T> {
     type Error;
