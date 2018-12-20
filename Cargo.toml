@@ -1,7 +1,7 @@
 [package]
 name = "asn1c"
 version = "0.1.0"
-authors = ["Michael Watzko <Michael.Watzko@stz-softwaretechnik.de>"]
+authors = ["Michael Watzko <michael@watzko.de>"]
 edition = "2018"
 
 [lib]
