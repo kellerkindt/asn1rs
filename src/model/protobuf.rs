@@ -203,7 +203,7 @@ pub fn proto_definition_name(name: &str) -> String {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[test]

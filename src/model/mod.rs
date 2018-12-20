@@ -343,7 +343,7 @@ impl Model<Asn> {
 }
 
 #[cfg(test)]
-pub(crate) mod test {
+pub(crate) mod tests {
     use super::*;
     use crate::parser::Parser;
 
