@@ -148,11 +148,21 @@ impl PsqlInserter {
                 name,
                 fields
                     .iter()
-                    .map(|(name, _)| Model::sql_column_name(name))
+                    .filter_map(|(name, field)| if Self::is_vec(field) {
+                        None
+                    } else {
+                        Some(name)
+                    })
+                    .map(|name| Model::sql_column_name(name))
                     .collect::<Vec<String>>()
                     .join(", "),
                 fields
                     .iter()
+                    .filter_map(|(name, field)| if Self::is_vec(field) {
+                        None
+                    } else {
+                        Some(name)
+                    })
                     .enumerate()
                     .map(|(num, _)| format!("${}", num + 1))
                     .collect::<Vec<String>>()
@@ -198,12 +208,24 @@ impl PsqlInserter {
         ));
     }
 
-    fn impl_struct_insert_fn(function: &mut Function, _name: &str, fields: &[(String, RustType)]) {
+    fn impl_struct_insert_fn(
+        function: &mut Function,
+        struct_name: &str,
+        fields: &[(String, RustType)],
+    ) {
         let mut variables = Vec::with_capacity(fields.len());
+        let mut vecs = Vec::new();
         for (name, rust) in fields {
             let name = RustCodeGenerator::rust_field_name(name, true);
             let sql_primitive = Self::is_sql_primitive(rust);
-            variables.push(format!("&{}", name));
+            let is_vec = Self::is_vec(rust);
+
+            if !is_vec {
+                variables.push(format!("&{}", name));
+            } else {
+                vecs.push((name.clone(), rust.clone()));
+                continue;
+            }
             if sql_primitive {
                 function.line(&format!(
                     "let {} = {}self.{};",
@@ -214,7 +236,7 @@ impl PsqlInserter {
                 if let Some(wrap) = Self::wrap_for_insert_in_as_or_from_if_required(&name, rust) {
                     function.line(format!("let {} = {};", name, wrap,));
                 }
-            } else {
+            } else if !is_vec {
                 function.line(&format!(
                     "let {} = {}self.{}{}.insert_with(transaction)?{};",
                     name,
@@ -242,7 +264,24 @@ impl PsqlInserter {
             "let result = statement.query(&[{}])?;",
             variables.join(", ")
         ));
-        function.line(&format!("{}::expect_returned_index(&result)", ERROR_TYPE));
+        if vecs.is_empty() {
+            function.line(&format!("{}::expect_returned_index(&result)", ERROR_TYPE));
+        } else {
+            function.line(&format!(
+                "let index = {}::expect_returned_index(&result)?;",
+                ERROR_TYPE
+            ));
+            for (name, field) in vecs {
+                let mut block = Block::new("");
+                block.line(&format!(
+                    "let statement = transaction.prepare_cached(\"{}\")?;",
+                    &Self::struct_list_entry_insert_statement(&struct_name, &name),
+                ));
+                block.push_block(Self::list_insert_for_each(&name, &field, "index"));
+                function.push_block(block);
+            }
+            function.line("Ok(index)");
+        }
     }
 
     fn wrap_for_insert_in_as_or_from_if_required(name: &str, rust: &RustType) -> Option<String> {
@@ -338,7 +377,21 @@ impl PsqlInserter {
             "let statement = transaction.prepare_cached(\"{}\")?;",
             Self::list_entry_insert_statement(name)
         ));
-        let mut block_for = Block::new("for value in &self.0");
+        function.push_block(Self::list_insert_for_each("0", rust, "list"));
+        function.line("Ok(list)");
+    }
+
+    /// Expects a variable called `statement` to be reachable and usable
+    fn list_insert_for_each(name: &str, rust: &RustType, list: &str) -> Block {
+        let mut block_for = Block::new(&format!(
+            "for value in self.{}.iter(){}",
+            name,
+            if let RustType::Option(_) = rust {
+                ".flatten()"
+            } else {
+                ""
+            }
+        ));
         let sql_primitive = Self::is_sql_primitive(rust);
         if !sql_primitive {
             block_for.line("let value = value.insert_with(transaction)?;");
@@ -352,13 +405,7 @@ impl PsqlInserter {
                     rust_from_sql.is_primitive() && rust_from_sql > inner_rust;
                 block_for.line(format!(
                     "let value = {};",
-                    if let RustType::Option(_) = rust {
-                        if use_from_instead_of_as {
-                            format!("value.map({}::from)", as_target)
-                        } else {
-                            format!("value.map(|v| v as {})", as_target)
-                        }
-                    } else if use_from_instead_of_as {
+                    if use_from_instead_of_as {
                         format!("{}::from(*value)", as_target)
                     } else {
                         format!("*value as {}", as_target)
@@ -366,9 +413,8 @@ impl PsqlInserter {
                 ));
             }
         }
-        block_for.line("statement.execute(&[&list, &value])?;");
-        function.push_block(block_for);
-        function.line("Ok(list)");
+        block_for.line(format!("statement.execute(&[&{}, &value])?;", list));
+        block_for
     }
 
     fn impl_queryable(scope: &mut Scope, Definition(name, rust): &Definition<Rust>) {
@@ -380,7 +426,9 @@ impl PsqlInserter {
                 Self::impl_struct_load_fn(
                     Self::new_load_fn(
                         implementation,
-                        fields.iter().any(|(_, rust)| !Self::is_sql_primitive(rust)),
+                        fields
+                            .iter()
+                            .any(|(_, rust)| !Self::is_sql_primitive(rust) || Self::is_vec(rust)),
                     ),
                     name,
                     &fields[..],
@@ -443,12 +491,66 @@ impl PsqlInserter {
             name, ERROR_TYPE,
         ));
     }
-    fn impl_struct_load_fn(func: &mut Function, name: &str, variants: &[(String, RustType)]) {
-        let mut block = Block::new(&format!("Ok({}", name));
+    fn impl_struct_load_fn(
+        func: &mut Function,
+        struct_name: &str,
+        variants: &[(String, RustType)],
+    ) {
+        let mut block = Block::new(&format!("Ok({}", struct_name));
 
         for (index, (name, rust)) in variants.iter().enumerate() {
-            let inner = rust.clone().into_inner_type();
-            if Self::is_sql_primitive(&inner) {
+            if Self::is_vec(rust) {
+                let mut load_block = Block::new(&format!(
+                    "{}:",
+                    RustCodeGenerator::rust_field_name(name, true)
+                ));
+
+                load_block.line("let mut vec = Vec::default();");
+
+                load_block.line(&format!(
+                        "let rows = transaction.prepare_cached(\"{}\")?.query(&[&row.get_opt::<usize, i32>(0).ok_or_else(PsqlError::no_result)??])?;",
+
+                        if let RustType::Complex(complex) = rust.clone().into_inner_type() {
+                            Self::struct_list_entry_select_referenced_value_statement(
+                                struct_name,
+                                &name,
+                                &complex
+                            )
+                        } else {
+                            Self::struct_list_entry_select_value_statement(
+                                struct_name, &name
+                            )
+                        }
+                    ));
+                let mut rows_foreach = Block::new("for row in rows.iter()");
+                if let RustType::Complex(complex) = rust.clone().into_inner_type() {
+                    rows_foreach.line(&format!(
+                        "vec.push({}::load_from(transaction, &row)?);",
+                        complex
+                    ));
+                } else {
+                    let rust = rust.clone().into_inner_type();
+                    let sql = rust.to_sql();
+                    rows_foreach.line(&format!(
+                        "let value = row.get_opt::<usize, {}>({}).ok_or_else({}::no_result)??;",
+                        sql.to_rust().to_string(),
+                        index + 1,
+                        ERROR_TYPE,
+                    ));
+                    if rust < sql.to_rust() {
+                        rows_foreach.line(&format!("let value = value as {};", rust.to_string()));
+                    }
+                    rows_foreach.line("vec.push(value);");
+                }
+                load_block.push_block(rows_foreach);
+
+                if let RustType::Option(_) = rust {
+                    load_block.line("if vec.is_empty() { None } else { Some(vec) }");
+                } else {
+                    load_block.line("vec");
+                }
+                block.push_block(load_block);
+            } else if Self::is_sql_primitive(&rust) {
                 let load = format!(
                     "row.get_opt::<usize, {}>({}).ok_or_else({}::no_result)??",
                     rust.to_sql().to_rust().to_string(),
@@ -461,6 +563,7 @@ impl PsqlInserter {
                     Self::wrap_for_query_in_as_or_from_if_required(&load, rust,).unwrap_or(load)
                 ));
             } else {
+                let inner = rust.clone().into_inner_type();
                 let load = if let RustType::Option(_) = rust {
                     format!(
                         "if let Some(id) = row.get_opt::<usize, Option<i32>>({}).ok_or_else({}::no_result)?? {{\
@@ -611,12 +714,53 @@ impl PsqlInserter {
             .ret(&format!("Result<Self, {}>", ERROR_TYPE))
     }
 
-    fn is_sql_primitive(rust: &RustType) -> bool {
+    pub fn is_sql_primitive(rust: &RustType) -> bool {
         match rust.clone().into_inner_type() {
             RustType::String => true,
             RustType::VecU8 => true,
             r => r.is_primitive(),
         }
+    }
+
+    pub fn is_vec(rust: &RustType) -> bool {
+        if let RustType::Vec(_) = rust.clone().no_option() {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn struct_list_entry_table_name(struct_name: &str, field_name: &str) -> String {
+        format!(
+            "{}_{}_ListEntry",
+            struct_name,
+            RustCodeGenerator::rust_variant_name(field_name)
+        )
+    }
+
+    fn struct_list_entry_insert_statement(struct_name: &str, field_name: &str) -> String {
+        format!(
+            "INSERT INTO {}(list, value) VALUES ($1, $2)",
+            Self::struct_list_entry_table_name(struct_name, field_name),
+        )
+    }
+
+    fn struct_list_entry_select_referenced_value_statement(
+        struct_name: &str,
+        field_name: &str,
+        other_type: &str,
+    ) -> String {
+        let listentry_table = Self::struct_list_entry_table_name(struct_name, field_name);
+        format!(
+            "SELECT * FROM {} WHERE id IN (SELECT value FROM {} WHERE list = $1)",
+            RustCodeGenerator::rust_variant_name(other_type),
+            listentry_table,
+        )
+    }
+
+    fn struct_list_entry_select_value_statement(struct_name: &str, field_name: &str) -> String {
+        let listentry_table = Self::struct_list_entry_table_name(struct_name, field_name);
+        format!("SELECT value FROM {} WHERE list = $1", listentry_table,)
     }
 
     fn list_entry_insert_statement(name: &str) -> String {

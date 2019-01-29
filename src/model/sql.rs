@@ -1,3 +1,4 @@
+use crate::gen::rust::psql::PsqlInserter;
 use crate::gen::RustCodeGenerator;
 use crate::model::Definition;
 use crate::model::Model;
@@ -153,11 +154,17 @@ impl Model<Sql> {
             primary_key: true,
         });
         for (column, rust) in fields {
-            columns.push(Column {
-                name: Self::sql_column_name(&column),
-                sql: rust.to_sql(),
-                primary_key: false,
-            });
+            if PsqlInserter::is_vec(rust) {
+                let list_entry_name = PsqlInserter::struct_list_entry_table_name(name, column);
+                let value_sql_type = rust.clone().into_inner_type().to_sql();
+                Self::add_list_table(name, definitions, list_entry_name, value_sql_type);
+            } else {
+                columns.push(Column {
+                    name: Self::sql_column_name(&column),
+                    sql: rust.to_sql(),
+                    primary_key: false,
+                });
+            }
         }
         definitions.push(Definition(
             name.into(),
@@ -253,59 +260,68 @@ impl Model<Sql> {
         {
             let list_entry_name = format!("{}ListEntry", name);
             let value_sql_type = rust_inner.clone().into_inner_type().to_sql();
-            definitions.push(Definition(
+            Self::add_list_table(name, definitions, list_entry_name, value_sql_type);
+        }
+    }
+
+    fn add_list_table(
+        name: &str,
+        definitions: &mut Vec<Definition<Sql>>,
+        list_entry_name: String,
+        value_sql_type: SqlType,
+    ) {
+        definitions.push(Definition(
+            list_entry_name.clone(),
+            Sql::Table(
+                vec![
+                    Column {
+                        name: TUPLE_LIST_ENTRY_PARENT_COLUMN.into(),
+                        sql: SqlType::NotNull(Box::new(SqlType::References(
+                            name.into(),
+                            FOREIGN_KEY_DEFAULT_COLUMN.into(),
+                            Some(Action::Cascade),
+                            Some(Action::Cascade),
+                        ))),
+                        primary_key: false,
+                    },
+                    Column {
+                        name: TUPLE_LIST_ENTRY_VALUE_COLUMN.into(),
+                        sql: value_sql_type.clone(),
+                        primary_key: false,
+                    },
+                ],
+                vec![Constraint::CombinedPrimaryKey(vec![
+                    TUPLE_LIST_ENTRY_PARENT_COLUMN.into(),
+                    TUPLE_LIST_ENTRY_VALUE_COLUMN.into(),
+                ])],
+            ),
+        ));
+        definitions.push(Definition(
+            Default::default(),
+            Sql::Index(
                 list_entry_name.clone(),
-                Sql::Table(
-                    vec![
-                        Column {
-                            name: TUPLE_LIST_ENTRY_PARENT_COLUMN.into(),
-                            sql: SqlType::NotNull(Box::new(SqlType::References(
-                                name.into(),
-                                FOREIGN_KEY_DEFAULT_COLUMN.into(),
-                                Some(Action::Cascade),
-                                Some(Action::Cascade),
-                            ))),
-                            primary_key: false,
-                        },
-                        Column {
-                            name: TUPLE_LIST_ENTRY_VALUE_COLUMN.into(),
-                            sql: value_sql_type.clone(),
-                            primary_key: false,
-                        },
-                    ],
-                    vec![Constraint::CombinedPrimaryKey(vec![
-                        TUPLE_LIST_ENTRY_PARENT_COLUMN.into(),
-                        TUPLE_LIST_ENTRY_VALUE_COLUMN.into(),
-                    ])],
-                ),
-            ));
-            definitions.push(Definition(
-                Default::default(),
-                Sql::Index(
-                    list_entry_name.clone(),
-                    vec![TUPLE_LIST_ENTRY_PARENT_COLUMN.into()],
-                ),
-            ));
-            definitions.push(Definition(
-                Default::default(),
-                Sql::Index(
-                    list_entry_name.clone(),
-                    vec![TUPLE_LIST_ENTRY_VALUE_COLUMN.into()],
-                ),
-            ));
-            if let SqlType::References(other_table, other_column, ..) =
-                value_sql_type.clone().nullable()
-            {
-                Self::add_abandon_children(
-                    &list_entry_name,
-                    vec![(
-                        TUPLE_LIST_ENTRY_VALUE_COLUMN.into(),
-                        other_table,
-                        other_column,
-                    )],
-                    definitions,
-                );
-            }
+                vec![TUPLE_LIST_ENTRY_PARENT_COLUMN.into()],
+            ),
+        ));
+        definitions.push(Definition(
+            Default::default(),
+            Sql::Index(
+                list_entry_name.clone(),
+                vec![TUPLE_LIST_ENTRY_VALUE_COLUMN.into()],
+            ),
+        ));
+        if let SqlType::References(other_table, other_column, ..) =
+            value_sql_type.clone().nullable()
+        {
+            Self::add_abandon_children(
+                &list_entry_name,
+                vec![(
+                    TUPLE_LIST_ENTRY_VALUE_COLUMN.into(),
+                    other_table,
+                    other_column,
+                )],
+                definitions,
+            );
         }
     }
 

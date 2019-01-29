@@ -353,15 +353,38 @@ impl UperSerializer {
                         .map(|f| f.no_ref().to_string())
                         .unwrap_or_else(|| "value".into())
                 ));
+                let local_name = field_name
+                    .as_ref()
+                    .map(|f| f.name().to_string())
+                    .filter(|name| name.ne("0"))
+                    .unwrap_or_else(|| "value".into());
                 let mut for_block = Block::new(&format!(
-                    "for value in &{}",
+                    "for {} in {}{}",
+                    local_name,
+                    if field_name
+                        .as_ref()
+                        .map(|f| if let Member::Local(..) = f {
+                            true
+                        } else {
+                            false
+                        })
+                        .unwrap_or(false)
+                    {
+                        ""
+                    } else {
+                        "&"
+                    },
                     field_name
                         .map(|f| f.no_ref().to_string())
                         .unwrap_or_else(|| "value".into()),
                 ));
                 Self::impl_write_fn_for_type(
                     &mut for_block,
-                    Some(Member::Local("value".into(), false, inner.is_primitive())),
+                    Some(Member::Local(
+                        local_name.into(),
+                        false,
+                        inner.is_primitive(),
+                    )),
                     inner,
                 );
                 block.push_block(for_block);

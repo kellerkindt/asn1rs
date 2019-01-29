@@ -117,7 +117,7 @@ impl ProtobufSerializer {
         for (field_name, _field_type) in fields.iter() {
             function.line(format!(
                 "let mut read_{} = None;",
-                RustCodeGenerator::rust_field_name(&field_name, false)
+                RustCodeGenerator::rust_field_name(&field_name, false),
             ));
         }
 
@@ -129,9 +129,14 @@ impl ProtobufSerializer {
             match &field_type.clone().into_inner_type() {
                 RustType::Complex(name) => {
                     let mut block_case = Block::new(&format!(
-                        "{} => read_{} = Some(",
+                        "{} => read_{}{}(",
                         prev_tag + 1,
-                        RustCodeGenerator::rust_field_name(&field_name, false)
+                        RustCodeGenerator::rust_field_name(&field_name, false),
+                        if let RustType::Vec(_) = field_type.clone().no_option() {
+                            ".get_or_insert_with(Vec::default).push"
+                        } else {
+                            " = Some"
+                        }
                     ));
                     let mut block_case_if = Block::new(&format!(
                         "if tag.1 == {}Format::LengthDelimited",
@@ -151,12 +156,21 @@ impl ProtobufSerializer {
                     block_match_tag.push_block(block_case);
                 }
                 role => {
-                    block_match_tag.line(format!(
-                        "{} => read_{} = Some({}),",
-                        prev_tag + 1,
-                        RustCodeGenerator::rust_field_name(&field_name, false),
-                        format!("reader.read_{}()?", role.to_protobuf().to_string(),)
-                    ));
+                    if let RustType::Vec(_) = field_type.clone().no_option() {
+                        block_match_tag.line(format!(
+                            "{} => read_{}.get_or_insert_with(Vec::default).push({}),",
+                            prev_tag + 1,
+                            RustCodeGenerator::rust_field_name(&field_name, false),
+                            format!("reader.read_{}()?", role.to_protobuf().to_string(),)
+                        ));
+                    } else {
+                        block_match_tag.line(format!(
+                            "{} => read_{} = Some({}),",
+                            prev_tag + 1,
+                            RustCodeGenerator::rust_field_name(&field_name, false),
+                            format!("reader.read_{}()?", role.to_protobuf().to_string(),)
+                        ));
+                    }
                 }
             }
         }
@@ -178,7 +192,11 @@ impl ProtobufSerializer {
                 if as_rust_statement.is_empty() {
                     "".into()
                 } else {
-                    format!(".map(|v| v{})", as_rust_statement)
+                    if let RustType::Vec(_) = field_type.clone().no_option() {
+                        format!(".map(|v| v.into_iter().map(|v| v{}).collect())", as_rust_statement)
+                    } else {
+                        format!(".map(|v| v{})", as_rust_statement)
+                    }
                 },
                 if let RustType::Option(_) = field_type {
                     ""
@@ -282,11 +300,23 @@ impl ProtobufSerializer {
         function.line("Ok(())");
     }
 
-    fn impl_write_fn_for_tuple_struct(function: &mut Function, aliased: &RustType) {
-        let mut block_writer = Block::new("");
-        let mut block_for = Block::new("for value in &self.0");
+    fn impl_write_for_vec_attribute(
+        block_writer: &mut Block,
+        aliased: &RustType,
+        attribute_name: &str,
+        tag: usize,
+    ) {
+        let mut block_for = Block::new(&format!(
+            "for value in {}",
+            if let RustType::Option(_) = aliased {
+                attribute_name.to_string()
+            } else {
+                format!("&self.{}", attribute_name)
+            }
+        ));
         block_for.line(format!(
-            "writer.write_tag(1, {})?;",
+            "writer.write_tag({}, {})?;",
+            tag,
             Self::role_to_format(aliased, "value"),
         ));
         block_for.line("let mut bytes = Vec::new();");
@@ -308,6 +338,11 @@ impl ProtobufSerializer {
         };
         block_for.line("writer.write_bytes(&bytes[..])?;");
         block_writer.push_block(block_for);
+    }
+
+    fn impl_write_fn_for_tuple_struct(function: &mut Function, aliased: &RustType) {
+        let mut block_writer = Block::new("");
+        Self::impl_write_for_vec_attribute(&mut block_writer, aliased, "0", 1);
         function.push_block(block_writer);
     }
 
@@ -324,7 +359,15 @@ impl ProtobufSerializer {
                 Block::new("")
             };
 
-            match &field_type.clone().into_inner_type() {
+            match &field_type.clone().no_option() {
+                RustType::Vec(_) => {
+                    Self::impl_write_for_vec_attribute(
+                        &mut block,
+                        field_type,
+                        &RustCodeGenerator::rust_field_name(&field_name, true),
+                        prev_tag + 1,
+                    );
+                }
                 RustType::Complex(_) => {
                     let format_line = format!(
                         "{}{}.{}_format()",

@@ -1,8 +1,8 @@
-mod protobuf;
-mod uper;
+pub mod protobuf;
+pub mod uper;
 
 #[cfg(feature = "psql")]
-mod psql;
+pub mod psql;
 
 use self::protobuf::ProtobufSerializer;
 use self::uper::UperSerializer;
@@ -422,7 +422,7 @@ impl RustCodeGenerator {
             if next_upper {
                 out.push_str(&c.to_uppercase().to_string());
                 next_upper = false;
-            } else if c == '-' {
+            } else if c == '-' || c =='_' {
                 next_upper = true;
             } else {
                 out.push(c);
