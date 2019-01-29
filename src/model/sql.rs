@@ -47,6 +47,10 @@ impl SqlType {
         }
     }
 
+    pub fn not_null(self) -> Self {
+        SqlType::NotNull(Box::new(self))
+    }
+
     pub fn to_rust(&self) -> RustType {
         RustType::Option(Box::new(match self {
             SqlType::SmallInt => RustType::I16(Range(0, ::std::i16::MAX)),
@@ -600,6 +604,141 @@ mod tests {
                 )
             ],
             &model.definitions
+        );
+    }
+
+    #[test]
+    fn test_conversion_struct_with_vec() {
+        let model = Model {
+            name: "Bernhard".into(),
+            imports: vec![],
+            definitions: vec![Definition(
+                "SomeStruct".into(),
+                Rust::Struct(vec![
+                    (
+                        "list_of_primitive".into(),
+                        RustType::Vec(Box::new(RustType::String)),
+                    ),
+                    (
+                        "list_of_reference".into(),
+                        RustType::Vec(Box::new(RustType::Complex("ComplexType".into()))),
+                    ),
+                ]),
+            )],
+        }
+        .to_sql();
+        assert_eq!("Bernhard", &model.name);
+        assert!(model.imports.is_empty());
+        assert_eq!(
+            &model.definitions,
+            &vec![
+                Definition(
+                    "SomeStruct_ListOfPrimitive_ListEntry".into(),
+                    Sql::Table(
+                        vec![
+                            Column {
+                                name: "list".into(),
+                                sql: SqlType::References(
+                                    "SomeStruct".into(),
+                                    "id".into(),
+                                    Some(Action::Cascade),
+                                    Some(Action::Cascade),
+                                )
+                                .not_null(),
+                                primary_key: false,
+                            },
+                            Column {
+                                name: "value".into(),
+                                sql: SqlType::Text.not_null(),
+                                primary_key: false,
+                            },
+                        ],
+                        vec![Constraint::CombinedPrimaryKey(vec![
+                            "list".into(),
+                            "value".into()
+                        ])]
+                    )
+                ),
+                Definition(
+                    String::default(),
+                    Sql::Index(
+                        "SomeStruct_ListOfPrimitive_ListEntry".into(),
+                        vec!["list".into()]
+                    )
+                ),
+                Definition(
+                    String::default(),
+                    Sql::Index(
+                        "SomeStruct_ListOfPrimitive_ListEntry".into(),
+                        vec!["value".into()]
+                    )
+                ),
+                Definition(
+                    "SomeStruct_ListOfReference_ListEntry".into(),
+                    Sql::Table(
+                        vec![
+                            Column {
+                                name: "list".into(),
+                                sql: SqlType::References(
+                                    "SomeStruct".into(),
+                                    "id".into(),
+                                    Some(Action::Cascade),
+                                    Some(Action::Cascade),
+                                )
+                                .not_null(),
+                                primary_key: false,
+                            },
+                            Column {
+                                name: "value".into(),
+                                sql: SqlType::References(
+                                    "ComplexType".into(),
+                                    "id".into(),
+                                    Some(Action::Cascade),
+                                    Some(Action::Cascade)
+                                )
+                                .not_null(),
+                                primary_key: false,
+                            },
+                        ],
+                        vec![Constraint::CombinedPrimaryKey(vec![
+                            "list".into(),
+                            "value".into()
+                        ])]
+                    )
+                ),
+                Definition(
+                    String::default(),
+                    Sql::Index(
+                        "SomeStruct_ListOfReference_ListEntry".into(),
+                        vec!["list".into()]
+                    )
+                ),
+                Definition(
+                    String::default(),
+                    Sql::Index(
+                        "SomeStruct_ListOfReference_ListEntry".into(),
+                        vec!["value".into()]
+                    )
+                ),
+                Definition(
+                    "AbandonChildrenOfSomeStruct_ListOfReference_ListEntry".into(),
+                    Sql::AbandonChildrenFunction(
+                        "SomeStruct_ListOfReference_ListEntry".into(),
+                        vec![("value".into(), "ComplexType".into(), "id".into())]
+                    )
+                ),
+                Definition(
+                    "SomeStruct".into(),
+                    Sql::Table(
+                        vec![Column {
+                            name: "id".into(),
+                            sql: SqlType::Serial,
+                            primary_key: true
+                        }],
+                        vec![],
+                    )
+                )
+            ],
         );
     }
 
