@@ -1,4 +1,3 @@
-use crate::gen::rust::psql::PsqlInserter;
 use crate::gen::RustCodeGenerator;
 use crate::model::Definition;
 use crate::model::Model;
@@ -154,8 +153,8 @@ impl Model<Sql> {
             primary_key: true,
         });
         for (column, rust) in fields {
-            if PsqlInserter::is_vec(rust) {
-                let list_entry_name = PsqlInserter::struct_list_entry_table_name(name, column);
+            if Self::is_vec(rust) {
+                let list_entry_name = Self::struct_list_entry_table_name(name, column);
                 let value_sql_type = rust.clone().into_inner_type().to_sql();
                 Self::add_list_table(name, definitions, list_entry_name, value_sql_type);
             } else {
@@ -369,6 +368,22 @@ impl Model<Sql> {
             format!("SilentlyPreventAnyDeleteOn{}", name),
             Sql::SilentlyPreventAnyDelete(name.into()),
         ));
+    }
+
+    pub fn is_vec(rust: &RustType) -> bool {
+        if let RustType::Vec(_) = rust.clone().no_option() {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn struct_list_entry_table_name(struct_name: &str, field_name: &str) -> String {
+        format!(
+            "{}_{}_ListEntry",
+            struct_name,
+            RustCodeGenerator::rust_variant_name(field_name)
+        )
     }
 }
 

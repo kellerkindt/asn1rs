@@ -5,6 +5,7 @@ use crate::model::Definition;
 use crate::model::Model;
 use crate::model::Rust;
 use crate::model::RustType;
+use crate::model::sql::Sql;
 use codegen::Block;
 use codegen::Function;
 use codegen::Impl;
@@ -148,7 +149,7 @@ impl PsqlInserter {
                 name,
                 fields
                     .iter()
-                    .filter_map(|(name, field)| if Self::is_vec(field) {
+                    .filter_map(|(name, field)| if Model::<Sql>::is_vec(field) {
                         None
                     } else {
                         Some(name)
@@ -158,7 +159,7 @@ impl PsqlInserter {
                     .join(", "),
                 fields
                     .iter()
-                    .filter_map(|(name, field)| if Self::is_vec(field) {
+                    .filter_map(|(name, field)| if Model::<Sql>::is_vec(field) {
                         None
                     } else {
                         Some(name)
@@ -218,7 +219,7 @@ impl PsqlInserter {
         for (name, rust) in fields {
             let name = RustCodeGenerator::rust_field_name(name, true);
             let sql_primitive = Self::is_sql_primitive(rust);
-            let is_vec = Self::is_vec(rust);
+            let is_vec = Model::<Sql>::is_vec(rust);
 
             if !is_vec {
                 variables.push(format!("&{}", name));
@@ -428,7 +429,7 @@ impl PsqlInserter {
                         implementation,
                         fields
                             .iter()
-                            .any(|(_, rust)| !Self::is_sql_primitive(rust) || Self::is_vec(rust)),
+                            .any(|(_, rust)| !Self::is_sql_primitive(rust) || Model::<Sql>::is_vec(rust)),
                     ),
                     name,
                     &fields[..],
@@ -499,7 +500,7 @@ impl PsqlInserter {
         let mut block = Block::new(&format!("Ok({}", struct_name));
 
         for (index, (name, rust)) in variants.iter().enumerate() {
-            if Self::is_vec(rust) {
+            if Model::<Sql>::is_vec(rust) {
                 let mut load_block = Block::new(&format!(
                     "{}:",
                     RustCodeGenerator::rust_field_name(name, true)
@@ -722,26 +723,10 @@ impl PsqlInserter {
         }
     }
 
-    pub fn is_vec(rust: &RustType) -> bool {
-        if let RustType::Vec(_) = rust.clone().no_option() {
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn struct_list_entry_table_name(struct_name: &str, field_name: &str) -> String {
-        format!(
-            "{}_{}_ListEntry",
-            struct_name,
-            RustCodeGenerator::rust_variant_name(field_name)
-        )
-    }
-
     fn struct_list_entry_insert_statement(struct_name: &str, field_name: &str) -> String {
         format!(
             "INSERT INTO {}(list, value) VALUES ($1, $2)",
-            Self::struct_list_entry_table_name(struct_name, field_name),
+            Model::<Sql>::struct_list_entry_table_name(struct_name, field_name),
         )
     }
 
@@ -750,7 +735,7 @@ impl PsqlInserter {
         field_name: &str,
         other_type: &str,
     ) -> String {
-        let listentry_table = Self::struct_list_entry_table_name(struct_name, field_name);
+        let listentry_table = Model::<Sql>::struct_list_entry_table_name(struct_name, field_name);
         format!(
             "SELECT * FROM {} WHERE id IN (SELECT value FROM {} WHERE list = $1)",
             RustCodeGenerator::rust_variant_name(other_type),
@@ -759,7 +744,7 @@ impl PsqlInserter {
     }
 
     fn struct_list_entry_select_value_statement(struct_name: &str, field_name: &str) -> String {
-        let listentry_table = Self::struct_list_entry_table_name(struct_name, field_name);
+        let listentry_table = Model::<Sql>::struct_list_entry_table_name(struct_name, field_name);
         format!("SELECT value FROM {} WHERE list = $1", listentry_table,)
     }
 
