@@ -381,7 +381,7 @@ impl UperSerializer {
                 Self::impl_write_fn_for_type(
                     &mut for_block,
                     Some(Member::Local(
-                        local_name.into(),
+                        local_name,
                         false,
                         inner.is_primitive(),
                     )),

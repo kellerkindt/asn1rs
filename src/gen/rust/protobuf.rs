@@ -191,12 +191,13 @@ impl ProtobufSerializer {
                 RustCodeGenerator::rust_field_name(&field_name, false),
                 if as_rust_statement.is_empty() {
                     "".into()
+                } else if let RustType::Vec(_) = field_type.clone().no_option() {
+                    format!(
+                        ".map(|v| v.into_iter().map(|v| v{}).collect())",
+                        as_rust_statement
+                    )
                 } else {
-                    if let RustType::Vec(_) = field_type.clone().no_option() {
-                        format!(".map(|v| v.into_iter().map(|v| v{}).collect())", as_rust_statement)
-                    } else {
-                        format!(".map(|v| v{})", as_rust_statement)
-                    }
+                    format!(".map(|v| v{})", as_rust_statement)
                 },
                 if let RustType::Option(_) = field_type {
                     ""
