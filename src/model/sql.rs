@@ -498,7 +498,7 @@ mod tests {
                     Sql::Index("Person".into(), vec!["birth".into()])
                 ),
                 Definition(
-                    "AbandonChildrenOfPerson".into(),
+                    "DelChilds_Person".into(),
                     Sql::AbandonChildrenFunction(
                         "Person".into(),
                         vec![("birth".into(), "City".into(), "id".into())],
@@ -567,7 +567,7 @@ mod tests {
                     Sql::Index("PersonState".into(), vec!["alive".into()])
                 ),
                 Definition(
-                    "AbandonChildrenOfPersonState".into(),
+                    "DelChilds_PersonState".into(),
                     Sql::AbandonChildrenFunction(
                         "PersonState".into(),
                         vec![("alive".into(), "Person".into(), "id".into())],
@@ -646,7 +646,7 @@ mod tests {
                     )
                 ),
                 Definition(
-                    "SomeStruct_ListOfPrimitive_ListEntry".into(),
+                    "SomeStruct_ListOfPrimitive".into(),
                     Sql::Table(
                         vec![
                             Column {
@@ -675,19 +675,19 @@ mod tests {
                 Definition(
                     String::default(),
                     Sql::Index(
-                        "SomeStruct_ListOfPrimitive_ListEntry".into(),
+                        "SomeStruct_ListOfPrimitive".into(),
                         vec!["list".into()]
                     )
                 ),
                 Definition(
                     String::default(),
                     Sql::Index(
-                        "SomeStruct_ListOfPrimitive_ListEntry".into(),
+                        "SomeStruct_ListOfPrimitive".into(),
                         vec!["value".into()]
                     )
                 ),
                 Definition(
-                    "SomeStruct_ListOfReference_ListEntry".into(),
+                    "SomeStruct_ListOfReference".into(),
                     Sql::Table(
                         vec![
                             Column {
@@ -722,21 +722,21 @@ mod tests {
                 Definition(
                     String::default(),
                     Sql::Index(
-                        "SomeStruct_ListOfReference_ListEntry".into(),
+                        "SomeStruct_ListOfReference".into(),
                         vec!["list".into()]
                     )
                 ),
                 Definition(
                     String::default(),
                     Sql::Index(
-                        "SomeStruct_ListOfReference_ListEntry".into(),
+                        "SomeStruct_ListOfReference".into(),
                         vec!["value".into()]
                     )
                 ),
                 Definition(
-                    "AbandonChildrenOfSomeStruct_ListOfReference_ListEntry".into(),
+                    "DelChilds_SomeStruct_ListOfReference".into(),
                     Sql::AbandonChildrenFunction(
-                        "SomeStruct_ListOfReference_ListEntry".into(),
+                        "SomeStruct_ListOfReference".into(),
                         vec![("value".into(), "ComplexType".into(), "id".into())]
                     )
                 )
@@ -882,7 +882,7 @@ mod tests {
                     )
                 ),
                 Definition(
-                    "AbandonChildrenOfWhatelseListEntry".into(),
+                    "DelChilds_WhatelseListEntry".into(),
                     Sql::AbandonChildrenFunction(
                         "WhatelseListEntry".into(),
                         vec![(
