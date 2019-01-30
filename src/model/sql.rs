@@ -150,6 +150,7 @@ impl Model<Sql> {
         fields: &[(String, RustType)],
         definitions: &mut Vec<Definition<Sql>>,
     ) {
+        let mut deferred = Vec::default();
         let mut columns = Vec::with_capacity(fields.len() + 1);
         columns.push(Column {
             name: FOREIGN_KEY_DEFAULT_COLUMN.into(),
@@ -160,7 +161,7 @@ impl Model<Sql> {
             if Self::is_vec(rust) {
                 let list_entry_name = Self::struct_list_entry_table_name(name, column);
                 let value_sql_type = rust.clone().into_inner_type().to_sql();
-                Self::add_list_table(name, definitions, list_entry_name, value_sql_type);
+                Self::add_list_table(name, &mut deferred, list_entry_name, value_sql_type);
             } else {
                 columns.push(Column {
                     name: Self::sql_column_name(&column),
@@ -175,6 +176,7 @@ impl Model<Sql> {
         ));
 
         Self::append_index_and_abandon_function(name, fields, definitions);
+        deferred.into_iter().for_each(|e| definitions.push(e));
     }
 
     pub fn rust_data_enum_to_sql_table(
@@ -362,7 +364,7 @@ impl Model<Sql> {
         definitions: &mut Vec<Definition<Sql>>,
     ) {
         definitions.push(Definition(
-            format!("AbandonChildrenOf{}", name),
+            format!("DelChilds_{}", name),
             Sql::AbandonChildrenFunction(name.into(), children),
         ));
     }
@@ -384,7 +386,7 @@ impl Model<Sql> {
 
     pub fn struct_list_entry_table_name(struct_name: &str, field_name: &str) -> String {
         format!(
-            "{}_{}_ListEntry",
+            "{}_{}",
             struct_name,
             RustCodeGenerator::rust_variant_name(field_name)
         )
@@ -633,6 +635,17 @@ mod tests {
             &model.definitions,
             &vec![
                 Definition(
+                    "SomeStruct".into(),
+                    Sql::Table(
+                        vec![Column {
+                            name: "id".into(),
+                            sql: SqlType::Serial,
+                            primary_key: true
+                        }],
+                        vec![],
+                    )
+                ),
+                Definition(
                     "SomeStruct_ListOfPrimitive_ListEntry".into(),
                     Sql::Table(
                         vec![
@@ -725,17 +738,6 @@ mod tests {
                     Sql::AbandonChildrenFunction(
                         "SomeStruct_ListOfReference_ListEntry".into(),
                         vec![("value".into(), "ComplexType".into(), "id".into())]
-                    )
-                ),
-                Definition(
-                    "SomeStruct".into(),
-                    Sql::Table(
-                        vec![Column {
-                            name: "id".into(),
-                            sql: SqlType::Serial,
-                            primary_key: true
-                        }],
-                        vec![],
                     )
                 )
             ],
