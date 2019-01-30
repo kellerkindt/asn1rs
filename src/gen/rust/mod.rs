@@ -466,7 +466,8 @@ impl RustCodeGenerator {
             .derive("Default")
             .derive("Debug")
             .derive("Clone")
-            .derive("PartialEq");
+            .derive("PartialEq")
+            .derive("Hash");
         self.global_derives.iter().for_each(|derive| {
             str_ct.derive(&derive);
         });
@@ -479,9 +480,10 @@ impl RustCodeGenerator {
             .vis("pub")
             .derive("Debug")
             .derive("Clone")
-            .derive("PartialEq");
+            .derive("PartialEq")
+            .derive("Hash");
         if c_enum {
-            en_m.derive("Copy").derive("PartialOrd");
+            en_m.derive("Copy").derive("PartialOrd").derive("Eq");
         }
         self.global_derives.iter().for_each(|derive| {
             en_m.derive(&derive);
