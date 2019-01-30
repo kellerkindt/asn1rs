@@ -550,6 +550,7 @@ impl PsqlInserter {
                 } else {
                     load_block.line("vec");
                 }
+                load_block.after(",");
                 block.push_block(load_block);
             } else if Self::is_sql_primitive(&rust) {
                 let load = format!(
