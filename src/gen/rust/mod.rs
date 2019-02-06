@@ -31,10 +31,23 @@ pub trait GeneratorSupplement<T> {
     fn impl_supplement(&self, scope: &mut Scope, definition: &Definition<T>);
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct RustCodeGenerator {
     models: Vec<Model<Rust>>,
     global_derives: Vec<String>,
+    direct_field_access: bool,
+    getter_and_setter: bool,
+}
+
+impl Default for RustCodeGenerator {
+    fn default() -> Self {
+        RustCodeGenerator {
+            models: Default::default(),
+            global_derives: Default::default(),
+            direct_field_access: true,
+            getter_and_setter: false,
+        }
+    }
 }
 
 impl Generator<Rust> for RustCodeGenerator {
@@ -74,6 +87,22 @@ impl RustCodeGenerator {
         self.global_derives.push(derive.into());
     }
 
+    pub fn fields_are_pub(&self) -> bool {
+        self.direct_field_access
+    }
+
+    pub fn set_fields_pub(&mut self, allow: bool) {
+        self.direct_field_access = allow;
+    }
+
+    pub fn fields_have_getter_and_setter(&self) -> bool {
+        self.getter_and_setter
+    }
+
+    pub fn set_fields_have_getter_and_setter(&mut self, allow: bool) {
+        self.getter_and_setter = allow;
+    }
+
     pub fn model_to_file(
         &self,
         model: &Model<Rust>,
@@ -97,7 +126,7 @@ impl RustCodeGenerator {
 
         for definition in &model.definitions {
             self.add_definition(&mut scope, definition);
-            Self::impl_definition(&mut scope, definition);
+            Self::impl_definition(&mut scope, definition, self.getter_and_setter);
 
             generators
                 .iter()
@@ -109,25 +138,41 @@ impl RustCodeGenerator {
 
     fn add_definition(&self, scope: &mut Scope, Definition(name, rust): &Definition<Rust>) {
         match rust {
-            Rust::Struct(fields) => Self::add_struct(self.new_struct(scope, name), name, fields),
+            Rust::Struct(fields) => Self::add_struct(
+                self.new_struct(scope, name),
+                name,
+                fields,
+                self.direct_field_access,
+            ),
             Rust::Enum(variants) => {
                 Self::add_enum(self.new_enum(scope, name, true), name, variants)
             }
             Rust::DataEnum(variants) => {
                 Self::add_data_enum(self.new_enum(scope, name, false), name, variants)
             }
-            Rust::TupleStruct(inner) => {
-                Self::add_tuple_struct(self.new_struct(scope, name), name, inner)
-            }
+            Rust::TupleStruct(inner) => Self::add_tuple_struct(
+                self.new_struct(scope, name),
+                name,
+                inner,
+                self.direct_field_access,
+            ),
         }
     }
 
-    fn add_struct(str_ct: &mut Struct, _name: &str, fields: &[(String, RustType)]) {
+    fn add_struct(
+        str_ct: &mut Struct,
+        _name: &str,
+        fields: &[(String, RustType)],
+        pub_access: bool,
+    ) {
         for (field_name, field_type) in fields.iter() {
-            str_ct.field(
-                &Self::rust_field_name(field_name, true),
-                field_type.to_string(),
-            );
+            let name = Self::rust_field_name(field_name, true);
+            let name = if pub_access {
+                format!("pub {}", name)
+            } else {
+                name
+            };
+            str_ct.field(&name, field_type.to_string());
         }
     }
 
@@ -147,14 +192,24 @@ impl RustCodeGenerator {
         }
     }
 
-    fn add_tuple_struct(str_ct: &mut Struct, _name: &str, inner: &RustType) {
-        str_ct.tuple_field(inner.to_string());
+    fn add_tuple_struct(str_ct: &mut Struct, _name: &str, inner: &RustType, pub_access: bool) {
+        let field_type = inner.to_string();
+        let field_type = if pub_access {
+            format!("pub {}", field_type)
+        } else {
+            field_type
+        };
+        str_ct.tuple_field(&field_type);
     }
 
-    fn impl_definition(scope: &mut Scope, Definition(name, rust): &Definition<Rust>) {
+    fn impl_definition(
+        scope: &mut Scope,
+        Definition(name, rust): &Definition<Rust>,
+        getter_and_setter: bool,
+    ) {
         match rust {
             Rust::Struct(fields) => {
-                Self::impl_struct(scope, name, fields);
+                Self::impl_struct(scope, name, fields, getter_and_setter);
             }
             Rust::Enum(variants) => {
                 Self::impl_enum(scope, name, variants);
@@ -198,13 +253,20 @@ impl RustCodeGenerator {
         Self::add_min_max_fn_if_applicable(implementation, "value", &rust);
     }
 
-    fn impl_struct(scope: &mut Scope, name: &str, fields: &[(String, RustType)]) {
+    fn impl_struct(
+        scope: &mut Scope,
+        name: &str,
+        fields: &[(String, RustType)],
+        getter_and_setter: bool,
+    ) {
         let implementation = scope.new_impl(name);
 
         for (field_name, field_type) in fields.iter() {
-            Self::impl_struct_field_get(implementation, field_name, field_type);
-            Self::impl_struct_field_get_mut(implementation, field_name, field_type);
-            Self::impl_struct_field_set(implementation, field_name, field_type);
+            if getter_and_setter {
+                Self::impl_struct_field_get(implementation, field_name, field_type);
+                Self::impl_struct_field_get_mut(implementation, field_name, field_type);
+                Self::impl_struct_field_set(implementation, field_name, field_type);
+            }
 
             Self::add_min_max_fn_if_applicable(implementation, field_name, field_type);
         }
@@ -422,7 +484,7 @@ impl RustCodeGenerator {
             if next_upper {
                 out.push_str(&c.to_uppercase().to_string());
                 next_upper = false;
-            } else if c == '-' || c =='_' {
+            } else if c == '-' || c == '_' {
                 next_upper = true;
             } else {
                 out.push(c);

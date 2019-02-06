@@ -674,17 +674,11 @@ mod tests {
                 ),
                 Definition(
                     String::default(),
-                    Sql::Index(
-                        "SomeStruct_ListOfPrimitive".into(),
-                        vec!["list".into()]
-                    )
+                    Sql::Index("SomeStruct_ListOfPrimitive".into(), vec!["list".into()])
                 ),
                 Definition(
                     String::default(),
-                    Sql::Index(
-                        "SomeStruct_ListOfPrimitive".into(),
-                        vec!["value".into()]
-                    )
+                    Sql::Index("SomeStruct_ListOfPrimitive".into(), vec!["value".into()])
                 ),
                 Definition(
                     "SomeStruct_ListOfReference".into(),
@@ -721,17 +715,11 @@ mod tests {
                 ),
                 Definition(
                     String::default(),
-                    Sql::Index(
-                        "SomeStruct_ListOfReference".into(),
-                        vec!["list".into()]
-                    )
+                    Sql::Index("SomeStruct_ListOfReference".into(), vec!["list".into()])
                 ),
                 Definition(
                     String::default(),
-                    Sql::Index(
-                        "SomeStruct_ListOfReference".into(),
-                        vec!["value".into()]
-                    )
+                    Sql::Index("SomeStruct_ListOfReference".into(), vec!["value".into()])
                 ),
                 Definition(
                     "DelChilds_SomeStruct_ListOfReference".into(),

@@ -1,11 +1,11 @@
 use crate::gen::rust::GeneratorSupplement;
 use crate::gen::rust::RustCodeGenerator;
+use crate::model::sql::Sql;
 use crate::model::sql::ToSql;
 use crate::model::Definition;
 use crate::model::Model;
 use crate::model::Rust;
 use crate::model::RustType;
-use crate::model::sql::Sql;
 use codegen::Block;
 use codegen::Function;
 use codegen::Impl;
@@ -427,9 +427,9 @@ impl PsqlInserter {
                 Self::impl_struct_load_fn(
                     Self::new_load_fn(
                         implementation,
-                        fields
-                            .iter()
-                            .any(|(_, rust)| !Self::is_sql_primitive(rust) || Model::<Sql>::is_vec(rust)),
+                        fields.iter().any(|(_, rust)| {
+                            !Self::is_sql_primitive(rust) || Model::<Sql>::is_vec(rust)
+                        }),
                     ),
                     name,
                     &fields[..],

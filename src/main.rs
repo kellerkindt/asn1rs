@@ -4,49 +4,30 @@
 #[cfg(feature = "psql")]
 extern crate postgres;
 
+mod cli;
 mod converter;
 mod gen;
 mod io;
 mod model;
 mod parser;
 
-use clap::{App, Arg};
-
 pub fn main() {
-    let matches = App::new(env!("CARGO_PKG_NAME"))
-        .version(env!("CARGO_PKG_VERSION"))
-        .author(env!("CARGO_PKG_AUTHORS"))
-        .about("Convertes (simple) .asn1 files to .rs files with UPER encoding")
-        .arg(
-            Arg::with_name("CONVERSION_TARGET")
-                .required(true)
-                .multiple(false)
-                .value_name("CONVERSION_TARGET")
-                .default_value("rust")
-                .possible_values(&["rust", "proto", "sql"]),
-        )
-        .arg(
-            Arg::with_name("DESTINATION_DIR")
-                .required(true)
-                .multiple(false)
-                .value_name("DESTINATION_DIR"),
-        )
-        .arg(
-            Arg::with_name("SOURCE_FILES")
-                .required(true)
-                .multiple(true)
-                .value_name("SOURCE_FILES"),
-        )
-        .get_matches();
+    let params = cli::parse_parameters();
 
-    let destination = matches.value_of("DESTINATION_DIR").unwrap();
-    let sources = matches.values_of("SOURCE_FILES").unwrap();
-
-    for source in sources {
-        let result = match matches.value_of("CONVERSION_TARGET").unwrap() {
-            "rust" => converter::convert_to_rust(source, destination, |_| {}),
-            "proto" => converter::convert_to_proto(source, destination),
-            "sql" => converter::convert_to_sql(source, destination),
+    for source in &params.source_files {
+        let result = match params.conversion_target.as_str() {
+            cli::CONVERSION_TARGET_RUST => {
+                converter::convert_to_rust(source, &params.destination_dir, |rust| {
+                    rust.set_fields_pub(!params.rust_fields_not_public);
+                    rust.set_fields_have_getter_and_setter(params.rust_getter_and_setter);
+                })
+            }
+            cli::CONVERSION_TARGET_PROTO => {
+                converter::convert_to_proto(source, &params.destination_dir)
+            }
+            cli::CONVERSION_TARGET_SQL => {
+                converter::convert_to_sql(source, &params.destination_dir)
+            }
             e => panic!("Unexpected CONVERSION_TARGET={}", e),
         };
         match result {
