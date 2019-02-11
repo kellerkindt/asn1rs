@@ -1,5 +1,5 @@
 [package]
-name = "asn1c"
+name = "asn1rs"
 version = "0.1.0"
 authors = ["Michael Watzko <michael@watzko.de>"]
 edition = "2018"
@@ -11,11 +11,11 @@ readme = "README.md"
 
 
 [lib]
-name = "asn1c"
+name = "asn1rs"
 path = "src/lib.rs"
 
 [[bin]]
-name = "asn1c"
+name = "asn1rs"
 path = "src/main.rs"
 
 

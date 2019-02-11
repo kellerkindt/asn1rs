@@ -15,25 +15,25 @@ pub struct ProtobufSerializer;
 
 impl GeneratorSupplement<Rust> for ProtobufSerializer {
     fn add_imports(&self, scope: &mut Scope) {
-        scope.import("asn1c::io::protobuf", Self::CODEC);
+        scope.import("asn1rs::io::protobuf", Self::CODEC);
         scope.import(
-            "asn1c::io::protobuf",
+            "asn1rs::io::protobuf",
             &format!("ProtobufEq as {}Eq", Self::CODEC),
         );
         scope.import(
-            "asn1c::io::protobuf",
+            "asn1rs::io::protobuf",
             &format!("Reader as {}Reader", Self::CODEC),
         );
         scope.import(
-            "asn1c::io::protobuf",
+            "asn1rs::io::protobuf",
             &format!("Writer as {}Writer", Self::CODEC),
         );
         scope.import(
-            "asn1c::io::protobuf",
+            "asn1rs::io::protobuf",
             &format!("Error as {}Error", Self::CODEC),
         );
         scope.import(
-            "asn1c::io::protobuf",
+            "asn1rs::io::protobuf",
             &format!("Format as {}Format", Self::CODEC),
         );
     }

@@ -11,14 +11,14 @@ use codegen::Scope;
 pub struct UperSerializer;
 impl GeneratorSupplement<Rust> for UperSerializer {
     fn add_imports(&self, scope: &mut Scope) {
-        scope.import("asn1c::io::uper", Self::CODEC);
-        scope.import("asn1c::io::uper", &format!("Error as {}Error", Self::CODEC));
+        scope.import("asn1rs::io::uper", Self::CODEC);
+        scope.import("asn1rs::io::uper", &format!("Error as {}Error", Self::CODEC));
         scope.import(
-            "asn1c::io::uper",
+            "asn1rs::io::uper",
             &format!("Reader as {}Reader", Self::CODEC),
         );
         scope.import(
-            "asn1c::io::uper",
+            "asn1rs::io::uper",
             &format!("Writer as {}Writer", Self::CODEC),
         );
     }

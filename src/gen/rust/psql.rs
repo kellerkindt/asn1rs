@@ -20,21 +20,21 @@ const TRAIT_PSQL_QUERYABLE: &str = "PsqlQueryable";
 pub struct PsqlInserter;
 impl GeneratorSupplement<Rust> for PsqlInserter {
     fn add_imports(&self, scope: &mut Scope) {
-        scope.import("asn1c::io::psql", &format!("Error as {}", ERROR_TYPE));
-        scope.import("asn1c::io::psql", &format!("Row as {}", ROW_TYPE));
+        scope.import("asn1rs::io::psql", &format!("Error as {}", ERROR_TYPE));
+        scope.import("asn1rs::io::psql", &format!("Row as {}", ROW_TYPE));
         scope.import(
-            "asn1c::io::psql",
+            "asn1rs::io::psql",
             &format!("Representable as {}", TRAIT_PSQL_REPRESENTABLE),
         );
         scope.import(
-            "asn1c::io::psql",
+            "asn1rs::io::psql",
             &format!("Insertable as {}", TRAIT_PSQL_INSERTABLE),
         );
         scope.import(
-            "asn1c::io::psql",
+            "asn1rs::io::psql",
             &format!("Queryable as {}", TRAIT_PSQL_QUERYABLE),
         );
-        scope.import("asn1c::io::psql", "Transaction");
+        scope.import("asn1rs::io::psql", "Transaction");
     }
 
     fn impl_supplement(&self, scope: &mut Scope, definition: &Definition<Rust>) {

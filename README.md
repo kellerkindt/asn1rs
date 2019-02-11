@@ -1,4 +1,4 @@
-# asn1c - ASN.1 Compiler for Rust
+# asn1rs - ASN.1 Compiler for Rust
 
 This crate allows one to generate Rust, Protobuf and SQL code from ASN.1 definitions, providing also support for basic [serde](https://crates.io/crates/serde) integration.
 The crate can be used as standalone binary using its command line interface or included invoked through its API
@@ -10,19 +10,19 @@ Currently only UPER is supported for ASN.1.
 
 ## CLI usage
 
-It is always helpful to check ```asn1c --help``` in advance.
+It is always helpful to check ```asn1rs --help``` in advance.
 The basic usage can be seen blow:
 
 ```
-asn1c -t rust directory/for/rust/files some.asn1 messages.asn1
+asn1rs -t rust directory/for/rust/files some.asn1 messages.asn1
 ```
 
 ```
-asn1c -t proto directory/for/protobuf/files some.asn1 messages.asn1
+asn1rs -t proto directory/for/protobuf/files some.asn1 messages.asn1
 ```
 
 ```
-asn1c -t sql directory/for/sql/schema/files some.asn1 messages.asn1
+asn1rs -t sql directory/for/sql/schema/files some.asn1 messages.asn1
 ```
 
 ## API usage
@@ -34,14 +34,14 @@ Additionally, in this example each generated Rust-Type also receives ```Serializ
 File ```build.rs```:
 
 ```rust
-extern crate asn1c;
+extern crate asn1rs;
 
 use std::fs;
 
-use asn1c::converter::convert_to_proto;
-use asn1c::converter::convert_to_rust;
-use asn1c::converter::convert_to_sql;
-use asn1c::gen::rust::RustCodeGenerator;
+use asn1rs::converter::convert_to_proto;
+use asn1rs::converter::convert_to_rust;
+use asn1rs::converter::convert_to_sql;
+use asn1rs::gen::rust::RustCodeGenerator;
 
 pub fn main() {
     for entry in fs::read_dir("asn").unwrap().into_iter() {
@@ -141,10 +141,10 @@ CREATE TABLE Header (
 
 
 ## Good to know
-The module ```asn1c::io``` exposes (de-)serializers and helpers for direct usage without ASN.1 definitons:
+The module ```asn1rs::io``` exposes (de-)serializers and helpers for direct usage without ASN.1 definitons:
 ```rust
-use asn1c::io::uper::*;
-use asn1c::io::buffer::BitBuffer;
+use asn1rs::io::uper::*;
+use asn1rs::io::buffer::BitBuffer;
 
 let mut buffer = BitBuffer::default();
 buffer.write_bit(true).unwrap();
@@ -153,7 +153,7 @@ buffer.write_utf8_string("My UTF8 Text").unwrap();
 send_to_another_host(buffer.into::<Vec<u8>>()):
 ```
 ```rust
-use asn1c::io::protobuf::*;
+use asn1rs::io::protobuf::*;
 
 let mut buffer = Vec::default();
 buffer.write_varint(1337).unwrap();
