@@ -88,3 +88,88 @@ impl Parser {
         Ok(tokens)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    pub fn test_separator_tokens_not_merged() {
+        let result = Parser.parse(":;=(){}.,").unwrap();
+        assert_eq!(
+            result,
+            vec![
+                Token::Separator(':'),
+                Token::Separator(';'),
+                Token::Separator('='),
+                Token::Separator('('),
+                Token::Separator(')'),
+                Token::Separator('{'),
+                Token::Separator('}'),
+                Token::Separator('.'),
+                Token::Separator(','),
+            ]
+        )
+    }
+
+    #[test]
+    pub fn test_text_between_seapators_is_represented_as_one_text_token() {
+        let result = Parser.parse("::=ASN{").unwrap();
+        assert_eq!(
+            result,
+            vec![
+                Token::Separator(':'),
+                Token::Separator(':'),
+                Token::Separator('='),
+                Token::Text("ASN".to_string()),
+                Token::Separator('{'),
+            ]
+        )
+    }
+
+    #[test]
+    pub fn test_invisible_separator_characters() {
+        let result = Parser
+            .parse("a b\rc\nd\te AB\rCD\nEF\tGH aa  bb\r\rcc\n\ndd\t\tee")
+            .unwrap();
+        assert_eq!(
+            result,
+            vec![
+                Token::Text("a".to_string()),
+                Token::Text("b".to_string()),
+                Token::Text("c".to_string()),
+                Token::Text("d".to_string()),
+                Token::Text("e".to_string()),
+                Token::Text("AB".to_string()),
+                Token::Text("CD".to_string()),
+                Token::Text("EF".to_string()),
+                Token::Text("GH".to_string()),
+                Token::Text("aa".to_string()),
+                Token::Text("bb".to_string()),
+                Token::Text("cc".to_string()),
+                Token::Text("dd".to_string()),
+                Token::Text("ee".to_string()),
+            ]
+        )
+    }
+
+    #[test]
+    pub fn test_token_text() {
+        let token = Token::Text("some text".to_string());
+        assert_eq!(token.text(), Some(&"some text".to_string()),);
+        assert_eq!(token.separator(), None);
+    }
+
+    #[test]
+    pub fn test_token_separator() {
+        let result = Parser.parse("AS\x00N").unwrap();
+        assert_eq!(result, vec![Token::Text("ASN".to_string())])
+    }
+
+    #[test]
+    pub fn test_control_char_is_ignored() {
+        let token = Token::Separator(':');
+        assert_eq!(token.text(), None);
+        assert_eq!(token.separator(), Some(':'),)
+    }
+}
