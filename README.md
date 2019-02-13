@@ -175,6 +175,7 @@ send_to_another_host(buffer):
    - ```OPTIONAL```
    - ```INTEGER``` with range value only (numbers or ```MIN```/```MAX```)
    - ```UTF8String```
+   - ```OCTET STRING``` 
    - ```BOOLEAN```
    - using previously declared message types
    - ```IMPORTS .. FROM ..;```  
