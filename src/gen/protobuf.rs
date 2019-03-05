@@ -159,7 +159,21 @@ impl ProtobufDefGenerator {
     }
 
     pub fn variant_name(name: &str) -> String {
-        name.replace("-", "_").to_uppercase().to_string()
+        let mut string = String::new();
+        let mut prev_upper = true;
+        for c in name.chars() {
+            match c {
+                '-' => string.push('_'),
+                u => {
+                    if !prev_upper && u.is_uppercase() {
+                        string.push('_');
+                    }
+                    string.push(u);
+                    prev_upper = u.is_uppercase();
+                }
+            };
+        }
+        string.to_uppercase()
     }
 
     pub fn field_name(name: &str) -> String {
@@ -201,5 +215,17 @@ impl ProtobufDefGenerator {
 
     pub fn model_to_package(model: &str) -> String {
         Self::model_name(&model.replace("_", "."), '.')
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_protobuf_variant_name() {
+        assert_eq!("ABC_DEF", ProtobufDefGenerator::variant_name("abc-def"));
+        assert_eq!("ABC_DEF", ProtobufDefGenerator::variant_name("AbcDef"));
+        assert_eq!("ABC_DEF", ProtobufDefGenerator::variant_name("ABcDef"));
     }
 }
