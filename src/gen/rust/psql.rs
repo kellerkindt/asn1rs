@@ -384,15 +384,13 @@ impl PsqlInserter {
 
     /// Expects a variable called `statement` to be reachable and usable
     fn list_insert_for_each(name: &str, rust: &RustType, list: &str) -> Block {
-        let mut block_for = Block::new(&format!(
-            "for value in self.{}.iter(){}",
-            name,
+        let mut block_for = Block::new(&
             if let RustType::Option(_) = rust {
-                ".flatten()"
+                format!("for value in self.{}.iter().flatten()", name)
             } else {
-                ""
+                format!("for value in &self.{}", name)
             }
-        ));
+        );
         let sql_primitive = Self::is_sql_primitive(rust);
         if !sql_primitive {
             block_for.line("let value = value.insert_with(transaction)?;");
