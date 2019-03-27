@@ -283,7 +283,7 @@ impl<R: Read> Reader for R {
 
     fn read_bytes(&mut self) -> Result<Vec<u8>, Error> {
         let len = self.read_varint()? as usize;
-        let mut vec = vec![0u8; len];
+        let mut vec = vec![0_u8; len];
         self.read_exact(&mut vec[..])?;
         Ok(vec)
     }
@@ -302,6 +302,7 @@ impl<R: Read> Reader for R {
     }
 }
 
+#[allow(clippy::module_name_repetitions)]
 pub trait ProtobufEq<Rhs: ?Sized = Self> {
     fn protobuf_eq(&self, other: &Rhs) -> bool;
 }
@@ -323,15 +324,15 @@ impl<T: ProtobufEq + Default + PartialEq> ProtobufEq<Option<T>> for Option<T> {
 
 impl<T: ProtobufEq> ProtobufEq<Vec<T>> for Vec<T> {
     fn protobuf_eq(&self, other: &Vec<T>) -> bool {
-        if self.len() != other.len() {
-            false
-        } else {
+        if self.len() == other.len() {
             for (i, v) in self.iter().enumerate() {
                 if !other[i].protobuf_eq(v) {
                     return false;
                 }
             }
             true
+        } else {
+            false
         }
     }
 }

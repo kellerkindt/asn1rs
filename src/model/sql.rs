@@ -10,6 +10,7 @@ const TUPLE_LIST_ENTRY_PARENT_COLUMN: &str = "list";
 const TUPLE_LIST_ENTRY_VALUE_COLUMN: &str = "value";
 
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[allow(clippy::module_name_repetitions)]
 pub enum SqlType {
     SmallInt, // 2byte
     Integer,  // 4byte
@@ -52,11 +53,12 @@ impl SqlType {
     }
 
     pub fn to_rust(&self) -> RustType {
+        #[allow(clippy::match_same_arms)] // to have the same order as the original enum
         RustType::Option(Box::new(match self {
-            SqlType::SmallInt => RustType::I16(Range(0, ::std::i16::MAX)),
-            SqlType::Integer => RustType::I32(Range(0, ::std::i32::MAX)),
-            SqlType::BigInt => RustType::I64(Range(0, ::std::i64::MAX)),
-            SqlType::Serial => RustType::I32(Range(0, ::std::i32::MAX)),
+            SqlType::SmallInt => RustType::I16(Range(0, i16::max_value())),
+            SqlType::Integer => RustType::I32(Range(0, i32::max_value())),
+            SqlType::BigInt => RustType::I64(Range(0, i64::max_value())),
+            SqlType::Serial => RustType::I32(Range(0, i32::max_value())),
             SqlType::Boolean => RustType::Bool,
             SqlType::Text => RustType::String,
             SqlType::Array(inner) => RustType::Vec(Box::new(inner.to_rust())),
@@ -161,7 +163,7 @@ impl Model<Sql> {
             if Self::is_vec(rust) {
                 let list_entry_name = Self::struct_list_entry_table_name(name, column);
                 let value_sql_type = rust.clone().into_inner_type().to_sql();
-                Self::add_list_table(name, &mut deferred, list_entry_name, value_sql_type);
+                Self::add_list_table(name, &mut deferred, &list_entry_name, &value_sql_type);
             } else {
                 columns.push(Column {
                     name: Self::sql_column_name(&column),
@@ -265,18 +267,18 @@ impl Model<Sql> {
         {
             let list_entry_name = format!("{}ListEntry", name);
             let value_sql_type = rust_inner.clone().into_inner_type().to_sql();
-            Self::add_list_table(name, definitions, list_entry_name, value_sql_type);
+            Self::add_list_table(name, definitions, &list_entry_name, &value_sql_type);
         }
     }
 
     fn add_list_table(
         name: &str,
         definitions: &mut Vec<Definition<Sql>>,
-        list_entry_name: String,
-        value_sql_type: SqlType,
+        list_entry_name: &str,
+        value_sql_type: &SqlType,
     ) {
         definitions.push(Definition(
-            list_entry_name.clone(),
+            list_entry_name.to_string(),
             Sql::Table(
                 vec![
                     Column {
@@ -304,14 +306,14 @@ impl Model<Sql> {
         definitions.push(Definition(
             Default::default(),
             Sql::Index(
-                list_entry_name.clone(),
+                list_entry_name.to_string(),
                 vec![TUPLE_LIST_ENTRY_PARENT_COLUMN.into()],
             ),
         ));
         definitions.push(Definition(
             Default::default(),
             Sql::Index(
-                list_entry_name.clone(),
+                list_entry_name.to_string(),
                 vec![TUPLE_LIST_ENTRY_VALUE_COLUMN.into()],
             ),
         ));
@@ -403,6 +405,7 @@ impl ToSqlModel for Model<Rust> {
     }
 }
 
+#[allow(clippy::module_name_repetitions)]
 pub trait ToSql {
     fn to_sql(&self) -> SqlType;
 }
@@ -411,16 +414,14 @@ impl ToSql for RustType {
     fn to_sql(&self) -> SqlType {
         SqlType::NotNull(Box::new(match self {
             RustType::Bool => SqlType::Boolean,
-            RustType::U8(_) => SqlType::SmallInt,
-            RustType::I8(_) => SqlType::SmallInt,
-            RustType::U16(Range(_, upper)) if *upper <= ::std::i16::MAX as u16 => SqlType::SmallInt,
-            RustType::U16(_) => SqlType::Integer,
+            RustType::U8(_) | RustType::I8(_) => SqlType::SmallInt,
+            RustType::U16(Range(_, upper)) if *upper <= i16::max_value() as u16 => {
+                SqlType::SmallInt
+            }
             RustType::I16(_) => SqlType::SmallInt,
-            RustType::U32(Range(_, upper)) if *upper <= ::std::i32::MAX as u32 => SqlType::Integer,
-            RustType::U32(_) => SqlType::BigInt,
-            RustType::I32(_) => SqlType::Integer,
-            RustType::U64(_) => SqlType::BigInt,
-            RustType::I64(_) => SqlType::BigInt,
+            RustType::U32(Range(_, upper)) if *upper <= i32::max_value() as u32 => SqlType::Integer,
+            RustType::U16(_) | RustType::I32(_) => SqlType::Integer,
+            RustType::U32(_) | RustType::U64(_) | RustType::I64(_) => SqlType::BigInt,
             RustType::String => SqlType::Text,
             RustType::VecU8 => SqlType::ByteArray,
             RustType::Vec(inner) => SqlType::Array(inner.to_sql().into()),

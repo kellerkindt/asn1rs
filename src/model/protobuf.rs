@@ -4,6 +4,7 @@ use crate::model::*;
 const TUPLE_VARIABLE_NAME_REPLACEMENT: &str = "value";
 const DATAENUM_VARIABLE_NAME_REPLACEMENT: &str = "value";
 
+#[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum ProtobufType {
     Bool,
@@ -30,14 +31,15 @@ impl ProtobufType {
     }
 
     pub fn to_rust(&self) -> RustType {
+        #[allow(clippy::match_same_arms)] // to have the same order as the original enum
         match self {
             ProtobufType::Bool => RustType::Bool,
-            ProtobufType::SFixed32 => RustType::I32(Range(0, ::std::i32::MAX)),
-            ProtobufType::SFixed64 => RustType::I64(Range(0, ::std::i64::MAX)),
-            ProtobufType::UInt32 => RustType::U32(Range(0, ::std::u32::MAX)),
+            ProtobufType::SFixed32 => RustType::I32(Range(0, i32::max_value())),
+            ProtobufType::SFixed64 => RustType::I64(Range(0, i64::max_value())),
+            ProtobufType::UInt32 => RustType::U32(Range(0, u32::max_value())),
             ProtobufType::UInt64 => RustType::U64(None),
-            ProtobufType::SInt32 => RustType::I32(Range(0, ::std::i32::MAX)),
-            ProtobufType::SInt64 => RustType::I64(Range(0, ::std::i64::MAX)),
+            ProtobufType::SInt32 => RustType::I32(Range(0, i32::max_value())),
+            ProtobufType::SInt64 => RustType::I64(Range(0, i64::max_value())),
             ProtobufType::String => RustType::String,
             ProtobufType::Bytes => RustType::VecU8,
             ProtobufType::Repeated(inner) => RustType::Vec(Box::new(inner.to_rust())),
@@ -47,6 +49,7 @@ impl ProtobufType {
     }
 
     pub fn is_primitive(&self) -> bool {
+        #[allow(clippy::match_same_arms)] // to have the same order as the original enum
         match self {
             ProtobufType::Bool => true,
             ProtobufType::SFixed32 => true,
@@ -153,6 +156,7 @@ impl Model<Protobuf> {
     }
 
     pub fn definition_type_to_protobuf_type(rust_type: &RustType) -> ProtobufType {
+        #[allow(clippy::match_same_arms)] // to have the same order as the original enum
         match rust_type {
             RustType::Bool => ProtobufType::Bool,
             RustType::U8(_) => ProtobufType::UInt32,

@@ -17,7 +17,9 @@ const TRAIT_PSQL_REPRESENTABLE: &str = "PsqlRepresentable";
 const TRAIT_PSQL_INSERTABLE: &str = "PsqlInsertable";
 const TRAIT_PSQL_QUERYABLE: &str = "PsqlQueryable";
 
+#[allow(clippy::module_name_repetitions)]
 pub struct PsqlInserter;
+
 impl GeneratorSupplement<Rust> for PsqlInserter {
     fn add_imports(&self, scope: &mut Scope) {
         scope.import("asn1rs::io::psql", &format!("Error as {}", ERROR_TYPE));
@@ -152,9 +154,8 @@ impl PsqlInserter {
                     .filter_map(|(name, field)| if Model::<Sql>::is_vec(field) {
                         None
                     } else {
-                        Some(name)
+                        Some(Model::sql_column_name(name))
                     })
-                    .map(|name| Model::sql_column_name(name))
                     .collect::<Vec<String>>()
                     .join(", "),
                 fields
@@ -221,17 +222,17 @@ impl PsqlInserter {
             let sql_primitive = Self::is_sql_primitive(rust);
             let is_vec = Model::<Sql>::is_vec(rust);
 
-            if !is_vec {
-                variables.push(format!("&{}", name));
-            } else {
+            if is_vec {
                 vecs.push((name.clone(), rust.clone()));
                 continue;
+            } else {
+                variables.push(format!("&{}", name));
             }
             if sql_primitive {
                 function.line(&format!(
                     "let {} = {}self.{};",
                     name,
-                    if !rust.is_primitive() { "&" } else { "" },
+                    if rust.is_primitive() { "" } else { "&" },
                     name,
                 ));
                 if let Some(wrap) = Self::wrap_for_insert_in_as_or_from_if_required(&name, rust) {
@@ -288,7 +289,9 @@ impl PsqlInserter {
     fn wrap_for_insert_in_as_or_from_if_required(name: &str, rust: &RustType) -> Option<String> {
         let inner_sql = rust.clone().into_inner_type().to_sql();
         let inner_rust = rust.clone().into_inner_type();
-        if !inner_sql.to_rust().into_inner_type().similar(&inner_rust) {
+        if inner_sql.to_rust().into_inner_type().similar(&inner_rust) {
+            None
+        } else {
             Some({
                 let rust_from_sql = inner_sql.to_rust().into_inner_type();
                 let as_target = rust_from_sql.to_string();
@@ -306,15 +309,15 @@ impl PsqlInserter {
                     format!("{} as {}", name, as_target)
                 }
             })
-        } else {
-            None
         }
     }
 
     fn wrap_for_query_in_as_or_from_if_required(name: &str, rust: &RustType) -> Option<String> {
         let inner_sql = rust.clone().into_inner_type().to_sql();
         let inner_rust = rust.clone().into_inner_type();
-        if !inner_sql.to_rust().into_inner_type().similar(&inner_rust) {
+        if inner_sql.to_rust().into_inner_type().similar(&inner_rust) {
+            None
+        } else {
             Some({
                 let as_target = inner_rust.to_string();
                 if let RustType::Option(_) = rust {
@@ -323,8 +326,6 @@ impl PsqlInserter {
                     format!("{} as {}", name, as_target)
                 }
             })
-        } else {
-            None
         }
     }
 
@@ -391,10 +392,7 @@ impl PsqlInserter {
                 format!("for value in &self.{}", name)
             }
         );
-        let sql_primitive = Self::is_sql_primitive(rust);
-        if !sql_primitive {
-            block_for.line("let value = value.insert_with(transaction)?;");
-        } else {
+        if Self::is_sql_primitive(rust) {
             let inner_sql = rust.clone().into_inner_type().to_sql();
             let inner_rust = rust.clone().into_inner_type();
             if !inner_sql.to_rust().into_inner_type().similar(&inner_rust) {
@@ -411,6 +409,8 @@ impl PsqlInserter {
                     },
                 ));
             }
+        } else {
+            block_for.line("let value = value.insert_with(transaction)?;");
         }
         block_for.line(format!("statement.execute(&[&{}, &value])?;", list));
         block_for
@@ -715,6 +715,7 @@ impl PsqlInserter {
     }
 
     pub fn is_sql_primitive(rust: &RustType) -> bool {
+        #[allow(clippy::match_same_arms)] // to have the same order as the original enum
         match rust.clone().into_inner_type() {
             RustType::String => true,
             RustType::VecU8 => true,

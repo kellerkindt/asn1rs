@@ -63,7 +63,7 @@ pub trait Uper {
 pub trait Reader {
     fn read_utf8_string(&mut self) -> Result<String, Error> {
         let len = self.read_length_determinant()?;
-        let mut buffer = vec![0u8; len];
+        let mut buffer = vec![0_u8; len];
         self.read_bit_string_till_end(&mut buffer[..len], 0)?;
         if let Ok(string) = String::from_utf8(buffer) {
             Ok(string)
@@ -74,10 +74,9 @@ pub trait Reader {
 
     fn read_int(&mut self, range: (i64, i64)) -> Result<i64, Error> {
         let (lower, upper) = range;
-        let range = (upper - lower) as u64;
-        let leading_zeros = range.leading_zeros();
+        let leading_zeros = ((upper - lower) as u64).leading_zeros();
 
-        let mut buffer = [0u8; 8];
+        let mut buffer = [0_u8; 8];
         let buffer_bits = buffer.len() * BYTE_LEN as usize;
         debug_assert!(buffer_bits == 64);
         self.read_bit_string_till_end(&mut buffer[..], leading_zeros as usize)?;
@@ -92,7 +91,7 @@ pub trait Reader {
                 "Reading bigger data types than 64bit is not supported".into(),
             ))
         } else {
-            let mut buffer = vec![0u8; 8];
+            let mut buffer = vec![0_u8; 8];
             let offset = (8 * BYTE_LEN) - (len_in_bytes * BYTE_LEN);
             self.read_bit_string_till_end(&mut buffer[..], offset)?;
             Ok(NetworkEndian::read_u64(&buffer[..]))
@@ -131,7 +130,7 @@ pub trait Reader {
         } else {
             self.read_length_determinant()?
         };
-        let mut vec = vec![0u8; len];
+        let mut vec = vec![0_u8; len];
         self.read_bit_string_till_end(&mut vec[..], 0)?;
         Ok(vec)
     }
@@ -145,6 +144,7 @@ pub trait Reader {
         self.read_bit_string(buffer, bit_offset, len)
     }
 
+    #[allow(clippy::if_not_else)]
     fn read_length_determinant(&mut self) -> Result<usize, Error> {
         if !self.read_bit()? {
             // length <= UPER_LENGTH_DET_L1
@@ -177,10 +177,9 @@ pub trait Writer {
             }
             (value - lower) as u64
         };
-        let range = (upper - lower) as u64;
-        let leading_zeros = range.leading_zeros();
+        let leading_zeros = ((upper - lower) as u64).leading_zeros();
 
-        let mut buffer = [0u8; 8];
+        let mut buffer = [0_u8; 8];
         NetworkEndian::write_u64(&mut buffer[..], value);
         let buffer_bits = buffer.len() * BYTE_LEN as usize;
         debug_assert!(buffer_bits == 64);
@@ -191,10 +190,10 @@ pub trait Writer {
     }
 
     fn write_int_max(&mut self, value: u64) -> Result<(), Error> {
-        if value > ::std::i64::MAX as u64 {
-            return Err(Error::ValueNotInRange(value as i64, 0, ::std::i64::MAX));
+        if value > i64::max_value() as u64 {
+            return Err(Error::ValueNotInRange(value as i64, 0, i64::max_value()));
         }
-        let mut buffer = [0u8; 8];
+        let mut buffer = [0_u8; 8];
         NetworkEndian::write_u64(&mut buffer[..], value);
         let byte_len = {
             let mut len = buffer.len();

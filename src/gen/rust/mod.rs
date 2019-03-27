@@ -31,6 +31,7 @@ pub trait GeneratorSupplement<T> {
     fn impl_supplement(&self, scope: &mut Scope, definition: &Definition<T>);
 }
 
+#[allow(clippy::module_name_repetitions)]
 #[derive(Debug)]
 pub struct RustCodeGenerator {
     models: Vec<Model<Rust>>,

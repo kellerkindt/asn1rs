@@ -134,12 +134,11 @@ impl Model<Asn> {
 
         let token = iter.next().ok_or(Error::UnexpectedEndOfStream)?;
 
-        if token.text().map(|s| s.eq(&"SEQUENCE")).unwrap_or(false) {
+        if token.text().map_or(false, |s| s.eq(&"SEQUENCE")) {
             Ok(Definition(name, Self::read_sequence_or_sequence_of(iter)?))
         } else if token
             .text()
-            .map(|s| s.eq_ignore_ascii_case(&"ENUMERATED"))
-            .unwrap_or(false)
+            .map_or(false, |s| s.eq_ignore_ascii_case(&"ENUMERATED"))
         {
             Ok(Definition(
                 name,
@@ -147,8 +146,7 @@ impl Model<Asn> {
             ))
         } else if token
             .text()
-            .map(|s| s.eq_ignore_ascii_case(&"CHOICE"))
-            .unwrap_or(false)
+            .map_or(false, |s| s.eq_ignore_ascii_case(&"CHOICE"))
         {
             Ok(Definition(name, Asn::Choice(Self::read_choice(iter)?)))
         } else {
@@ -184,7 +182,7 @@ impl Model<Asn> {
             Ok(Asn::UTF8String)
         } else if text.eq_ignore_ascii_case(&"OCTET") {
             let token = iter.next().ok_or(Error::UnexpectedEndOfStream)?;
-            if token.text().map(|t| t.eq("STRING")).unwrap_or(false) {
+            if token.text().map_or(false, |t| t.eq("STRING")) {
                 Ok(Asn::OctetString)
             } else {
                 Err(Error::UnexpectedToken(Backtrace::new(), token))
@@ -277,8 +275,7 @@ impl Model<Asn> {
 
         let (continues, ends) = token
             .separator()
-            .map(|s| (s == ',', s == '}'))
-            .unwrap_or((false, false));
+            .map_or((false, false), |s| (s == ',', s == '}'));
 
         if continues || ends {
             Ok((field, continues))
@@ -362,8 +359,12 @@ pub(crate) mod tests {
 
     #[test]
     fn test_simple_asn_sequence_represented_correctly_as_asn_model() {
-        let model =
-            Model::try_from(Tokenizer::default().parse(SIMPLE_INTEGER_STRUCT_ASN).unwrap()).unwrap();
+        let model = Model::try_from(
+            Tokenizer::default()
+                .parse(SIMPLE_INTEGER_STRUCT_ASN)
+                .unwrap(),
+        )
+        .unwrap();
 
         assert_eq!("SimpleSchema", model.name);
         assert_eq!(true, model.imports.is_empty());
@@ -601,8 +602,12 @@ pub(crate) mod tests {
 
     #[test]
     fn test_inline_asn_sequence_represented_correctly_as_asn_model() {
-        let model =
-            Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_SEQUENCE).unwrap()).unwrap();
+        let model = Model::try_from(
+            Tokenizer::default()
+                .parse(INLINE_ASN_WITH_SEQUENCE)
+                .unwrap(),
+        )
+        .unwrap();
 
         assert_eq!("SimpleSchema", model.name);
         assert_eq!(true, model.imports.is_empty());

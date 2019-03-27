@@ -17,6 +17,7 @@ impl From<::std::fmt::Error> for Error {
     }
 }
 
+#[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Default)]
 pub struct SqlDefGenerator {
     models: Vec<Model<Sql>>,

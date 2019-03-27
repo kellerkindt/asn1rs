@@ -5,20 +5,21 @@ use crate::model::Import;
 use crate::model::Model;
 use crate::model::Range;
 
-const I8_MAX: i64 = ::std::i8::MAX as i64;
-const I16_MAX: i64 = ::std::i16::MAX as i64;
-const I32_MAX: i64 = ::std::i32::MAX as i64;
-//const I64_MAX: i64 = ::std::i64::MAX as i64;
+const I8_MAX: i64 = i8::max_value() as i64;
+const I16_MAX: i64 = i16::max_value() as i64;
+const I32_MAX: i64 = i32::max_value() as i64;
+//const I64_MAX: i64 = i64::max_value() as i64;
 
-const U8_MAX: u64 = ::std::u8::MAX as u64;
-const U16_MAX: u64 = ::std::u16::MAX as u64;
-const U32_MAX: u64 = ::std::u32::MAX as u64;
-//const U64_MAX: u64 = ::std::u64::MAX as u64;
+const U8_MAX: u64 = u8::max_value() as u64;
+const U16_MAX: u64 = u16::max_value() as u64;
+const U32_MAX: u64 = u32::max_value() as u64;
+//const U64_MAX: u64 = u64::max_value() as u64;
 
 /// Integers are ordered where Ixx < Uxx so
 /// that when comparing two instances `RustType`
 /// and a > b, then the integer type of a can
 /// use ::from(..) to cast from b
+#[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum RustType {
     Bool,
@@ -47,10 +48,10 @@ impl RustType {
         if self.is_primitive() {
             return self;
         }
-        match self.clone() {
-            RustType::Vec(inner) => inner.into_inner_type(),
-            RustType::Option(inner) => inner.into_inner_type(),
-            _ => self,
+        if let RustType::Vec(inner) | RustType::Option(inner) = self {
+            inner.into_inner_type()
+        } else {
+            self
         }
     }
 
@@ -58,10 +59,10 @@ impl RustType {
         if self.is_primitive() {
             return Some(self.to_string());
         }
-        match self {
-            RustType::Vec(inner) => inner.to_inner(),
-            RustType::Option(inner) => inner.to_inner(),
-            _ => None,
+        if let RustType::Vec(inner) | RustType::Option(inner) = self {
+            inner.to_inner()
+        } else {
+            None
         }
     }
 
@@ -77,6 +78,7 @@ impl RustType {
     }
 
     pub fn is_primitive(&self) -> bool {
+        #[allow(clippy::match_same_arms)] // to have the same order as the original enum
         match self {
             RustType::Bool => true,
             RustType::U8(_) => true,
@@ -92,6 +94,7 @@ impl RustType {
     }
 
     pub fn integer_range_str(&self) -> Option<Range<String>> {
+        #[allow(clippy::match_same_arms)] // to have the same order as the original enum
         match self {
             RustType::Bool => None,
             RustType::U8(Range(min, max)) => Some(Range(min.to_string(), max.to_string())),
@@ -100,7 +103,7 @@ impl RustType {
             RustType::I16(Range(min, max)) => Some(Range(min.to_string(), max.to_string())),
             RustType::U32(Range(min, max)) => Some(Range(min.to_string(), max.to_string())),
             RustType::I32(Range(min, max)) => Some(Range(min.to_string(), max.to_string())),
-            RustType::U64(None) => Some(Range("0".into(), ::std::i64::MAX.to_string())), // i64 max!
+            RustType::U64(None) => Some(Range("0".into(), i64::max_value().to_string())), // i64 max!
             RustType::U64(Some(Range(min, max))) => Some(Range(min.to_string(), max.to_string())),
             RustType::I64(Range(min, max)) => Some(Range(min.to_string(), max.to_string())),
             RustType::String => None,
@@ -350,10 +353,12 @@ impl Model<Rust> {
     }
 }
 
+#[allow(clippy::module_name_repetitions)]
 pub fn rust_field_name(name: &str) -> String {
     rust_module_name(name)
 }
 
+#[allow(clippy::module_name_repetitions)]
 pub fn rust_variant_name(name: &str) -> String {
     let mut out = String::new();
     let mut next_upper = true;
@@ -370,10 +375,12 @@ pub fn rust_variant_name(name: &str) -> String {
     out
 }
 
+#[allow(clippy::module_name_repetitions)]
 pub fn rust_struct_or_enum_name(name: &str) -> String {
     rust_variant_name(name)
 }
 
+#[allow(clippy::module_name_repetitions)]
 pub fn rust_module_name(name: &str) -> String {
     let mut out = String::new();
     let mut prev_lowered = false;
@@ -414,10 +421,13 @@ mod tests {
 
     #[test]
     fn test_simple_asn_sequence_represented_correctly_as_rust_model() {
-        let model_rust =
-            Model::try_from(Tokenizer::default().parse(SIMPLE_INTEGER_STRUCT_ASN).unwrap())
-                .unwrap()
-                .to_rust();
+        let model_rust = Model::try_from(
+            Tokenizer::default()
+                .parse(SIMPLE_INTEGER_STRUCT_ASN)
+                .unwrap(),
+        )
+        .unwrap()
+        .to_rust();
 
         assert_eq!("simple_schema", model_rust.name);
         assert_eq!(true, model_rust.imports.is_empty());
@@ -528,9 +538,10 @@ mod tests {
 
     #[test]
     fn test_inline_asn_choice_represented_correctly_as_rust_model() {
-        let model_rust = Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_CHOICE).unwrap())
-            .unwrap()
-            .to_rust();
+        let model_rust =
+            Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_CHOICE).unwrap())
+                .unwrap()
+                .to_rust();
 
         assert_eq!("simple_schema", model_rust.name);
         assert_eq!(true, model_rust.imports.is_empty());
@@ -583,10 +594,13 @@ mod tests {
 
     #[test]
     fn test_inline_asn_sequence_represented_correctly_as_rust_model() {
-        let model_rust =
-            Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_SEQUENCE).unwrap())
-                .unwrap()
-                .to_rust();
+        let model_rust = Model::try_from(
+            Tokenizer::default()
+                .parse(INLINE_ASN_WITH_SEQUENCE)
+                .unwrap(),
+        )
+        .unwrap()
+        .to_rust();
 
         assert_eq!("simple_schema", model_rust.name);
         assert_eq!(true, model_rust.imports.is_empty());

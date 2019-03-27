@@ -3,6 +3,7 @@ use crate::io::uper::Reader as UperReader;
 use crate::io::uper::Writer as UperWriter;
 use crate::io::uper::BYTE_LEN;
 
+#[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Default)]
 pub struct BitBuffer {
     buffer: Vec<u8>,

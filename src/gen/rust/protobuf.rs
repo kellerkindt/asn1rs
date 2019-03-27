@@ -11,6 +11,7 @@ use codegen::Function;
 use codegen::Impl;
 use codegen::Scope;
 
+#[allow(clippy::module_name_repetitions)]
 pub struct ProtobufSerializer;
 
 impl GeneratorSupplement<Rust> for ProtobufSerializer {
@@ -516,6 +517,7 @@ impl ProtobufSerializer {
     }
 
     fn impl_format_fn(function: &mut Function, Definition(name, rust): &Definition<Rust>) {
+        #[allow(clippy::match_same_arms)] // to have the same order as the original enum
         let format = match rust {
             Rust::TupleStruct(_) => Some(ProtobufFormat::LengthDelimited),
             Rust::Struct(_) => Some(ProtobufFormat::LengthDelimited),
@@ -607,6 +609,7 @@ impl ProtobufSerializer {
     }
 
     fn role_to_format(role: &RustType, complex_name: &str) -> String {
+        #[allow(clippy::match_same_arms)] // to have the same order as the original enum
         match role.to_protobuf() {
             ProtobufType::Bool => format!("{}Format::VarInt", Self::CODEC),
             ProtobufType::SFixed32 => format!("{}Format::Fixed32", Self::CODEC),
@@ -628,10 +631,10 @@ impl ProtobufSerializer {
     fn get_as_protobuf_type_statement(string: String, role_rust: &RustType) -> String {
         let proto_rust = role_rust.to_protobuf().to_rust();
 
-        if !role_rust.similar(&proto_rust) {
-            format!("{}::from({})", proto_rust.to_string(), string)
-        } else {
+        if role_rust.similar(&proto_rust) {
             string
+        } else {
+            format!("{}::from({})", proto_rust.to_string(), string)
         }
     }
 

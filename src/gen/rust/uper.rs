@@ -8,11 +8,16 @@ use codegen::Function;
 use codegen::Impl;
 use codegen::Scope;
 
+#[allow(clippy::module_name_repetitions)]
 pub struct UperSerializer;
+
 impl GeneratorSupplement<Rust> for UperSerializer {
     fn add_imports(&self, scope: &mut Scope) {
         scope.import("asn1rs::io::uper", Self::CODEC);
-        scope.import("asn1rs::io::uper", &format!("Error as {}Error", Self::CODEC));
+        scope.import(
+            "asn1rs::io::uper",
+            &format!("Error as {}Error", Self::CODEC),
+        );
         scope.import(
             "asn1rs::io::uper",
             &format!("Reader as {}Reader", Self::CODEC),
@@ -134,8 +139,7 @@ impl UperSerializer {
                         Some(Member::Local(
                             field_name
                                 .clone()
-                                .map(|f| f.name().to_string())
-                                .unwrap_or_else(|| "value".into()),
+                                .map_or_else(|| "value".into(), |f| f.name().to_string()),
                             false,
                             false,
                         )),
@@ -152,8 +156,7 @@ impl UperSerializer {
                     "if {}",
                     field_name
                         .clone()
-                        .map(|f| f.name().to_string())
-                        .unwrap_or_else(|| "value".into())
+                        .map_or_else(|| "value".into(), |f| f.name().to_string())
                 ));
                 let mut if_true_block = Block::new("Some(");
                 Self::impl_read_fn_for_type(
@@ -291,8 +294,7 @@ impl UperSerializer {
                     "writer.write_bit({})?;",
                     field_name
                         .clone()
-                        .map(|f| f.to_string())
-                        .unwrap_or_else(|| "value".into()),
+                        .map_or_else(|| "value".into(), |f| f.to_string()),
                 ));
             }
             RustType::U8(_)
@@ -307,8 +309,7 @@ impl UperSerializer {
                     "writer.write_int(i64::from({}), (i64::from(Self::{}min()), i64::from(Self::{}max())))?;",
                     field_name
                         .clone()
-                        .map(|f| f.to_string())
-                        .unwrap_or_else(|| "value".into()),
+                        .map_or_else(|| "value".into(), |f| f.to_string()),
                     if let Some(ref field_name) = field_name {
                         format!("{}_", field_name.name())
                     } else {
@@ -324,25 +325,19 @@ impl UperSerializer {
             RustType::U64(None) => {
                 block.line(&format!(
                     "writer.write_int_max({})?;",
-                    field_name
-                        .map(|f| f.to_string())
-                        .unwrap_or_else(|| "value".into()),
+                    field_name.map_or_else(|| "value".into(), |f| f.to_string()),
                 ));
             }
             RustType::String => {
                 block.line(&format!(
                     "writer.write_utf8_string(&{})?;",
-                    field_name
-                        .map(|f| f.to_string())
-                        .unwrap_or_else(|| "value".into()),
+                    field_name.map_or_else(|| "value".into(), |f| f.to_string()),
                 ));
             }
             RustType::VecU8 => {
                 block.line(format!(
                     "writer.write_octet_string(&{}[..], None)?;",
-                    field_name
-                        .map(|f| f.to_string())
-                        .unwrap_or_else(|| "value".into()),
+                    field_name.map_or_else(|| "value".into(), |f| f.to_string()),
                 ));
             }
             RustType::Vec(inner) => {
@@ -350,8 +345,7 @@ impl UperSerializer {
                     "writer.write_length_determinant({}.len())?;",
                     field_name
                         .clone()
-                        .map(|f| f.no_ref().to_string())
-                        .unwrap_or_else(|| "value".into())
+                        .map_or_else(|| "value".into(), |f| f.no_ref().to_string())
                 ));
                 let local_name = field_name
                     .as_ref()
@@ -363,20 +357,17 @@ impl UperSerializer {
                     local_name,
                     if field_name
                         .as_ref()
-                        .map(|f| if let Member::Local(..) = f {
+                        .map_or(false, |f| if let Member::Local(..) = f {
                             true
                         } else {
                             false
                         })
-                        .unwrap_or(false)
                     {
                         ""
                     } else {
                         "&"
                     },
-                    field_name
-                        .map(|f| f.no_ref().to_string())
-                        .unwrap_or_else(|| "value".into()),
+                    field_name.map_or_else(|| "value".into(), |f| f.no_ref().to_string()),
                 ));
                 Self::impl_write_fn_for_type(
                     &mut for_block,
@@ -391,19 +382,15 @@ impl UperSerializer {
                     if inner.is_primitive() { "" } else { "ref " },
                     field_name
                         .clone()
-                        .map(|f| f.name().to_string())
-                        .unwrap_or_else(|| "value".into()),
+                        .map_or_else(|| "value".into(), |f| f.name().to_string()),
                     field_name
                         .clone()
-                        .map(|f| f.to_string())
-                        .unwrap_or_else(|| "value".into()),
+                        .map_or_else(|| "value".into(), |f| f.to_string()),
                 ));
                 Self::impl_write_fn_for_type(
                     &mut if_block,
                     Some(Member::Local(
-                        field_name
-                            .map(|f| f.name().to_string())
-                            .unwrap_or_else(|| "value".into()),
+                        field_name.map_or_else(|| "value".into(), |f| f.name().to_string()),
                         false,
                         false,
                     )),
@@ -414,14 +401,15 @@ impl UperSerializer {
             RustType::Complex(_inner) => {
                 block.line(format!(
                     "{}.write_uper(writer)?;",
-                    &field_name
-                        .map(|mut f| {
+                    &field_name.map_or_else(
+                        || "value".into(),
+                        |mut f| {
                             let name =
                                 RustCodeGenerator::rust_field_name(f.name(), true).to_string();
                             *f.name_mut() = name;
                             f.to_string()
-                        })
-                        .unwrap_or_else(|| "value".into()),
+                        }
+                    ),
                 ));
             }
         }
@@ -491,6 +479,7 @@ pub enum Member {
 
 impl Member {
     pub fn name(&self) -> &str {
+        #[allow(clippy::match_same_arms)] // to have the same order as the original enum
         match self {
             Member::Local(name, _, _) => &name,
             Member::Static(name, _, _) => &name,
@@ -499,6 +488,7 @@ impl Member {
     }
 
     pub fn name_mut(&mut self) -> &mut String {
+        #[allow(clippy::match_same_arms)] // to have the same order as the original enum
         match self {
             Member::Local(ref mut name, _, _) => name,
             Member::Static(ref mut name, _, _) => name,
@@ -508,6 +498,7 @@ impl Member {
 
     #[allow(dead_code)]
     pub fn prefix_ref(&self) -> bool {
+        #[allow(clippy::match_same_arms)] // to have the same order as the original enum
         match self {
             Member::Local(_, prefix, _) => *prefix,
             Member::Static(_, prefix, _) => *prefix,
@@ -517,6 +508,7 @@ impl Member {
 
     #[allow(dead_code)]
     pub fn prefix_deref(&self) -> bool {
+        #[allow(clippy::match_same_arms)] // to have the same order as the original enum
         match self {
             Member::Local(_, _, prefix) => *prefix,
             Member::Static(_, _, prefix) => *prefix,
@@ -524,6 +516,7 @@ impl Member {
         }
     }
 
+    #[allow(clippy::match_same_arms)] // to have the same order as the original enum
     pub fn no_ref(mut self) -> Self {
         *match self {
             Member::Local(_, ref mut prefix, _) => prefix,

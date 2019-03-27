@@ -17,6 +17,7 @@ impl From<FmtError> for Error {
     }
 }
 
+#[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Default)]
 pub struct ProtobufDefGenerator {
     models: Vec<Model<Protobuf>>,
