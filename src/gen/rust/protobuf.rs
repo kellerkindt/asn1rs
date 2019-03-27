@@ -118,7 +118,7 @@ impl ProtobufSerializer {
         for (field_name, _field_type) in fields.iter() {
             function.line(format!(
                 "let mut read_{} = None;",
-                RustCodeGenerator::rust_field_name(&field_name, false),
+                RustCodeGenerator::rust_field_name(field_name, false),
             ));
         }
 
@@ -132,7 +132,7 @@ impl ProtobufSerializer {
                     let mut block_case = Block::new(&format!(
                         "{} => read_{}{}(",
                         prev_tag + 1,
-                        RustCodeGenerator::rust_field_name(&field_name, false),
+                        RustCodeGenerator::rust_field_name(field_name, false),
                         if let RustType::Vec(_) = field_type.clone().no_option() {
                             ".get_or_insert_with(Vec::default).push"
                         } else {
@@ -161,14 +161,14 @@ impl ProtobufSerializer {
                         block_match_tag.line(format!(
                             "{} => read_{}.get_or_insert_with(Vec::default).push({}),",
                             prev_tag + 1,
-                            RustCodeGenerator::rust_field_name(&field_name, false),
+                            RustCodeGenerator::rust_field_name(field_name, false),
                             format!("reader.read_{}()?", role.to_protobuf().to_string(),)
                         ));
                     } else {
                         block_match_tag.line(format!(
                             "{} => read_{} = Some({}),",
                             prev_tag + 1,
-                            RustCodeGenerator::rust_field_name(&field_name, false),
+                            RustCodeGenerator::rust_field_name(field_name, false),
                             format!("reader.read_{}()?", role.to_protobuf().to_string(),)
                         ));
                     }
@@ -188,8 +188,8 @@ impl ProtobufSerializer {
                 Self::get_as_rust_type_statement(&field_type.clone().into_inner_type());
             return_block.line(&format!(
                 "{}: read_{}{}{},",
-                RustCodeGenerator::rust_field_name(&field_name, true),
-                RustCodeGenerator::rust_field_name(&field_name, false),
+                RustCodeGenerator::rust_field_name(field_name, true),
+                RustCodeGenerator::rust_field_name(field_name, false),
                 if as_rust_statement.is_empty() {
                     "".into()
                 } else if let RustType::Vec(_) = field_type.clone().no_option() {
@@ -219,7 +219,7 @@ impl ProtobufSerializer {
                 "{} => Ok({}::{}),",
                 field,
                 name,
-                RustCodeGenerator::rust_variant_name(&variant),
+                RustCodeGenerator::rust_variant_name(variant),
             ));
         }
         block_match.line(format!(
@@ -354,8 +354,8 @@ impl ProtobufSerializer {
             let mut block = if let RustType::Option(_) = field_type {
                 Block::new(&format!(
                     "if let Some(ref {}) = self.{}",
-                    RustCodeGenerator::rust_field_name(&field_name, true),
-                    RustCodeGenerator::rust_field_name(&field_name, true),
+                    RustCodeGenerator::rust_field_name(field_name, true),
+                    RustCodeGenerator::rust_field_name(field_name, true),
                 ))
             } else {
                 Block::new("")
@@ -366,7 +366,7 @@ impl ProtobufSerializer {
                     Self::impl_write_for_vec_attribute(
                         &mut block,
                         field_type,
-                        &RustCodeGenerator::rust_field_name(&field_name, true),
+                        &RustCodeGenerator::rust_field_name(field_name, true),
                         prev_tag + 1,
                     );
                 }
@@ -378,7 +378,7 @@ impl ProtobufSerializer {
                         } else {
                             "self."
                         },
-                        RustCodeGenerator::rust_field_name(&field_name, true),
+                        RustCodeGenerator::rust_field_name(field_name, true),
                         Self::CODEC.to_lowercase()
                     );
                     block.line(format!(
@@ -399,7 +399,7 @@ impl ProtobufSerializer {
                         } else {
                             "self."
                         },
-                        RustCodeGenerator::rust_field_name(&field_name, true),
+                        RustCodeGenerator::rust_field_name(field_name, true),
                         Self::CODEC,
                     ));
                     block_if.line("writer.write_bytes(&vec[..])?;");
@@ -412,7 +412,7 @@ impl ProtobufSerializer {
                         } else {
                             "self."
                         },
-                        RustCodeGenerator::rust_field_name(&field_name, true),
+                        RustCodeGenerator::rust_field_name(field_name, true),
                     ));
 
                     block.push_block(block_if);
@@ -439,7 +439,7 @@ impl ProtobufSerializer {
                                 } else {
                                     "self."
                                 },
-                                RustCodeGenerator::rust_field_name(&field_name, true),
+                                RustCodeGenerator::rust_field_name(field_name, true),
                             ),
                             r
                         ),
@@ -456,7 +456,7 @@ impl ProtobufSerializer {
             outer_block.line(format!(
                 "{}::{} => writer.write_varint({})?,",
                 name,
-                RustCodeGenerator::rust_variant_name(&variant),
+                RustCodeGenerator::rust_variant_name(variant),
                 field,
             ));
         }
@@ -473,7 +473,7 @@ impl ProtobufSerializer {
             let mut block_case = Block::new(&format!(
                 "{}::{}(value) =>",
                 name,
-                RustCodeGenerator::rust_variant_name(&variant),
+                RustCodeGenerator::rust_variant_name(variant),
             ));
             if role.to_protobuf().is_primitive() {
                 block_case.line(&format!(
@@ -568,7 +568,7 @@ impl ProtobufSerializer {
                     if num > 0 {
                         function.line("&&");
                     }
-                    let field_name = RustCodeGenerator::rust_field_name(&field_name, true);
+                    let field_name = RustCodeGenerator::rust_field_name(field_name, true);
                     function.line(&format!(
                         "self.{}.{}_eq(&other.{})",
                         field_name,

@@ -20,7 +20,7 @@ impl Token {
 
     pub fn text(&self) -> Option<&String> {
         match self {
-            Token::Text(text) => Some(&text),
+            Token::Text(text) => Some(text),
             _ => None,
         }
     }

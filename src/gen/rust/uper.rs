@@ -137,9 +137,7 @@ impl UperSerializer {
                         &mut inner_block,
                         &inner.to_inner_type_string(),
                         Some(Member::Local(
-                            field_name
-                                .clone()
-                                .map_or_else(|| "value".into(), |f| f.name().to_string()),
+                            field_name.map_or_else(|| "value".into(), |f| f.name().to_string()),
                             false,
                             false,
                         )),
@@ -404,8 +402,7 @@ impl UperSerializer {
                     &field_name.map_or_else(
                         || "value".into(),
                         |mut f| {
-                            let name =
-                                RustCodeGenerator::rust_field_name(f.name(), true).to_string();
+                            let name = RustCodeGenerator::rust_field_name(f.name(), true);
                             *f.name_mut() = name;
                             f.to_string()
                         }
@@ -481,9 +478,9 @@ impl Member {
     pub fn name(&self) -> &str {
         #[allow(clippy::match_same_arms)] // to have the same order as the original enum
         match self {
-            Member::Local(name, _, _) => &name,
-            Member::Static(name, _, _) => &name,
-            Member::Instance(name, _, _) => &name,
+            Member::Local(name, _, _) => name,
+            Member::Static(name, _, _) => name,
+            Member::Instance(name, _, _) => name,
         }
     }
 

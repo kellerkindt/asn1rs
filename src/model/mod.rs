@@ -53,10 +53,10 @@ impl Model<Asn> {
                 Token::Text(text) => {
                     let lower = text.to_lowercase();
 
-                    if lower.eq(&"end") {
+                    if lower.eq("end") {
                         model.make_names_nice();
                         return Ok(model);
-                    } else if lower.eq(&"imports") {
+                    } else if lower.eq("imports") {
                         Self::read_imports(&mut iter)?
                             .into_iter()
                             .for_each(|i| model.imports.push(i));
@@ -85,7 +85,7 @@ impl Model<Asn> {
 
     fn skip_after(iter: &mut IntoIter<Token>, token: &Token) -> Result<(), Error> {
         for t in iter {
-            if t.eq(&token) {
+            if t.eq(token) {
                 return Ok(());
             }
         }
@@ -106,9 +106,9 @@ impl Model<Asn> {
                         Token::Separator(s) if s == ',' => {}
                         Token::Text(s) => {
                             let lower = s.to_lowercase();
-                            if s.eq(&",") {
+                            if s.eq(",") {
 
-                            } else if lower.eq(&"from") {
+                            } else if lower.eq("from") {
                                 let token = iter.next().ok_or(Error::UnexpectedEndOfStream)?;
                                 if let Token::Text(from) = token {
                                     import.from = from;
@@ -134,11 +134,11 @@ impl Model<Asn> {
 
         let token = iter.next().ok_or(Error::UnexpectedEndOfStream)?;
 
-        if token.text().map_or(false, |s| s.eq(&"SEQUENCE")) {
+        if token.text().map_or(false, |s| s.eq("SEQUENCE")) {
             Ok(Definition(name, Self::read_sequence_or_sequence_of(iter)?))
         } else if token
             .text()
-            .map_or(false, |s| s.eq_ignore_ascii_case(&"ENUMERATED"))
+            .map_or(false, |s| s.eq_ignore_ascii_case("ENUMERATED"))
         {
             Ok(Definition(
                 name,
@@ -146,7 +146,7 @@ impl Model<Asn> {
             ))
         } else if token
             .text()
-            .map_or(false, |s| s.eq_ignore_ascii_case(&"CHOICE"))
+            .map_or(false, |s| s.eq_ignore_ascii_case("CHOICE"))
         {
             Ok(Definition(name, Asn::Choice(Self::read_choice(iter)?)))
         } else {
@@ -156,7 +156,7 @@ impl Model<Asn> {
 
     fn read_role(iter: &mut IntoIter<Token>) -> Result<Asn, Error> {
         let text = Self::next_text(iter)?;
-        if text.eq_ignore_ascii_case(&"INTEGER") {
+        if text.eq_ignore_ascii_case("INTEGER") {
             Self::next_separator_ignore_case(iter, '(')?;
             let start = Self::next_text(iter)?;
             Self::next_separator_ignore_case(iter, '.')?;
@@ -176,22 +176,22 @@ impl Model<Asn> {
                     end.parse::<i64>().map_err(|_| Error::InvalidRangeValue)?,
                 ))))
             }
-        } else if text.eq_ignore_ascii_case(&"BOOLEAN") {
+        } else if text.eq_ignore_ascii_case("BOOLEAN") {
             Ok(Asn::Boolean)
-        } else if text.eq_ignore_ascii_case(&"UTF8String") {
+        } else if text.eq_ignore_ascii_case("UTF8String") {
             Ok(Asn::UTF8String)
-        } else if text.eq_ignore_ascii_case(&"OCTET") {
+        } else if text.eq_ignore_ascii_case("OCTET") {
             let token = iter.next().ok_or(Error::UnexpectedEndOfStream)?;
             if token.text().map_or(false, |t| t.eq("STRING")) {
                 Ok(Asn::OctetString)
             } else {
                 Err(Error::UnexpectedToken(Backtrace::new(), token))
             }
-        } else if text.eq_ignore_ascii_case(&"CHOICE") {
+        } else if text.eq_ignore_ascii_case("CHOICE") {
             Ok(Asn::Choice(Self::read_choice(iter)?))
-        } else if text.eq_ignore_ascii_case(&"ENUMERATED") {
+        } else if text.eq_ignore_ascii_case("ENUMERATED") {
             Ok(Asn::Enumerated(Self::read_enumerated(iter)?))
-        } else if text.eq_ignore_ascii_case(&"SEQUENCE") {
+        } else if text.eq_ignore_ascii_case("SEQUENCE") {
             Ok(Self::read_sequence_or_sequence_of(iter)?)
         } else {
             Ok(Asn::TypeReference(text))
@@ -202,7 +202,7 @@ impl Model<Asn> {
         let token = iter.next().ok_or(Error::UnexpectedEndOfStream)?;
         match token {
             Token::Text(of) => {
-                if of.eq_ignore_ascii_case(&"OF") {
+                if of.eq_ignore_ascii_case("OF") {
                     Ok(Asn::SequenceOf(Box::new(Self::read_role(iter)?)))
                 } else {
                     Err(Error::UnexpectedToken(Backtrace::new(), Token::Text(of)))
@@ -268,7 +268,7 @@ impl Model<Asn> {
             optional: false,
         };
         let mut token = iter.next().ok_or(Error::UnexpectedEndOfStream)?;
-        if let Some(_optional_flag) = token.text().map(|s| s.eq_ignore_ascii_case(&"OPTIONAL")) {
+        if let Some(_optional_flag) = token.text().map(|s| s.eq_ignore_ascii_case("OPTIONAL")) {
             field.optional = true;
             token = iter.next().ok_or(Error::UnexpectedEndOfStream)?;
         }

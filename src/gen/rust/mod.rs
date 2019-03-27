@@ -121,7 +121,7 @@ impl RustCodeGenerator {
         for import in &model.imports {
             let from = format!("super::{}", &Self::rust_module_name(&import.from));
             for what in &import.what {
-                scope.import(&from, &what);
+                scope.import(&from, what);
             }
         }
 
@@ -131,7 +131,7 @@ impl RustCodeGenerator {
 
             generators
                 .iter()
-                .for_each(|g| g.impl_supplement(&mut scope, &definition));
+                .for_each(|g| g.impl_supplement(&mut scope, definition));
         }
 
         (file, scope.to_string())
@@ -179,7 +179,7 @@ impl RustCodeGenerator {
 
     fn add_enum(en_m: &mut Enum, _name: &str, variants: &[String]) {
         for variant in variants.iter() {
-            en_m.new_variant(&Self::rust_variant_name(&variant));
+            en_m.new_variant(&Self::rust_variant_name(variant));
         }
     }
 
@@ -230,7 +230,7 @@ impl RustCodeGenerator {
 
     fn impl_tuple_struct_deref(scope: &mut Scope, name: &str, rust: &RustType) {
         scope
-            .new_impl(&name)
+            .new_impl(name)
             .impl_trait("::std::ops::Deref")
             .associate_type("Target", rust.to_string())
             .new_fn("deref")
@@ -241,7 +241,7 @@ impl RustCodeGenerator {
 
     fn impl_tuple_struct_deref_mut(scope: &mut Scope, name: &str, rust: &RustType) {
         scope
-            .new_impl(&name)
+            .new_impl(name)
             .impl_trait("::std::ops::DerefMut")
             .new_fn("deref_mut")
             .arg_mut_self()
@@ -251,7 +251,7 @@ impl RustCodeGenerator {
 
     fn impl_tuple_struct(scope: &mut Scope, name: &str, rust: &RustType) {
         let implementation = scope.new_impl(name);
-        Self::add_min_max_fn_if_applicable(implementation, "value", &rust);
+        Self::add_min_max_fn_if_applicable(implementation, "value", rust);
     }
 
     fn impl_struct(
@@ -312,10 +312,10 @@ impl RustCodeGenerator {
 
     fn impl_default_default(scope: &mut Scope, name: &str, variants: &[String]) {
         scope
-            .new_impl(&name)
+            .new_impl(name)
             .impl_trait("Default")
             .new_fn("default")
-            .ret(&name as &str)
+            .ret(name as &str)
             .line(format!(
                 "{}::{}",
                 name,
@@ -326,8 +326,8 @@ impl RustCodeGenerator {
     fn impl_enum(scope: &mut Scope, name: &str, variants: &[String]) {
         let implementation = scope.new_impl(name);
 
-        Self::impl_enum_values_fn(implementation, &name, variants);
-        Self::impl_enum_value_index_fn(implementation, &name, variants);
+        Self::impl_enum_values_fn(implementation, name, variants);
+        Self::impl_enum_value_index_fn(implementation, name, variants);
     }
 
     fn impl_enum_values_fn(implementation: &mut Impl, name: &str, variants: &[String]) {
@@ -366,8 +366,8 @@ impl RustCodeGenerator {
     fn impl_data_enum(scope: &mut Scope, name: &str, variants: &[(String, RustType)]) {
         let implementation = scope.new_impl(name);
 
-        Self::impl_data_enum_values_fn(implementation, &name, variants);
-        Self::impl_data_enum_value_index_fn(implementation, &name, variants);
+        Self::impl_data_enum_values_fn(implementation, name, variants);
+        Self::impl_data_enum_value_index_fn(implementation, name, variants);
     }
 
     fn impl_data_enum_values_fn(
@@ -420,10 +420,10 @@ impl RustCodeGenerator {
 
     fn impl_data_enum_default(scope: &mut Scope, name: &str, variants: &[(String, RustType)]) {
         scope
-            .new_impl(&name)
+            .new_impl(name)
             .impl_trait("Default")
             .new_fn("default")
-            .ret(&name as &str)
+            .ret(name as &str)
             .line(format!(
                 "{}::{}(Default::default())",
                 name,
@@ -532,7 +532,7 @@ impl RustCodeGenerator {
             .derive("PartialEq")
             .derive("Hash");
         self.global_derives.iter().for_each(|derive| {
-            str_ct.derive(&derive);
+            str_ct.derive(derive);
         });
         str_ct
     }
@@ -549,7 +549,7 @@ impl RustCodeGenerator {
             en_m.derive("Copy").derive("PartialOrd").derive("Eq");
         }
         self.global_derives.iter().for_each(|derive| {
-            en_m.derive(&derive);
+            en_m.derive(derive);
         });
         en_m
     }

@@ -83,14 +83,14 @@ impl ProtobufDefGenerator {
             Protobuf::Enum(variants) => {
                 writeln!(target, "enum {} {{", name)?;
                 for (tag, variant) in variants.iter().enumerate() {
-                    Self::append_variant(target, &variant, tag)?;
+                    Self::append_variant(target, variant, tag)?;
                 }
                 writeln!(target, "}}")?;
             }
             Protobuf::Message(fields) => {
                 writeln!(target, "message {} {{", name)?;
                 for (prev_tag, (field_name, field_type)) in fields.iter().enumerate() {
-                    Self::append_field(target, model, &field_name, &field_type, prev_tag + 1)?;
+                    Self::append_field(target, model, field_name, field_type, prev_tag + 1)?;
                 }
                 writeln!(target, "}}")?;
             }
@@ -132,7 +132,7 @@ impl ProtobufDefGenerator {
     }
 
     pub fn append_variant(target: &mut Write, variant: &str, tag: usize) -> Result<(), Error> {
-        writeln!(target, "    {} = {};", Self::variant_name(&variant), tag)?;
+        writeln!(target, "    {} = {};", Self::variant_name(variant), tag)?;
         Ok(())
     }
 
@@ -149,7 +149,7 @@ impl ProtobufDefGenerator {
                         }
                     }
                 }
-                prefixed.push_str(&name);
+                prefixed.push_str(name);
                 prefixed
             }
             ProtobufType::Repeated(inner) => {

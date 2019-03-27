@@ -131,7 +131,7 @@ impl Model<Sql> {
             definitions: Vec::with_capacity(rust_model.definitions.len()),
         };
         for Definition(name, rust) in &rust_model.definitions {
-            Self::definition_to_sql(&name, rust, &mut model.definitions);
+            Self::definition_to_sql(name, rust, &mut model.definitions);
         }
         model
     }
@@ -166,7 +166,7 @@ impl Model<Sql> {
                 Self::add_list_table(name, &mut deferred, &list_entry_name, &value_sql_type);
             } else {
                 columns.push(Column {
-                    name: Self::sql_column_name(&column),
+                    name: Self::sql_column_name(column),
                     sql: rust.to_sql(),
                     primary_key: false,
                 });
@@ -190,7 +190,7 @@ impl Model<Sql> {
         // TODO
         if !fields
             .iter()
-            .map(|(name, _)| FOREIGN_KEY_DEFAULT_COLUMN.eq_ignore_ascii_case(&name))
+            .map(|(name, _)| FOREIGN_KEY_DEFAULT_COLUMN.eq_ignore_ascii_case(name))
             .any(|found| found)
         {
             columns.push(Column {
@@ -201,7 +201,7 @@ impl Model<Sql> {
         }
         for (column, rust) in fields {
             columns.push(Column {
-                name: Self::sql_column_name(&column),
+                name: Self::sql_column_name(column),
                 sql: rust.to_sql().nullable(),
                 primary_key: false,
             });
@@ -213,7 +213,7 @@ impl Model<Sql> {
                 vec![Constraint::OneNotNull(
                     fields
                         .iter()
-                        .map(|(name, _)| RustCodeGenerator::rust_module_name(&name))
+                        .map(|(name, _)| RustCodeGenerator::rust_module_name(name))
                         .collect::<Vec<String>>(),
                 )],
             ),
@@ -321,7 +321,7 @@ impl Model<Sql> {
             value_sql_type.clone().nullable()
         {
             Self::add_abandon_children(
-                &list_entry_name,
+                list_entry_name,
                 vec![(
                     TUPLE_LIST_ENTRY_VALUE_COLUMN.into(),
                     other_table,

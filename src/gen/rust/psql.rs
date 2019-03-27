@@ -60,12 +60,12 @@ impl PsqlInserter {
     }
 
     fn impl_representable(scope: &mut Scope, Definition(name, _rust): &Definition<Rust>) {
-        let implementation = Self::new_representable_impl(scope, &name);
+        let implementation = Self::new_representable_impl(scope, name);
         Self::impl_table_name(Self::new_table_name_fn(implementation), name);
     }
 
     fn impl_insertable(scope: &mut Scope, Definition(name, rust): &Definition<Rust>) {
-        let implementation = Self::new_insertable_impl(scope, &name);
+        let implementation = Self::new_insertable_impl(scope, name);
         match rust {
             Rust::Struct(fields) => {
                 Self::impl_struct_insert_statement(
@@ -277,7 +277,7 @@ impl PsqlInserter {
                 let mut block = Block::new("");
                 block.line(&format!(
                     "let statement = transaction.prepare_cached(\"{}\")?;",
-                    &Self::struct_list_entry_insert_statement(&struct_name, &name),
+                    &Self::struct_list_entry_insert_statement(struct_name, &name),
                 ));
                 block.push_block(Self::list_insert_for_each(&name, &field, "index"));
                 function.push_block(block);
@@ -385,13 +385,11 @@ impl PsqlInserter {
 
     /// Expects a variable called `statement` to be reachable and usable
     fn list_insert_for_each(name: &str, rust: &RustType, list: &str) -> Block {
-        let mut block_for = Block::new(&
-            if let RustType::Option(_) = rust {
-                format!("for value in self.{}.iter().flatten()", name)
-            } else {
-                format!("for value in &self.{}", name)
-            }
-        );
+        let mut block_for = Block::new(&if let RustType::Option(_) = rust {
+            format!("for value in self.{}.iter().flatten()", name)
+        } else {
+            format!("for value in &self.{}", name)
+        });
         if Self::is_sql_primitive(rust) {
             let inner_sql = rust.clone().into_inner_type().to_sql();
             let inner_rust = rust.clone().into_inner_type();
@@ -512,12 +510,12 @@ impl PsqlInserter {
                         if let RustType::Complex(complex) = rust.clone().into_inner_type() {
                             Self::struct_list_entry_select_referenced_value_statement(
                                 struct_name,
-                                &name,
+                                name,
                                 &complex
                             )
                         } else {
                             Self::struct_list_entry_select_value_statement(
-                                struct_name, &name
+                                struct_name, name
                             )
                         }
                     ));
@@ -550,7 +548,7 @@ impl PsqlInserter {
                 }
                 load_block.after(",");
                 block.push_block(load_block);
-            } else if Self::is_sql_primitive(&rust) {
+            } else if Self::is_sql_primitive(rust) {
                 let load = format!(
                     "row.get_opt::<usize, {}>({}).ok_or_else({}::no_result)??",
                     rust.to_sql().to_rust().to_string(),

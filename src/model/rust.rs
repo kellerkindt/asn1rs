@@ -278,7 +278,7 @@ impl Model<Rust> {
 
             Asn::SequenceOf(asn) => {
                 let inner = RustType::Vec(Box::new(Self::definition_type_to_rust_type(
-                    &name, asn, defs,
+                    name, asn, defs,
                 )));
                 defs.push(Definition(name.into(), Rust::TupleStruct(inner)));
             }

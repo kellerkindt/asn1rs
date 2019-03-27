@@ -203,7 +203,7 @@ impl<W: Write> Writer for W {
 
     fn write_bytes(&mut self, value: &[u8]) -> Result<(), Error> {
         self.write_varint(value.len() as u64)?;
-        self.write_all(&value)?;
+        self.write_all(value)?;
         Ok(())
     }
 
