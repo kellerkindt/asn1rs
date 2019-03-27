@@ -421,13 +421,9 @@ mod tests {
 
     #[test]
     fn test_simple_asn_sequence_represented_correctly_as_rust_model() {
-        let model_rust = Model::try_from(
-            Tokenizer::default()
-                .parse(SIMPLE_INTEGER_STRUCT_ASN)
-                .unwrap(),
-        )
-        .unwrap()
-        .to_rust();
+        let model_rust = Model::try_from(Tokenizer::default().parse(SIMPLE_INTEGER_STRUCT_ASN))
+            .unwrap()
+            .to_rust();
 
         assert_eq!("simple_schema", model_rust.name);
         assert_eq!(true, model_rust.imports.is_empty());
@@ -451,7 +447,7 @@ mod tests {
 
     #[test]
     fn test_inline_asn_enumerated_represented_correctly_as_rust_model() {
-        let modle_rust = Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_ENUM).unwrap())
+        let modle_rust = Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_ENUM))
             .unwrap()
             .to_rust();
 
@@ -485,13 +481,9 @@ mod tests {
 
     #[test]
     fn test_inline_asn_sequence_of_represented_correctly_as_rust_model() {
-        let model_rust = Model::try_from(
-            Tokenizer::default()
-                .parse(INLINE_ASN_WITH_SEQUENCE_OF)
-                .unwrap(),
-        )
-        .unwrap()
-        .to_rust();
+        let model_rust = Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_SEQUENCE_OF))
+            .unwrap()
+            .to_rust();
 
         assert_eq!("simple_schema", model_rust.name);
         assert_eq!(true, model_rust.imports.is_empty());
@@ -538,10 +530,9 @@ mod tests {
 
     #[test]
     fn test_inline_asn_choice_represented_correctly_as_rust_model() {
-        let model_rust =
-            Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_CHOICE).unwrap())
-                .unwrap()
-                .to_rust();
+        let model_rust = Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_CHOICE))
+            .unwrap()
+            .to_rust();
 
         assert_eq!("simple_schema", model_rust.name);
         assert_eq!(true, model_rust.imports.is_empty());
@@ -594,13 +585,9 @@ mod tests {
 
     #[test]
     fn test_inline_asn_sequence_represented_correctly_as_rust_model() {
-        let model_rust = Model::try_from(
-            Tokenizer::default()
-                .parse(INLINE_ASN_WITH_SEQUENCE)
-                .unwrap(),
-        )
-        .unwrap()
-        .to_rust();
+        let model_rust = Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_SEQUENCE))
+            .unwrap()
+            .to_rust();
 
         assert_eq!("simple_schema", model_rust.name);
         assert_eq!(true, model_rust.imports.is_empty());

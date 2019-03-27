@@ -359,12 +359,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_simple_asn_sequence_represented_correctly_as_asn_model() {
-        let model = Model::try_from(
-            Tokenizer::default()
-                .parse(SIMPLE_INTEGER_STRUCT_ASN)
-                .unwrap(),
-        )
-        .unwrap();
+        let model = Model::try_from(Tokenizer::default().parse(SIMPLE_INTEGER_STRUCT_ASN)).unwrap();
 
         assert_eq!("SimpleSchema", model.name);
         assert_eq!(true, model.imports.is_empty());
@@ -417,8 +412,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_inline_asn_enumerated_represented_correctly_as_asn_model() {
-        let model =
-            Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_ENUM).unwrap()).unwrap();
+        let model = Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_ENUM)).unwrap();
 
         assert_eq!("SimpleSchema", model.name);
         assert_eq!(true, model.imports.is_empty());
@@ -460,12 +454,8 @@ pub(crate) mod tests {
 
     #[test]
     fn test_inline_asn_sequence_of_represented_correctly_as_asn_model() {
-        let model = Model::try_from(
-            Tokenizer::default()
-                .parse(INLINE_ASN_WITH_SEQUENCE_OF)
-                .unwrap(),
-        )
-        .unwrap();
+        let model =
+            Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_SEQUENCE_OF)).unwrap();
 
         assert_eq!("SimpleSchema", model.name);
         assert_eq!(true, model.imports.is_empty());
@@ -540,8 +530,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_inline_asn_choice_represented_correctly_as_asn_model() {
-        let model =
-            Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_CHOICE).unwrap()).unwrap();
+        let model = Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_CHOICE)).unwrap();
 
         assert_eq!("SimpleSchema", model.name);
         assert_eq!(true, model.imports.is_empty());
@@ -602,12 +591,7 @@ pub(crate) mod tests {
 
     #[test]
     fn test_inline_asn_sequence_represented_correctly_as_asn_model() {
-        let model = Model::try_from(
-            Tokenizer::default()
-                .parse(INLINE_ASN_WITH_SEQUENCE)
-                .unwrap(),
-        )
-        .unwrap();
+        let model = Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_SEQUENCE)).unwrap();
 
         assert_eq!("SimpleSchema", model.name);
         assert_eq!(true, model.imports.is_empty());

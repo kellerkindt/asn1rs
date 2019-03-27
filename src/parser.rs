@@ -151,7 +151,7 @@ mod tests {
     #[test]
     pub fn test_token_text() {
         let token = Token::Text("some text".to_string());
-        assert_eq!(token.text(), &"some text".to_string());
+        assert_eq!(token.text(), Some(&"some text".to_string()));
         assert_eq!(token.separator(), None);
     }
 

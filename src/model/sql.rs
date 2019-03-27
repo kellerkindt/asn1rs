@@ -542,7 +542,7 @@ mod tests {
                             },
                             Column {
                                 name: "dead_since".into(),
-                                sql: SqlType::Text.into(),
+                                sql: SqlType::Text,
                                 primary_key: false
                             },
                             Column {
@@ -552,8 +552,7 @@ mod tests {
                                     FOREIGN_KEY_DEFAULT_COLUMN.into(),
                                     Some(Action::Cascade),
                                     Some(Action::Cascade),
-                                )
-                                .into(),
+                                ),
                                 primary_key: false
                             },
                         ],
@@ -929,54 +928,54 @@ mod tests {
     fn test_rust_to_sql_to_rust() {
         assert_eq!(RustType::Bool.to_sql().to_rust(), RustType::Bool);
         assert_eq!(
-            RustType::I8(Range(0, ::std::i8::MAX)).to_sql().to_rust(),
-            RustType::I16(Range(0, ::std::i16::MAX))
+            RustType::I8(Range(0, i8::max_value())).to_sql().to_rust(),
+            RustType::I16(Range(0, i16::max_value()))
         );
         assert_eq!(
-            RustType::U8(Range(0, ::std::u8::MAX)).to_sql().to_rust(),
-            RustType::I16(Range(0, ::std::i16::MAX))
+            RustType::U8(Range(0, u8::max_value())).to_sql().to_rust(),
+            RustType::I16(Range(0, i16::max_value()))
         );
         assert_eq!(
-            RustType::I16(Range(0, ::std::i16::MAX)).to_sql().to_rust(),
-            RustType::I16(Range(0, ::std::i16::MAX))
+            RustType::I16(Range(0, i16::max_value())).to_sql().to_rust(),
+            RustType::I16(Range(0, i16::max_value()))
         );
         assert_eq!(
-            RustType::U16(Range(0, ::std::i16::MAX as u16))
+            RustType::U16(Range(0, i16::max_value() as u16))
                 .to_sql()
                 .to_rust(),
-            RustType::I16(Range(0, ::std::i16::MAX))
+            RustType::I16(Range(0, i16::max_value()))
         );
         assert_eq!(
-            RustType::U16(Range(0, ::std::u16::MAX)).to_sql().to_rust(),
-            RustType::I32(Range(0, ::std::i32::MAX))
+            RustType::U16(Range(0, u16::max_value())).to_sql().to_rust(),
+            RustType::I32(Range(0, i32::max_value()))
         );
         assert_eq!(
-            RustType::I32(Range(0, ::std::i32::MAX)).to_sql().to_rust(),
-            RustType::I32(Range(0, ::std::i32::MAX))
+            RustType::I32(Range(0, i32::max_value())).to_sql().to_rust(),
+            RustType::I32(Range(0, i32::max_value()))
         );
         assert_eq!(
-            RustType::U32(Range(0, ::std::i32::MAX as u32))
+            RustType::U32(Range(0, i32::max_value() as u32))
                 .to_sql()
                 .to_rust(),
-            RustType::I32(Range(0, ::std::i32::MAX))
+            RustType::I32(Range(0, i32::max_value()))
         );
         assert_eq!(
-            RustType::U32(Range(0, ::std::u32::MAX)).to_sql().to_rust(),
-            RustType::I64(Range(0, ::std::i64::MAX))
+            RustType::U32(Range(0, u32::max_value())).to_sql().to_rust(),
+            RustType::I64(Range(0, i64::max_value()))
         );
         assert_eq!(
-            RustType::I64(Range(0, ::std::i64::MAX)).to_sql().to_rust(),
-            RustType::I64(Range(0, ::std::i64::MAX))
+            RustType::I64(Range(0, i64::max_value())).to_sql().to_rust(),
+            RustType::I64(Range(0, i64::max_value()))
         );
         assert_eq!(
             RustType::U64(None).to_sql().to_rust(),
-            RustType::I64(Range(0, ::std::i64::MAX))
+            RustType::I64(Range(0, i64::max_value()))
         );
         assert_eq!(
-            RustType::U64(Some(Range(0, ::std::u64::MAX)))
+            RustType::U64(Some(Range(0, u64::max_value())))
                 .to_sql()
                 .to_rust(),
-            RustType::I64(Range(0, ::std::i64::MAX))
+            RustType::I64(Range(0, i64::max_value()))
         );
 
         assert_eq!(RustType::String.to_sql().to_rust(), RustType::String,);
@@ -1002,7 +1001,7 @@ mod tests {
         // only cases that are not already tested by above
         assert_eq!(
             SqlType::NotNull(SqlType::Serial.into()).to_rust(),
-            RustType::I32(Range(0, ::std::i32::MAX))
+            RustType::I32(Range(0, i32::max_value()))
         );
     }
 

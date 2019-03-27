@@ -227,11 +227,11 @@ mod tests {
     #[test]
     fn test_simple_rust_struct_to_protobuf() {
         test_model_definition_conversion(
-            vec![Definition(
+            &[Definition(
                 "Mine".into(),
                 Rust::Struct(vec![("field".into(), RustType::U8(Range(0, 255)))]),
             )],
-            vec![Definition(
+            &[Definition(
                 "Mine".into(),
                 Protobuf::Message(vec![("field".into(), ProtobufType::UInt32)]),
             )],
@@ -241,11 +241,11 @@ mod tests {
     #[test]
     fn test_simple_rust_tuple_to_protobuf() {
         test_model_definition_conversion(
-            vec![Definition(
+            &[Definition(
                 "SuchTuple".into(),
                 Rust::TupleStruct(RustType::Complex("VeryWow".into())),
             )],
-            vec![Definition(
+            &[Definition(
                 "SuchTuple".into(),
                 Protobuf::Message(vec![(
                     TUPLE_VARIABLE_NAME_REPLACEMENT.into(),
@@ -258,11 +258,11 @@ mod tests {
     #[test]
     fn test_simple_rust_enum_to_protobuf() {
         test_model_definition_conversion(
-            vec![Definition(
+            &[Definition(
                 "SuchEnum".into(),
                 Rust::Enum(vec!["VeryWow".into(), "MuchGreat".into()]),
             )],
-            vec![Definition(
+            &[Definition(
                 "SuchEnum".into(),
                 Protobuf::Enum(vec!["VeryWow".into(), "MuchGreat".into()]),
             )],
@@ -272,14 +272,14 @@ mod tests {
     #[test]
     fn test_simple_rust_strucht_with_option_to_protobuf() {
         test_model_definition_conversion(
-            vec![Definition(
+            &[Definition(
                 "SuchStruct".into(),
                 Rust::Struct(vec![(
                     "very_optional".into(),
                     RustType::Option(Box::new(RustType::String)),
                 )]),
             )],
-            vec![Definition(
+            &[Definition(
                 "SuchStruct".into(),
                 Protobuf::Message(vec![("very_optional".into(), ProtobufType::String)]),
             )],
@@ -289,11 +289,11 @@ mod tests {
     #[test]
     fn test_simple_rust_data_enum_to_protobuf() {
         test_model_definition_conversion(
-            vec![Definition(
+            &[Definition(
                 "SuchDataEnum".into(),
                 Rust::DataEnum(vec![("MuchVariant".into(), RustType::String)]),
             )],
-            vec![Definition(
+            &[Definition(
                 "SuchDataEnum".into(),
                 Protobuf::Message(vec![(
                     DATAENUM_VARIABLE_NAME_REPLACEMENT.into(),
@@ -306,11 +306,11 @@ mod tests {
     #[test]
     fn test_multiple_rust_defs_to_protobuf() {
         test_model_definition_conversion(
-            vec![
+            &[
                 Definition("First".into(), Rust::Enum(vec!["A".into(), "B".into()])),
                 Definition("Second".into(), Rust::TupleStruct(RustType::VecU8)),
             ],
-            vec![
+            &[
                 Definition("First".into(), Protobuf::Enum(vec!["A".into(), "B".into()])),
                 Definition(
                     "Second".into(),
@@ -324,13 +324,13 @@ mod tests {
     }
 
     fn test_model_definition_conversion(
-        rust: Vec<Definition<Rust>>,
-        proto: Vec<Definition<Protobuf>>,
+        rust: &[Definition<Rust>],
+        proto: &[Definition<Protobuf>],
     ) {
         let mut model_rust = Model::default();
-        model_rust.definitions = rust;
+        model_rust.definitions = rust.to_vec();
         let model_proto = model_rust.to_protobuf();
         assert_eq!(proto.len(), model_proto.definitions.len());
-        assert_eq!(proto, model_proto.definitions)
+        assert_eq!(proto, &model_proto.definitions[..])
     }
 }
