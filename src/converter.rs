@@ -8,8 +8,7 @@ use crate::model::protobuf::ToProtobufModel;
 use crate::model::sql::ToSqlModel;
 use crate::model::Error as ModelError;
 use crate::model::Model;
-use crate::parser::Error as ParserError;
-use crate::parser::Parser;
+use crate::parser::Tokenizer;
 use std::io::Error as IoError;
 use std::path::Path;
 
@@ -19,7 +18,6 @@ pub enum Error {
     ProtobufGenerator(ProtobufGeneratorError),
     SqlGenerator(SqlGeneratorError),
     Model(ModelError),
-    Parser(ParserError),
     Io(IoError),
 }
 
@@ -41,12 +39,6 @@ impl From<ModelError> for Error {
     }
 }
 
-impl From<ParserError> for Error {
-    fn from(p: ParserError) -> Self {
-        Error::Parser(p)
-    }
-}
-
 impl From<IoError> for Error {
     fn from(e: IoError) -> Self {
         Error::Io(e)
@@ -59,7 +51,7 @@ pub fn convert_to_rust<F: AsRef<Path>, D: AsRef<Path>, A: FnOnce(&mut RustGenera
     custom_adjustments: A,
 ) -> Result<Vec<String>, Error> {
     let input = ::std::fs::read_to_string(file)?;
-    let tokens = Parser::default().parse(&input)?;
+    let tokens = Tokenizer::default().parse(&input);
     let model = Model::try_from(tokens)?;
     let mut generator = RustGenerator::default();
     generator.add_model(model.to_rust());
@@ -81,7 +73,7 @@ pub fn convert_to_proto<F: AsRef<Path>, D: AsRef<Path>>(
     dir: D,
 ) -> Result<Vec<String>, Error> {
     let input = ::std::fs::read_to_string(file)?;
-    let tokens = Parser::default().parse(&input)?;
+    let tokens = Tokenizer::default().parse(&input);
     let model = Model::try_from(tokens)?;
     let mut generator = ProtobufGenerator::default();
     generator.add_model(model.to_rust().to_protobuf());
@@ -100,7 +92,7 @@ pub fn convert_to_sql<F: AsRef<Path>, D: AsRef<Path>>(
     dir: D,
 ) -> Result<Vec<String>, Error> {
     let input = ::std::fs::read_to_string(file)?;
-    let tokens = Parser::default().parse(&input)?;
+    let tokens = Tokenizer::default().parse(&input);
     let model = Model::try_from(tokens)?;
     let mut generator = SqlGenerator::default();
     generator.add_model(model.to_rust().to_sql());

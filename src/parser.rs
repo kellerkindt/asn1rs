@@ -33,14 +33,11 @@ impl Token {
     }
 }
 
-#[derive(Debug)]
-pub enum Error {}
-
 #[derive(Default)]
-pub struct Parser;
+pub struct Tokenizer;
 
-impl Parser {
-    pub fn parse(&self, asn: &str) -> Result<Vec<Token>, Error> {
+impl Tokenizer {
+    pub fn parse(&self, asn: &str) -> Vec<Token> {
         let iter = asn.chars();
         let mut previous = None;
         let mut tokens = Vec::new();
@@ -85,7 +82,7 @@ impl Parser {
         if let Some(token) = previous {
             tokens.push(token);
         }
-        Ok(tokens)
+        tokens
     }
 }
 
@@ -95,7 +92,7 @@ mod tests {
 
     #[test]
     pub fn test_separator_tokens_not_merged() {
-        let result = Parser.parse(":;=(){}.,").unwrap();
+        let result = Tokenizer.parse(":;=(){}.,");
         assert_eq!(
             result,
             vec![
@@ -114,7 +111,7 @@ mod tests {
 
     #[test]
     pub fn test_text_between_seapators_is_represented_as_one_text_token() {
-        let result = Parser.parse("::=ASN{").unwrap();
+        let result = Tokenizer.parse("::=ASN{");
         assert_eq!(
             result,
             vec![
@@ -129,9 +126,7 @@ mod tests {
 
     #[test]
     pub fn test_invisible_separator_characters() {
-        let result = Parser
-            .parse("a b\rc\nd\te AB\rCD\nEF\tGH aa  bb\r\rcc\n\ndd\t\tee")
-            .unwrap();
+        let result = Tokenizer.parse("a b\rc\nd\te AB\rCD\nEF\tGH aa  bb\r\rcc\n\ndd\t\tee");
         assert_eq!(
             result,
             vec![
@@ -156,13 +151,13 @@ mod tests {
     #[test]
     pub fn test_token_text() {
         let token = Token::Text("some text".to_string());
-        assert_eq!(token.text(), Some(&"some text".to_string()),);
+        assert_eq!(token.text(), &"some text".to_string());
         assert_eq!(token.separator(), None);
     }
 
     #[test]
     pub fn test_token_separator() {
-        let result = Parser.parse("AS\x00N").unwrap();
+        let result = Tokenizer.parse("AS\x00N");
         assert_eq!(result, vec![Token::Text("ASN".to_string())])
     }
 
