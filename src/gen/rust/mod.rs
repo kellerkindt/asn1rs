@@ -439,12 +439,12 @@ impl RustCodeGenerator {
         if let Some(Range(min, max)) = field_type.integer_range_str() {
             implementation
                 .new_fn(&format!("{}_min", field_name))
-                .vis("pub")
+                .vis("pub const")
                 .ret(&field_type.to_inner_type_string())
                 .line(&Self::format_number_nicely(&min));
             implementation
                 .new_fn(&format!("{}_max", field_name))
-                .vis("pub")
+                .vis("pub const")
                 .ret(&field_type.to_inner_type_string())
                 .line(&Self::format_number_nicely(&max));
         }
