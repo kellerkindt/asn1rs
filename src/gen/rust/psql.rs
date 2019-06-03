@@ -494,8 +494,19 @@ impl PsqlInserter {
         variants: &[(String, RustType)],
     ) {
         let mut block = Block::new(&format!("Ok({}", struct_name));
+        let mut index_negative_offset = 0;
 
         for (index, (name, rust)) in variants.iter().enumerate() {
+            let index = index - index_negative_offset;
+
+            // Lists do not have a entry in the `holding` table but
+            // a third table referencing both (M:N relation), therefore
+            // the index must not be incremented, otherwise one column
+            // in the container table would be skipped
+            if Model::<Sql>::has_no_column_in_embedded_struct(rust) {
+                index_negative_offset += 1;
+            }
+
             if Model::<Sql>::is_vec(rust) {
                 let mut load_block = Block::new(&format!(
                     "{}:",

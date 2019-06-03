@@ -386,6 +386,10 @@ impl Model<Sql> {
         }
     }
 
+    pub fn has_no_column_in_embedded_struct(rust: &RustType) -> bool {
+        Self::is_vec(rust)
+    }
+
     pub fn struct_list_entry_table_name(struct_name: &str, field_name: &str) -> String {
         format!(
             "{}_{}",
