@@ -93,11 +93,11 @@ impl From<IoError> for Error {
 pub trait Protobuf: ProtobufEq {
     fn protobuf_format(&self) -> Format;
 
-    fn read_protobuf(reader: &mut Reader) -> Result<Self, Error>
+    fn read_protobuf(reader: &mut dyn Reader) -> Result<Self, Error>
     where
         Self: Sized;
 
-    fn write_protobuf(&self, writer: &mut Writer) -> Result<(), Error>;
+    fn write_protobuf(&self, writer: &mut dyn Writer) -> Result<(), Error>;
 }
 
 pub trait Writer {

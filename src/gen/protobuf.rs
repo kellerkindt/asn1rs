@@ -59,14 +59,14 @@ impl ProtobufDefGenerator {
         Ok((file_name, content))
     }
 
-    pub fn append_header(target: &mut Write, model: &Model<Protobuf>) -> Result<(), Error> {
+    pub fn append_header(target: &mut dyn Write, model: &Model<Protobuf>) -> Result<(), Error> {
         writeln!(target, "syntax = 'proto3';")?;
         writeln!(target, "package {};", Self::model_to_package(&model.name))?;
         writeln!(target)?;
         Ok(())
     }
 
-    pub fn append_imports(target: &mut Write, model: &Model<Protobuf>) -> Result<(), Error> {
+    pub fn append_imports(target: &mut dyn Write, model: &Model<Protobuf>) -> Result<(), Error> {
         for import in &model.imports {
             writeln!(target, "import '{}';", Self::model_file_name(&import.from))?;
         }
@@ -75,7 +75,7 @@ impl ProtobufDefGenerator {
     }
 
     pub fn append_definition(
-        target: &mut Write,
+        target: &mut dyn Write,
         model: &Model<Protobuf>,
         Definition(name, protobuf): &Definition<Protobuf>,
     ) -> Result<(), Error> {
@@ -99,7 +99,7 @@ impl ProtobufDefGenerator {
     }
 
     pub fn append_field(
-        target: &mut Write,
+        target: &mut dyn Write,
         model: &Model<Protobuf>,
         name: &str,
         role: &ProtobufType,
@@ -131,7 +131,7 @@ impl ProtobufDefGenerator {
         Ok(())
     }
 
-    pub fn append_variant(target: &mut Write, variant: &str, tag: usize) -> Result<(), Error> {
+    pub fn append_variant(target: &mut dyn Write, variant: &str, tag: usize) -> Result<(), Error> {
         writeln!(target, "    {} = {};", Self::variant_name(variant), tag)?;
         Ok(())
     }

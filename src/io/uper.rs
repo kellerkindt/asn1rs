@@ -19,7 +19,7 @@ pub enum Error {
 }
 
 impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::InvalidUtf8String => {
                 write!(f, "The underlying dataset is not a valid UTF8-String")
@@ -53,11 +53,11 @@ impl std::error::Error for Error {
 }
 
 pub trait Uper {
-    fn read_uper(reader: &mut Reader) -> Result<Self, Error>
+    fn read_uper(reader: &mut dyn Reader) -> Result<Self, Error>
     where
         Self: Sized;
 
-    fn write_uper(&self, writer: &mut Writer) -> Result<(), Error>;
+    fn write_uper(&self, writer: &mut dyn Writer) -> Result<(), Error>;
 }
 
 pub trait Reader {

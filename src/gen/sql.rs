@@ -110,7 +110,7 @@ impl SqlDefGenerator {
     }
 
     fn append_create_table(
-        target: &mut Write,
+        target: &mut dyn Write,
         name: &str,
         columns: &[Column],
         constraints: &[Constraint],
@@ -134,7 +134,7 @@ impl SqlDefGenerator {
         Ok(())
     }
 
-    fn apply_table_optimizations(&self, target: &mut Write, table: &str) -> Result<(), Error> {
+    fn apply_table_optimizations(&self, target: &mut dyn Write, table: &str) -> Result<(), Error> {
         match self.optimize_tables_for {
             Some(TableOptimizationHint::WritePerformance) => {
                 writeln!(target, "ALTER TABLE {} SET UNLOGGED;", table)?;
@@ -146,7 +146,7 @@ impl SqlDefGenerator {
 
     fn apply_primary_key_hints(
         &self,
-        target: &mut Write,
+        target: &mut dyn Write,
         table: &str,
         columns: &[Column],
     ) -> Result<(), Error> {
@@ -168,7 +168,7 @@ impl SqlDefGenerator {
         Ok(())
     }
 
-    pub fn append_column_statement(target: &mut Write, column: &Column) -> Result<(), Error> {
+    pub fn append_column_statement(target: &mut dyn Write, column: &Column) -> Result<(), Error> {
         write!(target, "    {} {}", column.name, column.sql.to_string())?;
         if column.primary_key {
             write!(target, " PRIMARY KEY")?;
@@ -177,7 +177,7 @@ impl SqlDefGenerator {
     }
 
     fn append_create_enum(
-        target: &mut Write,
+        target: &mut dyn Write,
         name: &str,
         variants: &[String],
     ) -> Result<(), Error> {
@@ -199,7 +199,7 @@ impl SqlDefGenerator {
         Ok(())
     }
 
-    fn append_constraint(target: &mut Write, constraint: &Constraint) -> Result<(), Error> {
+    fn append_constraint(target: &mut dyn Write, constraint: &Constraint) -> Result<(), Error> {
         match constraint {
             Constraint::CombinedPrimaryKey(columns) => {
                 write!(target, "    PRIMARY KEY({})", columns.join(", "))?;
@@ -216,7 +216,7 @@ impl SqlDefGenerator {
     }
 
     fn append_index(
-        target: &mut Write,
+        target: &mut dyn Write,
         name: &str,
         table: &str,
         columns: &[String],
@@ -232,7 +232,7 @@ impl SqlDefGenerator {
     }
 
     fn append_abandon_children(
-        target: &mut Write,
+        target: &mut dyn Write,
         table: &str,
         name: &str,
         children: &[(String, String, String)],
@@ -263,7 +263,7 @@ impl SqlDefGenerator {
     }
 
     fn append_silently_prevent_any_delete(
-        target: &mut Write,
+        target: &mut dyn Write,
         name: &str,
         table: &str,
     ) -> Result<(), Error> {

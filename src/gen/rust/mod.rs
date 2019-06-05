@@ -107,7 +107,7 @@ impl RustCodeGenerator {
     pub fn model_to_file(
         &self,
         model: &Model<Rust>,
-        generators: &[&GeneratorSupplement<Rust>],
+        generators: &[&dyn GeneratorSupplement<Rust>],
     ) -> (String, String) {
         let file = {
             let mut string = Self::rust_module_name(&model.name);
