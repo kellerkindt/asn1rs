@@ -22,11 +22,17 @@ pub enum TableOptimizationHint {
     WritePerformance,
 }
 
+#[derive(Debug)]
+pub enum PrimaryKeyHint {
+    WrapOnOverflow,
+}
+
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Default)]
 pub struct SqlDefGenerator {
     models: Vec<Model<Sql>>,
     optimize_tables_for: Option<TableOptimizationHint>,
+    primary_key_hint: Option<PrimaryKeyHint>,
 }
 
 impl Generator<Sql> for SqlDefGenerator {
@@ -55,12 +61,14 @@ impl Generator<Sql> for SqlDefGenerator {
                     Sql::Table(columns, constraints) => {
                         // TODO
                         writeln!(drop, "DROP TABLE IF EXISTS {} CASCADE;", name)?;
-                        self.append_create_table(&mut create, name, columns, constraints)?;
+                        Self::append_create_table(&mut create, name, columns, constraints)?;
+                        self.apply_table_optimizations(&mut create, name)?;
+                        self.apply_primary_key_hints(&mut create, name, columns)?;
                     }
                     Sql::Enum(variants) => {
                         // TODO
                         writeln!(drop, "DROP TABLE IF EXISTS {} CASCADE;", name)?;
-                        self.append_create_enum(&mut create, name, variants)?
+                        Self::append_create_enum(&mut create, name, variants)?
                     }
                     Sql::Index(table, columns) => {
                         Self::append_index(&mut create, name, table, &columns[..])?;
@@ -91,22 +99,23 @@ impl SqlDefGenerator {
         self
     }
 
+    pub fn wrap_primary_key_on_overflow(mut self) -> Self {
+        self.primary_key_hint = Some(PrimaryKeyHint::WrapOnOverflow);
+        self
+    }
+
+    pub fn no_wrap_of_primary_key_on_overflow(mut self) -> Self {
+        self.primary_key_hint = None;
+        self
+    }
+
     fn append_create_table(
-        &self,
         target: &mut Write,
         name: &str,
         columns: &[Column],
         constraints: &[Constraint],
     ) -> Result<(), Error> {
-        writeln!(
-            target,
-            "CREATE {}TABLE {} (",
-            match self.optimize_tables_for {
-                Some(TableOptimizationHint::WritePerformance) => "UNLOGGED ",
-                None => "",
-            },
-            name
-        )?;
+        writeln!(target, "CREATE TABLE {} (", name)?;
         for (index, column) in columns.iter().enumerate() {
             Self::append_column_statement(target, column)?;
             if index + 1 < columns.len() || !constraints.is_empty() {
@@ -125,6 +134,40 @@ impl SqlDefGenerator {
         Ok(())
     }
 
+    fn apply_table_optimizations(&self, target: &mut Write, table: &str) -> Result<(), Error> {
+        match self.optimize_tables_for {
+            Some(TableOptimizationHint::WritePerformance) => {
+                writeln!(target, "ALTER TABLE {} SET UNLOGGED;", table)?;
+            }
+            None => {}
+        }
+        Ok(())
+    }
+
+    fn apply_primary_key_hints(
+        &self,
+        target: &mut Write,
+        table: &str,
+        columns: &[Column],
+    ) -> Result<(), Error> {
+        let column_name = columns.iter().find_map(|column| {
+            if column.primary_key {
+                Some(column.name.clone())
+            } else {
+                None
+            }
+        });
+        if let Some(column) = column_name {
+            match self.primary_key_hint {
+                Some(PrimaryKeyHint::WrapOnOverflow) => {
+                    writeln!(target, "ALTER SEQUENCE {}_{}_seq CYCLE;", table, column)?;
+                }
+                None => {}
+            }
+        }
+        Ok(())
+    }
+
     pub fn append_column_statement(target: &mut Write, column: &Column) -> Result<(), Error> {
         write!(target, "    {} {}", column.name, column.sql.to_string())?;
         if column.primary_key {
@@ -134,20 +177,11 @@ impl SqlDefGenerator {
     }
 
     fn append_create_enum(
-        &self,
         target: &mut Write,
         name: &str,
         variants: &[String],
     ) -> Result<(), Error> {
-        writeln!(
-            target,
-            "CREATE {}TABLE {} (",
-            match self.optimize_tables_for {
-                Some(TableOptimizationHint::WritePerformance) => "UNLOGGED ",
-                None => "",
-            },
-            name
-        )?;
+        writeln!(target, "CREATE TABLE {} (", name)?;
         writeln!(target, "    id SERIAL PRIMARY KEY,")?;
         writeln!(target, "    name TEXT NOT NULL")?;
         writeln!(target, ");")?;
