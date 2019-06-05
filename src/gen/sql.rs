@@ -134,6 +134,7 @@ impl SqlDefGenerator {
         Ok(())
     }
 
+    #[allow(clippy::single_match)] // to get a compiler error on a new variant in TableOptimizationHint
     fn apply_table_optimizations(&self, target: &mut dyn Write, table: &str) -> Result<(), Error> {
         match self.optimize_tables_for {
             Some(TableOptimizationHint::WritePerformance) => {
@@ -144,6 +145,7 @@ impl SqlDefGenerator {
         Ok(())
     }
 
+    #[allow(clippy::single_match)] // to get a compiler error on a new variant in PrimaryKeyHint
     fn apply_primary_key_hints(
         &self,
         target: &mut dyn Write,
