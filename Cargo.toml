@@ -1,6 +1,6 @@
 [package]
 name = "asn1rs"
-version = "0.1.3"
+version = "0.1.4"
 authors = ["Michael Watzko <michael@watzko.de>"]
 edition = "2018"
 description = "ASN.1 to Rust, Protobuf and SQL compiler/code generator. Supports ASN.1 UPER"
