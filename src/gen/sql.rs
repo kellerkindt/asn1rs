@@ -17,10 +17,16 @@ impl From<::std::fmt::Error> for Error {
     }
 }
 
+#[derive(Debug)]
+pub enum TableOptimizationHint {
+    WritePerformance,
+}
+
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Default)]
 pub struct SqlDefGenerator {
     models: Vec<Model<Sql>>,
+    optimize_tables_for: Option<TableOptimizationHint>,
 }
 
 impl Generator<Sql> for SqlDefGenerator {
@@ -49,12 +55,12 @@ impl Generator<Sql> for SqlDefGenerator {
                     Sql::Table(columns, constraints) => {
                         // TODO
                         writeln!(drop, "DROP TABLE IF EXISTS {} CASCADE;", name)?;
-                        Self::append_create_table(&mut create, name, columns, constraints)?;
+                        self.append_create_table(&mut create, name, columns, constraints)?;
                     }
                     Sql::Enum(variants) => {
                         // TODO
                         writeln!(drop, "DROP TABLE IF EXISTS {} CASCADE;", name)?;
-                        Self::append_create_enum(&mut create, name, variants)?
+                        self.append_create_enum(&mut create, name, variants)?
                     }
                     Sql::Index(table, columns) => {
                         Self::append_index(&mut create, name, table, &columns[..])?;
@@ -75,13 +81,32 @@ impl Generator<Sql> for SqlDefGenerator {
 }
 
 impl SqlDefGenerator {
-    pub fn append_create_table(
+    pub fn optimize_tables_for_write_performance(mut self) -> Self {
+        self.optimize_tables_for = Some(TableOptimizationHint::WritePerformance);
+        self
+    }
+
+    pub fn no_table_write_optimization(mut self) -> Self {
+        self.optimize_tables_for = None;
+        self
+    }
+
+    fn append_create_table(
+        &self,
         target: &mut Write,
         name: &str,
         columns: &[Column],
         constraints: &[Constraint],
     ) -> Result<(), Error> {
-        writeln!(target, "CREATE TABLE {} (", name)?;
+        writeln!(
+            target,
+            "CREATE {}TABLE {} (",
+            match self.optimize_tables_for {
+                Some(TableOptimizationHint::WritePerformance) => "UNLOGGED ",
+                None => "",
+            },
+            name
+        )?;
         for (index, column) in columns.iter().enumerate() {
             Self::append_column_statement(target, column)?;
             if index + 1 < columns.len() || !constraints.is_empty() {
@@ -108,12 +133,21 @@ impl SqlDefGenerator {
         Ok(())
     }
 
-    pub fn append_create_enum(
+    fn append_create_enum(
+        &self,
         target: &mut Write,
         name: &str,
         variants: &[String],
     ) -> Result<(), Error> {
-        writeln!(target, "CREATE TABLE {} (", name)?;
+        writeln!(
+            target,
+            "CREATE {}TABLE {} (",
+            match self.optimize_tables_for {
+                Some(TableOptimizationHint::WritePerformance) => "UNLOGGED ",
+                None => "",
+            },
+            name
+        )?;
         writeln!(target, "    id SERIAL PRIMARY KEY,")?;
         writeln!(target, "    name TEXT NOT NULL")?;
         writeln!(target, ");")?;

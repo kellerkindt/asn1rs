@@ -91,10 +91,18 @@ pub fn convert_to_sql<F: AsRef<Path>, D: AsRef<Path>>(
     file: F,
     dir: D,
 ) -> Result<Vec<String>, Error> {
+    convert_to_sql_with(file, dir, SqlGenerator::default())
+}
+
+pub fn convert_to_sql_with<F: AsRef<Path>, D: AsRef<Path>>(
+    file: F,
+    dir: D,
+    mut generator: SqlGenerator,
+) -> Result<Vec<String>, Error> {
     let input = ::std::fs::read_to_string(file)?;
     let tokens = Tokenizer::default().parse(&input);
     let model = Model::try_from(tokens)?;
-    let mut generator = SqlGenerator::default();
+
     generator.add_model(model.to_rust().to_sql());
     let output = generator.to_string()?;
 
