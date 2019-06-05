@@ -95,7 +95,7 @@ impl ProtobufSerializer {
         block_while.line("let bytes = reader.read_bytes()?;");
         let mut block_reader = Block::new("");
         block_reader.line(format!(
-            "let reader = &mut &bytes[..] as &mut {}Reader;",
+            "let reader = &mut &bytes[..] as &mut dyn {}Reader;",
             Self::CODEC
         ));
 
@@ -145,7 +145,7 @@ impl ProtobufSerializer {
                     ));
                     block_case_if.line("let bytes = reader.read_bytes()?;");
                     block_case_if.line(format!(
-                        "{}::read_protobuf(&mut &bytes[..] as &mut {}Reader)?",
+                        "{}::read_protobuf(&mut &bytes[..] as &mut dyn {}Reader)?",
                         name,
                         Self::CODEC
                     ));
@@ -254,7 +254,7 @@ impl ProtobufSerializer {
             if let Some(complex_name) = complex_name {
                 block_case.line("let bytes = reader.read_bytes()?;");
                 block_case.line(format!(
-                    "let value = {}::read_{}(&mut &bytes[..] as &mut {}Reader)?;",
+                    "let value = {}::read_{}(&mut &bytes[..] as &mut dyn {}Reader)?;",
                     complex_name,
                     Self::CODEC.to_lowercase(),
                     Self::CODEC,
@@ -325,13 +325,13 @@ impl ProtobufSerializer {
         match aliased.clone().into_inner_type() {
             RustType::Complex(_) => {
                 block_for.line(format!(
-                    "value.write_protobuf(&mut bytes as &mut {}Writer)?;",
+                    "value.write_protobuf(&mut bytes as &mut dyn {}Writer)?;",
                     Self::CODEC
                 ));
             }
             r => {
                 block_for.line(format!(
-                    "(&mut bytes as &mut {}Writer).write_{}({})?;",
+                    "(&mut bytes as &mut dyn {}Writer).write_{}({})?;",
                     Self::CODEC,
                     r.to_protobuf().to_string(),
                     Self::get_as_protobuf_type_statement("*value".to_string(), &r),
@@ -393,7 +393,7 @@ impl ProtobufSerializer {
                     ));
                     block_if.line("let mut vec = Vec::new();");
                     block_if.line(format!(
-                        "{}{}.write_protobuf(&mut vec as &mut {}Writer)?;",
+                        "{}{}.write_protobuf(&mut vec as &mut dyn {}Writer)?;",
                         if let RustType::Option(_) = field_type {
                             ""
                         } else {
@@ -493,7 +493,7 @@ impl ProtobufSerializer {
             } else {
                 block_case.line("let mut vec = Vec::new();");
                 block_case.line(format!(
-                    "value.write_{}(&mut vec as &mut {}Writer)?;",
+                    "value.write_{}(&mut vec as &mut dyn {}Writer)?;",
                     Self::CODEC.to_lowercase(),
                     Self::CODEC
                 ));

@@ -565,7 +565,7 @@ impl RustCodeGenerator {
     fn new_read_fn<'a>(implementation: &'a mut Impl, codec: &str) -> &'a mut Function {
         implementation
             .new_fn(&format!("read_{}", codec.to_lowercase()))
-            .arg("reader", format!("&mut {}Reader", codec))
+            .arg("reader", format!("&mut dyn {}Reader", codec))
             .ret(format!("Result<Self, {}Error>", codec))
             .bound("Self", "Sized")
     }
@@ -574,7 +574,7 @@ impl RustCodeGenerator {
         implementation
             .new_fn(&format!("write_{}", codec.to_lowercase()))
             .arg_ref_self()
-            .arg("writer", format!("&mut {}Writer", codec))
+            .arg("writer", format!("&mut dyn {}Writer", codec))
             .ret(format!("Result<(), {}Error>", codec))
     }
 }
