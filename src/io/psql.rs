@@ -4,6 +4,7 @@ pub use postgres::Error as PostgresError;
 
 use crate::postgres::rows::Rows;
 use backtrace::Backtrace;
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug)]
 pub enum Error {
@@ -13,6 +14,14 @@ pub enum Error {
     MissingColumn(usize, Backtrace),
     NoResult(Backtrace),
 }
+
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), std::fmt::Error> {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl std::error::Error for Error {}
 
 impl Error {
     #[inline]
