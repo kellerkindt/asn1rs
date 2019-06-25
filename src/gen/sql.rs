@@ -61,14 +61,13 @@ impl Generator<Sql> for SqlDefGenerator {
                     Sql::Table(columns, constraints) => {
                         // TODO
                         writeln!(drop, "DROP TABLE IF EXISTS {} CASCADE;", name)?;
-                        Self::append_create_table(&mut create, name, columns, constraints)?;
-                        self.apply_table_optimizations(&mut create, name)?;
+                        self.append_create_table(&mut create, name, columns, constraints)?;
                         self.apply_primary_key_hints(&mut create, name, columns)?;
                     }
                     Sql::Enum(variants) => {
                         // TODO
                         writeln!(drop, "DROP TABLE IF EXISTS {} CASCADE;", name)?;
-                        Self::append_create_enum(&mut create, name, variants)?
+                        self.append_create_enum(&mut create, name, variants)?
                     }
                     Sql::Index(table, columns) => {
                         Self::append_index(&mut create, name, table, &columns[..])?;
@@ -110,12 +109,21 @@ impl SqlDefGenerator {
     }
 
     fn append_create_table(
+        &self,
         target: &mut dyn Write,
         name: &str,
         columns: &[Column],
         constraints: &[Constraint],
     ) -> Result<(), Error> {
-        writeln!(target, "CREATE TABLE {} (", name)?;
+        writeln!(
+            target,
+            "CREATE{}TABLE {} (",
+            match self.optimize_tables_for {
+                Some(TableOptimizationHint::WritePerformance) => " UNLOGGED ",
+                None => " ",
+            },
+            name
+        )?;
         for (index, column) in columns.iter().enumerate() {
             Self::append_column_statement(target, column)?;
             if index + 1 < columns.len() || !constraints.is_empty() {
@@ -131,17 +139,6 @@ impl SqlDefGenerator {
             writeln!(target)?;
         }
         writeln!(target, ");")?;
-        Ok(())
-    }
-
-    #[allow(clippy::single_match)] // to get a compiler error on a new variant in TableOptimizationHint
-    fn apply_table_optimizations(&self, target: &mut dyn Write, table: &str) -> Result<(), Error> {
-        match self.optimize_tables_for {
-            Some(TableOptimizationHint::WritePerformance) => {
-                writeln!(target, "ALTER TABLE {} SET UNLOGGED;", table)?;
-            }
-            None => {}
-        }
         Ok(())
     }
 
@@ -179,11 +176,20 @@ impl SqlDefGenerator {
     }
 
     fn append_create_enum(
+        &self,
         target: &mut dyn Write,
         name: &str,
         variants: &[String],
     ) -> Result<(), Error> {
-        writeln!(target, "CREATE TABLE {} (", name)?;
+        writeln!(
+            target,
+            "CREATE{}TABLE {} (",
+            match self.optimize_tables_for {
+                Some(TableOptimizationHint::WritePerformance) => " UNLOGGED ",
+                None => " ",
+            },
+            name
+        )?;
         writeln!(target, "    id SERIAL PRIMARY KEY,")?;
         writeln!(target, "    name TEXT NOT NULL")?;
         writeln!(target, ");")?;
