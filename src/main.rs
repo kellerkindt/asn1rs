@@ -1,8 +1,13 @@
 #![allow(dead_code)]
 #![warn(unused_extern_crates)]
+#![cfg(feature = "benchmarking")]
+#![feature(test)]
 
 #[cfg(feature = "psql")]
 extern crate postgres;
+
+#[cfg(feature = "benchmarking")]
+extern crate test;
 
 mod cli;
 mod converter;

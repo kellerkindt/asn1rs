@@ -32,3 +32,4 @@ postgres = { version = "0.15.2", optional = true }
 [features]
 default = []
 psql = ["postgres"]
+benchmarking = []

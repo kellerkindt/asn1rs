@@ -1,7 +1,7 @@
-use crate::io::uper::Error as UperError;
 use crate::io::uper::Reader as UperReader;
 use crate::io::uper::Writer as UperWriter;
 use crate::io::uper::BYTE_LEN;
+use crate::io::uper::{Error as UperError, Error};
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Default)]
@@ -54,6 +54,113 @@ impl BitBuffer {
     }
 }
 
+fn bit_string_copy(
+    src: &mut [u8],
+    src_bit_position: usize,
+    dst: &mut [u8],
+    dst_bit_position: usize,
+    len: usize,
+) -> Result<(), UperError> {
+    if dst.len() * BYTE_LEN < dst_bit_position + len {
+        return Err(Error::InsufficientSpaceInDestinationBuffer);
+    }
+    if src.len() * BYTE_LEN < src_bit_position + len {
+        return Err(Error::InsufficientDataInSourceBuffer);
+    }
+    for bit in 0..len {
+        let dst_byte_pos = (dst_bit_position + bit) / BYTE_LEN;
+        let dst_bit_pos = (dst_bit_position + bit) % BYTE_LEN;
+        let dst_bit_pos = BYTE_LEN - dst_bit_pos - 1; // flip
+
+        let bit = {
+            let src_byte_pos = (src_bit_position + bit) / BYTE_LEN;
+            let src_bit_pos = (src_bit_position + bit) % BYTE_LEN;
+            let src_bit_pos = BYTE_LEN - src_bit_pos - 1; // flip
+
+            src[src_byte_pos] & (0x01 << src_bit_pos) > 0
+        };
+
+        if bit {
+            // set bit
+            dst[dst_byte_pos] |= 0x01 << dst_bit_pos;
+        } else {
+            // reset bit
+            dst[dst_byte_pos] &= !(0x01 << dst_bit_pos);
+        }
+    }
+    Ok(())
+}
+
+fn bit_string_copy_bulked(
+    src: &mut [u8],
+    src_bit_position: usize,
+    dst: &mut [u8],
+    dst_bit_position: usize,
+    len: usize,
+) -> Result<(), UperError> {
+    if dst.len() * BYTE_LEN < dst_bit_position + len {
+        return Err(Error::InsufficientSpaceInDestinationBuffer);
+    }
+    if src.len() * BYTE_LEN < src_bit_position + len {
+        return Err(Error::InsufficientDataInSourceBuffer);
+    }
+
+    let bits_till_full_byte_src = (BYTE_LEN - (src_bit_position % BYTE_LEN)) % BYTE_LEN;
+
+    // align read_position to a full byte
+    if bits_till_full_byte_src != 0 {
+        bit_string_copy(
+            src,
+            src_bit_position,
+            dst,
+            dst_bit_position,
+            bits_till_full_byte_src,
+        )?;
+    }
+
+    let src_bit_position = src_bit_position + bits_till_full_byte_src;
+    let dst_bit_position = dst_bit_position + bits_till_full_byte_src;
+
+    let len = len - bits_till_full_byte_src;
+
+    let dst_byte_index = dst_bit_position / BYTE_LEN;
+    let dst_byte_offset = dst_bit_position % BYTE_LEN;
+
+    let src_byte_index = src_bit_position / BYTE_LEN;
+    let len_in_bytes = len / BYTE_LEN;
+
+    if dst_byte_offset == 0 {
+        // both align
+        dst[dst_byte_index..dst_byte_index + len_in_bytes]
+            .copy_from_slice(&src[src_byte_index..src_byte_index + len_in_bytes]);
+    } else {
+        for index in 0..len_in_bytes {
+            let byte = src[index + src_byte_index];
+            let half_left = byte >> dst_byte_offset;
+            let half_right = byte << (BYTE_LEN - dst_byte_offset);
+
+            dst[index + dst_byte_index] = (dst[index + dst_byte_index]
+                    & (0xFF << (BYTE_LEN - dst_byte_offset))) // do not destroy current values on the furthe left side
+                    | half_left;
+
+            dst[index + dst_byte_index + 1] = half_right;
+        }
+    }
+
+    // copy the remaining
+    if len % BYTE_LEN != 0 {
+        bit_string_copy(
+            src,
+            src_bit_position + (len_in_bytes * BYTE_LEN),
+            dst,
+            dst_bit_position + (len_in_bytes * BYTE_LEN),
+            len % BYTE_LEN,
+        )
+    } else {
+        Ok(())
+    }
+}
+
 impl Into<Vec<u8>> for BitBuffer {
     fn into(self) -> Vec<u8> {
         self.buffer
@@ -67,6 +174,23 @@ impl From<Vec<u8>> for BitBuffer {
 }
 
 impl UperReader for BitBuffer {
+    fn read_bit_string(
+        &mut self,
+        buffer: &mut [u8],
+        bit_offset: usize,
+        bit_length: usize,
+    ) -> Result<(), UperError> {
+        bit_string_copy_bulked(
+            &mut self.buffer[..],
+            self.read_position,
+            buffer,
+            bit_offset,
+            bit_length,
+        )?;
+        self.read_position += bit_length;
+        Ok(())
+    }
+
     fn read_bit(&mut self) -> Result<bool, UperError> {
         if self.read_position >= self.write_position {
             return Err(UperError::EndOfStream);
@@ -95,6 +219,144 @@ impl UperWriter for BitBuffer {
         self.write_position += 1;
         Ok(())
     }
+}
+
+struct LegacyBitBuffer<'a>(&'a mut BitBuffer);
+
+// the legacy BitBuffer relies solely on read_bit(), no performance optimisation
+impl UperReader for LegacyBitBuffer<'_> {
+    fn read_bit(&mut self) -> Result<bool, UperError> {
+        self.0.read_bit()
+    }
+}
+
+#[cfg(all(feature = "benchmarking", test))]
+mod bench {
+    use super::*;
+    use crate::io::uper::Reader as UperReader;
+    use crate::io::uper::{Reader, BYTE_LEN};
+    use test::Bencher;
+
+    const SIZE: usize = 100;
+
+    fn bit_buffer(size: usize, pos: usize) -> (BitBuffer, Vec<u8>) {
+        let mut bits = BitBuffer::from(vec![
+            0b0101_0101u8.wrapping_shl(pos as u32 % 2);
+            size + if pos > 0 { 1 } else { 0 }
+        ]);
+        for _ in 0..pos {
+            bits.read_bit().unwrap();
+        }
+        (bits, vec![0u8; size])
+    }
+
+    fn check_result(bits: &mut BitBuffer, offset: usize, len: usize) {
+        for i in 0..offset {
+            assert!(
+                !bits.read_bit().unwrap(),
+                "Failed on offset with i={}, offset={}, bits={:?}",
+                i,
+                offset,
+                bits
+            );
+        }
+        for i in 0..len {
+            assert_eq!(
+                i % 2 == 1,
+                bits.read_bit().unwrap(),
+                "Failed on data with i={}, offset={}, bits={:?}",
+                i,
+                offset,
+                bits
+            );
+        }
+    }
+
+    fn legacy_bit_buffer(size: usize, offset: usize, pos: usize) -> Vec<u8> {
+        let (mut bits, mut dest) = bit_buffer(size + if offset > 0 { 1 } else { 0 }, pos);
+        LegacyBitBuffer(&mut bits)
+            .read_bit_string(&mut dest[..], offset, size * 8)
+            .unwrap();
+        dest
+    }
+
+    fn new_bit_buffer(size: usize, offset: usize, pos: usize) -> Vec<u8> {
+        let (mut bits, mut dest) = bit_buffer(size + if offset > 0 { 1 } else { 0 }, pos);
+        bits.read_bit_string(&mut dest[..], offset, size * 8)
+            .unwrap();
+        dest
+    }
+
+    fn legacy_bit_buffer_with_check(size: usize, offset: usize, pos: usize) {
+        check_result(
+            &mut BitBuffer::from(legacy_bit_buffer(size, offset, pos)),
+            offset,
+            size,
+        );
+    }
+
+    fn new_bit_buffer_with_check(size: usize, offset: usize, pos: usize) {
+        check_result(
+            &mut BitBuffer::from(new_bit_buffer(size, offset, pos)),
+            offset,
+            size,
+        );
+    }
+
+    #[test]
+    fn test_legacy_bit_string_offset_0_to_7_pos_0_to_7() {
+        for offset in 0..BYTE_LEN {
+            for pos in 0..BYTE_LEN {
+                legacy_bit_buffer_with_check(SIZE, offset, pos)
+            }
+        }
+    }
+
+    #[test]
+    fn test_new_bit_string_offset_0_to_7_pos_0_to_7() {
+        for offset in 0..BYTE_LEN {
+            for pos in 0..BYTE_LEN {
+                new_bit_buffer_with_check(SIZE, offset, pos)
+            }
+        }
+    }
+
+    macro_rules! bench_stuff {
+        ($name_legacy: ident, $name_new: ident, $offset: expr, $pos: expr) => {
+            #[bench]
+            fn $name_legacy(b: &mut Bencher) {
+                b.iter(|| legacy_bit_buffer(SIZE, $offset, $pos));
+                legacy_bit_buffer_with_check(SIZE, $offset, $pos)
+            }
+
+            #[bench]
+            fn $name_new(b: &mut Bencher) {
+                b.iter(|| new_bit_buffer(SIZE, $offset, $pos));
+                new_bit_buffer_with_check(SIZE, $offset, $pos)
+            }
+        };
+    }
+
+    bench_stuff!(legacy_offset_0_position_0, new_offset_0_position_0, 0, 0);
+    bench_stuff!(legacy_offset_3_position_0, new_offset_3_position_0, 3, 0);
+    bench_stuff!(legacy_offset_4_position_0, new_offset_4_position_0, 4, 0);
+    bench_stuff!(legacy_offset_7_position_0, new_offset_7_position_0, 7, 0);
+
+    bench_stuff!(legacy_offset_0_position_3, new_offset_0_position_3, 0, 3);
+    bench_stuff!(legacy_offset_3_position_3, new_offset_3_position_3, 3, 3);
+    bench_stuff!(legacy_offset_4_position_3, new_offset_4_position_3, 4, 3);
+    bench_stuff!(legacy_offset_7_position_3, new_offset_7_position_3, 7, 3);
+
+    bench_stuff!(legacy_offset_0_position_4, new_offset_0_position_4, 0, 4);
+    bench_stuff!(legacy_offset_3_position_4, new_offset_3_position_4, 3, 4);
+    bench_stuff!(legacy_offset_4_position_4, new_offset_4_position_4, 4, 4);
+    bench_stuff!(legacy_offset_7_position_4, new_offset_7_position_4, 7, 4);
+
+    bench_stuff!(legacy_offset_0_position_7, new_offset_0_position_7, 0, 7);
+    bench_stuff!(legacy_offset_3_position_7, new_offset_3_position_7, 3, 7);
+    bench_stuff!(legacy_offset_4_position_7, new_offset_4_position_7, 4, 7);
+    bench_stuff!(legacy_offset_7_position_7, new_offset_7_position_7, 7, 7);
+
 }
 
 #[allow(clippy::identity_op)] // for better readability across multiple tests
