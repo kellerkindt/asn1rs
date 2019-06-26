@@ -1,7 +1,9 @@
 #![warn(unused_extern_crates)]
-#![cfg(feature = "benchmarking")]
+#![cfg(feature = "bench_bit_buffer")]
 #![feature(test)]
-#![cfg(feature = "benchmarking")]
+
+#[cfg(feature = "bench_bit_buffer")]
+#[allow(unused_extern_crates)]
 extern crate test;
 
 #[cfg(feature = "psql")]

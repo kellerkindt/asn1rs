@@ -2,6 +2,7 @@ use crate::io::uper::Reader as UperReader;
 use crate::io::uper::Writer as UperWriter;
 use crate::io::uper::BYTE_LEN;
 use crate::io::uper::{Error as UperError, Error};
+use std::iter;
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Default)]
@@ -55,7 +56,7 @@ impl BitBuffer {
 }
 
 fn bit_string_copy(
-    src: &mut [u8],
+    src: &[u8],
     src_bit_position: usize,
     dst: &mut [u8],
     dst_bit_position: usize,
@@ -92,7 +93,7 @@ fn bit_string_copy(
 }
 
 fn bit_string_copy_bulked(
-    src: &mut [u8],
+    src: &[u8],
     src_bit_position: usize,
     dst: &mut [u8],
     dst_bit_position: usize,
@@ -147,8 +148,10 @@ fn bit_string_copy_bulked(
         }
     }
 
-    // copy the remaining
-    if len % BYTE_LEN != 0 {
+    if len % BYTE_LEN == 0 {
+        Ok(())
+    } else {
+        // copy the remaining
         bit_string_copy(
             src,
             src_bit_position + (len_in_bytes * BYTE_LEN),
@@ -156,8 +159,6 @@ fn bit_string_copy_bulked(
             dst_bit_position + (len_in_bytes * BYTE_LEN),
             len % BYTE_LEN,
         )
-    } else {
-        Ok(())
     }
 }
 
@@ -181,7 +182,7 @@ impl UperReader for BitBuffer {
         bit_length: usize,
     ) -> Result<(), UperError> {
         bit_string_copy_bulked(
-            &mut self.buffer[..],
+            &self.buffer[..],
             self.read_position,
             buffer,
             bit_offset,
@@ -219,35 +220,71 @@ impl UperWriter for BitBuffer {
         self.write_position += 1;
         Ok(())
     }
-}
 
-struct LegacyBitBuffer<'a>(&'a mut BitBuffer);
+    fn write_bit_string(
+        &mut self,
+        buffer: &[u8],
+        bit_offset: usize,
+        bit_length: usize,
+    ) -> Result<(), UperError> {
+        let bits_together = self.write_position + bit_length;
+        let bytes_together =
+            bits_together / BYTE_LEN + if bits_together % BYTE_LEN == 0 { 0 } else { 1 };
 
-// the legacy BitBuffer relies solely on read_bit(), no performance optimisation
-impl UperReader for LegacyBitBuffer<'_> {
-    fn read_bit(&mut self) -> Result<bool, UperError> {
-        self.0.read_bit()
+        if bytes_together > self.buffer.len() {
+            self.buffer
+                .extend(iter::repeat(0x00).take(bytes_together - self.buffer.len()));
+        }
+
+        bit_string_copy_bulked(
+            buffer,
+            bit_offset,
+            &mut self.buffer[..],
+            self.write_position,
+            bit_length,
+        )?;
+        self.write_position += bit_length;
+        Ok(())
     }
 }
 
-#[cfg(all(feature = "benchmarking", test))]
+#[cfg(all(feature = "bench_bit_buffer", test))]
 mod bench {
     use super::*;
     use crate::io::uper::Reader as UperReader;
-    use crate::io::uper::{Reader, BYTE_LEN};
+    use crate::io::uper::BYTE_LEN;
     use test::Bencher;
 
     const SIZE: usize = 100;
 
-    fn bit_buffer(size: usize, pos: usize) -> (BitBuffer, Vec<u8>) {
+    struct LegacyBitBuffer<'a>(&'a mut BitBuffer);
+
+    // the legacy BitBuffer relies solely on read_bit(), no performance optimisation
+    impl UperReader for LegacyBitBuffer<'_> {
+        fn read_bit(&mut self) -> Result<bool, UperError> {
+            self.0.read_bit()
+        }
+    }
+
+    // the legacy BitBuffer relies solely on write_bit(), no performance optimisation
+    impl UperWriter for LegacyBitBuffer<'_> {
+        fn write_bit(&mut self, bit: bool) -> Result<(), UperError> {
+            self.0.write_bit(bit)
+        }
+    }
+
+    fn bit_buffer(size: usize, pos: usize) -> (BitBuffer, Vec<u8>, BitBuffer) {
         let mut bits = BitBuffer::from(vec![
-            0b0101_0101u8.wrapping_shl(pos as u32 % 2);
+            0b0101_0101_u8.wrapping_shl(pos as u32 % 2);
             size + if pos > 0 { 1 } else { 0 }
         ]);
         for _ in 0..pos {
             bits.read_bit().unwrap();
         }
-        (bits, vec![0u8; size])
+        let mut write = BitBuffer::from(vec![0_u8; size + if pos > 0 { 1 } else { 0 }]);
+        write.write_position = pos;
+        write.read_position = pos;
+        (bits, vec![0_u8; size], write)
     }
 
     fn check_result(bits: &mut BitBuffer, offset: usize, len: usize) {
@@ -272,35 +309,39 @@ mod bench {
         }
     }
 
-    fn legacy_bit_buffer(size: usize, offset: usize, pos: usize) -> Vec<u8> {
-        let (mut bits, mut dest) = bit_buffer(size + if offset > 0 { 1 } else { 0 }, pos);
+    fn legacy_bit_buffer(size: usize, offset: usize, pos: usize) -> (Vec<u8>, BitBuffer) {
+        let (mut bits, mut dest, mut write) =
+            bit_buffer(size + if offset > 0 { 1 } else { 0 }, pos);
         LegacyBitBuffer(&mut bits)
-            .read_bit_string(&mut dest[..], offset, size * 8)
+            .read_bit_string(&mut dest[..], offset, size * BYTE_LEN)
             .unwrap();
-        dest
+        LegacyBitBuffer(&mut write)
+            .write_bit_string(&dest[..], offset, size * BYTE_LEN)
+            .unwrap();
+        (dest, write)
     }
 
-    fn new_bit_buffer(size: usize, offset: usize, pos: usize) -> Vec<u8> {
-        let (mut bits, mut dest) = bit_buffer(size + if offset > 0 { 1 } else { 0 }, pos);
-        bits.read_bit_string(&mut dest[..], offset, size * 8)
+    fn new_bit_buffer(size: usize, offset: usize, pos: usize) -> (Vec<u8>, BitBuffer) {
+        let (mut bits, mut dest, mut write) =
+            bit_buffer(size + if offset > 0 { 1 } else { 0 }, pos);
+        bits.read_bit_string(&mut dest[..], offset, size * BYTE_LEN)
             .unwrap();
-        dest
+        write
+            .write_bit_string(&dest[..], offset, size * BYTE_LEN)
+            .unwrap();
+        (dest, write)
     }
 
     fn legacy_bit_buffer_with_check(size: usize, offset: usize, pos: usize) {
-        check_result(
-            &mut BitBuffer::from(legacy_bit_buffer(size, offset, pos)),
-            offset,
-            size,
-        );
+        let (bits, mut written) = legacy_bit_buffer(size, offset, pos);
+        check_result(&mut BitBuffer::from(bits), offset, size);
+        check_result(&mut written, 0, size);
     }
 
     fn new_bit_buffer_with_check(size: usize, offset: usize, pos: usize) {
-        check_result(
-            &mut BitBuffer::from(new_bit_buffer(size, offset, pos)),
-            offset,
-            size,
-        );
+        let (bits, mut written) = new_bit_buffer(size, offset, pos);
+        check_result(&mut BitBuffer::from(bits), offset, size);
+        check_result(&mut written, 0, size);
     }
 
     #[test]

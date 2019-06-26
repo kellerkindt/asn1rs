@@ -1,12 +1,13 @@
 #![allow(dead_code)]
 #![warn(unused_extern_crates)]
-#![cfg(feature = "benchmarking")]
+#![cfg(feature = "bench_bit_buffer")]
 #![feature(test)]
 
 #[cfg(feature = "psql")]
 extern crate postgres;
 
-#[cfg(feature = "benchmarking")]
+#[cfg(feature = "bench_bit_buffer")]
+#[allow(unused_extern_crates)]
 extern crate test;
 
 mod cli;
