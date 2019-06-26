@@ -14,12 +14,12 @@ pub struct BitBuffer {
 
 impl BitBuffer {
     pub fn from_bytes(buffer: Vec<u8>) -> BitBuffer {
-        let bits = buffer.len() * 8;
+        let bits = buffer.len() * BYTE_LEN;
         Self::from_bits(buffer, bits)
     }
 
     pub fn from_bits(buffer: Vec<u8>, bit_length: usize) -> BitBuffer {
-        assert!(bit_length <= buffer.len() * 8);
+        assert!(bit_length <= buffer.len() * BYTE_LEN);
         BitBuffer {
             buffer,
             write_position: bit_length,
@@ -99,6 +99,11 @@ fn bit_string_copy_bulked(
     dst_bit_position: usize,
     len: usize,
 ) -> Result<(), UperError> {
+    // chosen by real world tests
+    if len <= BYTE_LEN * 2 {
+        return bit_string_copy(src, src_bit_position, dst, dst_bit_position, len);
+    }
+
     if dst.len() * BYTE_LEN < dst_bit_position + len {
         return Err(Error::InsufficientSpaceInDestinationBuffer);
     }
@@ -115,8 +120,12 @@ fn bit_string_copy_bulked(
             src_bit_position,
             dst,
             dst_bit_position,
-            bits_till_full_byte_src,
+            bits_till_full_byte_src.min(len),
         )?;
+
+        if len <= bits_till_full_byte_src {
+            return Ok(());
+        }
     }
 
     let src_bit_position = src_bit_position + bits_till_full_byte_src;
@@ -181,69 +190,84 @@ impl UperReader for BitBuffer {
         bit_offset: usize,
         bit_length: usize,
     ) -> Result<(), UperError> {
-        bit_string_copy_bulked(
-            &self.buffer[..],
-            self.read_position,
-            buffer,
-            bit_offset,
-            bit_length,
-        )?;
-        self.read_position += bit_length;
-        Ok(())
+        (&self.buffer[..], &mut self.read_position).read_bit_string(buffer, bit_offset, bit_length)
     }
 
     fn read_bit(&mut self) -> Result<bool, UperError> {
-        if self.read_position >= self.write_position {
-            return Err(UperError::EndOfStream);
+        if self.read_position < self.write_position {
+            (&self.buffer[..], &mut self.read_position).read_bit()
+        } else {
+            Err(UperError::EndOfStream)
         }
-        let byte_pos = self.read_position as usize / BYTE_LEN;
-        let bit_pos = self.read_position % BYTE_LEN;
-        let bit_pos = (BYTE_LEN - bit_pos - 1) as u8; // flip
-        let mask = 0x01 << bit_pos;
-        let bit = (self.buffer[byte_pos] & mask) == mask;
-        self.read_position += 1;
-        Ok(bit)
     }
 }
 
 impl UperWriter for BitBuffer {
-    fn write_bit(&mut self, bit: bool) -> Result<(), UperError> {
-        let byte_pos = self.write_position as usize / BYTE_LEN;
-        let bit_pos = self.write_position % BYTE_LEN;
-        if bit_pos == 0 {
-            self.buffer.push(0x00);
-        }
-        if bit {
-            let bit_pos = (BYTE_LEN - bit_pos - 1) as u8; // flip
-            self.buffer[byte_pos] |= 0x01 << bit_pos;
-        }
-        self.write_position += 1;
-        Ok(())
-    }
-
     fn write_bit_string(
         &mut self,
         buffer: &[u8],
         bit_offset: usize,
         bit_length: usize,
     ) -> Result<(), UperError> {
-        let bits_together = self.write_position + bit_length;
-        let bytes_together =
-            bits_together / BYTE_LEN + if bits_together % BYTE_LEN == 0 { 0 } else { 1 };
-
+        let bytes_together = (self.write_position + bit_length + (BYTE_LEN - 1)) / BYTE_LEN;
         if bytes_together > self.buffer.len() {
             self.buffer
                 .extend(iter::repeat(0x00).take(bytes_together - self.buffer.len()));
         }
 
-        bit_string_copy_bulked(
-            buffer,
-            bit_offset,
-            &mut self.buffer[..],
-            self.write_position,
-            bit_length,
-        )?;
-        self.write_position += bit_length;
+        (&mut self.buffer[..], &mut self.write_position)
+            .write_bit_string(buffer, bit_offset, bit_length)
+    }
+
+    fn write_bit(&mut self, bit: bool) -> Result<(), UperError> {
+        while self.write_position + 1 > self.buffer.len() * BYTE_LEN {
+            self.buffer.push(0x00);
+        }
+        (&mut self.buffer[..], &mut self.write_position).write_bit(bit)
+    }
+}
+impl<'a> UperReader for (&'a [u8], &mut usize) {
+    fn read_bit_string(
+        &mut self,
+        buffer: &mut [u8],
+        bit_offset: usize,
+        bit_length: usize,
+    ) -> Result<(), Error> {
+        bit_string_copy_bulked(&self.0[..], *self.1, buffer, bit_offset, bit_length)?;
+        *self.1 += bit_length;
+        Ok(())
+    }
+
+    fn read_bit(&mut self) -> Result<bool, Error> {
+        if *self.1 > self.0.len() * BYTE_LEN {
+            return Err(Error::EndOfStream);
+        }
+        let bit = self.0[*self.1 / BYTE_LEN] & (0x80 >> (*self.1 % BYTE_LEN)) != 0;
+        *self.1 += 1;
+        Ok(bit)
+    }
+}
+
+impl<'a> UperWriter for (&'a mut [u8], &mut usize) {
+    fn write_bit_string(
+        &mut self,
+        buffer: &[u8],
+        bit_offset: usize,
+        bit_length: usize,
+    ) -> Result<(), UperError> {
+        bit_string_copy_bulked(buffer, bit_offset, &mut self.0[..], *self.1, bit_length)?;
+        *self.1 += bit_length;
+        Ok(())
+    }
+
+    fn write_bit(&mut self, bit: bool) -> Result<(), UperError> {
+        if *self.1 + 1 > self.0.len() * BYTE_LEN {
+            return Err(Error::EndOfStream);
+        }
+        if bit {
+            self.0[*self.1 / BYTE_LEN] |= 0x80 >> (*self.1 % BYTE_LEN);
+        }
+        *self.1 += 1;
         Ok(())
     }
 }
@@ -255,7 +279,7 @@ mod bench {
     use crate::io::uper::BYTE_LEN;
     use test::Bencher;
 
-    const SIZE: usize = 100;
+    const SIZE_BITS: usize = 100 * BYTE_LEN;
 
     struct LegacyBitBuffer<'a>(&'a mut BitBuffer);
 
@@ -284,7 +308,7 @@ mod bench {
         let mut write = BitBuffer::from(vec![0_u8; size + if pos > 0 { 1 } else { 0 }]);
         write.write_position = pos;
         write.read_position = pos;
-        (bits, vec![0_u8; size], write)
+        (bits, vec![0_u8; size + if pos > 0 { 1 } else { 0 }], write)
     }
 
     fn check_result(bits: &mut BitBuffer, offset: usize, len: usize) {
@@ -309,46 +333,50 @@ mod bench {
         }
     }
 
-    fn legacy_bit_buffer(size: usize, offset: usize, pos: usize) -> (Vec<u8>, BitBuffer) {
-        let (mut bits, mut dest, mut write) =
-            bit_buffer(size + if offset > 0 { 1 } else { 0 }, pos);
+    fn legacy_bit_buffer(size_bits: usize, offset: usize, pos: usize) -> (Vec<u8>, BitBuffer) {
+        let (mut bits, mut dest, mut write) = bit_buffer(
+            (size_bits + (BYTE_LEN - 1)) / BYTE_LEN + if offset > 0 { 1 } else { 0 },
+            pos,
+        );
         LegacyBitBuffer(&mut bits)
-            .read_bit_string(&mut dest[..], offset, size * BYTE_LEN)
+            .read_bit_string(&mut dest[..], offset, size_bits)
             .unwrap();
         LegacyBitBuffer(&mut write)
-            .write_bit_string(&dest[..], offset, size * BYTE_LEN)
+            .write_bit_string(&dest[..], offset, size_bits)
             .unwrap();
         (dest, write)
     }
 
-    fn new_bit_buffer(size: usize, offset: usize, pos: usize) -> (Vec<u8>, BitBuffer) {
-        let (mut bits, mut dest, mut write) =
-            bit_buffer(size + if offset > 0 { 1 } else { 0 }, pos);
-        bits.read_bit_string(&mut dest[..], offset, size * BYTE_LEN)
+    fn new_bit_buffer(size_bits: usize, offset: usize, pos: usize) -> (Vec<u8>, BitBuffer) {
+        let (mut bits, mut dest, mut write) = bit_buffer(
+            (size_bits + (BYTE_LEN - 1)) / BYTE_LEN + if offset > 0 { 1 } else { 0 },
+            pos,
+        );
+        bits.read_bit_string(&mut dest[..], offset, size_bits)
             .unwrap();
         write
-            .write_bit_string(&dest[..], offset, size * BYTE_LEN)
+            .write_bit_string(&dest[..], offset, size_bits)
             .unwrap();
         (dest, write)
     }
 
-    fn legacy_bit_buffer_with_check(size: usize, offset: usize, pos: usize) {
-        let (bits, mut written) = legacy_bit_buffer(size, offset, pos);
-        check_result(&mut BitBuffer::from(bits), offset, size);
-        check_result(&mut written, 0, size);
+    fn legacy_bit_buffer_with_check(size_bits: usize, offset: usize, pos: usize) {
+        let (bits, mut written) = legacy_bit_buffer(size_bits, offset, pos);
+        check_result(&mut BitBuffer::from(bits), offset, size_bits);
+        check_result(&mut written, 0, size_bits);
     }
 
-    fn new_bit_buffer_with_check(size: usize, offset: usize, pos: usize) {
-        let (bits, mut written) = new_bit_buffer(size, offset, pos);
-        check_result(&mut BitBuffer::from(bits), offset, size);
-        check_result(&mut written, 0, size);
+    fn new_bit_buffer_with_check(size_bits: usize, offset: usize, pos: usize) {
+        let (bits, mut written) = new_bit_buffer(size_bits, offset, pos);
+        check_result(&mut BitBuffer::from(bits), offset, size_bits);
+        check_result(&mut written, 0, size_bits);
     }
 
     #[test]
     fn test_legacy_bit_string_offset_0_to_7_pos_0_to_7() {
         for offset in 0..BYTE_LEN {
             for pos in 0..BYTE_LEN {
-                legacy_bit_buffer_with_check(SIZE, offset, pos)
+                legacy_bit_buffer_with_check(SIZE_BITS, offset, pos)
             }
         }
     }
@@ -357,7 +385,7 @@ mod bench {
     fn test_new_bit_string_offset_0_to_7_pos_0_to_7() {
         for offset in 0..BYTE_LEN {
             for pos in 0..BYTE_LEN {
-                new_bit_buffer_with_check(SIZE, offset, pos)
+                new_bit_buffer_with_check(SIZE_BITS, offset, pos)
             }
         }
     }
@@ -366,14 +394,14 @@ mod bench {
         ($name_legacy: ident, $name_new: ident, $offset: expr, $pos: expr) => {
             #[bench]
             fn $name_legacy(b: &mut Bencher) {
-                b.iter(|| legacy_bit_buffer(SIZE, $offset, $pos));
-                legacy_bit_buffer_with_check(SIZE, $offset, $pos)
+                b.iter(|| legacy_bit_buffer(SIZE_BITS, $offset, $pos));
+                legacy_bit_buffer_with_check(SIZE_BITS, $offset, $pos)
             }
 
             #[bench]
             fn $name_new(b: &mut Bencher) {
-                b.iter(|| new_bit_buffer(SIZE, $offset, $pos));
-                new_bit_buffer_with_check(SIZE, $offset, $pos)
+                b.iter(|| new_bit_buffer(SIZE_BITS, $offset, $pos));
+                new_bit_buffer_with_check(SIZE_BITS, $offset, $pos)
             }
         };
     }
