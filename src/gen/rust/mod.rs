@@ -88,7 +88,7 @@ impl RustCodeGenerator {
         self.global_derives.push(derive.into());
     }
 
-    pub fn fields_are_pub(&self) -> bool {
+    pub const fn fields_are_pub(&self) -> bool {
         self.direct_field_access
     }
 
@@ -96,7 +96,7 @@ impl RustCodeGenerator {
         self.direct_field_access = allow;
     }
 
-    pub fn fields_have_getter_and_setter(&self) -> bool {
+    pub const fn fields_have_getter_and_setter(&self) -> bool {
         self.getter_and_setter
     }
 

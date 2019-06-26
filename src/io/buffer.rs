@@ -27,29 +27,24 @@ impl BitBuffer {
         }
     }
 
-    #[allow(unused)]
     pub fn clear(&mut self) {
         self.buffer.clear();
         self.write_position = 0;
         self.read_position = 0;
     }
 
-    #[allow(unused)]
     pub fn reset_read_position(&mut self) {
         self.read_position = 0;
     }
 
-    #[allow(unused)]
     pub fn content(&self) -> &[u8] {
         &self.buffer[..]
     }
 
-    #[allow(unused)]
-    pub fn bit_len(&self) -> usize {
+    pub const fn bit_len(&self) -> usize {
         self.write_position
     }
 
-    #[allow(unused)]
     pub fn byte_len(&self) -> usize {
         self.buffer.len()
     }

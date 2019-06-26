@@ -93,17 +93,17 @@ impl SqlDefGenerator {
         self
     }
 
-    pub fn no_table_write_optimization(mut self) -> Self {
+    pub const fn no_table_write_optimization(mut self) -> Self {
         self.optimize_tables_for = None;
         self
     }
 
-    pub fn wrap_primary_key_on_overflow(mut self) -> Self {
+    pub const fn wrap_primary_key_on_overflow(mut self) -> Self {
         self.primary_key_hint = Some(PrimaryKeyHint::WrapOnOverflow);
         self
     }
 
-    pub fn no_wrap_of_primary_key_on_overflow(mut self) -> Self {
+    pub const fn no_wrap_of_primary_key_on_overflow(mut self) -> Self {
         self.primary_key_hint = None;
         self
     }
