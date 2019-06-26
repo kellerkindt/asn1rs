@@ -333,7 +333,7 @@ impl RustCodeGenerator {
     fn impl_enum_values_fn(implementation: &mut Impl, name: &str, variants: &[String]) {
         let values_fn = implementation
             .new_fn("variants")
-            .vis("pub")
+            .vis("pub const")
             .ret(format!("[Self; {}]", variants.len()))
             .line("[");
 
