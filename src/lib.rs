@@ -1,7 +1,7 @@
 #![warn(unused_extern_crates)]
-#![cfg_attr(feature = "bench_bit_buffer", feature(test))]
+#![cfg_attr(all(feature = "bench_bit_buffer", test), feature(test))]
 
-#[cfg(feature = "bench_bit_buffer")]
+#[cfg(all(feature = "bench_bit_buffer", test))]
 #[allow(unused_extern_crates)]
 extern crate test;
 
