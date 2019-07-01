@@ -1,13 +1,8 @@
 #![allow(dead_code)]
 #![warn(unused_extern_crates)]
-#![cfg_attr(all(feature = "bench_bit_buffer", test), feature(test))]
 
 #[cfg(feature = "psql")]
 extern crate postgres;
-
-#[cfg(all(feature = "bench_bit_buffer", test))]
-#[allow(unused_extern_crates)]
-extern crate test;
 
 mod cli;
 mod converter;

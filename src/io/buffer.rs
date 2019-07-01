@@ -27,6 +27,20 @@ impl BitBuffer {
         }
     }
 
+    pub fn from_bits_with_position(
+        buffer: Vec<u8>,
+        write_position: usize,
+        read_position: usize,
+    ) -> BitBuffer {
+        assert!(write_position <= buffer.len() * BYTE_LEN);
+        assert!(read_position <= buffer.len() * BYTE_LEN);
+        BitBuffer {
+            buffer,
+            write_position,
+            read_position,
+        }
+    }
+
     pub fn clear(&mut self) {
         self.buffer.clear();
         self.write_position = 0;
@@ -267,16 +281,17 @@ impl<'a> UperWriter for (&'a mut [u8], &mut usize) {
     }
 }
 
-#[cfg(all(feature = "bench_bit_buffer", test))]
-mod bench {
+#[cfg(any(test, feature = "legacy_bit_buffer"))]
+#[allow(clippy::module_name_repetitions)]
+pub mod legacy {
     use super::*;
+    use crate::io::uper::Error as UperError;
     use crate::io::uper::Reader as UperReader;
-    use crate::io::uper::BYTE_LEN;
-    use test::Bencher;
+    use crate::io::uper::Writer as UperWriter;
 
-    const SIZE_BITS: usize = 100 * BYTE_LEN;
+    pub const SIZE_BITS: usize = 100 * BYTE_LEN;
 
-    struct LegacyBitBuffer<'a>(&'a mut BitBuffer);
+    pub struct LegacyBitBuffer<'a>(&'a mut BitBuffer);
 
     // the legacy BitBuffer relies solely on read_bit(), no performance optimisation
     impl UperReader for LegacyBitBuffer<'_> {
@@ -292,7 +307,7 @@ mod bench {
         }
     }
 
-    fn bit_buffer(size: usize, pos: usize) -> (BitBuffer, Vec<u8>, BitBuffer) {
+    pub fn bit_buffer(size: usize, pos: usize) -> (BitBuffer, Vec<u8>, BitBuffer) {
         let mut bits = BitBuffer::from(vec![
             0b0101_0101_u8.wrapping_shl(pos as u32 % 2);
             size + if pos > 0 { 1 } else { 0 }
@@ -300,13 +315,18 @@ mod bench {
         for _ in 0..pos {
             bits.read_bit().unwrap();
         }
-        let mut write = BitBuffer::from(vec![0_u8; size + if pos > 0 { 1 } else { 0 }]);
-        write.write_position = pos;
-        write.read_position = pos;
-        (bits, vec![0_u8; size + if pos > 0 { 1 } else { 0 }], write)
+        (
+            bits,
+            vec![0_u8; size + if pos > 0 { 1 } else { 0 }],
+            BitBuffer::from_bits_with_position(
+                vec![0_u8; size + if pos > 0 { 1 } else { 0 }],
+                pos,
+                pos,
+            ),
+        )
     }
 
-    fn check_result(bits: &mut BitBuffer, offset: usize, len: usize) {
+    pub fn check_result(bits: &mut BitBuffer, offset: usize, len: usize) {
         for i in 0..offset {
             assert!(
                 !bits.read_bit().unwrap(),
@@ -328,7 +348,7 @@ mod bench {
         }
     }
 
-    fn legacy_bit_buffer(size_bits: usize, offset: usize, pos: usize) -> (Vec<u8>, BitBuffer) {
+    pub fn legacy_bit_buffer(size_bits: usize, offset: usize, pos: usize) -> (Vec<u8>, BitBuffer) {
         let (mut bits, mut dest, mut write) = bit_buffer(
             (size_bits + (BYTE_LEN - 1)) / BYTE_LEN + if offset > 0 { 1 } else { 0 },
             pos,
@@ -342,7 +362,7 @@ mod bench {
         (dest, write)
     }
 
-    fn new_bit_buffer(size_bits: usize, offset: usize, pos: usize) -> (Vec<u8>, BitBuffer) {
+    pub fn new_bit_buffer(size_bits: usize, offset: usize, pos: usize) -> (Vec<u8>, BitBuffer) {
         let (mut bits, mut dest, mut write) = bit_buffer(
             (size_bits + (BYTE_LEN - 1)) / BYTE_LEN + if offset > 0 { 1 } else { 0 },
             pos,
@@ -355,17 +375,24 @@ mod bench {
         (dest, write)
     }
 
-    fn legacy_bit_buffer_with_check(size_bits: usize, offset: usize, pos: usize) {
+    pub fn legacy_bit_buffer_with_check(size_bits: usize, offset: usize, pos: usize) {
         let (bits, mut written) = legacy_bit_buffer(size_bits, offset, pos);
         check_result(&mut BitBuffer::from(bits), offset, size_bits);
         check_result(&mut written, 0, size_bits);
     }
 
-    fn new_bit_buffer_with_check(size_bits: usize, offset: usize, pos: usize) {
+    pub fn new_bit_buffer_with_check(size_bits: usize, offset: usize, pos: usize) {
         let (bits, mut written) = new_bit_buffer(size_bits, offset, pos);
         check_result(&mut BitBuffer::from(bits), offset, size_bits);
         check_result(&mut written, 0, size_bits);
     }
+}
+
+#[allow(clippy::identity_op)] // for better readability across multiple tests
+#[cfg(test)]
+mod tests {
+    use super::legacy::*;
+    use super::*;
 
     #[test]
     fn test_legacy_bit_string_offset_0_to_7_pos_0_to_7() {
@@ -384,49 +411,6 @@ mod bench {
             }
         }
     }
-
-    macro_rules! bench_stuff {
-        ($name_legacy: ident, $name_new: ident, $offset: expr, $pos: expr) => {
-            #[bench]
-            fn $name_legacy(b: &mut Bencher) {
-                b.iter(|| legacy_bit_buffer(SIZE_BITS, $offset, $pos));
-                legacy_bit_buffer_with_check(SIZE_BITS, $offset, $pos)
-            }
-
-            #[bench]
-            fn $name_new(b: &mut Bencher) {
-                b.iter(|| new_bit_buffer(SIZE_BITS, $offset, $pos));
-                new_bit_buffer_with_check(SIZE_BITS, $offset, $pos)
-            }
-        };
-    }
-
-    bench_stuff!(legacy_offset_0_position_0, new_offset_0_position_0, 0, 0);
-    bench_stuff!(legacy_offset_3_position_0, new_offset_3_position_0, 3, 0);
-    bench_stuff!(legacy_offset_4_position_0, new_offset_4_position_0, 4, 0);
-    bench_stuff!(legacy_offset_7_position_0, new_offset_7_position_0, 7, 0);
-
-    bench_stuff!(legacy_offset_0_position_3, new_offset_0_position_3, 0, 3);
-    bench_stuff!(legacy_offset_3_position_3, new_offset_3_position_3, 3, 3);
-    bench_stuff!(legacy_offset_4_position_3, new_offset_4_position_3, 4, 3);
-    bench_stuff!(legacy_offset_7_position_3, new_offset_7_position_3, 7, 3);
-
-    bench_stuff!(legacy_offset_0_position_4, new_offset_0_position_4, 0, 4);
-    bench_stuff!(legacy_offset_3_position_4, new_offset_3_position_4, 3, 4);
-    bench_stuff!(legacy_offset_4_position_4, new_offset_4_position_4, 4, 4);
-    bench_stuff!(legacy_offset_7_position_4, new_offset_7_position_4, 7, 4);
-
-    bench_stuff!(legacy_offset_0_position_7, new_offset_0_position_7, 0, 7);
-    bench_stuff!(legacy_offset_3_position_7, new_offset_3_position_7, 3, 7);
-    bench_stuff!(legacy_offset_4_position_7, new_offset_4_position_7, 4, 7);
-    bench_stuff!(legacy_offset_7_position_7, new_offset_7_position_7, 7, 7);
-
-}
-
-#[allow(clippy::identity_op)] // for better readability across multiple tests
-#[cfg(test)]
-mod tests {
-    use super::*;
 
     #[test]
     pub fn bit_buffer_write_bit_keeps_correct_order() -> Result<(), UperError> {

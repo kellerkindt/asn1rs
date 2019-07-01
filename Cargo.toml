@@ -32,4 +32,9 @@ postgres = { version = "0.15.2", optional = true }
 [features]
 default = []
 psql = ["postgres"]
-bench_bit_buffer = []
+legacy_bit_buffer = []
+
+[[bench]]
+name = "bitbuffer"
+path = "benches/bitbuffer.rs"
+required-features = ["legacy_bit_buffer"]
