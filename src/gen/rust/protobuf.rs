@@ -334,7 +334,17 @@ impl ProtobufSerializer {
                     "(&mut bytes as &mut dyn {}Writer).write_{}({})?;",
                     Self::CODEC,
                     r.to_protobuf().to_string(),
-                    Self::get_as_protobuf_type_statement("*value".to_string(), &r),
+                    Self::get_as_protobuf_type_statement(
+                        format!(
+                            "{}value",
+                            if aliased.clone().into_inner_type().is_primitive() {
+                                "*"
+                            } else {
+                                ""
+                            }
+                        ),
+                        &r
+                    ),
                 ));
             }
         };
