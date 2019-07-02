@@ -323,10 +323,7 @@ mod tests {
         )
     }
 
-    fn test_model_definition_conversion(
-        rust: &[Definition<Rust>],
-        proto: &[Definition<Protobuf>],
-    ) {
+    fn test_model_definition_conversion(rust: &[Definition<Rust>], proto: &[Definition<Protobuf>]) {
         let mut model_rust = Model::default();
         model_rust.definitions = rust.to_vec();
         let model_proto = model_rust.to_protobuf();

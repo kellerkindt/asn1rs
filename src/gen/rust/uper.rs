@@ -222,7 +222,7 @@ impl UperSerializer {
                 variants.len() - 1
             ));
         } else {
-            function.line("let variant = 0");
+            function.line("let variant = 0;");
         }
         let mut block = Block::new("match variant");
         for (i, (variant, role)) in variants.iter().enumerate() {
