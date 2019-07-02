@@ -328,14 +328,14 @@ impl UperSerializer {
             }
             RustType::String => {
                 block.line(&format!(
-                    "writer.write_utf8_string(&{})?;",
+                    "writer.write_utf8_string({})?;",
                     field_name.map_or_else(|| "value".into(), |f| f.to_string()),
                 ));
             }
             RustType::VecU8 => {
                 block.line(format!(
-                    "writer.write_octet_string(&{}[..], None)?;",
-                    field_name.map_or_else(|| "value".into(), |f| f.to_string()),
+                    "writer.write_octet_string({}[..], None)?;",
+                    field_name.map_or_else(|| "value".into(), |f| f.with_ref().to_string()),
                 ));
             }
             RustType::Vec(inner) => {
@@ -402,9 +402,8 @@ impl UperSerializer {
                     &field_name.map_or_else(
                         || "value".into(),
                         |mut f| {
-                            let name = RustCodeGenerator::rust_field_name(f.name(), true);
-                            *f.name_mut() = name;
-                            f.to_string()
+                            *f.name_mut() = RustCodeGenerator::rust_field_name(f.name(), true);
+                            f.no_ref().to_string()
                         }
                     ),
                 ));
@@ -416,7 +415,11 @@ impl UperSerializer {
         for (field_name, field_type) in fields.iter() {
             Self::impl_write_fn_for_type(
                 &mut block,
-                Some(Member::Instance(field_name.clone(), false, false)),
+                Some(Member::Instance(
+                    field_name.clone(),
+                    !field_type.clone().no_option().is_primitive(),
+                    false,
+                )),
                 field_type,
             );
         }
@@ -520,6 +523,26 @@ impl Member {
             Member::Static(_, ref mut prefix, _) => prefix,
             Member::Instance(_, ref mut prefix, _) => prefix,
         } = false;
+        self
+    }
+
+    #[allow(clippy::match_same_arms)] // to have the same body on each
+    pub fn with_ref(mut self) -> Self {
+        *match self {
+            Member::Local(_, ref mut prefix, _) => prefix,
+            Member::Static(_, ref mut prefix, _) => prefix,
+            Member::Instance(_, ref mut prefix, _) => prefix,
+        } = true;
+        self
+    }
+
+    #[allow(clippy::match_same_arms)] // to have the same body on each
+    pub fn with_deref(mut self) -> Self {
+        *match self {
+            Member::Local(_, _, ref mut prefix) => prefix,
+            Member::Static(_, _, ref mut prefix) => prefix,
+            Member::Instance(_, _, ref mut prefix) => prefix,
+        } = true;
         self
     }
 }
