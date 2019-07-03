@@ -316,24 +316,25 @@ impl ProtobufSerializer {
                 format!("&self.{}", attribute_name)
             }
         ));
-        block_for.line(format!(
-            "writer.write_tag({}, {})?;",
-            tag,
-            Self::role_to_format(aliased, "value"),
-        ));
-        block_for.line("let mut bytes = Vec::new();");
         match aliased.clone().into_inner_type() {
             RustType::Complex(_) => {
+                block_for.line(format!(
+                    "writer.write_tag({}, {})?;",
+                    tag,
+                    Self::role_to_format(aliased, "value"),
+                ));
+                block_for.line("let mut bytes = Vec::new();");
                 block_for.line(format!(
                     "value.write_protobuf(&mut bytes as &mut dyn {}Writer)?;",
                     Self::CODEC
                 ));
+                block_for.line("writer.write_bytes(&bytes[..])?;");
             }
             r => {
                 block_for.line(format!(
-                    "(&mut bytes as &mut dyn {}Writer).write_{}({})?;",
-                    Self::CODEC,
+                    "writer.write_tagged_{}({}, {})?;",
                     r.to_protobuf().to_string(),
+                    tag,
                     Self::get_as_protobuf_type_statement(
                         format!(
                             "{}value",
@@ -348,7 +349,6 @@ impl ProtobufSerializer {
                 ));
             }
         };
-        block_for.line("writer.write_bytes(&bytes[..])?;");
         block_writer.push_block(block_for);
     }
 
