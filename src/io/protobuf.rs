@@ -46,6 +46,28 @@ impl Error {
     }
 }
 
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Error::Io(b, ioe) => write!(f, "Internal IO Error: {}\n{:?}", ioe, b),
+            Error::InvalidUtf8Received => write!(f, "Received String is not valid UTF8"),
+            Error::MissingRequiredField(name) => {
+                write!(f, "The required field '{}' is missing", name)
+            }
+            Error::InvalidTagReceived(b, tag) => write!(f, "Tag({}) is unknown\n{:?}", tag, b),
+            Error::InvalidFormat(b, tag) => write!(f, "Format({}) is invalid\n{:?}", tag, b),
+            Error::UnexpectedFormat(b, format) => {
+                write!(f, "Format({:?}) is unexpected\n{:?}", format, b)
+            }
+            Error::UnexpectedTag(b, (tag, format)) => {
+                write!(f, "Tag({}/{:?}) is unexpected\n{:?}", tag, format, b)
+            }
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
 #[derive(Debug, PartialOrd, PartialEq)]
 #[repr(u32)]
 pub enum Format {
