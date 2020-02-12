@@ -214,7 +214,7 @@ impl RustCodeGenerator {
             }
             Rust::Enum(variants) => {
                 Self::impl_enum(scope, name, variants);
-                Self::impl_default_default(scope, name, variants);
+                Self::impl_enum_default(scope, name, variants);
             }
             Rust::DataEnum(variants) => {
                 Self::impl_data_enum(scope, name, variants);
@@ -310,7 +310,7 @@ impl RustCodeGenerator {
             ));
     }
 
-    fn impl_default_default(scope: &mut Scope, name: &str, variants: &[String]) {
+    fn impl_enum_default(scope: &mut Scope, name: &str, variants: &[String]) {
         scope
             .new_impl(name)
             .impl_trait("Default")
