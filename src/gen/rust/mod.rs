@@ -4,6 +4,9 @@ pub mod uper;
 #[cfg(feature = "psql")]
 pub mod psql;
 
+#[cfg(feature = "async-psql")]
+pub mod async_psql;
+
 use self::protobuf::ProtobufSerializer;
 use self::uper::UperSerializer;
 use crate::gen::Generator;
@@ -22,6 +25,9 @@ use codegen::Struct;
 #[cfg(feature = "psql")]
 use self::psql::PsqlInserter;
 
+#[cfg(feature = "async-psql")]
+use self::async_psql::AsyncPsqlInserter;
+
 const KEYWORDS: [&str; 9] = [
     "use", "mod", "const", "type", "pub", "enum", "struct", "impl", "trait",
 ];
@@ -29,10 +35,22 @@ const KEYWORDS: [&str; 9] = [
 pub trait GeneratorSupplement<T> {
     fn add_imports(&self, scope: &mut Scope);
     fn impl_supplement(&self, scope: &mut Scope, definition: &Definition<T>);
-    fn extend_impl_of_struct(&self, _impl_scope: &mut Impl, _fields: &[(String, RustType)]) {}
-    fn extend_impl_of_enum(&self, _impl_scope: &mut Impl, _variants: &[String]) {}
-    fn extend_impl_of_data_enum(&self, _impl_scope: &mut Impl, _variants: &[(String, RustType)]) {}
-    fn extend_impl_of_tuple(&self, _impl_scope: &mut Impl, _definition: &RustType) {}
+    fn extend_impl_of_struct(
+        &self,
+        _name: &str,
+        _impl_scope: &mut Impl,
+        _fields: &[(String, RustType)],
+    ) {
+    }
+    fn extend_impl_of_enum(&self, _name: &str, _impl_scope: &mut Impl, _variants: &[String]) {}
+    fn extend_impl_of_data_enum(
+        &self,
+        _name: &str,
+        _impl_scope: &mut Impl,
+        _variants: &[(String, RustType)],
+    ) {
+    }
+    fn extend_impl_of_tuple(&self, _name: &str, _impl_scope: &mut Impl, _definition: &RustType) {}
 }
 
 #[allow(clippy::module_name_repetitions)]
@@ -80,6 +98,8 @@ impl Generator<Rust> for RustCodeGenerator {
                     &ProtobufSerializer,
                     #[cfg(feature = "psql")]
                     &PsqlInserter,
+                    #[cfg(feature = "async-psql")]
+                    &AsyncPsqlInserter,
                 ],
             ));
         }
@@ -217,27 +237,27 @@ impl RustCodeGenerator {
             Rust::Struct(fields) => {
                 let implementation = Self::impl_struct(scope, name, fields, getter_and_setter);
                 for g in generators {
-                    g.extend_impl_of_struct(implementation, fields);
+                    g.extend_impl_of_struct(name, implementation, fields);
                 }
             }
             Rust::Enum(variants) => {
                 let implementation = Self::impl_enum(scope, name, variants);
                 for g in generators {
-                    g.extend_impl_of_enum(implementation, variants);
+                    g.extend_impl_of_enum(name, implementation, variants);
                 }
                 Self::impl_enum_default(scope, name, variants);
             }
             Rust::DataEnum(variants) => {
                 let implementation = Self::impl_data_enum(scope, name, variants);
                 for g in generators {
-                    g.extend_impl_of_data_enum(implementation, variants);
+                    g.extend_impl_of_data_enum(name, implementation, variants);
                 }
                 Self::impl_data_enum_default(scope, name, variants);
             }
             Rust::TupleStruct(inner) => {
                 let implementation = Self::impl_tuple_struct(scope, name, inner);
                 for g in generators {
-                    g.extend_impl_of_tuple(implementation, inner);
+                    g.extend_impl_of_tuple(name, implementation, inner);
                 }
                 Self::impl_tuple_struct_deref(scope, name, inner);
                 Self::impl_tuple_struct_deref_mut(scope, name, inner);
