@@ -125,7 +125,10 @@ impl GeneratorSupplement<Rust> for AsyncPsqlInserter {
     ) {
     }
 
-    fn extend_impl_of_tuple(&self, name: &str, _impl_scope: &mut Impl, _definition: &RustType) {}
+    fn extend_impl_of_tuple(&self, name: &str, impl_scope: &mut Impl, definition: &RustType) {
+        let fields = [("0".to_string(), definition.clone())];
+        self.extend_impl_of_struct(name, impl_scope, &fields[..]);
+    }
 }
 
 fn prepare_struct_insert_statement(name: &str, fields: &[(String, RustType)]) -> String {
