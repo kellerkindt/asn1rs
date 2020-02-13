@@ -207,22 +207,35 @@ fn insert_field(
         FieldInsert::AsyncComplex(field_name.to_string())
     } else if r_type.is_vec() {
         let mut many_insert = Block::new("async");
-        many_insert.line(&format!(
-            "let inserted = {}::try_join_all({}{}.iter().map(|v| v.{}(context)));",
-            MODULE_NAME,
-            if on_self { "self." } else { "" },
-            field_name,
-            insert_fn_name()
-        ));
-        let list_insert = PsqlInserter::struct_list_entry_insert_statement(struct_name, field_name);
+        let inner_primitive = Model::<Sql>::is_primitive(r_type.as_inner_type());
+        if inner_primitive {
+            many_insert.line(&format!(
+                "let inserted = &{}{};",
+                if on_self { "self." } else { "" },
+                field_name,
+            ));
+        } else {
+            many_insert.line(&format!(
+                "let inserted = {}::try_join_all({}{}.iter().map(|v| v.{}(context)));",
+                MODULE_NAME,
+                if on_self { "self." } else { "" },
+                field_name,
+                insert_fn_name()
+            ));
+        }
         many_insert.line(&format!(
             "let prepared = context.prepared(\"{}\");",
-            list_insert
+            PsqlInserter::struct_list_entry_insert_statement(struct_name, field_name)
         ));
-        many_insert.line(&format!(
-            "let (inserted, prepared) = {}::try_join!(inserted, prepared)?;",
-            MODULE_NAME
-        ));
+
+        if inner_primitive {
+            many_insert.line("let prepared = prepared.await?;");
+        } else {
+            many_insert.line(&format!(
+                "let (inserted, prepared) = {}::try_join!(inserted, prepared)?;",
+                MODULE_NAME
+            ));
+        }
         many_insert.line(&format!("{}::try_join_all(inserted.iter().map(|i| context.transaction().query(&prepared, &[&id, i]))).await?;", MODULE_NAME));
         many_insert.line("Ok(())");
         many_insert.after(".await?;");
