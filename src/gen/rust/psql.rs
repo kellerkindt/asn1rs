@@ -219,7 +219,7 @@ impl PsqlInserter {
         let mut vecs = Vec::new();
         for (name, rust) in fields {
             let name = RustCodeGenerator::rust_field_name(name, true);
-            let sql_primitive = Self::is_sql_primitive(rust);
+            let sql_primitive = Model::<Sql>::is_primitive(rust);
             let is_vec = Model::<Sql>::is_vec(rust);
 
             if is_vec {
@@ -340,7 +340,7 @@ impl PsqlInserter {
                 &RustCodeGenerator::rust_module_name(variant),
                 true,
             );
-            let sql_primitive = Self::is_sql_primitive(rust);
+            let sql_primitive = Model::<Sql>::is_primitive(rust);
             variables.push(format!("&{}", variable));
             let mut block_if = Block::new(&format!(
                 "let {} = if let {}::{}(value) = self",
@@ -390,7 +390,7 @@ impl PsqlInserter {
         } else {
             format!("for value in &self.{}", name)
         });
-        if Self::is_sql_primitive(rust) {
+        if Model::<Sql>::is_primitive(rust) {
             let inner_sql = rust.clone().into_inner_type().to_sql();
             let inner_rust = rust.clone().into_inner_type();
             if !inner_sql.to_rust().into_inner_type().similar(&inner_rust) {
@@ -424,7 +424,7 @@ impl PsqlInserter {
                     Self::new_load_fn(
                         implementation,
                         fields.iter().any(|(_, rust)| {
-                            !Self::is_sql_primitive(rust) || Model::<Sql>::is_vec(rust)
+                            !Model::<Sql>::is_primitive(rust) || Model::<Sql>::is_vec(rust)
                         }),
                     ),
                     name,
@@ -559,7 +559,7 @@ impl PsqlInserter {
                 }
                 load_block.after(",");
                 block.push_block(load_block);
-            } else if Self::is_sql_primitive(rust) {
+            } else if Model::<Sql>::is_primitive(rust) {
                 let load = format!(
                     "row.get_opt::<usize, {}>({}).ok_or_else({}::no_result)??",
                     rust.to_sql().to_rust().to_string(),
@@ -658,7 +658,7 @@ impl PsqlInserter {
         func.line("let rows = statement.query(&[&id])?;");
         func.line("let mut values = Vec::with_capacity(rows.len());");
         let inner = rust.clone().into_inner_type();
-        if Self::is_sql_primitive(&inner) {
+        if Model::<Sql>::is_primitive(&inner) {
             let mut block = Block::new("for row in rows.iter()");
             let from_sql = inner.to_sql().to_rust();
             let load = format!(
@@ -723,16 +723,7 @@ impl PsqlInserter {
             .ret(&format!("Result<Self, {}>", ERROR_TYPE))
     }
 
-    pub fn is_sql_primitive(rust: &RustType) -> bool {
-        #[allow(clippy::match_same_arms)] // to have the same order as the original enum
-        match rust.clone().into_inner_type() {
-            RustType::String => true,
-            RustType::VecU8 => true,
-            r => r.is_primitive(),
-        }
-    }
-
-    fn struct_list_entry_insert_statement(struct_name: &str, field_name: &str) -> String {
+    pub fn struct_list_entry_insert_statement(struct_name: &str, field_name: &str) -> String {
         format!(
             "INSERT INTO {}(list, value) VALUES ($1, $2)",
             Model::<Sql>::struct_list_entry_table_name(struct_name, field_name),
@@ -762,7 +753,7 @@ impl PsqlInserter {
     }
 
     fn list_entry_query_statement(name: &str, inner: &RustType) -> String {
-        if Self::is_sql_primitive(inner) {
+        if Model::<Sql>::is_primitive(inner) {
             format!(
                 "SELECT value FROM {}ListEntry WHERE {}ListEntry.list = $1",
                 name, name

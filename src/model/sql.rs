@@ -378,16 +378,22 @@ impl Model<Sql> {
         ));
     }
 
+    #[deprecated(note = "Use `RustType::is_vec()` instead")]
     pub fn is_vec(rust: &RustType) -> bool {
-        if let RustType::Vec(_) = rust.clone().no_option() {
-            true
-        } else {
-            false
-        }
+        rust.is_vec()
     }
 
     pub fn has_no_column_in_embedded_struct(rust: &RustType) -> bool {
         Self::is_vec(rust)
+    }
+
+    pub fn is_primitive(rust: &RustType) -> bool {
+        #[allow(clippy::match_same_arms)] // to have the same order as the original enum
+        match rust.clone().into_inner_type() {
+            RustType::String => true,
+            RustType::VecU8 => true,
+            r => r.is_primitive(),
+        }
     }
 
     pub fn struct_list_entry_table_name(struct_name: &str, field_name: &str) -> String {
