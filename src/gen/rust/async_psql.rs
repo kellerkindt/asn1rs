@@ -236,7 +236,12 @@ fn insert_field(
                 MODULE_NAME
             ));
         }
-        many_insert.line(&format!("{}::try_join_all(inserted.iter().map(|i| context.transaction().query(&prepared, &[&id, i]))).await?;", MODULE_NAME));
+        let conversion = r_type.to_sql().to_rust().ne(r_type);
+        many_insert.line(&format!(
+            "{}::try_join_all(inserted.iter().map(|i| context.transaction().query(&prepared, &[&id, {}]))).await?;",
+            MODULE_NAME,
+            if conversion { format!("&(*i as {})", r_type.to_sql().to_rust().to_inner_type_string()) } else { "i".to_string() }
+        ));
         many_insert.line("Ok(())");
         many_insert.after(".await?;");
         container.push_block(many_insert);
