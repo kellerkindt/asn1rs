@@ -26,90 +26,7 @@ impl GeneratorSupplement<Rust> for AsyncPsqlInserter {
     ) {
         let fun = create_insert_fn(impl_scope);
         fun.line(prepare_struct_insert_statement(name, fields));
-
-        let mut primitives = Vec::default();
-        let mut params = Vec::default();
-        let mut to_await = Vec::default();
-
-        for insert in fields
-            .iter()
-            .filter(|(_field_name, r_type)| !r_type.is_vec())
-            .map(|(field_name, r_type)| {
-                insert_field(
-                    true,
-                    name,
-                    fun,
-                    &RustCodeGenerator::rust_field_name(field_name, true),
-                    r_type,
-                )
-            })
-        {
-            match insert {
-                FieldInsert::AsyncVec => {
-                    panic!("Unexpected result, vecs should not appear here because filtered");
-                }
-                FieldInsert::AsyncComplex(name) => {
-                    to_await.push(name.clone());
-                    params.push(name.clone());
-                }
-                FieldInsert::Primitive(name, conversion) => {
-                    primitives.push((name.clone(), conversion));
-                    params.push(name);
-                }
-            }
-        }
-
-        if to_await.is_empty() {
-            fun.line("let statement = statement.await?;");
-        } else {
-            to_await.push("statement".to_string());
-            let elements = to_await.join(", ");
-
-            fun.line(&format!(
-                "let ({}) = {}::try_join!({})?;",
-                elements, MODULE_NAME, elements
-            ));
-        }
-
-        fun.line(format!(
-            "let id: i32 = context.transaction().query_one(&statement, &[{}]).await?.get(1);",
-            params
-                .iter()
-                .map(|p| format!("&{}", p))
-                .collect::<Vec<_>>()
-                .join(", ")
-        ));
-
-        to_await.clear();
-        for insert in fields
-            .iter()
-            .filter(|(_field_name, r_type)| r_type.is_vec())
-            .map(|(field_name, r_type)| {
-                insert_field(
-                    true,
-                    name,
-                    fun,
-                    &RustCodeGenerator::rust_field_name(field_name, true),
-                    r_type,
-                )
-            })
-        {
-            match insert {
-                FieldInsert::AsyncVec => {} // fine
-                FieldInsert::AsyncComplex(name) => {
-                    to_await.push(name);
-                }
-                _ => panic!("Unexpected result, only vecs should appear here because filtered"),
-            }
-        }
-        if !to_await.is_empty() {
-            fun.line(&format!(
-                "{}::try_join!({})?;",
-                MODULE_NAME,
-                to_await.join(", ")
-            ));
-        }
-        fun.line("Ok(id)");
+        impl_insert_fn_content(true, name, fields, fun);
     }
 
     fn extend_impl_of_enum(&self, name: &str, impl_scope: &mut Impl, _variants: &[String]) {
@@ -120,15 +37,132 @@ impl GeneratorSupplement<Rust> for AsyncPsqlInserter {
     fn extend_impl_of_data_enum(
         &self,
         name: &str,
-        _impl_scope: &mut Impl,
-        _variants: &[(String, RustType)],
+        impl_scope: &mut Impl,
+        variants: &[(String, RustType)],
     ) {
+        let fun = create_insert_fn(impl_scope);
+        fun.line(&format!(
+            "let statement = context.prepared(\"INSERT INTO {}({}) VALUES({}) RETURNING id\");",
+            name,
+            variants
+                .iter()
+                .map(|(name, _)| RustCodeGenerator::rust_module_name(name))
+                .collect::<Vec<_>>()
+                .join(", "),
+            variants
+                .iter()
+                .enumerate()
+                .map(|(num, _)| format!("${}", num + 1))
+                .collect::<Vec<_>>()
+                .join(", "),
+        ));
+        let mut updated_variants = Vec::with_capacity(variants.len());
+        for (variant, v_type) in variants {
+            let module_name = RustCodeGenerator::rust_module_name(variant);
+            fun.line(&format!(
+                "let {} = if let Self::{}(value) = self {{ Some(value) }} else {{ None }};",
+                module_name, variant
+            ));
+            updated_variants.push((module_name, RustType::Option(Box::new(v_type.clone()))));
+        }
+        impl_insert_fn_content(false, name, &updated_variants[..], fun);
     }
 
     fn extend_impl_of_tuple(&self, name: &str, impl_scope: &mut Impl, definition: &RustType) {
         let fields = [("0".to_string(), definition.clone())];
-        self.extend_impl_of_struct(name, impl_scope, &fields[..]);
+        let fun = create_insert_fn(impl_scope);
+        fun.line(&format!(
+            "let statement = context.prepared(\"INSERT INTO {} DEFAULT VALUES RETURNING id\");",
+            name
+        ));
+        impl_insert_fn_content(true, name, &fields[..], fun);
     }
+}
+fn impl_insert_fn_content(
+    on_self: bool,
+    name: &str,
+    fields: &[(String, RustType)],
+    container: &mut impl Container,
+) {
+    let mut primitives = Vec::default();
+    let mut params = Vec::default();
+    let mut to_await = Vec::default();
+    for insert in fields
+        .iter()
+        .filter(|(_field_name, r_type)| !r_type.is_vec())
+        .map(|(field_name, r_type)| {
+            insert_field(
+                on_self,
+                name,
+                container,
+                &RustCodeGenerator::rust_field_name(field_name, true),
+                r_type,
+            )
+        })
+    {
+        match insert {
+            FieldInsert::AsyncVec => {
+                panic!("Unexpected result, vecs should not appear here because filtered");
+            }
+            FieldInsert::AsyncComplex(name) => {
+                to_await.push(name.clone());
+                params.push(name.clone());
+            }
+            FieldInsert::Primitive(name, conversion) => {
+                primitives.push((name.clone(), conversion));
+                params.push(name);
+            }
+        }
+    }
+    if to_await.is_empty() {
+        container.line("let statement = statement.await?;");
+    } else {
+        to_await.push("statement".to_string());
+        let elements = to_await.join(", ");
+
+        container.line(&format!(
+            "let ({}) = {}::try_join!({})?;",
+            elements, MODULE_NAME, elements
+        ));
+    }
+    container.line(format!(
+        "let id: i32 = context.transaction().query_one(&statement, &[{}]).await?.get(1);",
+        params
+            .iter()
+            .map(|p| format!("&{}", p))
+            .collect::<Vec<_>>()
+            .join(", ")
+    ));
+    to_await.clear();
+    for insert in fields
+        .iter()
+        .filter(|(_field_name, r_type)| r_type.is_vec())
+        .map(|(field_name, r_type)| {
+            insert_field(
+                on_self,
+                name,
+                container,
+                &RustCodeGenerator::rust_field_name(field_name, true),
+                r_type,
+            )
+        })
+    {
+        match insert {
+            FieldInsert::AsyncVec => {} // fine
+            FieldInsert::AsyncComplex(name) => {
+                to_await.push(name);
+            }
+            _ => panic!("Unexpected result, only vecs should appear here because filtered"),
+        }
+    }
+    if !to_await.is_empty() {
+        container.line(&format!(
+            "{}::try_join!({})?;",
+            MODULE_NAME,
+            to_await.join(", ")
+        ));
+    }
+    container.line("Ok(id)");
 }
 
 fn prepare_struct_insert_statement(name: &str, fields: &[(String, RustType)]) -> String {
@@ -354,12 +388,12 @@ impl FieldInsert {
 }
 
 pub trait Container {
-    fn line(&mut self, line: &str);
+    fn line<T: ToString>(&mut self, line: T);
     fn push_block(&mut self, block: Block);
 }
 
 impl Container for Function {
-    fn line(&mut self, line: &str) {
+    fn line<T: ToString>(&mut self, line: T) {
         Function::line(self, line);
     }
 
@@ -369,7 +403,7 @@ impl Container for Function {
 }
 
 impl Container for Block {
-    fn line(&mut self, line: &str) {
+    fn line<T: ToString>(&mut self, line: T) {
         Block::line(self, line);
     }
 
