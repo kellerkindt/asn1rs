@@ -239,13 +239,17 @@ fn insert_optional_field(
         field_name
     ));
     let mut block_some_inner = Block::new("Ok(Some(");
-    match insert_field(false, struct_name, &mut block_some_inner, field_name, inner) {
-        FieldInsert::AsyncVec => {}
-        FieldInsert::AsyncComplex(name) => {
-            block_some_inner.line(&format!("{}.await?", name));
-        }
-        FieldInsert::Primitive(name, _) => {
-            block_some_inner.line(&format!("{}", name));
+    if Model::<Sql>::is_primitive(inner) {
+        block_some_inner.line(field_name);
+    } else {
+        match insert_field(false, struct_name, &mut block_some_inner, field_name, inner) {
+            FieldInsert::AsyncVec => {}
+            FieldInsert::AsyncComplex(name) => {
+                block_some_inner.line(&format!("{}.await?", name));
+            }
+            FieldInsert::Primitive(name, _) => {
+                block_some_inner.line(&format!("{}", name));
+            }
         }
     }
     block_some_inner.after("))");
@@ -294,10 +298,11 @@ fn insert_vec_field(
         ));
     }
     let conversion = r_type.to_sql().to_rust().ne(r_type);
+    many_insert.line("let prepared = &prepared;");
     many_insert.line(&format!(
-        "{}::try_join_all(inserted.iter().map(|i| context.transaction().query(&prepared, &[&id, {}]))).await?;",
+        "{}::try_join_all(inserted.into_iter().map(|i| async move {{ context.transaction().query(prepared, &[&id, {}]).await }} )).await?;",
         MODULE_NAME,
-        if conversion { format!("&(*i as {})", r_type.to_sql().to_rust().to_inner_type_string()) } else { "i".to_string() }
+        if conversion { format!("&(*i as {})", r_type.to_sql().to_rust().to_inner_type_string()) } else { "&i".to_string() }
     ));
     many_insert.line("Ok(())");
     many_insert.after(".await?;");
