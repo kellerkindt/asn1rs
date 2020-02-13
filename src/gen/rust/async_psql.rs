@@ -176,106 +176,138 @@ fn insert_field(
     r_type: &RustType,
 ) -> FieldInsert {
     if let RustType::Option(inner) = r_type {
-        let mut block_async = Block::new(&format!("let {} = async", field_name,));
-        let mut block_some = Block::new(&format!(
-            "if let Some({}) = {}{}{}",
-            field_name,
-            if inner.is_primitive() { "" } else { "&" },
-            if on_self { "self." } else { "" },
-            field_name
-        ));
-        let mut block_some_inner = Block::new("Ok(Some(");
-
-        match insert_field(false, struct_name, &mut block_some_inner, field_name, inner) {
-            FieldInsert::AsyncVec => {}
-            FieldInsert::AsyncComplex(name) => {
-                block_some_inner.line(&format!("{}.await?", name));
-            }
-            FieldInsert::Primitive(name, _) => {
-                block_some_inner.line(&format!("{}", name));
-            }
-        }
-
-        block_some_inner.after("))");
-        block_some.push_block(block_some_inner);
-        block_some.after("else { Ok(None) } ");
-
-        block_async.push_block(block_some);
-        block_async.after(";");
-
-        container.push_block(block_async);
-        FieldInsert::AsyncComplex(field_name.to_string())
+        insert_optional_field(on_self, struct_name, container, field_name, inner)
     } else if r_type.is_vec() {
-        let mut many_insert = Block::new("async");
-        let inner_primitive = Model::<Sql>::is_primitive(r_type.as_inner_type());
-        if inner_primitive {
-            many_insert.line(&format!(
-                "let inserted = &{}{};",
-                if on_self { "self." } else { "" },
-                field_name,
-            ));
-        } else {
-            many_insert.line(&format!(
-                "let inserted = {}::try_join_all({}{}.iter().map(|v| v.{}(context)));",
-                MODULE_NAME,
-                if on_self { "self." } else { "" },
-                field_name,
-                insert_fn_name()
-            ));
-        }
-        many_insert.line(&format!(
-            "let prepared = context.prepared(\"{}\");",
-            PsqlInserter::struct_list_entry_insert_statement(struct_name, field_name)
-        ));
-
-        if inner_primitive {
-            many_insert.line("let prepared = prepared.await?;");
-        } else {
-            many_insert.line(&format!(
-                "let (inserted, prepared) = {}::try_join!(inserted, prepared)?;",
-                MODULE_NAME
-            ));
-        }
-        let conversion = r_type.to_sql().to_rust().ne(r_type);
-        many_insert.line(&format!(
-            "{}::try_join_all(inserted.iter().map(|i| context.transaction().query(&prepared, &[&id, {}]))).await?;",
-            MODULE_NAME,
-            if conversion { format!("&(*i as {})", r_type.to_sql().to_rust().to_inner_type_string()) } else { "i".to_string() }
-        ));
-        many_insert.line("Ok(())");
-        many_insert.after(".await?;");
-        container.push_block(many_insert);
-        FieldInsert::AsyncVec
+        insert_vec_field(on_self, struct_name, container, field_name, r_type)
     } else if Model::<Sql>::is_primitive(r_type) {
-        let rerust = r_type.to_sql().to_rust();
-        let conversion = if rerust.ne(r_type) {
-            Some(rerust)
-        } else {
-            None
-        };
-        container.line(&format!(
-            "let {} = {}{}{}{}{};",
-            field_name,
-            if r_type.is_primitive() { "" } else { "&" },
+        insert_sql_primitive_field(on_self, container, field_name, r_type)
+    } else {
+        insert_complex_field(on_self, container, field_name)
+    }
+}
+
+fn insert_optional_field(
+    on_self: bool,
+    struct_name: &str,
+    container: &mut impl Container,
+    field_name: &str,
+    inner: &RustType,
+) -> FieldInsert {
+    let mut block_async = Block::new(&format!("let {} = async", field_name,));
+    let mut block_some = Block::new(&format!(
+        "if let Some({}) = {}{}{}",
+        field_name,
+        if inner.is_primitive() { "" } else { "&" },
+        if on_self { "self." } else { "" },
+        field_name
+    ));
+    let mut block_some_inner = Block::new("Ok(Some(");
+    match insert_field(false, struct_name, &mut block_some_inner, field_name, inner) {
+        FieldInsert::AsyncVec => {}
+        FieldInsert::AsyncComplex(name) => {
+            block_some_inner.line(&format!("{}.await?", name));
+        }
+        FieldInsert::Primitive(name, _) => {
+            block_some_inner.line(&format!("{}", name));
+        }
+    }
+    block_some_inner.after("))");
+    block_some.push_block(block_some_inner);
+    block_some.after("else { Ok(None) } ");
+    block_async.push_block(block_some);
+    block_async.after(";");
+    container.push_block(block_async);
+    FieldInsert::AsyncComplex(field_name.to_string())
+}
+
+fn insert_vec_field(
+    on_self: bool,
+    struct_name: &str,
+    container: &mut impl Container,
+    field_name: &str,
+    r_type: &RustType,
+) -> FieldInsert {
+    let mut many_insert = Block::new("async");
+    let inner_primitive = Model::<Sql>::is_primitive(r_type.as_inner_type());
+    if inner_primitive {
+        many_insert.line(&format!(
+            "let inserted = &{}{};",
             if on_self { "self." } else { "" },
             field_name,
-            conversion.as_ref().map(|_| " as ").unwrap_or_default(),
-            conversion
-                .as_ref()
-                .map(|r| r.to_string())
-                .unwrap_or_default(),
         ));
-        FieldInsert::Primitive(field_name.to_string(), conversion)
     } else {
-        container.line(&format!(
-            "let {} = {}{}.{}(&context);",
-            field_name,
+        many_insert.line(&format!(
+            "let inserted = {}::try_join_all({}{}.iter().map(|v| v.{}(context)));",
+            MODULE_NAME,
             if on_self { "self." } else { "" },
             field_name,
             insert_fn_name()
         ));
-        FieldInsert::AsyncComplex(field_name.to_string())
     }
+    many_insert.line(&format!(
+        "let prepared = context.prepared(\"{}\");",
+        PsqlInserter::struct_list_entry_insert_statement(struct_name, field_name)
+    ));
+    if inner_primitive {
+        many_insert.line("let prepared = prepared.await?;");
+    } else {
+        many_insert.line(&format!(
+            "let (inserted, prepared) = {}::try_join!(inserted, prepared)?;",
+            MODULE_NAME
+        ));
+    }
+    let conversion = r_type.to_sql().to_rust().ne(r_type);
+    many_insert.line(&format!(
+        "{}::try_join_all(inserted.iter().map(|i| context.transaction().query(&prepared, &[&id, {}]))).await?;",
+        MODULE_NAME,
+        if conversion { format!("&(*i as {})", r_type.to_sql().to_rust().to_inner_type_string()) } else { "i".to_string() }
+    ));
+    many_insert.line("Ok(())");
+    many_insert.after(".await?;");
+    container.push_block(many_insert);
+    FieldInsert::AsyncVec
+}
+
+fn insert_sql_primitive_field(
+    on_self: bool,
+    container: &mut impl Container,
+    field_name: &str,
+    r_type: &RustType,
+) -> FieldInsert {
+    let rerust = r_type.to_sql().to_rust();
+    let conversion = if rerust.ne(r_type) {
+        Some(rerust)
+    } else {
+        None
+    };
+    container.line(&format!(
+        "let {} = {}{}{}{}{};",
+        field_name,
+        if r_type.is_primitive() { "" } else { "&" },
+        if on_self { "self." } else { "" },
+        field_name,
+        conversion.as_ref().map(|_| " as ").unwrap_or_default(),
+        conversion
+            .as_ref()
+            .map(|r| r.to_string())
+            .unwrap_or_default(),
+    ));
+    FieldInsert::Primitive(field_name.to_string(), conversion)
+}
+
+fn insert_complex_field(
+    on_self: bool,
+    container: &mut impl Container,
+    field_name: &str,
+) -> FieldInsert {
+    container.line(&format!(
+        "let {} = {}{}.{}(&context);",
+        field_name,
+        if on_self { "self." } else { "" },
+        field_name,
+        insert_fn_name()
+    ));
+    FieldInsert::AsyncComplex(field_name.to_string())
 }
 
 enum FieldInsert {
