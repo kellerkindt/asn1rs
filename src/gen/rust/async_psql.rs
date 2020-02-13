@@ -230,33 +230,85 @@ fn insert_optional_field(
     field_name: &str,
     inner: &RustType,
 ) -> FieldInsert {
-    let mut block_async = Block::new(&format!("let {} = async", field_name,));
-    let mut block_some = Block::new(&format!(
-        "if let Some({}) = {}{}{}",
-        field_name,
-        if inner.is_primitive() { "" } else { "&" },
-        if on_self { "self." } else { "" },
-        field_name
-    ));
-    let mut block_some_inner = Block::new("Ok(Some(");
-    if Model::<Sql>::is_primitive(inner) {
-        block_some_inner.line(field_name);
+    insert_optional_field_maybe_async(on_self, struct_name, container, field_name, inner, false)
+}
+fn insert_optional_field_maybe_async(
+    on_self: bool,
+    struct_name: &str,
+    container: &mut impl Container,
+    field_name: &str,
+    inner: &RustType,
+    call_await: bool,
+) -> FieldInsert {
+    let mut block_async = Block::new(&format!("let {} = async", field_name));
+    if inner.as_no_option().is_vec() {
+        let mut let_some = Block::new(&format!(
+            "if let Some({}) = {}self.{}",
+            field_name,
+            if inner.as_no_option().is_primitive() {
+                ""
+            } else {
+                "&"
+            },
+            field_name
+        ));
+        if let RustType::Option(next) = inner {
+            insert_optional_field_maybe_async(
+                on_self,
+                struct_name,
+                &mut let_some,
+                field_name,
+                &next,
+                true,
+            );
+        } else {
+            // now is a vec
+            insert_vec_field(false, struct_name, &mut let_some, field_name, inner);
+        }
+        let_some.line("Ok(())");
+        let_some.after(" else { Ok(()) }");
+        block_async.push_block(let_some);
     } else {
-        match insert_field(false, struct_name, &mut block_some_inner, field_name, inner) {
-            FieldInsert::AsyncVec => {}
-            FieldInsert::AsyncComplex(name) => {
-                block_some_inner.line(&format!("{}.await?", name));
+        let mut block_some = Block::new(&format!(
+            "if let Some({}) = {}{}{}",
+            field_name,
+            if inner.is_primitive() { "" } else { "&" },
+            if on_self { "self." } else { "" },
+            field_name
+        ));
+        let mut block_some_inner = Block::new("Ok(Some(");
+        if Model::<Sql>::is_primitive(inner) {
+            if inner.is_primitive() && inner.as_no_option().to_sql().to_rust().ne(inner) {
+                let conversion = inner.as_no_option().to_sql().to_rust();
+                block_some_inner.line(&format!(
+                    "{} as {}",
+                    field_name,
+                    conversion.to_inner_type_string()
+                ));
+            } else {
+                block_some_inner.line(field_name);
             }
-            FieldInsert::Primitive(name, _) => {
-                block_some_inner.line(&format!("{}", name));
+        } else {
+            match insert_field(false, struct_name, &mut block_some_inner, field_name, inner) {
+                FieldInsert::AsyncVec => {}
+                FieldInsert::AsyncComplex(name) => {
+                    block_some_inner.line(&format!("{}.await?", name));
+                }
+                FieldInsert::Primitive(name, _) => {
+                    block_some_inner.line(&format!("{}", name));
+                }
             }
         }
+        block_some_inner.after("))");
+        block_some.push_block(block_some_inner);
+        block_some.after("else { Ok(None) } ");
+        block_async.push_block(block_some);
     }
-    block_some_inner.after("))");
-    block_some.push_block(block_some_inner);
-    block_some.after("else { Ok(None) } ");
-    block_async.push_block(block_some);
-    block_async.after(";");
+    if call_await {
+        block_async.after(".await?;");
+    } else {
+        block_async.after(";");
+    }
     container.push_block(block_async);
     FieldInsert::AsyncComplex(field_name.to_string())
 }
