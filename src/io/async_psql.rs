@@ -18,44 +18,29 @@ enum StatementState {
 }
 
 pub struct Context<'a> {
-    client: Transaction<'a>,
-    fast: HashMap<&'static str, Statement>,
-    slow: Mutex<HashMap<&'static str, StatementState>>,
+    cache: Cache,
+    transaction: Transaction<'a>,
 }
 
 impl<'i> Context<'i> {
     pub fn new(transaction: Transaction<'i>) -> Self {
         Self {
-            client: transaction,
-            fast: Default::default(),
-            slow: Default::default(),
+            cache: Default::default(),
+            transaction,
         }
     }
 
-    pub fn replace_transaction(&mut self, transaction: Transaction<'i>) -> Transaction<'i> {
-        std::mem::replace(&mut self.client, transaction)
-    }
-
     pub fn optimize_cache(&mut self) {
-        // Removes all key-value pairs. Keeps the allocated memory for re-use
-        self.fast.extend(
-            self.slow
-                .get_mut()
-                .drain()
-                .flat_map(|(key, value)| match value {
-                    StatementState::Ready(statement) => Some((key, statement)),
-                    StatementState::Awaiting(_) => None, // failed, so drop it
-                }),
-        );
+        self.cache.optimize();
     }
 
     pub async fn prepared(&self, statement_str: &'static str) -> Result<Statement, Error> {
         loop {
-            if let Some(statement) = self.fast.get(statement_str) {
+            if let Some(statement) = self.cache.fast.get(statement_str) {
                 return Ok(statement.clone());
             }
 
-            let mut slow_locked = self.slow.lock().await;
+            let mut slow_locked = self.cache.slow.lock().await;
             if let Some(statement) = slow_locked.get(statement_str) {
                 match statement {
                     StatementState::Awaiting(mutex) => {
@@ -79,11 +64,12 @@ impl<'i> Context<'i> {
                 // it is possible for another future on the same thread to access the cache
                 // in the meantime. Because of the placeholder Mutex, the other future will
                 // not prepare a second/third/... Statement with the same content
-                let statement = self.client.prepare(statement_str).await?;
+                let statement = self.transaction.prepare(statement_str).await?;
 
                 // Cache the received statement so that any following call to the cache will
                 // have access to the result immediately
-                self.slow
+                self.cache
+                    .slow
                     .lock()
                     .await
                     .insert(statement_str, StatementState::Ready(statement.clone()));
@@ -95,7 +81,7 @@ impl<'i> Context<'i> {
     }
 
     pub fn transaction(&self) -> &Transaction<'i> {
-        &self.client
+        &self.transaction
     }
 
     pub async fn batch<
@@ -132,5 +118,41 @@ impl<'i> Context<'i> {
         mapper: M,
     ) -> Result<Vec<R>, E> {
         futures::future::try_join_all(values.map(|v| mapper(v, self))).await
+    }
+
+    pub fn split(self) -> (Cache, Transaction<'i>) {
+        (self.cache, self.transaction)
+    }
+}
+
+#[derive(Default)]
+pub struct Cache {
+    fast: HashMap<&'static str, Statement>,
+    slow: Mutex<HashMap<&'static str, StatementState>>,
+}
+
+impl Cache {
+    pub fn into_context(self, transaction: Transaction) -> Context {
+        Context {
+            transaction,
+            cache: self,
+        }
+    }
+
+    pub fn fast(&self) -> impl Iterator<Item = (&&'static str, &Statement)> {
+        self.fast.iter()
+    }
+
+    pub fn optimize(&mut self) {
+        // Removes all key-value pairs. Keeps the allocated memory for re-use
+        self.fast.extend(
+            self.slow
+                .get_mut()
+                .drain()
+                .flat_map(|(key, value)| match value {
+                    StatementState::Ready(statement) => Some((key, statement)),
+                    StatementState::Awaiting(_) => None, // failed, so drop it
+                }),
+        );
     }
 }
