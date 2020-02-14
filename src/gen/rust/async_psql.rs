@@ -126,7 +126,7 @@ fn impl_insert_fn_content(
         ));
     }
     container.line(format!(
-        "let id: i32 = context.transaction().query_one(&statement, &[{}]).await?.get(1);",
+        "let id: i32 = context.transaction().query_one(&statement, &[{}]).await?.get(0);",
         params
             .iter()
             .map(|p| format!("&{}", p))
@@ -301,7 +301,7 @@ fn insert_optional_field_maybe_async(
         }
         block_some_inner.after("))");
         block_some.push_block(block_some_inner);
-        block_some.after("else { Ok(None) } ");
+        block_some.after(" else { Ok(None) } ");
         block_async.push_block(block_some);
     }
     if call_await {
