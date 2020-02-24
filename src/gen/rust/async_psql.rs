@@ -6,7 +6,7 @@ use crate::model::{Definition, Model, Rust, RustType};
 use codegen::{Block, Function, Impl, Scope};
 
 const MODULE_NAME: &str = "apsql";
-const FN_PREFIX: &str = "psql_";
+const FN_PREFIX: &str = "apsql_";
 
 #[allow(clippy::module_name_repetitions)]
 pub struct AsyncPsqlInserter;
