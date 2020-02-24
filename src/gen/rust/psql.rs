@@ -723,14 +723,17 @@ impl PsqlInserter {
             .ret(&format!("Result<Self, {}>", ERROR_TYPE))
     }
 
-    pub fn struct_list_entry_insert_statement(struct_name: &str, field_name: &str) -> String {
+    pub(crate) fn struct_list_entry_insert_statement(
+        struct_name: &str,
+        field_name: &str,
+    ) -> String {
         format!(
             "INSERT INTO {}(list, value) VALUES ($1, $2)",
             Model::<Sql>::struct_list_entry_table_name(struct_name, field_name),
         )
     }
 
-    fn struct_list_entry_select_referenced_value_statement(
+    pub(crate) fn struct_list_entry_select_referenced_value_statement(
         struct_name: &str,
         field_name: &str,
         other_type: &str,
@@ -743,16 +746,19 @@ impl PsqlInserter {
         )
     }
 
-    fn struct_list_entry_select_value_statement(struct_name: &str, field_name: &str) -> String {
+    pub(crate) fn struct_list_entry_select_value_statement(
+        struct_name: &str,
+        field_name: &str,
+    ) -> String {
         let listentry_table = Model::<Sql>::struct_list_entry_table_name(struct_name, field_name);
         format!("SELECT value FROM {} WHERE list = $1", listentry_table,)
     }
 
-    fn list_entry_insert_statement(name: &str) -> String {
+    pub(crate) fn list_entry_insert_statement(name: &str) -> String {
         format!("INSERT INTO {}ListEntry(list, value) VALUES ($1, $2)", name)
     }
 
-    fn list_entry_query_statement(name: &str, inner: &RustType) -> String {
+    pub(crate) fn list_entry_query_statement(name: &str, inner: &RustType) -> String {
         if Model::<Sql>::is_primitive(inner) {
             format!(
                 "SELECT value FROM {}ListEntry WHERE {}ListEntry.list = $1",

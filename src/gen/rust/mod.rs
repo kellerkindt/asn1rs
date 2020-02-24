@@ -365,9 +365,31 @@ impl RustCodeGenerator {
     fn impl_enum<'a>(scope: &'a mut Scope, name: &str, variants: &[String]) -> &'a mut Impl {
         let implementation = scope.new_impl(name);
 
+        Self::impl_enum_value_fn(implementation, name, variants);
         Self::impl_enum_values_fn(implementation, name, variants);
         Self::impl_enum_value_index_fn(implementation, name, variants);
         implementation
+    }
+
+    fn impl_enum_value_fn(implementation: &mut Impl, name: &str, variants: &[String]) {
+        let value_fn = implementation
+            .new_fn("variant")
+            .vis("pub")
+            .arg("index", "usize")
+            .ret("Option<Self>");
+
+        let mut block_match = Block::new("match index");
+
+        for (index, variant) in variants.iter().enumerate() {
+            block_match.line(format!(
+                "{} => Some({}::{}),",
+                index,
+                name,
+                Self::rust_variant_name(variant)
+            ));
+        }
+        block_match.line("_ => None,");
+        value_fn.push_block(block_match);
     }
 
     fn impl_enum_values_fn(implementation: &mut Impl, name: &str, variants: &[String]) {

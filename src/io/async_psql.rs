@@ -1,5 +1,7 @@
 use futures::lock::Mutex;
 use std::collections::HashMap;
+use std::error;
+use std::fmt;
 use std::future::Future;
 use std::sync::Arc;
 use tokio_postgres::Statement;
@@ -7,9 +9,11 @@ use tokio_postgres::Transaction;
 
 pub use futures::future::join_all;
 pub use futures::future::try_join_all;
+use std::fmt::Formatter;
 pub use tokio::join;
 pub use tokio::try_join;
-pub use tokio_postgres::Error;
+pub use tokio_postgres::Error as PsqlError;
+pub use tokio_postgres::Row;
 
 #[derive(Clone)]
 enum StatementState {
@@ -34,7 +38,7 @@ impl<'i> Context<'i> {
         self.cache.optimize();
     }
 
-    pub async fn prepared(&self, statement_str: &'static str) -> Result<Statement, Error> {
+    pub async fn prepared(&self, statement_str: &'static str) -> Result<Statement, PsqlError> {
         loop {
             if let Some(statement) = self.cache.fast.get(statement_str) {
                 return Ok(statement.clone());
@@ -154,5 +158,41 @@ impl Cache {
                     StatementState::Awaiting(_) => None, // failed, so drop it
                 }),
         );
+    }
+}
+
+#[derive(Debug)]
+pub enum Error {
+    Psql(PsqlError),
+    UnexpectedVariant(usize),
+    NoEntryFoundForId(i32),
+    RowUnloadable,
+}
+
+impl error::Error for Error {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        match self {
+            Error::Psql(psql) => psql.source(),
+            Error::UnexpectedVariant(_) => None,
+            Error::NoEntryFoundForId(_) => None,
+            Error::RowUnloadable => None,
+        }
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Error::Psql(psql) => psql.fmt(f),
+            Error::UnexpectedVariant(index) => write!(f, "Unexpected variant index: {}", index),
+            Error::NoEntryFoundForId(id) => write!(f, "Id {} is unknown", id),
+            Error::RowUnloadable => write!(f, "The row has an error and cannot be loaded"),
+        }
+    }
+}
+
+impl From<PsqlError> for Error {
+    fn from(psql: PsqlError) -> Self {
+        Error::Psql(psql)
     }
 }
