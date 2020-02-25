@@ -703,7 +703,7 @@ impl AsyncPsqlInserter {
                 ));
             } else {
                 let mut block = Block::new(&format!(
-                    "let {} = if let Some({}_id) = row.try_get::<usize, Option<i32>>({})?",
+                    "let {} = if let Some({}) = row.try_get::<usize, Option<i32>>({})?",
                     RustCodeGenerator::rust_field_name(field, false),
                     RustCodeGenerator::rust_field_name(field, false),
                     index + 1
@@ -784,7 +784,7 @@ impl AsyncPsqlInserter {
             ));
         } else {
             container.line(format!(
-                "let {}_id = row.try_get::<usize, i32>({})?;",
+                "let {} = row.try_get::<usize, i32>({})?;",
                 RustCodeGenerator::rust_field_name(field, true),
                 index + 1,
             ));
@@ -799,7 +799,7 @@ impl AsyncPsqlInserter {
         f_type: &RustType,
     ) {
         container.line(format!(
-            "let {} = {}::{}(context, {}_id).await?;",
+            "let {} = {}::{}(context, {}).await?;",
             RustCodeGenerator::rust_field_name(field, true),
             f_type.to_inner_type_string(),
             retrieve_fn_name(),
