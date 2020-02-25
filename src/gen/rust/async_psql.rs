@@ -33,7 +33,7 @@ impl GeneratorSupplement<Rust> for AsyncPsqlInserter {
         impl_insert_fn_content(false, true, name, fields, fn_insert);
     }
 
-    fn extend_impl_of_enum(&self, name: &str, impl_scope: &mut Impl, _variants: &[String]) {
+    fn extend_impl_of_enum(&self, _name: &str, impl_scope: &mut Impl, _variants: &[String]) {
         AsyncPsqlInserter::append_retrieve_many_enums(impl_scope);
 
         create_load_fn(impl_scope).line(format!(
@@ -110,15 +110,6 @@ impl GeneratorSupplement<Rust> for AsyncPsqlInserter {
         ));
         impl_insert_fn_content(true, true, name, &fields[..], fn_insert);
     }
-}
-
-#[deprecated]
-fn append_default_retrieve_many_fn(impl_scope: &mut Impl) {
-    create_retrieve_many_fn(impl_scope).line(format!(
-        "{}::try_join_all(ids.iter().map(|id| Self::{}(context, *id))).await",
-        MODULE_NAME,
-        retrieve_fn_name()
-    ));
 }
 
 fn impl_insert_fn_content(
@@ -540,40 +531,6 @@ enum FieldInsert {
     Primitive(String, Option<RustType>),
 }
 
-impl FieldInsert {
-    pub fn is_async(&self) -> bool {
-        match self {
-            FieldInsert::AsyncVec => true,
-            FieldInsert::AsyncComplex(_) => true,
-            FieldInsert::Primitive(_, _) => false,
-        }
-    }
-
-    pub fn is_vec(&self) -> bool {
-        if let FieldInsert::AsyncVec = self {
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn is_complex(&self) -> bool {
-        if let FieldInsert::AsyncComplex(_) = &self {
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn is_primitve(&self) -> bool {
-        if let FieldInsert::Primitive(_, _) = &self {
-            true
-        } else {
-            false
-        }
-    }
-}
-
 pub trait Container {
     fn line<T: ToString>(&mut self, line: T);
     fn push_block(&mut self, block: Block);
@@ -708,7 +665,7 @@ impl AsyncPsqlInserter {
                     RustCodeGenerator::rust_field_name(field, false),
                     index + 1
                 ));
-                Self::append_load_complex_field(struct_name, &mut block, index, field, &*inner);
+                Self::append_load_complex_field(&mut block, field, &*inner);
                 block.line(format!(
                     "Some({})",
                     RustCodeGenerator::rust_field_name(field, false)
@@ -788,16 +745,10 @@ impl AsyncPsqlInserter {
                 RustCodeGenerator::rust_field_name(field, true),
                 index + 1,
             ));
-            Self::append_load_complex_field(struct_name, container, index, field, f_type)
+            Self::append_load_complex_field(container, field, f_type)
         }
     }
-    fn append_load_complex_field(
-        struct_name: &str,
-        container: &mut impl Container,
-        index: usize,
-        field: &str,
-        f_type: &RustType,
-    ) {
+    fn append_load_complex_field(container: &mut impl Container, field: &str, f_type: &RustType) {
         container.line(format!(
             "let {} = {}::{}(context, {}).await?;",
             RustCodeGenerator::rust_field_name(field, true),
