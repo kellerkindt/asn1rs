@@ -146,7 +146,11 @@ CREATE TABLE Header (
 ```
 
 ### Example usage of async postgres
-NOTE: This requires the `async-psql` feature
+NOTE: This requires the `async-psql` feature.
+
+Using async postgres allows the message - or the batched messages - to take advantage of [`pipelining`] automatically.
+This can provide a speedup (personal experience: at around 26%) compared to the synchronous/blocking postgres implementation.
+
 ```rust
 use asn1rs::io::async_psql::*;
 use tokio_postgres::NoTls;
@@ -263,3 +267,5 @@ MIT/Apache-2.0
 
 ### About
 This crate was initially developed during a research project at IT-Designers GmbH (http://www.it-designers.de).
+
+[`pipelining`]: https://docs.rs/tokio-postgres/0.5.2/tokio_postgres/#pipelining
