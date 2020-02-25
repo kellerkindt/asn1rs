@@ -90,7 +90,7 @@ impl RustType {
 
     pub fn as_no_option(&self) -> &Self {
         if let RustType::Option(inner) = self {
-            &*inner
+            inner.as_no_option()
         } else {
             self
         }
