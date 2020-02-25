@@ -41,7 +41,7 @@ impl GeneratorSupplement<Rust> for AsyncPsqlInserter {
             retrieve_fn_name()
         ));
 
-        let fn_insert = create_insert_fn(impl_scope);
+        let fn_insert = create_insert_fn(impl_scope).arg_self();
         fn_insert.line("Ok(self.value_index() as i32)");
     }
 
@@ -474,7 +474,7 @@ fn insert_vec_field(
     let conversion = r_type.to_sql().to_rust().ne(r_type);
     many_insert.line("let prepared = &prepared;");
     many_insert.line(&format!(
-        "{}::try_join_all(inserted.into_iter().map(|i| async move {{ context.transaction().query(prepared, &[&id, {}]).await }} )).await",
+        "{}::try_join_all(inserted.iter().map(|i| async move {{ context.transaction().query(prepared, &[&id, {}]).await }} )).await",
         MODULE_NAME,
         if conversion { format!("&(*i as {})", r_type.to_sql().to_rust().to_inner_type_string()) } else { "&i".to_string() }
     ));
@@ -516,7 +516,7 @@ fn insert_complex_field(
     field_name: &str,
 ) -> FieldInsert {
     container.line(&format!(
-        "let {} = {}{}.{}(&context);",
+        "let {} = {}{}.{}(context);",
         field_name,
         if on_self { "self." } else { "" },
         field_name,
