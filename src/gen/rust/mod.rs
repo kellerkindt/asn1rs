@@ -7,6 +7,9 @@ pub mod psql;
 #[cfg(feature = "async-psql")]
 pub mod async_psql;
 
+#[cfg(any(feature = "psql", feature = "async-psql"))]
+pub(crate) mod shared_psql;
+
 use self::protobuf::ProtobufSerializer;
 use self::uper::UperSerializer;
 use crate::gen::Generator;

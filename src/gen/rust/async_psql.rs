@@ -1,4 +1,4 @@
-use crate::gen::rust::psql::PsqlInserter;
+use crate::gen::rust::shared_psql::*;
 use crate::gen::rust::GeneratorSupplement;
 use crate::gen::RustCodeGenerator;
 use crate::model::sql::{Sql, SqlType, ToSql};
@@ -69,19 +69,8 @@ impl GeneratorSupplement<Rust> for AsyncPsqlInserter {
 
         let fn_insert = create_insert_fn(impl_scope, true);
         fn_insert.line(&format!(
-            "let statement = context.prepared(\"INSERT INTO {}({}) VALUES({}) RETURNING id\");",
-            name,
-            variants
-                .iter()
-                .map(|(name, _)| RustCodeGenerator::rust_module_name(name))
-                .collect::<Vec<_>>()
-                .join(", "),
-            variants
-                .iter()
-                .enumerate()
-                .map(|(num, _)| format!("${}", num + 1))
-                .collect::<Vec<_>>()
-                .join(", "),
+            "let statement = context.prepared(\"{}\");",
+            data_enum_insert_statement(name, variants)
         ));
         let mut updated_variants = Vec::with_capacity(variants.len());
         for (variant, v_type) in variants {
@@ -106,8 +95,8 @@ impl GeneratorSupplement<Rust> for AsyncPsqlInserter {
 
         let fn_insert = create_insert_fn(impl_scope, true);
         fn_insert.line(&format!(
-            "let statement = context.prepared(\"INSERT INTO {} DEFAULT VALUES RETURNING id\");",
-            name
+            "let statement = context.prepared(\"{}\");",
+            tuple_struct_insert_statement(name)
         ));
         impl_insert_fn_content(true, true, name, &fields[..], fn_insert);
     }
@@ -204,30 +193,10 @@ fn impl_insert_fn_content(
 }
 
 fn prepare_struct_insert_statement(name: &str, fields: &[(String, RustType)]) -> String {
-    let fields = fields
-        .iter()
-        .filter_map(|(name, field)| {
-            if field.is_vec() {
-                None
-            } else {
-                Some(Model::sql_column_name(name))
-            }
-        })
-        .collect::<Vec<_>>();
-
-    let mut line = "let statement = context.prepared(\"INSERT INTO ".to_string();
-    line.push_str(name);
-    line.push_str("(");
-    line.push_str(&fields.join(", "));
-    line.push_str(") VALUES(");
-    line.push_str(
-        &(0..fields.len())
-            .map(|i| format!("${}", i + 1))
-            .collect::<Vec<_>>()
-            .join(", "),
-    );
-    line.push_str(") RETURNING id\");");
-    line
+    format!(
+        "let statement = context.prepared(\"{}\");",
+        struct_insert_statement(name, fields)
+    )
 }
 
 fn retrieve_many_fn_name() -> String {
@@ -468,9 +437,9 @@ fn insert_vec_field(
     many_insert.line(&format!(
         "let prepared = context.prepared(\"{}\");",
         if is_tuple_struct {
-            PsqlInserter::list_entry_insert_statement(struct_name)
+            list_entry_insert_statement(struct_name)
         } else {
-            PsqlInserter::struct_list_entry_insert_statement(struct_name, field_name)
+            struct_list_entry_insert_statement(struct_name, field_name)
         }
     ));
     if inner_primitive {
@@ -584,8 +553,8 @@ impl AsyncPsqlInserter {
     fn append_retrieve_many_for_container_type(name: &str, impl_scope: &mut Impl) {
         let fn_retrieve_many = create_retrieve_many_fn(impl_scope);
         fn_retrieve_many.line(format!(
-            "let prepared = context.prepared(\"SELECT * FROM {} WHERE id = ANY($1)\").await?;",
-            name
+            "let prepared = context.prepared(\"{}\").await?;",
+            select_statement_many(name)
         ));
         fn_retrieve_many.line("let rows = context.transaction().query(&prepared, &[&ids]).await?;");
         fn_retrieve_many.line(format!(
@@ -598,8 +567,8 @@ impl AsyncPsqlInserter {
     fn append_retrieve_for_container_type(name: &str, impl_scope: &mut Impl) {
         let fn_retrieve = create_retrieve_fn(impl_scope, true);
         fn_retrieve.line(format!(
-            "let prepared = context.prepared(\"SELECT * FROM {} WHERE id = $1\").await?;",
-            name
+            "let prepared = context.prepared(\"{}\").await?;",
+            select_statement_single(name)
         ));
         fn_retrieve.line("let row = context.transaction().query_opt(&prepared, &[&id]).await?;");
         fn_retrieve.line(format!(
@@ -713,9 +682,9 @@ impl AsyncPsqlInserter {
             container.line(format!(
                 "let prepared = context.prepared(\"{}\").await?;",
                 if is_tuple_struct {
-                    PsqlInserter::list_entry_query_statement(struct_name, inner)
+                    list_entry_query_statement(struct_name, inner)
                 } else {
-                    PsqlInserter::struct_list_entry_select_value_statement(struct_name, field)
+                    struct_list_entry_select_value_statement(struct_name, field)
                 }
             ));
             container.line("let rows = context.transaction().query(&prepared, &[&row.try_get::<usize, i32>(0)?]).await?;");
@@ -737,9 +706,9 @@ impl AsyncPsqlInserter {
             container.line(format!(
                 "let prepared = context.prepared(\"{}\").await?;",
                 if is_tuple_struct {
-                    PsqlInserter::list_entry_query_statement(struct_name, inner.as_inner_type())
+                    list_entry_query_statement(struct_name, inner.as_inner_type())
                 } else {
-                    PsqlInserter::struct_list_entry_select_referenced_value_statement(
+                    struct_list_entry_select_referenced_value_statement(
                         struct_name,
                         field,
                         &inner.to_inner_type_string(),

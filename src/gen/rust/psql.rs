@@ -1,3 +1,4 @@
+use crate::gen::rust::shared_psql::*;
 use crate::gen::rust::GeneratorSupplement;
 use crate::gen::rust::RustCodeGenerator;
 use crate::model::sql::Sql;
@@ -146,26 +147,7 @@ impl PsqlInserter {
         if fields.is_empty() {
             Self::impl_tuple_insert_statement(function, name);
         } else {
-            function.line(&format!(
-                "\"INSERT INTO {}({}) VALUES({}) RETURNING id\"",
-                name,
-                fields
-                    .iter()
-                    .filter_map(|(name, field)| if field.is_vec() {
-                        None
-                    } else {
-                        Some(Model::sql_column_name(name))
-                    })
-                    .collect::<Vec<String>>()
-                    .join(", "),
-                fields
-                    .iter()
-                    .filter_map(|(name, field)| if field.is_vec() { None } else { Some(name) })
-                    .enumerate()
-                    .map(|(num, _)| format!("${}", num + 1))
-                    .collect::<Vec<String>>()
-                    .join(", "),
-            ));
+            function.line(&format!("\"{}\"", struct_insert_statement(name, fields)));
         }
     }
 
@@ -177,21 +159,7 @@ impl PsqlInserter {
         if fields.is_empty() {
             Self::impl_tuple_insert_statement(function, name);
         } else {
-            function.line(&format!(
-                "\"INSERT INTO {}({}) VALUES({}) RETURNING id\"",
-                name,
-                fields
-                    .iter()
-                    .map(|(name, _)| RustCodeGenerator::rust_module_name(name))
-                    .collect::<Vec<String>>()
-                    .join(", "),
-                fields
-                    .iter()
-                    .enumerate()
-                    .map(|(num, _)| format!("${}", num + 1))
-                    .collect::<Vec<String>>()
-                    .join(", "),
-            ));
+            function.line(&format!("\"{}\"", data_enum_insert_statement(name, fields)));
         }
     }
 
@@ -200,10 +168,7 @@ impl PsqlInserter {
     }
 
     fn impl_tuple_insert_statement(function: &mut Function, name: &str) {
-        function.line(&format!(
-            "\"INSERT INTO {} DEFAULT VALUES RETURNING id\"",
-            name
-        ));
+        function.line(&format!("\"{}\"", tuple_struct_insert_statement(name)));
     }
 
     fn impl_struct_insert_fn(
@@ -273,7 +238,7 @@ impl PsqlInserter {
                 let mut block = Block::new("");
                 block.line(&format!(
                     "let statement = transaction.prepare_cached(\"{}\")?;",
-                    &Self::struct_list_entry_insert_statement(struct_name, &name),
+                    &struct_list_entry_insert_statement(struct_name, &name),
                 ));
                 block.push_block(Self::list_insert_for_each(&name, &field, "index"));
                 function.push_block(block);
@@ -373,7 +338,7 @@ impl PsqlInserter {
         ));
         function.line(format!(
             "let statement = transaction.prepare_cached(\"{}\")?;",
-            Self::list_entry_insert_statement(name)
+            list_entry_insert_statement(name)
         ));
         function.push_block(Self::list_insert_for_each("0", rust, "list"));
         function.line("Ok(list)");
@@ -462,7 +427,7 @@ impl PsqlInserter {
     }
 
     fn impl_query_statement(func: &mut Function, name: &str) {
-        func.line(&format!("\"SELECT * FROM {} WHERE id = $1\"", name));
+        func.line(&format!("\"{}\"", select_statement_single(name)));
     }
 
     fn impl_empty_query_statement(func: &mut Function) {
@@ -470,10 +435,7 @@ impl PsqlInserter {
     }
 
     fn impl_tupl_query_statement(func: &mut Function, name: &str, inner: &RustType) {
-        func.line(&format!(
-            "\"{}\"",
-            Self::list_entry_query_statement(name, inner)
-        ));
+        func.line(&format!("\"{}\"", list_entry_query_statement(name, inner)));
     }
 
     fn impl_struct_query_fn(func: &mut Function, name: &str) {
@@ -515,13 +477,13 @@ impl PsqlInserter {
                         "let rows = transaction.prepare_cached(\"{}\")?.query(&[&row.get_opt::<usize, i32>(0).ok_or_else(PsqlError::no_result)??])?;",
 
                         if let RustType::Complex(complex) = rust.clone().into_inner_type() {
-                            Self::struct_list_entry_select_referenced_value_statement(
+                            struct_list_entry_select_referenced_value_statement(
                                 struct_name,
                                 name,
                                 &complex
                             )
                         } else {
-                            Self::struct_list_entry_select_value_statement(
+                            struct_list_entry_select_value_statement(
                                 struct_name, name
                             )
                         }
@@ -717,55 +679,5 @@ impl PsqlInserter {
             )
             .arg("row", &format!("&{}", ROW_TYPE))
             .ret(&format!("Result<Self, {}>", ERROR_TYPE))
-    }
-
-    pub(crate) fn struct_list_entry_insert_statement(
-        struct_name: &str,
-        field_name: &str,
-    ) -> String {
-        format!(
-            "INSERT INTO {}(list, value) VALUES ($1, $2)",
-            Model::<Sql>::struct_list_entry_table_name(struct_name, field_name),
-        )
-    }
-
-    pub(crate) fn struct_list_entry_select_referenced_value_statement(
-        struct_name: &str,
-        field_name: &str,
-        other_type: &str,
-    ) -> String {
-        let listentry_table = Model::<Sql>::struct_list_entry_table_name(struct_name, field_name);
-        format!(
-            "SELECT * FROM {} WHERE id IN (SELECT value FROM {} WHERE list = $1)",
-            RustCodeGenerator::rust_variant_name(other_type),
-            listentry_table,
-        )
-    }
-
-    pub(crate) fn struct_list_entry_select_value_statement(
-        struct_name: &str,
-        field_name: &str,
-    ) -> String {
-        let listentry_table = Model::<Sql>::struct_list_entry_table_name(struct_name, field_name);
-        format!("SELECT value FROM {} WHERE list = $1", listentry_table,)
-    }
-
-    pub(crate) fn list_entry_insert_statement(name: &str) -> String {
-        format!("INSERT INTO {}ListEntry(list, value) VALUES ($1, $2)", name)
-    }
-
-    pub(crate) fn list_entry_query_statement(name: &str, inner: &RustType) -> String {
-        if Model::<Sql>::is_primitive(inner) {
-            format!(
-                "SELECT value FROM {}ListEntry WHERE {}ListEntry.list = $1",
-                name, name
-            )
-        } else {
-            let inner = inner.clone().into_inner_type().to_string();
-            format!(
-                "SELECT * FROM {} INNER JOIN {}ListEntry ON {}.id = {}ListEntry.value WHERE {}ListEntry.list = $1",
-                inner, name, inner, name, name
-            )
-        }
     }
 }
