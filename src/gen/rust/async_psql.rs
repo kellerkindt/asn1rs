@@ -1,7 +1,7 @@
 use crate::gen::rust::psql::PsqlInserter;
 use crate::gen::rust::GeneratorSupplement;
 use crate::gen::RustCodeGenerator;
-use crate::model::sql::{Sql, ToSql};
+use crate::model::sql::{Sql, SqlType, ToSql};
 use crate::model::{Definition, Model, Rust, RustType};
 use codegen::{Block, Function, Impl, Scope};
 
@@ -122,20 +122,20 @@ fn impl_insert_fn_content(
     let mut primitives = Vec::default();
     let mut params = Vec::default();
     let mut to_await = Vec::default();
-    for insert in fields
-        .iter()
-        .filter(|(_field_name, r_type)| !r_type.is_vec())
-        .map(|(field_name, r_type)| {
-            insert_field(
+    for insert in fields.iter().filter_map(|(field_name, r_type)| {
+        if r_type.is_vec() {
+            None
+        } else {
+            Some(insert_field(
                 is_tuple_struct,
                 on_self,
                 name,
                 container,
                 &RustCodeGenerator::rust_field_name(field_name, true),
                 r_type,
-            )
-        })
-    {
+            ))
+        }
+    }) {
         match insert {
             FieldInsert::AsyncVec => {
                 panic!("Unexpected result, vecs should not appear here because filtered");
@@ -170,20 +170,20 @@ fn impl_insert_fn_content(
             .join(", ")
     ));
     to_await.clear();
-    for insert in fields
-        .iter()
-        .filter(|(_field_name, r_type)| r_type.is_vec())
-        .map(|(field_name, r_type)| {
-            insert_field(
+    for insert in fields.iter().filter_map(|(field_name, r_type)| {
+        if r_type.is_vec() {
+            Some(insert_field(
                 is_tuple_struct,
                 on_self,
                 name,
                 container,
                 &RustCodeGenerator::rust_field_name(field_name, true),
                 r_type,
-            )
-        })
-    {
+            ))
+        } else {
+            None
+        }
+    }) {
         match insert {
             FieldInsert::AsyncVec => {} // fine
             FieldInsert::AsyncComplex(name) => {
@@ -361,7 +361,7 @@ fn insert_optional_field_maybe_async(
                 struct_name,
                 &mut let_some,
                 field_name,
-                &next,
+                next,
                 true,
             );
         } else {
@@ -412,7 +412,7 @@ fn insert_optional_field_maybe_async(
                     block_some_inner.line(&format!("{}.await?", name));
                 }
                 FieldInsert::Primitive(name, _) => {
-                    block_some_inner.line(&format!("{}", name));
+                    block_some_inner.line(name);
                 }
             }
         }
@@ -559,7 +559,7 @@ impl Container for Block {
 impl AsyncPsqlInserter {
     fn append_retrieve_many_enums(impl_scope: &mut Impl) {
         let fn_retrieve_many = create_retrieve_many_fn(impl_scope);
-        fn_retrieve_many.line(format!("let mut result = Vec::with_capacity(ids.len());"));
+        fn_retrieve_many.line("let mut result = Vec::with_capacity(ids.len());");
         fn_retrieve_many.line(format!("for id in ids {{ result.push(Self::{}(context, *id).await?); }} // awaiting here is fine because {} returns immediately", retrieve_fn_name(), retrieve_fn_name()));
         fn_retrieve_many.line("Ok(result)");
         create_retrieve_fn(impl_scope).line(format!(
@@ -628,117 +628,31 @@ impl AsyncPsqlInserter {
         index: usize,
         field: &str,
         f_type: &RustType,
-    ) -> () {
+    ) {
         let sql = f_type.to_sql();
         if let RustType::Option(inner) = f_type {
-            if inner.is_vec() {
-                Self::append_load_field(
-                    is_tuple_struct,
-                    struct_name,
-                    container,
-                    index,
-                    field,
-                    &**inner,
-                );
-                container.line(format!(
-                    "let {} = if {}.is_empty() {{ None }} else {{ Some({}) }};",
-                    RustCodeGenerator::rust_field_name(field, true),
-                    RustCodeGenerator::rust_field_name(field, true),
-                    RustCodeGenerator::rust_field_name(field, true),
-                ))
-            } else if Model::<Sql>::is_primitive(inner) {
-                container.line(format!(
-                    "let {} = row.try_get::<usize, Option<{}>>({})?{};",
-                    RustCodeGenerator::rust_field_name(field, true),
-                    sql.to_rust().as_no_option().to_inner_type_string(),
-                    index + 1,
-                    if sql.to_rust().ne(f_type) {
-                        format!(".map(|v| v as {})", inner.to_inner_type_string())
-                    } else {
-                        String::default()
-                    }
-                ));
-            } else {
-                let mut block = Block::new(&format!(
-                    "let {} = if let Some({}) = row.try_get::<usize, Option<i32>>({})?",
-                    RustCodeGenerator::rust_field_name(field, false),
-                    RustCodeGenerator::rust_field_name(field, false),
-                    index + 1
-                ));
-                Self::append_load_complex_field(&mut block, field, &*inner);
-                block.line(format!(
-                    "Some({})",
-                    RustCodeGenerator::rust_field_name(field, false)
-                ));
-                block.after(" else { None };");
-                container.push_block(block);
-            }
+            AsyncPsqlInserter::append_load_option_field(
+                is_tuple_struct,
+                struct_name,
+                container,
+                index,
+                field,
+                f_type,
+                &sql,
+                &**inner,
+            )
         } else if let RustType::Vec(inner) = f_type {
-            if Model::<Sql>::is_primitive(inner) {
-                container.line(format!(
-                    "let prepared = context.prepared(\"{}\").await?;",
-                    if is_tuple_struct {
-                        PsqlInserter::list_entry_query_statement(struct_name, &**inner)
-                    } else {
-                        PsqlInserter::struct_list_entry_select_value_statement(struct_name, field)
-                    }
-                ));
-                container.line("let rows = context.transaction().query(&prepared, &[&row.try_get::<usize, i32>(0)?]).await?;");
-                container.line(format!(
-                    "let mut {} = Vec::with_capacity(rows.len());",
-                    RustCodeGenerator::rust_field_name(field, true)
-                ));
-                container.line(format!(
-                    "for row in rows {{ {}.push(row.try_get::<usize, {}>(0)?{}); }}",
-                    RustCodeGenerator::rust_field_name(field, true),
-                    inner.to_sql().to_rust().to_inner_type_string(),
-                    if sql.to_rust().ne(f_type) {
-                        format!(" as {}", f_type.to_inner_type_string())
-                    } else {
-                        String::default()
-                    }
-                ));
-            } else {
-                container.line(format!(
-                    "let prepared = context.prepared(\"{}\").await?;",
-                    if is_tuple_struct {
-                        PsqlInserter::list_entry_query_statement(
-                            struct_name,
-                            &inner.as_inner_type(),
-                        )
-                    } else {
-                        PsqlInserter::struct_list_entry_select_referenced_value_statement(
-                            struct_name,
-                            field,
-                            &inner.to_inner_type_string(),
-                        )
-                    }
-                ));
-                container.line("let rows = context.transaction().query(&prepared, &[&row.try_get::<usize, i32>(0)?]).await?;");
-                container.line(format!(
-                    "let mut {} = Vec::with_capacity(rows.len());",
-                    RustCodeGenerator::rust_field_name(field, true)
-                ));
-
-                container.line(format!(
-                    "for row in rows {{ {}.push({}::{}(context, &row).await?); }}",
-                    RustCodeGenerator::rust_field_name(field, true),
-                    inner.to_inner_type_string(),
-                    load_fn_name(),
-                ));
-            }
+            AsyncPsqlInserter::append_load_vec_field(
+                is_tuple_struct,
+                struct_name,
+                container,
+                field,
+                f_type,
+                &sql,
+                &**inner,
+            )
         } else if Model::<Sql>::is_primitive(f_type) {
-            container.line(format!(
-                "let {} = row.try_get::<usize, {}>({})?{};",
-                RustCodeGenerator::rust_field_name(field, true),
-                sql.to_rust().to_inner_type_string(),
-                index + 1,
-                if sql.to_rust().ne(f_type) {
-                    format!(" as {}", f_type.to_inner_type_string())
-                } else {
-                    String::default()
-                }
-            ));
+            AsyncPsqlInserter::append_load_primitive_field(container, index, field, f_type, &sql);
         } else {
             container.line(format!(
                 "let {} = row.try_get::<usize, i32>({})?;",
@@ -748,6 +662,135 @@ impl AsyncPsqlInserter {
             Self::append_load_complex_field(container, field, f_type)
         }
     }
+
+    fn append_load_primitive_field(
+        container: &mut impl Container,
+        index: usize,
+        field: &str,
+        f_type: &RustType,
+        sql: &SqlType,
+    ) {
+        container.line(format!(
+            "let {} = row.try_get::<usize, {}>({})?{};",
+            RustCodeGenerator::rust_field_name(field, true),
+            sql.to_rust().to_inner_type_string(),
+            index + 1,
+            if sql.to_rust().ne(f_type) {
+                format!(" as {}", f_type.to_inner_type_string())
+            } else {
+                String::default()
+            }
+        ));
+    }
+
+    fn append_load_vec_field(
+        is_tuple_struct: bool,
+        struct_name: &str,
+        container: &mut impl Container,
+        field: &str,
+        f_type: &RustType,
+        sql: &SqlType,
+        inner: &RustType,
+    ) {
+        if Model::<Sql>::is_primitive(inner) {
+            container.line(format!(
+                "let prepared = context.prepared(\"{}\").await?;",
+                if is_tuple_struct {
+                    PsqlInserter::list_entry_query_statement(struct_name, inner)
+                } else {
+                    PsqlInserter::struct_list_entry_select_value_statement(struct_name, field)
+                }
+            ));
+            container.line("let rows = context.transaction().query(&prepared, &[&row.try_get::<usize, i32>(0)?]).await?;");
+            container.line(format!(
+                "let mut {} = Vec::with_capacity(rows.len());",
+                RustCodeGenerator::rust_field_name(field, true)
+            ));
+            container.line(format!(
+                "for row in rows {{ {}.push(row.try_get::<usize, {}>(0)?{}); }}",
+                RustCodeGenerator::rust_field_name(field, true),
+                inner.to_sql().to_rust().to_inner_type_string(),
+                if sql.to_rust().ne(f_type) {
+                    format!(" as {}", f_type.to_inner_type_string())
+                } else {
+                    String::default()
+                }
+            ));
+        } else {
+            container.line(format!(
+                "let prepared = context.prepared(\"{}\").await?;",
+                if is_tuple_struct {
+                    PsqlInserter::list_entry_query_statement(struct_name, inner.as_inner_type())
+                } else {
+                    PsqlInserter::struct_list_entry_select_referenced_value_statement(
+                        struct_name,
+                        field,
+                        &inner.to_inner_type_string(),
+                    )
+                }
+            ));
+            container.line("let rows = context.transaction().query(&prepared, &[&row.try_get::<usize, i32>(0)?]).await?;");
+            container.line(format!(
+                "let mut {} = Vec::with_capacity(rows.len());",
+                RustCodeGenerator::rust_field_name(field, true)
+            ));
+
+            container.line(format!(
+                "for row in rows {{ {}.push({}::{}(context, &row).await?); }}",
+                RustCodeGenerator::rust_field_name(field, true),
+                inner.to_inner_type_string(),
+                load_fn_name(),
+            ));
+        }
+    }
+
+    fn append_load_option_field(
+        is_tuple_struct: bool,
+        struct_name: &str,
+        container: &mut impl Container,
+        index: usize,
+        field: &str,
+        f_type: &RustType,
+        sql: &SqlType,
+        inner: &RustType,
+    ) {
+        if inner.is_vec() {
+            Self::append_load_field(is_tuple_struct, struct_name, container, index, field, inner);
+            container.line(format!(
+                "let {} = if {}.is_empty() {{ None }} else {{ Some({}) }};",
+                RustCodeGenerator::rust_field_name(field, true),
+                RustCodeGenerator::rust_field_name(field, true),
+                RustCodeGenerator::rust_field_name(field, true),
+            ))
+        } else if Model::<Sql>::is_primitive(inner) {
+            container.line(format!(
+                "let {} = row.try_get::<usize, Option<{}>>({})?{};",
+                RustCodeGenerator::rust_field_name(field, true),
+                sql.to_rust().as_no_option().to_inner_type_string(),
+                index + 1,
+                if sql.to_rust().ne(f_type) {
+                    format!(".map(|v| v as {})", inner.to_inner_type_string())
+                } else {
+                    String::default()
+                }
+            ));
+        } else {
+            let mut block = Block::new(&format!(
+                "let {} = if let Some({}) = row.try_get::<usize, Option<i32>>({})?",
+                RustCodeGenerator::rust_field_name(field, false),
+                RustCodeGenerator::rust_field_name(field, false),
+                index + 1
+            ));
+            Self::append_load_complex_field(&mut block, field, inner);
+            block.line(format!(
+                "Some({})",
+                RustCodeGenerator::rust_field_name(field, false)
+            ));
+            block.after(" else { None };");
+            container.push_block(block);
+        }
+    }
+
     fn append_load_complex_field(container: &mut impl Container, field: &str, f_type: &RustType) {
         container.line(format!(
             "let {} = {}::{}(context, {}).await?;",

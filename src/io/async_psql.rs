@@ -83,7 +83,7 @@ impl<'i> Context<'i> {
         }
     }
 
-    pub fn transaction(&self) -> &Transaction<'i> {
+    pub const fn transaction(&self) -> &Transaction<'i> {
         &self.transaction
     }
 
@@ -170,6 +170,7 @@ pub enum Error {
 
 impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
+        #[allow(clippy::match_same_arms)]
         match self {
             Error::Psql(psql) => psql.source(),
             Error::UnexpectedVariant(_) => None,
