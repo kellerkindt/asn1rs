@@ -151,7 +151,7 @@ impl PsqlInserter {
                 name,
                 fields
                     .iter()
-                    .filter_map(|(name, field)| if Model::<Sql>::is_vec(field) {
+                    .filter_map(|(name, field)| if field.is_vec() {
                         None
                     } else {
                         Some(Model::sql_column_name(name))
@@ -160,11 +160,7 @@ impl PsqlInserter {
                     .join(", "),
                 fields
                     .iter()
-                    .filter_map(|(name, field)| if Model::<Sql>::is_vec(field) {
-                        None
-                    } else {
-                        Some(name)
-                    })
+                    .filter_map(|(name, field)| if field.is_vec() { None } else { Some(name) })
                     .enumerate()
                     .map(|(num, _)| format!("${}", num + 1))
                     .collect::<Vec<String>>()
@@ -220,7 +216,7 @@ impl PsqlInserter {
         for (name, rust) in fields {
             let name = RustCodeGenerator::rust_field_name(name, true);
             let sql_primitive = Model::<Sql>::is_primitive(rust);
-            let is_vec = Model::<Sql>::is_vec(rust);
+            let is_vec = rust.is_vec();
 
             if is_vec {
                 vecs.push((name.clone(), rust.clone()));
@@ -423,9 +419,9 @@ impl PsqlInserter {
                 Self::impl_struct_load_fn(
                     Self::new_load_fn(
                         implementation,
-                        fields.iter().any(|(_, rust)| {
-                            !Model::<Sql>::is_primitive(rust) || Model::<Sql>::is_vec(rust)
-                        }),
+                        fields
+                            .iter()
+                            .any(|(_, rust)| !Model::<Sql>::is_primitive(rust) || rust.is_vec()),
                     ),
                     name,
                     &fields[..],
@@ -507,7 +503,7 @@ impl PsqlInserter {
                 index_negative_offset += 1;
             }
 
-            if Model::<Sql>::is_vec(rust) {
+            if rust.is_vec() {
                 let mut load_block = Block::new(&format!(
                     "{}:",
                     RustCodeGenerator::rust_field_name(name, true)

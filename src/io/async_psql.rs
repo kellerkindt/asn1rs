@@ -9,7 +9,6 @@ use tokio_postgres::Transaction;
 
 pub use futures::future::join_all;
 pub use futures::future::try_join_all;
-use std::fmt::Formatter;
 pub use tokio::join;
 pub use tokio::try_join;
 pub use tokio_postgres::Error as PsqlError;

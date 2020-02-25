@@ -160,7 +160,7 @@ impl Model<Sql> {
             primary_key: true,
         });
         for (column, rust) in fields {
-            if Self::is_vec(rust) {
+            if rust.is_vec() {
                 let list_entry_name = Self::struct_list_entry_table_name(name, column);
                 let value_sql_type = rust.clone().into_inner_type().to_sql();
                 Self::add_list_table(name, &mut deferred, &list_entry_name, &value_sql_type);
@@ -378,13 +378,8 @@ impl Model<Sql> {
         ));
     }
 
-    #[deprecated(note = "Use `RustType::is_vec()` instead")]
-    pub fn is_vec(rust: &RustType) -> bool {
-        rust.is_vec()
-    }
-
     pub fn has_no_column_in_embedded_struct(rust: &RustType) -> bool {
-        Self::is_vec(rust)
+        rust.is_vec()
     }
 
     pub fn is_primitive(rust: &RustType) -> bool {
