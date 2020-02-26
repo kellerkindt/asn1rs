@@ -4,6 +4,12 @@ pub mod uper;
 #[cfg(feature = "psql")]
 pub mod psql;
 
+#[cfg(feature = "async-psql")]
+pub mod async_psql;
+
+#[cfg(any(feature = "psql", feature = "async-psql"))]
+pub(crate) mod shared_psql;
+
 use self::protobuf::ProtobufSerializer;
 use self::uper::UperSerializer;
 use crate::gen::Generator;
@@ -22,6 +28,9 @@ use codegen::Struct;
 #[cfg(feature = "psql")]
 use self::psql::PsqlInserter;
 
+#[cfg(feature = "async-psql")]
+use self::async_psql::AsyncPsqlInserter;
+
 const KEYWORDS: [&str; 9] = [
     "use", "mod", "const", "type", "pub", "enum", "struct", "impl", "trait",
 ];
@@ -29,6 +38,22 @@ const KEYWORDS: [&str; 9] = [
 pub trait GeneratorSupplement<T> {
     fn add_imports(&self, scope: &mut Scope);
     fn impl_supplement(&self, scope: &mut Scope, definition: &Definition<T>);
+    fn extend_impl_of_struct(
+        &self,
+        _name: &str,
+        _impl_scope: &mut Impl,
+        _fields: &[(String, RustType)],
+    ) {
+    }
+    fn extend_impl_of_enum(&self, _name: &str, _impl_scope: &mut Impl, _variants: &[String]) {}
+    fn extend_impl_of_data_enum(
+        &self,
+        _name: &str,
+        _impl_scope: &mut Impl,
+        _variants: &[(String, RustType)],
+    ) {
+    }
+    fn extend_impl_of_tuple(&self, _name: &str, _impl_scope: &mut Impl, _definition: &RustType) {}
 }
 
 #[allow(clippy::module_name_repetitions)]
@@ -76,6 +101,8 @@ impl Generator<Rust> for RustCodeGenerator {
                     &ProtobufSerializer,
                     #[cfg(feature = "psql")]
                     &PsqlInserter,
+                    #[cfg(feature = "async-psql")]
+                    &AsyncPsqlInserter,
                 ],
             ));
         }
@@ -127,7 +154,7 @@ impl RustCodeGenerator {
 
         for definition in &model.definitions {
             self.add_definition(&mut scope, definition);
-            Self::impl_definition(&mut scope, definition, self.getter_and_setter);
+            Self::impl_definition(&mut scope, definition, generators, self.getter_and_setter);
 
             generators
                 .iter()
@@ -206,22 +233,35 @@ impl RustCodeGenerator {
     fn impl_definition(
         scope: &mut Scope,
         Definition(name, rust): &Definition<Rust>,
+        generators: &[&dyn GeneratorSupplement<Rust>],
         getter_and_setter: bool,
     ) {
         match rust {
             Rust::Struct(fields) => {
-                Self::impl_struct(scope, name, fields, getter_and_setter);
+                let implementation = Self::impl_struct(scope, name, fields, getter_and_setter);
+                for g in generators {
+                    g.extend_impl_of_struct(name, implementation, fields);
+                }
             }
             Rust::Enum(variants) => {
-                Self::impl_enum(scope, name, variants);
+                let implementation = Self::impl_enum(scope, name, variants);
+                for g in generators {
+                    g.extend_impl_of_enum(name, implementation, variants);
+                }
                 Self::impl_enum_default(scope, name, variants);
             }
             Rust::DataEnum(variants) => {
-                Self::impl_data_enum(scope, name, variants);
+                let implementation = Self::impl_data_enum(scope, name, variants);
+                for g in generators {
+                    g.extend_impl_of_data_enum(name, implementation, variants);
+                }
                 Self::impl_data_enum_default(scope, name, variants);
             }
             Rust::TupleStruct(inner) => {
-                Self::impl_tuple_struct(scope, name, inner);
+                let implementation = Self::impl_tuple_struct(scope, name, inner);
+                for g in generators {
+                    g.extend_impl_of_tuple(name, implementation, inner);
+                }
                 Self::impl_tuple_struct_deref(scope, name, inner);
                 Self::impl_tuple_struct_deref_mut(scope, name, inner);
             }
@@ -249,17 +289,18 @@ impl RustCodeGenerator {
             .line("&mut self.0".to_string());
     }
 
-    fn impl_tuple_struct(scope: &mut Scope, name: &str, rust: &RustType) {
+    fn impl_tuple_struct<'a>(scope: &'a mut Scope, name: &str, rust: &RustType) -> &'a mut Impl {
         let implementation = scope.new_impl(name);
         Self::add_min_max_fn_if_applicable(implementation, "value", rust);
+        implementation
     }
 
-    fn impl_struct(
-        scope: &mut Scope,
+    fn impl_struct<'a>(
+        scope: &'a mut Scope,
         name: &str,
         fields: &[(String, RustType)],
         getter_and_setter: bool,
-    ) {
+    ) -> &'a mut Impl {
         let implementation = scope.new_impl(name);
 
         for (field_name, field_type) in fields.iter() {
@@ -271,6 +312,7 @@ impl RustCodeGenerator {
 
             Self::add_min_max_fn_if_applicable(implementation, field_name, field_type);
         }
+        implementation
     }
 
     fn impl_struct_field_get(implementation: &mut Impl, field_name: &str, field_type: &RustType) {
@@ -323,11 +365,34 @@ impl RustCodeGenerator {
             ));
     }
 
-    fn impl_enum(scope: &mut Scope, name: &str, variants: &[String]) {
+    fn impl_enum<'a>(scope: &'a mut Scope, name: &str, variants: &[String]) -> &'a mut Impl {
         let implementation = scope.new_impl(name);
 
+        Self::impl_enum_value_fn(implementation, name, variants);
         Self::impl_enum_values_fn(implementation, name, variants);
         Self::impl_enum_value_index_fn(implementation, name, variants);
+        implementation
+    }
+
+    fn impl_enum_value_fn(implementation: &mut Impl, name: &str, variants: &[String]) {
+        let value_fn = implementation
+            .new_fn("variant")
+            .vis("pub")
+            .arg("index", "usize")
+            .ret("Option<Self>");
+
+        let mut block_match = Block::new("match index");
+
+        for (index, variant) in variants.iter().enumerate() {
+            block_match.line(format!(
+                "{} => Some({}::{}),",
+                index,
+                name,
+                Self::rust_variant_name(variant)
+            ));
+        }
+        block_match.line("_ => None,");
+        value_fn.push_block(block_match);
     }
 
     fn impl_enum_values_fn(implementation: &mut Impl, name: &str, variants: &[String]) {
@@ -363,11 +428,16 @@ impl RustCodeGenerator {
         ordinal_fn.push_block(block);
     }
 
-    fn impl_data_enum(scope: &mut Scope, name: &str, variants: &[(String, RustType)]) {
+    fn impl_data_enum<'a>(
+        scope: &'a mut Scope,
+        name: &str,
+        variants: &[(String, RustType)],
+    ) -> &'a mut Impl {
         let implementation = scope.new_impl(name);
 
         Self::impl_data_enum_values_fn(implementation, name, variants);
         Self::impl_data_enum_value_index_fn(implementation, name, variants);
+        implementation
     }
 
     fn impl_data_enum_values_fn(

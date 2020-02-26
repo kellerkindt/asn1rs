@@ -160,7 +160,7 @@ impl Model<Sql> {
             primary_key: true,
         });
         for (column, rust) in fields {
-            if Self::is_vec(rust) {
+            if rust.is_vec() {
                 let list_entry_name = Self::struct_list_entry_table_name(name, column);
                 let value_sql_type = rust.clone().into_inner_type().to_sql();
                 Self::add_list_table(name, &mut deferred, &list_entry_name, &value_sql_type);
@@ -378,16 +378,17 @@ impl Model<Sql> {
         ));
     }
 
-    pub fn is_vec(rust: &RustType) -> bool {
-        if let RustType::Vec(_) = rust.clone().no_option() {
-            true
-        } else {
-            false
-        }
+    pub fn has_no_column_in_embedded_struct(rust: &RustType) -> bool {
+        rust.is_vec()
     }
 
-    pub fn has_no_column_in_embedded_struct(rust: &RustType) -> bool {
-        Self::is_vec(rust)
+    pub fn is_primitive(rust: &RustType) -> bool {
+        #[allow(clippy::match_same_arms)] // to have the same order as the original enum
+        match rust.clone().into_inner_type() {
+            RustType::String => true,
+            RustType::VecU8 => true,
+            r => r.is_primitive(),
+        }
     }
 
     pub fn struct_list_entry_table_name(struct_name: &str, field_name: &str) -> String {

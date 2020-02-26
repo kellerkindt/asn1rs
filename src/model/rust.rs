@@ -44,6 +44,17 @@ pub enum RustType {
 }
 
 impl RustType {
+    pub fn as_inner_type(&self) -> &RustType {
+        if self.is_primitive() {
+            return self;
+        }
+        if let RustType::Vec(inner) | RustType::Option(inner) = self {
+            inner.as_inner_type()
+        } else {
+            self
+        }
+    }
+
     pub fn into_inner_type(self) -> RustType {
         if self.is_primitive() {
             return self;
@@ -74,6 +85,22 @@ impl RustType {
         match self {
             RustType::Option(inner) => *inner,
             rust => rust,
+        }
+    }
+
+    pub fn as_no_option(&self) -> &Self {
+        if let RustType::Option(inner) = self {
+            inner.as_no_option()
+        } else {
+            self
+        }
+    }
+
+    pub fn is_vec(&self) -> bool {
+        if let RustType::Vec(_) = self.as_no_option() {
+            true
+        } else {
+            false
         }
     }
 
@@ -838,5 +865,4 @@ mod tests {
             model_rust.definitions[0]
         );
     }
-
 }

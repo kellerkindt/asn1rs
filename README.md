@@ -102,6 +102,12 @@ impl Header {
     pub fn timestamp_max() -> u32 {
         1_209_600_000
     }
+
+    // Insert and query functions for Async PostgreSQL
+    pub async fn apsql_retrieve_many(context: &apsql::Context<'_>, ids: &[i32]) -> Result<Vec<Self>, apsql::Error> { /*..*/ }
+    pub async fn apsql_retrieve(context: &apsql::Context<'_>, id: i32) -> Result<Self, apsql::Error> { /*..*/ }
+    pub async fn apsql_load(context: &apsql::Context<'_>, row: &apsql::Row) -> Result<Self, apsql::Error> { /*..*/ }
+    pub async fn apsql_insert(&self, context: &apsql::Context<'_>) -> Result<i32, apsql::PsqlError> { /*..*/ }
 }
 
 // Serialize and deserialize functions for ASN.1 UPER
@@ -139,6 +145,76 @@ CREATE TABLE Header (
 );
 ```
 
+### Example usage of async postgres
+NOTE: This requires the `async-psql` feature.
+
+Using async postgres allows the message - or the batched messages - to take advantage of [`pipelining`] automatically.
+This can provide a speedup (personal experience: at around 26%) compared to the synchronous/blocking postgres implementation.
+
+```rust
+use asn1rs::io::async_psql::*;
+use tokio_postgres::NoTls;
+
+#[tokio::main]
+async fn main() {
+    let transactional = true;
+    let (mut client, connection) = tokio_postgres::connect(
+        "host=localhost user=postgres application_name=psql_async_demo",
+        NoTls,
+    )
+        .await
+        .expect("Failed to connect");
+
+    tokio::spawn(connection);
+  
+
+    let context = if transactional {
+        let transaction = client
+            .transaction()
+            .await
+            .expect("Failed to open a new transaction");
+        Cache::default().into_transaction_context(transaction)
+    } else {
+        Cache::default().into_client_context(client)
+    };
+
+    // using sample message from above
+    let message = Header {
+        timestamp: 1234,
+    };
+   
+    // This issues all necessary insert statements on the given Context and
+    // because it does not require exclusive access to the context, you can
+    // issue multiple inserts and await them concurrently with for example
+    // tokio::try_join, futures::try_join_all or the like. 
+    let id = message.apsql_insert(&context).await.expect("Insert failed");
+    
+    // This disassembles the context, allowing the Transaction to be committed
+    // or rolled back. This operation also optimizes the read access to
+    // prepared statements of the Cache. If you do not want to do that, then call
+    // Context::split_unoptimized instead.
+    // You can also call `Cache::optimize()` manually to optimize the read access
+    // to the cached prepared statements.
+    // See the doc for more information about the usage of cached prepared statements
+    let (mut cache, transaction) = context.split();
+   
+    // this is (logically) a nop on a non-transactional context
+    transaction.commit().await.expect("failed to commit");
+
+    let context = if transactional {
+        let transaction = client
+            .transaction()
+            .await
+            .expect("Failed to open a new transaction");
+        Cache::default().into_transaction_context(transaction)
+    } else {
+        Cache::default().into_client_context(client)
+    };
+
+    let message_from_db = Header::apsql_retrieve(&context, id).await.expect("Failed to load");
+    assert_eq!(message, message_from_db);
+}
+```
 
 ## Good to know
 The module ```asn1rs::io``` exposes (de-)serializers and helpers for direct usage without ASN.1 definitons:
@@ -167,6 +243,7 @@ send_to_another_host(buffer):
    - UPER
    - Protobuf
    - PostgreSQL
+   - async PostgreSQL
  - Generating Protobuf Definitions
  - Generating PostgreSQL Schema files
  - Support for the following ASN.1 datatypes:
@@ -191,7 +268,6 @@ send_to_another_host(buffer):
 Things to do at some point in time
   - support ```#![no_std]```
   - refactor / clean-up (rust) code-generators
-  - async postgres
 
 
 ### LICENSE
@@ -200,3 +276,5 @@ MIT/Apache-2.0
 
 ### About
 This crate was initially developed during a research project at IT-Designers GmbH (http://www.it-designers.de).
+
+[`pipelining`]: https://docs.rs/tokio-postgres/0.5.2/tokio_postgres/#pipelining

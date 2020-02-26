@@ -1,6 +1,6 @@
 [package]
 name = "asn1rs"
-version = "0.1.13"
+version = "0.1.14"
 authors = ["Michael Watzko <michael@watzko.de>"]
 edition = "2018"
 description = "ASN.1 to Rust, Protobuf and SQL compiler/code generator. Supports ASN.1 UPER"
@@ -23,15 +23,21 @@ path = "src/main.rs"
 [dependencies]
 backtrace = "0.3.9"
 clap = "2.32.0"
-codegen = "0.1.0"
+codegen = "0.1.1"
 byteorder = "1.2.4"
 
 postgres = { version = "0.15.2", optional = true }
+
+tokio = { version = "0.2.11", optional = true, features = ["macros"]  }
+tokio-postgres = { version = "0.5.2", optional = true }
+futures = { version = "0.3.4", optional = true }
+bytes = { version = "0.5.4", optional = true }
 
 
 [features]
 default = []
 psql = ["postgres"]
+async-psql = ["tokio", "tokio-postgres", "futures", "bytes"]
 legacy_bit_buffer = []
 
 [[bench]]
