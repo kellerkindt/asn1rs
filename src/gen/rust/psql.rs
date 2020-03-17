@@ -498,9 +498,8 @@ impl PsqlInserter {
                     let rust = rust.clone().into_inner_type();
                     let sql = rust.to_sql();
                     rows_foreach.line(&format!(
-                        "let value = row.get_opt::<usize, {}>({}).ok_or_else({}::no_result)??;",
+                        "let value = row.get_opt::<usize, {}>(0).ok_or_else({}::no_result)??;",
                         sql.to_rust().to_string(),
-                        index + 1,
                         ERROR_TYPE,
                     ));
                     if rust < sql.to_rust() {
