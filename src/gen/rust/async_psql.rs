@@ -734,6 +734,7 @@ impl AsyncPsqlInserter {
         }
     }
 
+    #[allow(clippy::too_many_arguments)] // for now this is fine-ish
     fn append_load_option_field(
         is_tuple_struct: bool,
         struct_name: &str,
