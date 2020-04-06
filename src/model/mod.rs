@@ -107,7 +107,6 @@ impl Model<Asn> {
                         Token::Text(s) => {
                             let lower = s.to_lowercase();
                             if s.eq(",") {
-
                             } else if lower.eq("from") {
                                 let token = iter.next().ok_or(Error::UnexpectedEndOfStream)?;
                                 if let Token::Text(from) = token {
@@ -149,6 +148,11 @@ impl Model<Asn> {
             .map_or(false, |s| s.eq_ignore_ascii_case("CHOICE"))
         {
             Ok(Definition(name, Asn::Choice(Self::read_choice(iter)?)))
+        } else if let Some(text) = token.text() {
+            Ok(Definition(
+                name,
+                Self::read_role_given_text(iter, text.to_string())?,
+            ))
         } else {
             Err(Error::UnexpectedToken(Backtrace::new(), token))
         }
@@ -156,6 +160,10 @@ impl Model<Asn> {
 
     fn read_role(iter: &mut IntoIter<Token>) -> Result<Asn, Error> {
         let text = Self::next_text(iter)?;
+        Self::read_role_given_text(iter, text)
+    }
+
+    fn read_role_given_text(iter: &mut IntoIter<Token>, text: String) -> Result<Asn, Error> {
         if text.eq_ignore_ascii_case("INTEGER") {
             Self::next_separator_ignore_case(iter, '(')?;
             let start = Self::next_text(iter)?;
@@ -388,7 +396,7 @@ pub(crate) mod tests {
                         role: Asn::Integer(None),
                         optional: true,
                     }
-                ])
+                ]),
             ),
             model.definitions[0]
         );
@@ -430,7 +438,7 @@ pub(crate) mod tests {
                         "THE_CAKE_IS_A_LIE".into()
                     ]),
                     optional: true,
-                }])
+                }]),
             ),
             model.definitions[0]
         );
@@ -463,7 +471,7 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "Ones".into(),
-                Asn::SequenceOf(Box::new(Asn::Integer(Some(Range(0, 1)))))
+                Asn::SequenceOf(Box::new(Asn::Integer(Some(Range(0, 1))))),
             ),
             model.definitions[0]
         );
@@ -472,7 +480,7 @@ pub(crate) mod tests {
                 "NestedOnes".into(),
                 Asn::SequenceOf(Box::new(Asn::SequenceOf(Box::new(Asn::Integer(Some(
                     Range(0, 1)
-                ))))))
+                )))))),
             ),
             model.definitions[1]
         );
@@ -499,7 +507,7 @@ pub(crate) mod tests {
                         ))))),
                         optional: true,
                     },
-                ])
+                ]),
             ),
             model.definitions[2]
         );
@@ -538,7 +546,7 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "This".into(),
-                Asn::SequenceOf(Box::new(Asn::Integer(Some(Range(0, 1)))))
+                Asn::SequenceOf(Box::new(Asn::Integer(Some(Range(0, 1))))),
             ),
             model.definitions[0]
         );
@@ -547,14 +555,14 @@ pub(crate) mod tests {
                 "That".into(),
                 Asn::SequenceOf(Box::new(Asn::SequenceOf(Box::new(Asn::Integer(Some(
                     Range(0, 1)
-                ))))))
+                )))))),
             ),
             model.definitions[1]
         );
         assert_eq!(
             Definition(
                 "Neither".into(),
-                Asn::Enumerated(vec!["ABC".into(), "DEF".into(),])
+                Asn::Enumerated(vec!["ABC".into(), "DEF".into(),]),
             ),
             model.definitions[2]
         );
@@ -568,8 +576,8 @@ pub(crate) mod tests {
                         ChoiceEntry("that".into(), Asn::TypeReference("That".into())),
                         ChoiceEntry("neither".into(), Asn::TypeReference("Neither".into())),
                     ]),
-                    optional: false
-                }])
+                    optional: false,
+                }]),
             ),
             model.definitions[3]
         );
@@ -619,7 +627,7 @@ pub(crate) mod tests {
                         },
                     ]),
                     optional: true,
-                }])
+                }]),
             ),
             model.definitions[0]
         );
@@ -644,6 +652,51 @@ pub(crate) mod tests {
         model.name = "DRYModule".into();
         model.make_names_nice();
         assert_eq!("dry", model.to_rust().name);
+    }
+
+    #[test]
+    pub fn test_integer_type_with_range() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r"
+            SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
+            BEGIN
+    
+            SimpleTypeWithRange ::= Integer (0..65535)
+            
+            END
+        ",
+        ))
+        .expect("Failed to parse");
+
+        assert_eq!("SimpleSchema", &model.name);
+        assert_eq!(
+            &[Definition(
+                "SimpleTypeWithRange".to_string(),
+                Asn::Integer(Some(Range(0, 65_535)))
+            )][..],
+            &model.definitions[..]
+        )
+    }
+
+    #[test]
+    pub fn test_string_type() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r"
+            SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
+            BEGIN
+    
+            SimpleStringType ::= UTF8String
+            
+            END
+        ",
+        ))
+        .expect("Failed to parse");
+
+        assert_eq!("SimpleSchema", &model.name);
+        assert_eq!(
+            &[Definition("SimpleStringType".to_string(), Asn::UTF8String)][..],
+            &model.definitions[..]
+        )
     }
 }
 
