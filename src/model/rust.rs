@@ -323,11 +323,20 @@ impl Model<Rust> {
                 defs.push(Definition(name.into(), Rust::DataEnum(rust_entries)));
             }
 
-            Asn::Enumerated(variants) => {
-                let mut rust_variants = Vec::with_capacity(variants.len());
+            Asn::Enumerated(enumerated) => {
+                let mut rust_variants = Vec::with_capacity(enumerated.len());
 
-                for variant in variants.iter() {
-                    rust_variants.push(rust_variant_name(variant));
+                if enumerated.default().is_some() {
+                    // TODO not yet supported
+                    panic!("Default variant for ENUMERATED is not yet supported");
+                }
+
+                for variant in enumerated.variants() {
+                    if variant.number.is_some() {
+                        // TODO not yet supported
+                        panic!("Variants with non-auto numbers are not yet supported")
+                    }
+                    rust_variants.push(rust_variant_name(variant.name()));
                 }
 
                 defs.push(Definition(name.into(), Rust::Enum(rust_variants)));
@@ -443,7 +452,7 @@ pub fn rust_module_name(name: &str) -> String {
 mod tests {
     use super::*;
     use crate::model::tests::*;
-    use crate::model::Field;
+    use crate::model::{Enumerated, Field};
     use crate::parser::Tokenizer;
 
     #[test]
@@ -655,11 +664,9 @@ mod tests {
         let mut model_asn = Model::default();
         model_asn.definitions.push(Definition(
             "SimpleEnumTest".into(),
-            Asn::Enumerated(vec![
-                "Bernd".into(),
-                "Das-Verdammte".into(),
-                "Brooot".into(),
-            ]),
+            Asn::Enumerated(Enumerated::from_names(
+                ["Bernd", "Das-Verdammte", "Brooot"].iter(),
+            )),
         ));
 
         let model_rust = model_asn.to_rust();

@@ -10,7 +10,23 @@ pub use self::protobuf::ProtobufType;
 
 use crate::parser::Token;
 use backtrace::Backtrace;
+use std::convert::TryFrom;
 use std::vec::IntoIter;
+
+macro_rules! loop_ctrl_separator {
+    ($separator:expr) => {
+        match $separator {
+            ',' => continue,
+            '}' => break,
+            separator => {
+                return Err(Error::UnexpectedToken(
+                    Backtrace::new(),
+                    Token::Separator(separator),
+                ));
+            }
+        }
+    };
+}
 
 #[derive(Debug)]
 pub enum Error {
@@ -20,6 +36,7 @@ pub enum Error {
     MissingModuleName,
     UnexpectedEndOfStream,
     InvalidRangeValue,
+    InvalidNumberForEnumVariant(Backtrace, String),
 }
 
 #[derive(Debug, Clone)]
@@ -141,7 +158,7 @@ impl Model<Asn> {
         {
             Ok(Definition(
                 name,
-                Asn::Enumerated(Self::read_enumerated(iter)?),
+                Asn::Enumerated(Enumerated::try_from(iter)?),
             ))
         } else if token
             .text()
@@ -198,7 +215,7 @@ impl Model<Asn> {
         } else if text.eq_ignore_ascii_case("CHOICE") {
             Ok(Asn::Choice(Self::read_choice(iter)?))
         } else if text.eq_ignore_ascii_case("ENUMERATED") {
-            Ok(Asn::Enumerated(Self::read_enumerated(iter)?))
+            Ok(Asn::Enumerated(Enumerated::try_from(iter)?))
         } else if text.eq_ignore_ascii_case("SEQUENCE") {
             Ok(Self::read_sequence_or_sequence_of(iter)?)
         } else {
@@ -237,21 +254,6 @@ impl Model<Asn> {
                 }
             }
         }
-    }
-
-    fn read_enumerated(iter: &mut IntoIter<Token>) -> Result<Vec<String>, Error> {
-        Self::next_separator_ignore_case(iter, '{')?;
-        let mut enumeration = Vec::new();
-
-        loop {
-            enumeration.push(Self::next_text(iter)?);
-            let separator = Self::next_seperator(iter)?;
-            if separator == '}' {
-                break;
-            }
-        }
-
-        Ok(enumeration)
     }
 
     fn read_choice(iter: &mut IntoIter<Token>) -> Result<Vec<ChoiceEntry>, Error> {
@@ -430,13 +432,9 @@ pub(crate) mod tests {
                 "Woah".into(),
                 Asn::Sequence(vec![Field {
                     name: "decision".into(),
-                    role: Asn::Enumerated(vec![
-                        "ABORT".into(),
-                        "RETURN".into(),
-                        "CONFIRM".into(),
-                        "MAYDAY".into(),
-                        "THE_CAKE_IS_A_LIE".into()
-                    ]),
+                    role: Asn::Enumerated(Enumerated::from_names(
+                        ["ABORT", "RETURN", "CONFIRM", "MAYDAY", "THE_CAKE_IS_A_LIE",].iter()
+                    )),
                     optional: true,
                 }]),
             ),
@@ -562,7 +560,7 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "Neither".into(),
-                Asn::Enumerated(vec!["ABC".into(), "DEF".into(),]),
+                Asn::Enumerated(Enumerated::from_names(["ABC".into(), "DEF".into()].iter())),
             ),
             model.definitions[2]
         );
@@ -672,7 +670,7 @@ pub(crate) mod tests {
         assert_eq!(
             &[Definition(
                 "SimpleTypeWithRange".to_string(),
-                Asn::Integer(Some(Range(0, 65_535)))
+                Asn::Integer(Some(Range(0, 65_535))),
             )][..],
             &model.definitions[..]
         )
@@ -695,6 +693,105 @@ pub(crate) mod tests {
         assert_eq!("SimpleSchema", &model.name);
         assert_eq!(
             &[Definition("SimpleStringType".to_string(), Asn::UTF8String)][..],
+            &model.definitions[..]
+        )
+    }
+
+    #[test]
+    pub fn test_enumerated_advanced() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r"
+            SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
+            BEGIN
+    
+            Basic ::= ENUMERATED {
+                abc,
+                def
+            }
+    
+            WithExplicitNumber ::= ENUMERATED {
+                abc(1),
+                def(9)
+            }
+            
+            WithExplicitNumberAndDefaultMark ::= ENUMERATED {
+                abc(4),
+                def(7),
+                ...
+            }
+            
+            WithExplicitNumberAndDefaultMarkV2 ::= ENUMERATED {
+                abc(8),
+                def(1),
+                ...,
+                v2(11)
+            }
+            
+            END
+        ",
+        ))
+        .expect("Failed to parse");
+
+        assert_eq!("SimpleSchema", &model.name);
+        assert_eq!(
+            &[
+                Definition(
+                    "Basic".to_string(),
+                    Asn::Enumerated(Enumerated::from_names(["abc", "def"].iter())),
+                ),
+                Definition(
+                    "WithExplicitNumber".to_string(),
+                    Asn::Enumerated(Enumerated {
+                        variants: vec![
+                            EnumeratedVariant {
+                                name: "abc".to_string(),
+                                number: Some(1)
+                            },
+                            EnumeratedVariant {
+                                name: "def".to_string(),
+                                number: Some(9)
+                            }
+                        ],
+                        default: None,
+                    }),
+                ),
+                Definition(
+                    "WithExplicitNumberAndDefaultMark".to_string(),
+                    Asn::Enumerated(Enumerated {
+                        variants: vec![
+                            EnumeratedVariant {
+                                name: "abc".to_string(),
+                                number: Some(4)
+                            },
+                            EnumeratedVariant {
+                                name: "def".to_string(),
+                                number: Some(7)
+                            },
+                        ],
+                        default: Some(1),
+                    }),
+                ),
+                Definition(
+                    "WithExplicitNumberAndDefaultMarkV2".to_string(),
+                    Asn::Enumerated(Enumerated {
+                        variants: vec![
+                            EnumeratedVariant {
+                                name: "abc".to_string(),
+                                number: Some(8)
+                            },
+                            EnumeratedVariant {
+                                name: "def".to_string(),
+                                number: Some(1)
+                            },
+                            EnumeratedVariant {
+                                name: "v2".to_string(),
+                                number: Some(11)
+                            }
+                        ],
+                        default: Some(1),
+                    }),
+                )
+            ][..],
             &model.definitions[..]
         )
     }
@@ -731,7 +828,116 @@ pub enum Asn {
 
     SequenceOf(Box<Asn>),
     Sequence(Vec<Field<Asn>>),
-    Enumerated(Vec<String>),
+    Enumerated(Enumerated),
     Choice(Vec<ChoiceEntry>),
     TypeReference(String),
+}
+
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub struct Enumerated {
+    variants: Vec<EnumeratedVariant>,
+    default: Option<usize>,
+}
+
+impl Enumerated {
+    #[cfg(test)]
+    pub(crate) fn from_names<'a, 'b: 'a>(variants: impl Iterator<Item = &'a &'b str>) -> Self {
+        Self {
+            variants: variants
+                .map(|name| EnumeratedVariant::from_name(name))
+                .collect(),
+            default: None,
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.variants.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.variants.is_empty()
+    }
+
+    pub fn variants(&self) -> impl Iterator<Item = &EnumeratedVariant> {
+        self.variants.iter()
+    }
+
+    pub fn default(&self) -> Option<(usize, &EnumeratedVariant)> {
+        match self.default {
+            Some(index) if index < self.variants.len() => Some((index, &self.variants[index])),
+            _ => None,
+        }
+    }
+}
+
+impl TryFrom<&mut IntoIter<Token>> for Enumerated {
+    type Error = Error;
+
+    fn try_from(iter: &mut IntoIter<Token>) -> Result<Self, Self::Error> {
+        Model::<Asn>::next_separator_ignore_case(iter, '{')?;
+        let mut enumerated = Self {
+            variants: Vec::new(),
+            default: None,
+        };
+
+        loop {
+            match iter.next().ok_or(Error::UnexpectedEndOfStream)? {
+                Token::Text(variant_name) => match Model::<Asn>::next_seperator(iter)? {
+                    s @ ',' | s @ '}' => {
+                        enumerated.variants.push(EnumeratedVariant {
+                            name: variant_name,
+                            number: None,
+                        });
+                        loop_ctrl_separator!(s);
+                    }
+                    '(' => {
+                        let text = Model::<Asn>::next_text(iter)?;
+                        let number = text.parse::<usize>().map_err(|_| {
+                            Error::InvalidNumberForEnumVariant(Backtrace::new(), text)
+                        })?;
+                        Model::<Asn>::next_separator_ignore_case(iter, ')')?;
+                        enumerated.variants.push(EnumeratedVariant {
+                            name: variant_name,
+                            number: Some(number),
+                        });
+                        loop_ctrl_separator!(Model::<Asn>::next_seperator(iter)?);
+                    }
+                    separator => loop_ctrl_separator!(separator),
+                },
+                Token::Separator('.') if !enumerated.variants.is_empty() => {
+                    Model::<Asn>::next_separator_ignore_case(iter, '.')?;
+                    Model::<Asn>::next_separator_ignore_case(iter, '.')?;
+                    enumerated.default = Some(enumerated.variants.len() - 1);
+                    loop_ctrl_separator!(Model::<Asn>::next_seperator(iter)?);
+                }
+                token => return Err(Error::UnexpectedToken(Backtrace::new(), token)),
+            }
+        }
+
+        Ok(enumerated)
+    }
+}
+
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub struct EnumeratedVariant {
+    name: String,
+    number: Option<usize>,
+}
+
+impl EnumeratedVariant {
+    #[cfg(test)]
+    pub(crate) fn from_name(name: &str) -> Self {
+        Self {
+            name: name.to_string(),
+            number: None,
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn number(&self) -> Option<usize> {
+        self.number
+    }
 }
