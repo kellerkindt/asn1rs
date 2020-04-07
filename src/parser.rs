@@ -82,7 +82,7 @@ impl Token {
         self.separator().map(|s| s == separator).unwrap_or(false)
     }
 
-    pub fn text(&self) -> Option<&String> {
+    pub fn text(&self) -> Option<&str> {
         match self {
             Token::Text(_, text) => Some(text),
             _ => None,
@@ -142,7 +142,7 @@ impl Tokenizer {
             for (column_0, char) in content.iter().map(|c| c.chars()).flatten().enumerate() {
                 match char {
                     // asn syntax
-                    ':' | ';' | '=' | '(' | ')' | '{' | '}' | '.' | ',' => {
+                    ':' | ';' | '=' | '(' | ')' | '{' | '}' | '.' | ',' | '[' | ']' => {
                         token = Some(Token::Separator(
                             Location::at(line_0 + 1, column_0 + 1),
                             char,
@@ -203,7 +203,7 @@ mod tests {
 
     #[test]
     pub fn test_separator_tokens_not_merged() {
-        let result = Tokenizer.parse(":;=(){}.,");
+        let result = Tokenizer.parse(":;=(){}.,[]");
         let mut iter = result.into_iter();
         assert!(iter.next().unwrap().eq_separator(':'));
         assert!(iter.next().unwrap().eq_separator(';'));
@@ -214,6 +214,8 @@ mod tests {
         assert!(iter.next().unwrap().eq_separator('}'));
         assert!(iter.next().unwrap().eq_separator('.'));
         assert!(iter.next().unwrap().eq_separator(','));
+        assert!(iter.next().unwrap().eq_separator('['));
+        assert!(iter.next().unwrap().eq_separator(']'));
         assert!(iter.next().is_none());
     }
 
@@ -253,7 +255,7 @@ mod tests {
     #[test]
     pub fn test_token_text() {
         let token = Token::from("some text".to_string());
-        assert_eq!(token.text(), Some(&"some text".to_string()));
+        assert_eq!(token.text(), Some("some text"));
         assert_eq!(token.separator(), None);
     }
 

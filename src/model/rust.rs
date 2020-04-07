@@ -4,6 +4,7 @@ use crate::model::Definition;
 use crate::model::Import;
 use crate::model::Model;
 use crate::model::Range;
+use crate::model::Type as AsnType;
 
 const I8_MAX: i64 = i8::max_value() as i64;
 const I16_MAX: i64 = i16::max_value() as i64;
@@ -262,7 +263,7 @@ impl Model<Rust> {
         };
         for Definition(name, asn) in &asn_model.definitions {
             let rust_name = rust_struct_or_enum_name(name);
-            Self::definition_to_rust(&rust_name, asn, &mut model.definitions);
+            Self::definition_to_rust(&rust_name, &asn.r#type, &mut model.definitions);
         }
         model
     }
@@ -274,24 +275,24 @@ impl Model<Rust> {
     /// and can therefore be used to be inserted in the parent element.
     ///
     /// The name is expected in a valid and rusty way
-    pub fn definition_to_rust(name: &str, asn: &Asn, defs: &mut Vec<Definition<Rust>>) {
+    pub fn definition_to_rust(name: &str, asn: &AsnType, defs: &mut Vec<Definition<Rust>>) {
         match asn {
-            Asn::Boolean
-            | Asn::Integer(_)
-            | Asn::UTF8String
-            | Asn::OctetString
-            | Asn::TypeReference(_) => {
+            AsnType::Boolean
+            | AsnType::Integer(_)
+            | AsnType::UTF8String
+            | AsnType::OctetString
+            | AsnType::TypeReference(_) => {
                 let rust_type = Self::definition_type_to_rust_type(name, asn, defs);
                 defs.push(Definition(name.into(), Rust::TupleStruct(rust_type)));
             }
 
-            Asn::Sequence(fields) => {
+            AsnType::Sequence(fields) => {
                 let mut rust_fields = Vec::with_capacity(fields.len());
 
                 for field in fields.iter() {
                     let rust_name = format!("{}{}", name, rust_struct_or_enum_name(&field.name));
                     let rust_role =
-                        Self::definition_type_to_rust_type(&rust_name, &field.role, defs);
+                        Self::definition_type_to_rust_type(&rust_name, &field.role.r#type, defs);
                     let rust_field_name = rust_field_name(&field.name);
                     if field.optional {
                         rust_fields.push((rust_field_name, RustType::Option(Box::new(rust_role))));
@@ -303,19 +304,20 @@ impl Model<Rust> {
                 defs.push(Definition(name.into(), Rust::Struct(rust_fields)));
             }
 
-            Asn::SequenceOf(asn) => {
+            AsnType::SequenceOf(asn) => {
                 let inner = RustType::Vec(Box::new(Self::definition_type_to_rust_type(
                     name, asn, defs,
                 )));
                 defs.push(Definition(name.into(), Rust::TupleStruct(inner)));
             }
 
-            Asn::Choice(entries) => {
+            AsnType::Choice(entries) => {
                 let mut rust_entries = Vec::with_capacity(entries.len());
 
                 for ChoiceEntry(entry_name, asn) in entries.iter() {
                     let rust_name = format!("{}{}", name, rust_struct_or_enum_name(entry_name));
-                    let rust_role = Self::definition_type_to_rust_type(&rust_name, asn, defs);
+                    let rust_role =
+                        Self::definition_type_to_rust_type(&rust_name, &asn.r#type, defs);
                     let rust_field_name = rust_variant_name(entry_name);
                     rust_entries.push((rust_field_name, rust_role));
                 }
@@ -323,7 +325,7 @@ impl Model<Rust> {
                 defs.push(Definition(name.into(), Rust::DataEnum(rust_entries)));
             }
 
-            Asn::Enumerated(enumerated) => {
+            AsnType::Enumerated(enumerated) => {
                 let mut rust_variants = Vec::with_capacity(enumerated.len());
 
                 if enumerated.default().is_some() {
@@ -346,12 +348,12 @@ impl Model<Rust> {
 
     pub fn definition_type_to_rust_type(
         name: &str,
-        asn: &Asn,
+        asn: &AsnType,
         defs: &mut Vec<Definition<Rust>>,
     ) -> RustType {
         match asn {
-            Asn::Boolean => RustType::Bool,
-            Asn::Integer(Some(Range(min, max))) => {
+            AsnType::Boolean => RustType::Bool,
+            AsnType::Integer(Some(Range(min, max))) => {
                 let min = *min;
                 let max = *max;
                 if min >= 0 {
@@ -373,18 +375,18 @@ impl Model<Rust> {
                     }
                 }
             }
-            Asn::Integer(None) => RustType::U64(None),
-            Asn::UTF8String => RustType::String,
-            Asn::OctetString => RustType::VecU8,
-            Asn::SequenceOf(asn) => RustType::Vec(Box::new(Self::definition_type_to_rust_type(
-                name, asn, defs,
-            ))),
-            Asn::Sequence(_) | Asn::Enumerated(_) | Asn::Choice(_) => {
+            AsnType::Integer(None) => RustType::U64(None),
+            AsnType::UTF8String => RustType::String,
+            AsnType::OctetString => RustType::VecU8,
+            AsnType::SequenceOf(asn) => RustType::Vec(Box::new(
+                Self::definition_type_to_rust_type(name, asn, defs),
+            )),
+            AsnType::Sequence(_) | AsnType::Enumerated(_) | AsnType::Choice(_) => {
                 let name = rust_struct_or_enum_name(name);
                 Self::definition_to_rust(&name, asn, defs);
                 RustType::Complex(name)
             }
-            Asn::TypeReference(name) => RustType::Complex(name.clone()),
+            AsnType::TypeReference(name) => RustType::Complex(name.clone()),
         }
     }
 }
@@ -664,9 +666,10 @@ mod tests {
         let mut model_asn = Model::default();
         model_asn.definitions.push(Definition(
             "SimpleEnumTest".into(),
-            Asn::Enumerated(Enumerated::from_names(
+            AsnType::Enumerated(Enumerated::from_names(
                 ["Bernd", "Das-Verdammte", "Brooot"].iter(),
-            )),
+            ))
+            .untagged(),
         ));
 
         let model_rust = model_asn.to_rust();
@@ -686,10 +689,11 @@ mod tests {
         let mut model_asn = Model::default();
         model_asn.definitions.push(Definition(
             "SimpleChoiceTest".into(),
-            Asn::Choice(vec![
-                ChoiceEntry("bernd-das-brot".into(), Asn::UTF8String),
-                ChoiceEntry("nochSoEinBrot".into(), Asn::OctetString),
-            ]),
+            AsnType::Choice(vec![
+                ChoiceEntry("bernd-das-brot".into(), AsnType::UTF8String.untagged()),
+                ChoiceEntry("nochSoEinBrot".into(), AsnType::OctetString.untagged()),
+            ])
+            .untagged(),
         ));
 
         let model_rust = model_asn.to_rust();
@@ -712,16 +716,20 @@ mod tests {
         let mut model_asn = Model::default();
         model_asn.definitions.push(Definition(
             "ListChoiceTestWithNestedList".into(),
-            Asn::Choice(vec![
+            AsnType::Choice(vec![
                 ChoiceEntry(
                     "normal-List".into(),
-                    Asn::SequenceOf(Box::new(Asn::UTF8String)),
+                    AsnType::SequenceOf(Box::new(AsnType::UTF8String)).untagged(),
                 ),
                 ChoiceEntry(
                     "NESTEDList".into(),
-                    Asn::SequenceOf(Box::new(Asn::SequenceOf(Box::new(Asn::OctetString)))),
+                    AsnType::SequenceOf(Box::new(AsnType::SequenceOf(Box::new(
+                        AsnType::OctetString,
+                    ))))
+                    .untagged(),
                 ),
-            ]),
+            ])
+            .untagged(),
         ));
 
         let model_rust = model_asn.to_rust();
@@ -751,7 +759,7 @@ mod tests {
         model_asn.name = "TupleTestModel".into();
         model_asn.definitions.push(Definition(
             "TupleTest".into(),
-            Asn::SequenceOf(Box::new(Asn::UTF8String)),
+            AsnType::SequenceOf(Box::new(AsnType::UTF8String)).untagged(),
         ));
         let model_rust = model_asn.to_rust();
         assert_eq!("tuple_test_model", model_rust.name);
@@ -772,7 +780,8 @@ mod tests {
         model_asn.name = "TupleTestModel".into();
         model_asn.definitions.push(Definition(
             "NestedTupleTest".into(),
-            Asn::SequenceOf(Box::new(Asn::SequenceOf(Box::new(Asn::UTF8String)))),
+            AsnType::SequenceOf(Box::new(AsnType::SequenceOf(Box::new(AsnType::UTF8String))))
+                .untagged(),
         ));
         let model_rust = model_asn.to_rust();
         assert_eq!("tuple_test_model", model_rust.name);
@@ -795,11 +804,12 @@ mod tests {
         model_asn.name = "OptionalStructListTestModel".into();
         model_asn.definitions.push(Definition(
             "OptionalStructListTest".into(),
-            Asn::Sequence(vec![Field {
+            AsnType::Sequence(vec![Field {
                 name: "strings".into(),
-                role: Asn::SequenceOf(Box::new(Asn::UTF8String)),
+                role: AsnType::SequenceOf(Box::new(AsnType::UTF8String)).untagged(),
                 optional: true,
-            }]),
+            }])
+            .untagged(),
         ));
         let model_rust = model_asn.to_rust();
         assert_eq!("optional_struct_list_test_model", model_rust.name);
@@ -823,11 +833,12 @@ mod tests {
         model_asn.name = "StructListTestModel".into();
         model_asn.definitions.push(Definition(
             "StructListTest".into(),
-            Asn::Sequence(vec![Field {
+            AsnType::Sequence(vec![Field {
                 name: "strings".into(),
-                role: Asn::SequenceOf(Box::new(Asn::UTF8String)),
+                role: AsnType::SequenceOf(Box::new(AsnType::UTF8String)).untagged(),
                 optional: false,
-            }]),
+            }])
+            .untagged(),
         ));
         let model_rust = model_asn.to_rust();
         assert_eq!("struct_list_test_model", model_rust.name);
@@ -851,11 +862,15 @@ mod tests {
         model_asn.name = "NestedStructListTestModel".into();
         model_asn.definitions.push(Definition(
             "NestedStructListTest".into(),
-            Asn::Sequence(vec![Field {
+            AsnType::Sequence(vec![Field {
                 name: "strings".into(),
-                role: Asn::SequenceOf(Box::new(Asn::SequenceOf(Box::new(Asn::UTF8String)))),
+                role: AsnType::SequenceOf(Box::new(AsnType::SequenceOf(Box::new(
+                    AsnType::UTF8String,
+                ))))
+                .untagged(),
                 optional: false,
-            }]),
+            }])
+            .untagged(),
         ));
         let model_rust = model_asn.to_rust();
         assert_eq!("nested_struct_list_test_model", model_rust.name);

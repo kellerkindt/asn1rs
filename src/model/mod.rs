@@ -38,9 +38,14 @@ pub enum Error {
     UnexpectedEndOfStream(Backtrace),
     InvalidRangeValue(Backtrace, Token),
     InvalidNumberForEnumVariant(Backtrace, Token),
+    InvalidTag(Backtrace, Token),
 }
 
 impl Error {
+    pub fn invalid_tag(token: Token) -> Self {
+        Error::InvalidTag(Backtrace::new(), token)
+    }
+
     pub fn invalid_number_for_enum_variant(token: Token) -> Self {
         Error::InvalidNumberForEnumVariant(Backtrace::new(), token)
     }
@@ -84,6 +89,7 @@ impl Error {
             Error::UnexpectedEndOfStream(bt) => Some(bt),
             Error::InvalidRangeValue(bt, _) => Some(bt),
             Error::InvalidNumberForEnumVariant(bt, _) => Some(bt),
+            Error::InvalidTag(bt, _) => Some(bt),
         }
     }
 }
@@ -154,6 +160,13 @@ impl Display for Error {
             Error::InvalidNumberForEnumVariant(_, token) => write!(
                 f,
                 "At line {}, column {} an invalid value for an enum variant was encountered: {}",
+                token.location().line(),
+                token.location().column(),
+                token,
+            ),
+            Error::InvalidTag(_, token) => write!(
+                f,
+                "At line {}, column {} an invalid value for a tag was encountered: {}",
                 token.location().line(),
                 token.location().column(),
                 token,
@@ -249,39 +262,51 @@ impl Model<Asn> {
         Self::next_separator_ignore_case(iter, ':')?;
         Self::next_separator_ignore_case(iter, '=')?;
 
-        let token = Self::next(iter)?;
+        let (token, tag) = Self::next_with_opt_tag(iter)?;
 
-        if token.text().map_or(false, |s| s.eq("SEQUENCE")) {
-            Ok(Definition(name, Self::read_sequence_or_sequence_of(iter)?))
-        } else if token
-            .text()
-            .map_or(false, |s| s.eq_ignore_ascii_case("ENUMERATED"))
-        {
+        if token.eq_text_ignore_ascii_case("SEQUENCE") {
             Ok(Definition(
                 name,
-                Asn::Enumerated(Enumerated::try_from(iter)?),
+                Self::read_sequence_or_sequence_of(iter)?.opt_tagged(tag),
             ))
-        } else if token
-            .text()
-            .map_or(false, |s| s.eq_ignore_ascii_case("CHOICE"))
-        {
-            Ok(Definition(name, Asn::Choice(Self::read_choice(iter)?)))
+        } else if token.eq_text_ignore_ascii_case("ENUMERATED") {
+            Ok(Definition(
+                name,
+                Type::Enumerated(Enumerated::try_from(iter)?).opt_tagged(tag),
+            ))
+        } else if token.eq_text_ignore_ascii_case("CHOICE") {
+            Ok(Definition(
+                name,
+                Type::Choice(Self::read_choice(iter)?).opt_tagged(tag),
+            ))
         } else if let Some(text) = token.text() {
             Ok(Definition(
                 name,
-                Self::read_role_given_text(iter, text.to_string())?,
+                Self::read_role_given_text(iter, text.to_string())?.opt_tagged(tag),
             ))
         } else {
             Err(Error::unexpected_token(token))
         }
     }
 
-    fn read_role(iter: &mut IntoIter<Token>) -> Result<Asn, Error> {
+    fn next_with_opt_tag(iter: &mut IntoIter<Token>) -> Result<(Token, Option<Tag>), Error> {
+        let token = Self::next(iter)?;
+        if token.eq_separator('[') {
+            let tag = Tag::try_from(&mut *iter)?;
+            Self::next_separator_ignore_case(iter, ']')?;
+            let token = Self::next(iter)?;
+            Ok((token, Some(tag)))
+        } else {
+            Ok((token, None))
+        }
+    }
+
+    fn read_role(iter: &mut IntoIter<Token>) -> Result<Type, Error> {
         let text = Self::next_text(iter)?;
         Self::read_role_given_text(iter, text)
     }
 
-    fn read_role_given_text(iter: &mut IntoIter<Token>, text: String) -> Result<Asn, Error> {
+    fn read_role_given_text(iter: &mut IntoIter<Token>, text: String) -> Result<Type, Error> {
         if text.eq_ignore_ascii_case("INTEGER") {
             Self::next_separator_ignore_case(iter, '(')?;
             let start = Self::next(iter)?;
@@ -290,9 +315,9 @@ impl Model<Asn> {
             let end = Self::next(iter)?;
             Self::next_separator_ignore_case(iter, ')')?;
             if start.eq_text("0") && end.eq_text_ignore_ascii_case("MAX") {
-                Ok(Asn::Integer(None))
+                Ok(Type::Integer(None))
             } else {
-                Ok(Asn::Integer(Some(Range(
+                Ok(Type::Integer(Some(Range(
                     start
                         .text()
                         .and_then(|t| t.parse::<i64>().ok())
@@ -303,32 +328,32 @@ impl Model<Asn> {
                 ))))
             }
         } else if text.eq_ignore_ascii_case("BOOLEAN") {
-            Ok(Asn::Boolean)
+            Ok(Type::Boolean)
         } else if text.eq_ignore_ascii_case("UTF8String") {
-            Ok(Asn::UTF8String)
+            Ok(Type::UTF8String)
         } else if text.eq_ignore_ascii_case("OCTET") {
             let token = Self::next(iter)?;
             if token.text().map_or(false, |t| t.eq("STRING")) {
-                Ok(Asn::OctetString)
+                Ok(Type::OctetString)
             } else {
                 Err(Error::unexpected_token(token))
             }
         } else if text.eq_ignore_ascii_case("CHOICE") {
-            Ok(Asn::Choice(Self::read_choice(iter)?))
+            Ok(Type::Choice(Self::read_choice(iter)?))
         } else if text.eq_ignore_ascii_case("ENUMERATED") {
-            Ok(Asn::Enumerated(Enumerated::try_from(iter)?))
+            Ok(Type::Enumerated(Enumerated::try_from(iter)?))
         } else if text.eq_ignore_ascii_case("SEQUENCE") {
             Ok(Self::read_sequence_or_sequence_of(iter)?)
         } else {
-            Ok(Asn::TypeReference(text))
+            Ok(Type::TypeReference(text))
         }
     }
 
-    fn read_sequence_or_sequence_of(iter: &mut IntoIter<Token>) -> Result<Asn, Error> {
+    fn read_sequence_or_sequence_of(iter: &mut IntoIter<Token>) -> Result<Type, Error> {
         let token = Self::next(iter)?;
 
         if token.eq_text_ignore_ascii_case("OF") {
-            Ok(Asn::SequenceOf(Box::new(Self::read_role(iter)?)))
+            Ok(Type::SequenceOf(Box::new(Self::read_role(iter)?)))
         } else if token.eq_separator('{') {
             let mut fields = Vec::new();
 
@@ -340,7 +365,7 @@ impl Model<Asn> {
                 }
             }
 
-            Ok(Asn::Sequence(fields))
+            Ok(Type::Sequence(fields))
         } else {
             Err(Error::unexpected_token(token))
         }
@@ -362,9 +387,12 @@ impl Model<Asn> {
     }
 
     fn read_field(iter: &mut IntoIter<Token>) -> Result<(Field<Asn>, bool), Error> {
+        let name = Self::next_text(iter)?;
+        let (token, tag) = Self::next_with_opt_tag(iter)?;
         let mut field = Field {
-            name: Self::next_text(iter)?,
-            role: Self::read_role(iter)?,
+            name,
+            role: Self::read_role_given_text(iter, token.into_text_or_else(Error::no_text)?)?
+                .opt_tagged(tag),
             optional: false,
         };
         let mut token = Self::next(iter)?;
@@ -426,454 +454,6 @@ impl Model<Asn> {
         Model::convert_asn_to_rust(self)
     }
 }
-
-#[cfg(test)]
-pub(crate) mod tests {
-    use super::*;
-    use crate::parser::Tokenizer;
-
-    pub(crate) const SIMPLE_INTEGER_STRUCT_ASN: &str = r"
-        SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
-        BEGIN
-
-        Simple ::= SEQUENCE {
-            small INTEGER(0..255),
-            bigger INTEGER(0..65535),
-            negative INTEGER(-1..255),
-            unlimited INTEGER(0..MAX) OPTIONAL
-        }
-        END
-        ";
-
-    #[test]
-    fn test_simple_asn_sequence_represented_correctly_as_asn_model() {
-        let model = Model::try_from(Tokenizer::default().parse(SIMPLE_INTEGER_STRUCT_ASN)).unwrap();
-
-        assert_eq!("SimpleSchema", model.name);
-        assert_eq!(true, model.imports.is_empty());
-        assert_eq!(1, model.definitions.len());
-        assert_eq!(
-            Definition(
-                "Simple".into(),
-                Asn::Sequence(vec![
-                    Field {
-                        name: "small".into(),
-                        role: Asn::Integer(Some(Range(0, 255))),
-                        optional: false,
-                    },
-                    Field {
-                        name: "bigger".into(),
-                        role: Asn::Integer(Some(Range(0, 65535))),
-                        optional: false,
-                    },
-                    Field {
-                        name: "negative".into(),
-                        role: Asn::Integer(Some(Range(-1, 255))),
-                        optional: false,
-                    },
-                    Field {
-                        name: "unlimited".into(),
-                        role: Asn::Integer(None),
-                        optional: true,
-                    }
-                ]),
-            ),
-            model.definitions[0]
-        );
-    }
-
-    pub(crate) const INLINE_ASN_WITH_ENUM: &str = r"
-        SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
-        BEGIN
-
-        Woah ::= SEQUENCE {
-            decision ENUMERATED {
-                ABORT,
-                RETURN,
-                CONFIRM,
-                MAYDAY,
-                THE_CAKE_IS_A_LIE
-            } OPTIONAL
-        }
-        END
-    ";
-
-    #[test]
-    fn test_inline_asn_enumerated_represented_correctly_as_asn_model() {
-        let model = Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_ENUM)).unwrap();
-
-        assert_eq!("SimpleSchema", model.name);
-        assert_eq!(true, model.imports.is_empty());
-        assert_eq!(1, model.definitions.len());
-        assert_eq!(
-            Definition(
-                "Woah".into(),
-                Asn::Sequence(vec![Field {
-                    name: "decision".into(),
-                    role: Asn::Enumerated(Enumerated::from_names(
-                        ["ABORT", "RETURN", "CONFIRM", "MAYDAY", "THE_CAKE_IS_A_LIE",].iter()
-                    )),
-                    optional: true,
-                }]),
-            ),
-            model.definitions[0]
-        );
-    }
-
-    pub(crate) const INLINE_ASN_WITH_SEQUENCE_OF: &str = r"
-        SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
-        BEGIN
-
-        Ones ::= SEQUENCE OF INTEGER(0..1)
-
-        NestedOnes ::= SEQUENCE OF SEQUENCE OF INTEGER(0..1)
-
-        Woah ::= SEQUENCE {
-            also-ones SEQUENCE OF INTEGER(0..1),
-            nesteds SEQUENCE OF SEQUENCE OF INTEGER(0..1),
-            optionals SEQUENCE OF SEQUENCE OF INTEGER(0..MAX) OPTIONAL
-        }
-        END
-    ";
-
-    #[test]
-    fn test_inline_asn_sequence_of_represented_correctly_as_asn_model() {
-        let model =
-            Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_SEQUENCE_OF)).unwrap();
-
-        assert_eq!("SimpleSchema", model.name);
-        assert_eq!(true, model.imports.is_empty());
-        assert_eq!(3, model.definitions.len());
-        assert_eq!(
-            Definition(
-                "Ones".into(),
-                Asn::SequenceOf(Box::new(Asn::Integer(Some(Range(0, 1))))),
-            ),
-            model.definitions[0]
-        );
-        assert_eq!(
-            Definition(
-                "NestedOnes".into(),
-                Asn::SequenceOf(Box::new(Asn::SequenceOf(Box::new(Asn::Integer(Some(
-                    Range(0, 1)
-                )))))),
-            ),
-            model.definitions[1]
-        );
-        assert_eq!(
-            Definition(
-                "Woah".into(),
-                Asn::Sequence(vec![
-                    Field {
-                        name: "also-ones".into(),
-                        role: Asn::SequenceOf(Box::new(Asn::Integer(Some(Range(0, 1))))),
-                        optional: false,
-                    },
-                    Field {
-                        name: "nesteds".into(),
-                        role: Asn::SequenceOf(Box::new(Asn::SequenceOf(Box::new(Asn::Integer(
-                            Some(Range(0, 1))
-                        ))))),
-                        optional: false,
-                    },
-                    Field {
-                        name: "optionals".into(),
-                        role: Asn::SequenceOf(Box::new(Asn::SequenceOf(Box::new(Asn::Integer(
-                            None
-                        ))))),
-                        optional: true,
-                    },
-                ]),
-            ),
-            model.definitions[2]
-        );
-    }
-
-    pub(crate) const INLINE_ASN_WITH_CHOICE: &str = r"
-        SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
-        BEGIN
-
-        This ::= SEQUENCE OF INTEGER(0..1)
-
-        That ::= SEQUENCE OF SEQUENCE OF INTEGER(0..1)
-
-        Neither ::= ENUMERATED {
-            ABC,
-            DEF
-        }
-
-        Woah ::= SEQUENCE {
-            decision CHOICE {
-                this This,
-                that That,
-                neither Neither
-            }
-        }
-        END
-    ";
-
-    #[test]
-    fn test_inline_asn_choice_represented_correctly_as_asn_model() {
-        let model = Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_CHOICE)).unwrap();
-
-        assert_eq!("SimpleSchema", model.name);
-        assert_eq!(true, model.imports.is_empty());
-        assert_eq!(4, model.definitions.len());
-        assert_eq!(
-            Definition(
-                "This".into(),
-                Asn::SequenceOf(Box::new(Asn::Integer(Some(Range(0, 1))))),
-            ),
-            model.definitions[0]
-        );
-        assert_eq!(
-            Definition(
-                "That".into(),
-                Asn::SequenceOf(Box::new(Asn::SequenceOf(Box::new(Asn::Integer(Some(
-                    Range(0, 1)
-                )))))),
-            ),
-            model.definitions[1]
-        );
-        assert_eq!(
-            Definition(
-                "Neither".into(),
-                Asn::Enumerated(Enumerated::from_names(["ABC".into(), "DEF".into()].iter())),
-            ),
-            model.definitions[2]
-        );
-        assert_eq!(
-            Definition(
-                "Woah".into(),
-                Asn::Sequence(vec![Field {
-                    name: "decision".into(),
-                    role: Asn::Choice(vec![
-                        ChoiceEntry("this".into(), Asn::TypeReference("This".into())),
-                        ChoiceEntry("that".into(), Asn::TypeReference("That".into())),
-                        ChoiceEntry("neither".into(), Asn::TypeReference("Neither".into())),
-                    ]),
-                    optional: false,
-                }]),
-            ),
-            model.definitions[3]
-        );
-    }
-
-    pub(crate) const INLINE_ASN_WITH_SEQUENCE: &str = r"
-        SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
-        BEGIN
-
-        Woah ::= SEQUENCE {
-            complex SEQUENCE {
-                ones INTEGER(0..1),
-                list-ones SEQUENCE OF INTEGER(0..1),
-                optional-ones SEQUENCE OF INTEGER(0..1) OPTIONAL
-            } OPTIONAL
-        }
-        END
-    ";
-
-    #[test]
-    fn test_inline_asn_sequence_represented_correctly_as_asn_model() {
-        let model = Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_SEQUENCE)).unwrap();
-
-        assert_eq!("SimpleSchema", model.name);
-        assert_eq!(true, model.imports.is_empty());
-        assert_eq!(1, model.definitions.len());
-        assert_eq!(
-            Definition(
-                "Woah".into(),
-                Asn::Sequence(vec![Field {
-                    name: "complex".into(),
-                    role: Asn::Sequence(vec![
-                        Field {
-                            name: "ones".into(),
-                            role: Asn::Integer(Some(Range(0, 1))),
-                            optional: false,
-                        },
-                        Field {
-                            name: "list-ones".into(),
-                            role: Asn::SequenceOf(Box::new(Asn::Integer(Some(Range(0, 1))))),
-                            optional: false,
-                        },
-                        Field {
-                            name: "optional-ones".into(),
-                            role: Asn::SequenceOf(Box::new(Asn::Integer(Some(Range(0, 1))))),
-                            optional: true,
-                        },
-                    ]),
-                    optional: true,
-                }]),
-            ),
-            model.definitions[0]
-        );
-    }
-
-    #[test]
-    fn test_nice_names() {
-        let mut model = Model::default();
-
-        model.name = "SimpleTest".into();
-        model.make_names_nice();
-        assert_eq!("simple_test", model.to_rust().name);
-
-        model.name = "SIMPLE_Test".into();
-        model.make_names_nice();
-        assert_eq!("simple_test", model.to_rust().name);
-
-        model.name = "DRY_Module".into();
-        model.make_names_nice();
-        assert_eq!("dry", model.to_rust().name);
-
-        model.name = "DRYModule".into();
-        model.make_names_nice();
-        assert_eq!("dry", model.to_rust().name);
-    }
-
-    #[test]
-    pub fn test_integer_type_with_range() {
-        let model = Model::try_from(Tokenizer::default().parse(
-            r"
-            SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
-            BEGIN
-    
-            SimpleTypeWithRange ::= Integer (0..65535)
-            
-            END
-        ",
-        ))
-        .expect("Failed to parse");
-
-        assert_eq!("SimpleSchema", &model.name);
-        assert_eq!(
-            &[Definition(
-                "SimpleTypeWithRange".to_string(),
-                Asn::Integer(Some(Range(0, 65_535))),
-            )][..],
-            &model.definitions[..]
-        )
-    }
-
-    #[test]
-    pub fn test_string_type() {
-        let model = Model::try_from(Tokenizer::default().parse(
-            r"
-            SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
-            BEGIN
-    
-            SimpleStringType ::= UTF8String
-            
-            END
-        ",
-        ))
-        .expect("Failed to parse");
-
-        assert_eq!("SimpleSchema", &model.name);
-        assert_eq!(
-            &[Definition("SimpleStringType".to_string(), Asn::UTF8String)][..],
-            &model.definitions[..]
-        )
-    }
-
-    #[test]
-    pub fn test_enumerated_advanced() {
-        let model = Model::try_from(Tokenizer::default().parse(
-            r"SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
-            BEGIN
-    
-            Basic ::= ENUMERATED {
-                abc,
-                def
-            }
-    
-            WithExplicitNumber ::= ENUMERATED {
-                abc(1),
-                def(9)
-            }
-            
-            WithExplicitNumberAndDefaultMark ::= ENUMERATED {
-                abc(4),
-                def(7),
-                ...
-            }
-            
-            WithExplicitNumberAndDefaultMarkV2 ::= ENUMERATED {
-                abc(8),
-                def(1),
-                ...,
-                v2(11)
-            }
-            
-            END
-        ",
-        ))
-        .expect("Failed to parse");
-
-        assert_eq!("SimpleSchema", &model.name);
-        assert_eq!(
-            &[
-                Definition(
-                    "Basic".to_string(),
-                    Asn::Enumerated(Enumerated::from_names(["abc", "def"].iter())),
-                ),
-                Definition(
-                    "WithExplicitNumber".to_string(),
-                    Asn::Enumerated(Enumerated {
-                        variants: vec![
-                            EnumeratedVariant {
-                                name: "abc".to_string(),
-                                number: Some(1)
-                            },
-                            EnumeratedVariant {
-                                name: "def".to_string(),
-                                number: Some(9)
-                            }
-                        ],
-                        default: None,
-                    }),
-                ),
-                Definition(
-                    "WithExplicitNumberAndDefaultMark".to_string(),
-                    Asn::Enumerated(Enumerated {
-                        variants: vec![
-                            EnumeratedVariant {
-                                name: "abc".to_string(),
-                                number: Some(4)
-                            },
-                            EnumeratedVariant {
-                                name: "def".to_string(),
-                                number: Some(7)
-                            },
-                        ],
-                        default: Some(1),
-                    }),
-                ),
-                Definition(
-                    "WithExplicitNumberAndDefaultMarkV2".to_string(),
-                    Asn::Enumerated(Enumerated {
-                        variants: vec![
-                            EnumeratedVariant {
-                                name: "abc".to_string(),
-                                number: Some(8)
-                            },
-                            EnumeratedVariant {
-                                name: "def".to_string(),
-                                number: Some(1)
-                            },
-                            EnumeratedVariant {
-                                name: "v2".to_string(),
-                                number: Some(11)
-                            }
-                        ],
-                        default: Some(1),
-                    }),
-                )
-            ][..],
-            &model.definitions[..]
-        )
-    }
-}
-
 #[derive(Debug, Default, Clone, PartialOrd, PartialEq)]
 pub struct Import {
     pub what: Vec<String>,
@@ -889,6 +469,20 @@ pub struct Range<T>(pub T, pub T);
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct Definition<T>(pub String, pub T);
 
+impl Tagged for Definition<Asn> {
+    fn tag(&self) -> Option<Tag> {
+        self.1.tag()
+    }
+
+    fn set_tag(&mut self, tag: Tag) {
+        self.1.set_tag(tag)
+    }
+
+    fn reset_tag(&mut self) {
+        self.1.reset_tag()
+    }
+}
+
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct Field<T> {
     pub name: String,
@@ -896,18 +490,160 @@ pub struct Field<T> {
     pub optional: bool,
 }
 
+impl<T: Tagged> Tagged for Field<T> {
+    fn tag(&self) -> Option<Tag> {
+        self.role.tag()
+    }
+
+    fn set_tag(&mut self, tag: Tag) {
+        self.role.set_tag(tag)
+    }
+
+    fn reset_tag(&mut self) {
+        self.role.reset_tag()
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
+pub enum Tag {
+    Universal(usize),
+    Application(usize),
+    Private(usize),
+    ContextSpecific(usize),
+}
+
+impl TryFrom<&mut IntoIter<Token>> for Tag {
+    type Error = Error;
+
+    fn try_from(iter: &mut IntoIter<Token>) -> Result<Self, Self::Error> {
+        macro_rules! parse_tag_number {
+            () => {
+                parse_tag_number!(Model::<Asn>::next(iter)?)
+            };
+            ($tag:expr) => {{
+                let tag = $tag;
+                tag.text()
+                    .and_then(|t| t.parse().ok())
+                    .ok_or_else(|| Error::invalid_tag(tag))?
+            }};
+        }
+
+        let number_or_class = Model::<Asn>::next(iter)?;
+
+        if let Some(text) = number_or_class.text() {
+            Ok(match text {
+                "UNIVERSAL" => Tag::Universal(parse_tag_number!()),
+                "APPLICATION" => Tag::Application(parse_tag_number!()),
+                "PRIVATE" => Tag::Private(parse_tag_number!()),
+                _context_specific => Tag::ContextSpecific(parse_tag_number!(number_or_class)),
+            })
+        } else {
+            Err(Error::no_text(number_or_class))
+        }
+    }
+}
+
+pub trait Tagged {
+    fn tag(&self) -> Option<Tag>;
+
+    fn set_tag(&mut self, tag: Tag);
+
+    fn reset_tag(&mut self);
+
+    fn with_tag_opt(self, tag: Option<Tag>) -> Self
+    where
+        Self: Sized,
+    {
+        if let Some(tag) = tag {
+            self.with_tag(tag)
+        } else {
+            self.without_tag()
+        }
+    }
+
+    fn with_tag(mut self, tag: Tag) -> Self
+    where
+        Self: Sized,
+    {
+        self.set_tag(tag);
+        self
+    }
+
+    fn without_tag(mut self) -> Self
+    where
+        Self: Sized,
+    {
+        self.reset_tag();
+        self
+    }
+}
+
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub enum Asn {
+pub struct Asn {
+    tag: Option<Tag>,
+    r#type: Type,
+}
+
+impl Asn {
+    pub const fn opt_tagged(tag: Option<Tag>, r#type: Type) -> Self {
+        Self { tag, r#type }
+    }
+
+    pub const fn untagged(r#type: Type) -> Self {
+        Self::opt_tagged(None, r#type)
+    }
+
+    pub const fn tagged(tag: Tag, r#type: Type) -> Self {
+        Self::opt_tagged(Some(tag), r#type)
+    }
+}
+
+impl From<Type> for Asn {
+    fn from(r#type: Type) -> Self {
+        Self::untagged(r#type)
+    }
+}
+
+impl Tagged for Asn {
+    fn tag(&self) -> Option<Tag> {
+        self.tag
+    }
+
+    fn set_tag(&mut self, tag: Tag) {
+        self.tag = Some(tag)
+    }
+
+    fn reset_tag(&mut self) {
+        self.tag = None
+    }
+}
+
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub enum Type {
     Boolean,
     Integer(Option<Range<i64>>),
     UTF8String,
     OctetString,
 
-    SequenceOf(Box<Asn>),
+    SequenceOf(Box<Type>),
     Sequence(Vec<Field<Asn>>),
     Enumerated(Enumerated),
     Choice(Vec<ChoiceEntry>),
     TypeReference(String),
+}
+
+impl Type {
+    pub const fn opt_tagged(self, tag: Option<Tag>) -> Asn {
+        Asn::opt_tagged(tag, self)
+    }
+
+    pub const fn tagged(self, tag: Tag) -> Asn {
+        Asn::tagged(tag, self)
+    }
+
+    pub const fn untagged(self) -> Asn {
+        Asn::untagged(self)
+    }
 }
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
@@ -1018,5 +754,599 @@ impl EnumeratedVariant {
 
     pub fn number(&self) -> Option<usize> {
         self.number
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+    use crate::parser::Tokenizer;
+
+    pub(crate) const SIMPLE_INTEGER_STRUCT_ASN: &str = r"
+        SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
+        BEGIN
+
+        Simple ::= SEQUENCE {
+            small INTEGER(0..255),
+            bigger INTEGER(0..65535),
+            negative INTEGER(-1..255),
+            unlimited INTEGER(0..MAX) OPTIONAL
+        }
+        END
+        ";
+
+    #[test]
+    fn test_simple_asn_sequence_represented_correctly_as_asn_model() {
+        let model = Model::try_from(Tokenizer::default().parse(SIMPLE_INTEGER_STRUCT_ASN)).unwrap();
+
+        assert_eq!("SimpleSchema", model.name);
+        assert_eq!(true, model.imports.is_empty());
+        assert_eq!(1, model.definitions.len());
+        assert_eq!(
+            Definition(
+                "Simple".into(),
+                Type::Sequence(vec![
+                    Field {
+                        name: "small".into(),
+                        role: Type::Integer(Some(Range(0, 255))).untagged(),
+                        optional: false,
+                    },
+                    Field {
+                        name: "bigger".into(),
+                        role: Type::Integer(Some(Range(0, 65535))).untagged(),
+                        optional: false,
+                    },
+                    Field {
+                        name: "negative".into(),
+                        role: Type::Integer(Some(Range(-1, 255))).untagged(),
+                        optional: false,
+                    },
+                    Field {
+                        name: "unlimited".into(),
+                        role: Type::Integer(None).untagged(),
+                        optional: true,
+                    }
+                ])
+                .untagged()
+            ),
+            model.definitions[0]
+        );
+    }
+
+    pub(crate) const INLINE_ASN_WITH_ENUM: &str = r"
+        SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
+        BEGIN
+
+        Woah ::= SEQUENCE {
+            decision ENUMERATED {
+                ABORT,
+                RETURN,
+                CONFIRM,
+                MAYDAY,
+                THE_CAKE_IS_A_LIE
+            } OPTIONAL
+        }
+        END
+    ";
+
+    #[test]
+    fn test_inline_asn_enumerated_represented_correctly_as_asn_model() {
+        let model = Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_ENUM)).unwrap();
+
+        assert_eq!("SimpleSchema", model.name);
+        assert_eq!(true, model.imports.is_empty());
+        assert_eq!(1, model.definitions.len());
+        assert_eq!(
+            Definition(
+                "Woah".into(),
+                Type::Sequence(vec![Field {
+                    name: "decision".into(),
+                    role: Type::Enumerated(Enumerated::from_names(
+                        ["ABORT", "RETURN", "CONFIRM", "MAYDAY", "THE_CAKE_IS_A_LIE",].iter()
+                    ))
+                    .untagged(),
+                    optional: true,
+                }])
+                .untagged(),
+            ),
+            model.definitions[0]
+        );
+    }
+
+    pub(crate) const INLINE_ASN_WITH_SEQUENCE_OF: &str = r"
+        SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
+        BEGIN
+
+        Ones ::= SEQUENCE OF INTEGER(0..1)
+
+        NestedOnes ::= SEQUENCE OF SEQUENCE OF INTEGER(0..1)
+
+        Woah ::= SEQUENCE {
+            also-ones SEQUENCE OF INTEGER(0..1),
+            nesteds SEQUENCE OF SEQUENCE OF INTEGER(0..1),
+            optionals SEQUENCE OF SEQUENCE OF INTEGER(0..MAX) OPTIONAL
+        }
+        END
+    ";
+
+    #[test]
+    fn test_inline_asn_sequence_of_represented_correctly_as_asn_model() {
+        let model =
+            Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_SEQUENCE_OF)).unwrap();
+
+        assert_eq!("SimpleSchema", model.name);
+        assert_eq!(true, model.imports.is_empty());
+        assert_eq!(3, model.definitions.len());
+        assert_eq!(
+            Definition(
+                "Ones".into(),
+                Type::SequenceOf(Box::new(Type::Integer(Some(Range(0, 1))))).untagged()
+            ),
+            model.definitions[0]
+        );
+        assert_eq!(
+            Definition(
+                "NestedOnes".into(),
+                Type::SequenceOf(Box::new(Type::SequenceOf(Box::new(Type::Integer(Some(
+                    Range(0, 1)
+                ))))))
+                .untagged(),
+            ),
+            model.definitions[1]
+        );
+        assert_eq!(
+            Definition(
+                "Woah".into(),
+                Type::Sequence(vec![
+                    Field {
+                        name: "also-ones".into(),
+                        role: Type::SequenceOf(Box::new(Type::Integer(Some(Range(0, 1)))))
+                            .untagged(),
+                        optional: false,
+                    },
+                    Field {
+                        name: "nesteds".into(),
+                        role: Type::SequenceOf(Box::new(Type::SequenceOf(Box::new(
+                            Type::Integer(Some(Range(0, 1)))
+                        ))))
+                        .untagged(),
+                        optional: false,
+                    },
+                    Field {
+                        name: "optionals".into(),
+                        role: Type::SequenceOf(Box::new(Type::SequenceOf(Box::new(
+                            Type::Integer(None)
+                        ))))
+                        .untagged(),
+                        optional: true,
+                    },
+                ])
+                .untagged()
+            ),
+            model.definitions[2]
+        );
+    }
+
+    pub(crate) const INLINE_ASN_WITH_CHOICE: &str = r"
+        SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
+        BEGIN
+
+        This ::= SEQUENCE OF INTEGER(0..1)
+
+        That ::= SEQUENCE OF SEQUENCE OF INTEGER(0..1)
+
+        Neither ::= ENUMERATED {
+            ABC,
+            DEF
+        }
+
+        Woah ::= SEQUENCE {
+            decision CHOICE {
+                this This,
+                that That,
+                neither Neither
+            }
+        }
+        END
+    ";
+
+    #[test]
+    fn test_inline_asn_choice_represented_correctly_as_asn_model() {
+        let model = Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_CHOICE)).unwrap();
+
+        assert_eq!("SimpleSchema", model.name);
+        assert_eq!(true, model.imports.is_empty());
+        assert_eq!(4, model.definitions.len());
+        assert_eq!(
+            Definition(
+                "This".into(),
+                Type::SequenceOf(Box::new(Type::Integer(Some(Range(0, 1))))).untagged()
+            ),
+            model.definitions[0]
+        );
+        assert_eq!(
+            Definition(
+                "That".into(),
+                Type::SequenceOf(Box::new(Type::SequenceOf(Box::new(Type::Integer(Some(
+                    Range(0, 1)
+                ))))))
+                .untagged()
+            ),
+            model.definitions[1]
+        );
+        assert_eq!(
+            Definition(
+                "Neither".into(),
+                Type::Enumerated(Enumerated::from_names(["ABC".into(), "DEF".into()].iter()))
+                    .untagged()
+            ),
+            model.definitions[2]
+        );
+        assert_eq!(
+            Definition(
+                "Woah".into(),
+                Type::Sequence(vec![Field {
+                    name: "decision".into(),
+                    role: Type::Choice(vec![
+                        ChoiceEntry("this".into(), Type::TypeReference("This".into()).untagged()),
+                        ChoiceEntry("that".into(), Type::TypeReference("That".into()).untagged()),
+                        ChoiceEntry(
+                            "neither".into(),
+                            Type::TypeReference("Neither".into()).untagged()
+                        ),
+                    ])
+                    .untagged(),
+                    optional: false,
+                }])
+                .untagged(),
+            ),
+            model.definitions[3]
+        );
+    }
+
+    pub(crate) const INLINE_ASN_WITH_SEQUENCE: &str = r"
+        SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
+        BEGIN
+
+        Woah ::= SEQUENCE {
+            complex SEQUENCE {
+                ones INTEGER(0..1),
+                list-ones SEQUENCE OF INTEGER(0..1),
+                optional-ones SEQUENCE OF INTEGER(0..1) OPTIONAL
+            } OPTIONAL
+        }
+        END
+    ";
+
+    #[test]
+    fn test_inline_asn_sequence_represented_correctly_as_asn_model() {
+        let model = Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_SEQUENCE)).unwrap();
+
+        assert_eq!("SimpleSchema", model.name);
+        assert_eq!(true, model.imports.is_empty());
+        assert_eq!(1, model.definitions.len());
+        assert_eq!(
+            Definition(
+                "Woah".into(),
+                Type::Sequence(vec![Field {
+                    name: "complex".into(),
+                    role: Type::Sequence(vec![
+                        Field {
+                            name: "ones".into(),
+                            role: Type::Integer(Some(Range(0, 1))).untagged(),
+                            optional: false,
+                        },
+                        Field {
+                            name: "list-ones".into(),
+                            role: Type::SequenceOf(Box::new(Type::Integer(Some(Range(0, 1)))))
+                                .untagged(),
+                            optional: false,
+                        },
+                        Field {
+                            name: "optional-ones".into(),
+                            role: Type::SequenceOf(Box::new(Type::Integer(Some(Range(0, 1)))))
+                                .untagged(),
+                            optional: true,
+                        },
+                    ])
+                    .untagged(),
+                    optional: true,
+                }])
+                .untagged()
+            ),
+            model.definitions[0]
+        );
+    }
+
+    #[test]
+    fn test_nice_names() {
+        let mut model = Model::default();
+
+        model.name = "SimpleTest".into();
+        model.make_names_nice();
+        assert_eq!("simple_test", model.to_rust().name);
+
+        model.name = "SIMPLE_Test".into();
+        model.make_names_nice();
+        assert_eq!("simple_test", model.to_rust().name);
+
+        model.name = "DRY_Module".into();
+        model.make_names_nice();
+        assert_eq!("dry", model.to_rust().name);
+
+        model.name = "DRYModule".into();
+        model.make_names_nice();
+        assert_eq!("dry", model.to_rust().name);
+    }
+
+    #[test]
+    pub fn test_integer_type_with_range() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r"
+            SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
+            BEGIN
+    
+            SimpleTypeWithRange ::= Integer (0..65535)
+            
+            END
+        ",
+        ))
+        .expect("Failed to parse");
+
+        assert_eq!("SimpleSchema", &model.name);
+        assert_eq!(
+            &[Definition(
+                "SimpleTypeWithRange".to_string(),
+                Type::Integer(Some(Range(0, 65_535))).untagged()
+            )][..],
+            &model.definitions[..]
+        )
+    }
+
+    #[test]
+    pub fn test_string_type() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r"
+            SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
+            BEGIN
+    
+            SimpleStringType ::= UTF8String
+            
+            END
+        ",
+        ))
+        .expect("Failed to parse");
+
+        assert_eq!("SimpleSchema", &model.name);
+        assert_eq!(
+            &[Definition(
+                "SimpleStringType".to_string(),
+                Type::UTF8String.untagged()
+            )][..],
+            &model.definitions[..]
+        )
+    }
+
+    #[test]
+    pub fn test_enumerated_advanced() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r"SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
+            BEGIN
+    
+            Basic ::= ENUMERATED {
+                abc,
+                def
+            }
+    
+            WithExplicitNumber ::= ENUMERATED {
+                abc(1),
+                def(9)
+            }
+            
+            WithExplicitNumberAndDefaultMark ::= ENUMERATED {
+                abc(4),
+                def(7),
+                ...
+            }
+            
+            WithExplicitNumberAndDefaultMarkV2 ::= ENUMERATED {
+                abc(8),
+                def(1),
+                ...,
+                v2(11)
+            }
+            
+            END
+        ",
+        ))
+        .expect("Failed to parse");
+
+        assert_eq!("SimpleSchema", &model.name);
+        assert_eq!(
+            &[
+                Definition(
+                    "Basic".to_string(),
+                    Type::Enumerated(Enumerated::from_names(["abc", "def"].iter())).untagged(),
+                ),
+                Definition(
+                    "WithExplicitNumber".to_string(),
+                    Type::Enumerated(Enumerated {
+                        variants: vec![
+                            EnumeratedVariant {
+                                name: "abc".to_string(),
+                                number: Some(1),
+                            },
+                            EnumeratedVariant {
+                                name: "def".to_string(),
+                                number: Some(9),
+                            }
+                        ],
+                        default: None,
+                    })
+                    .untagged(),
+                ),
+                Definition(
+                    "WithExplicitNumberAndDefaultMark".to_string(),
+                    Type::Enumerated(Enumerated {
+                        variants: vec![
+                            EnumeratedVariant {
+                                name: "abc".to_string(),
+                                number: Some(4),
+                            },
+                            EnumeratedVariant {
+                                name: "def".to_string(),
+                                number: Some(7),
+                            },
+                        ],
+                        default: Some(1),
+                    })
+                    .untagged(),
+                ),
+                Definition(
+                    "WithExplicitNumberAndDefaultMarkV2".to_string(),
+                    Type::Enumerated(Enumerated {
+                        variants: vec![
+                            EnumeratedVariant {
+                                name: "abc".to_string(),
+                                number: Some(8),
+                            },
+                            EnumeratedVariant {
+                                name: "def".to_string(),
+                                number: Some(1),
+                            },
+                            EnumeratedVariant {
+                                name: "v2".to_string(),
+                                number: Some(11),
+                            }
+                        ],
+                        default: Some(1),
+                    })
+                    .untagged(),
+                )
+            ][..],
+            &model.definitions[..]
+        )
+    }
+
+    #[test]
+    pub fn test_enumerated_tags() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r"SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
+            BEGIN
+    
+            Universal ::= [UNIVERSAL 2] ENUMERATED {
+                abc,
+                def
+            }
+    
+            Application ::= [APPLICATION 7] ENUMERATED {
+                abc,
+                def
+            }
+            
+            Private ::= [PRIVATE 11] ENUMERATED {
+                abc,
+                def
+            }
+            
+            ContextSpecific ::= [8] ENUMERATED {
+                abc,
+                def
+            }
+            
+            END
+        ",
+        ))
+        .expect("Failed to parse");
+
+        assert_eq!("SimpleSchema", &model.name);
+        assert_eq!(
+            &[
+                Definition(
+                    "Universal".to_string(),
+                    Type::Enumerated(Enumerated::from_names(["abc", "def"].iter()))
+                        .tagged(Tag::Universal(2))
+                ),
+                Definition(
+                    "Application".to_string(),
+                    Type::Enumerated(Enumerated::from_names(["abc", "def"].iter()))
+                        .tagged(Tag::Application(7))
+                ),
+                Definition(
+                    "Private".to_string(),
+                    Type::Enumerated(Enumerated::from_names(["abc", "def"].iter()))
+                        .tagged(Tag::Private(11))
+                ),
+                Definition(
+                    "ContextSpecific".to_string(),
+                    Type::Enumerated(Enumerated::from_names(["abc", "def"].iter()))
+                        .tagged(Tag::ContextSpecific(8))
+                ),
+            ][..],
+            &model.definitions[..]
+        )
+    }
+
+    #[test]
+    pub fn test_parsing_tags_in_front_of_definitions_does_not_fail() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r"SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
+            BEGIN
+    
+            Universal ::= [UNIVERSAL 2] SEQUENCE {
+                abc [1] INTEGER(0..MAX),
+                def [2] INTEGER(0..255)
+            }
+    
+            Application ::= [APPLICATION 7] SEQUENCE OF Utf8String
+            
+            Private ::= [PRIVATE 11] ENUMERATED {
+                abc,
+                def
+            }
+            
+            ContextSpecific ::= [8] INTEGER(0..MAX)
+            
+            END
+        ",
+        ))
+        .expect("Failed to parse");
+
+        assert_eq!("SimpleSchema", &model.name);
+        assert_eq!(
+            &[
+                Definition(
+                    "Universal".to_string(),
+                    Type::Sequence(vec![
+                        Field {
+                            name: "abc".to_string(),
+                            role: Type::Integer(None).tagged(Tag::ContextSpecific(1)),
+                            optional: false,
+                        },
+                        Field {
+                            name: "def".to_string(),
+                            role: Type::Integer(Some(Range(0, 255)))
+                                .tagged(Tag::ContextSpecific(2)),
+                            optional: false,
+                        }
+                    ])
+                    .tagged(Tag::Universal(2)),
+                ),
+                Definition(
+                    "Application".to_string(),
+                    Type::SequenceOf(Box::new(Type::UTF8String)).tagged(Tag::Application(7))
+                ),
+                Definition(
+                    "Private".to_string(),
+                    Type::Enumerated(Enumerated::from_names(["abc", "def"].iter()))
+                        .tagged(Tag::Private(11))
+                ),
+                Definition(
+                    "ContextSpecific".to_string(),
+                    Type::Integer(None).tagged(Tag::ContextSpecific(8))
+                ),
+            ][..],
+            &model.definitions[..]
+        )
     }
 }
