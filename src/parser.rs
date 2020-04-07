@@ -38,50 +38,61 @@ pub struct Tokenizer;
 
 impl Tokenizer {
     pub fn parse(&self, asn: &str) -> Vec<Token> {
-        let iter = asn.chars();
         let mut previous = None;
         let mut tokens = Vec::new();
 
-        for char in iter {
+        for line in asn.lines() {
             let mut token = None;
-            match char {
-                ':' | ';' | '=' | '(' | ')' | '{' | '}' | '.' | ',' => {
-                    token = Some(Token::Separator(char))
-                }
-                c if !c.is_control() && c != ' ' => {
-                    token = Some(Token::Text(format!("{}", c)));
-                }
-                ' ' | '\r' | '\n' | '\t' => {
-                    if let Some(token) = previous.take() {
-                        tokens.push(token);
-                    }
-                }
-                c => eprintln!(
-                    "Ignoring unexpected character: {}-0x{:02x}-{:03}",
-                    c, c as u8, c as u8
-                ),
-            }
+            let content = line.split("--").next(); // get rid of one-line comments
 
-            if let Some(token) = token.take() {
-                previous = match previous {
-                    None => Some(token),
-                    Some(current) => {
-                        let (token, second) = current.append(token);
-                        match second {
-                            None => Some(token),
-                            Some(next) => {
-                                tokens.push(token);
-                                Some(next)
+            for char in content.iter().map(|c| c.chars()).flatten() {
+                match char {
+                    // asn syntax
+                    ':' | ';' | '=' | '(' | ')' | '{' | '}' | '.' | ',' => {
+                        token = Some(Token::Separator(char))
+                    }
+                    // text
+                    c if !c.is_control() && c != ' ' => {
+                        token = Some(Token::Text(format!("{}", c)));
+                    }
+                    // text separator
+                    ' ' | '\r' | '\n' | '\t' => {
+                        if let Some(token) = previous.take() {
+                            tokens.push(token);
+                        }
+                    }
+                    c => eprintln!(
+                        "Ignoring unexpected character: {}-0x{:02x}-{:03}",
+                        c, c as u8, c as u8
+                    ),
+                }
+
+                if let Some(token) = token.take() {
+                    previous = match previous {
+                        None => Some(token),
+                        Some(current) => {
+                            let (token, second) = current.append(token);
+                            match second {
+                                None => Some(token),
+                                Some(next) => {
+                                    tokens.push(token);
+                                    Some(next)
+                                }
                             }
                         }
                     }
                 }
+            }
+
+            if let Some(token) = previous.take() {
+                tokens.push(token);
             }
         }
 
         if let Some(token) = previous {
             tokens.push(token);
         }
+
         tokens
     }
 }
@@ -166,5 +177,22 @@ mod tests {
         let token = Token::Separator(':');
         assert_eq!(token.text(), None);
         assert_eq!(token.separator(), Some(':'),)
+    }
+
+    #[test]
+    pub fn test_ignores_line_comments() {
+        let result = Tokenizer::default().parse(
+            r"
+                Some ::= None -- very clever
+                        -- ignore true ::= false
+        ",
+        );
+        let mut iter = result.into_iter();
+        assert_eq!(Token::Text("Some".to_string()), iter.next().unwrap());
+        assert_eq!(Token::Separator(':'), iter.next().unwrap());
+        assert_eq!(Token::Separator(':'), iter.next().unwrap());
+        assert_eq!(Token::Separator('='), iter.next().unwrap());
+        assert_eq!(Token::Text("None".to_string()), iter.next().unwrap());
+        assert_eq!(None, iter.next());
     }
 }
