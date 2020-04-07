@@ -11,32 +11,155 @@ pub use self::protobuf::ProtobufType;
 use crate::parser::Token;
 use backtrace::Backtrace;
 use std::convert::TryFrom;
+use std::error::Error as StdError;
+use std::fmt::{Debug, Display, Formatter};
 use std::vec::IntoIter;
 
 macro_rules! loop_ctrl_separator {
-    ($separator:expr) => {
-        match $separator {
-            ',' => continue,
-            '}' => break,
-            separator => {
-                return Err(Error::UnexpectedToken(
-                    Backtrace::new(),
-                    Token::Separator(separator),
-                ));
-            }
+    ($token:expr) => {
+        let token = $token;
+        if token.eq_separator(',') {
+            continue;
+        } else if token.eq_separator('}') {
+            break;
+        } else {
+            return Err(Error::unexpected_token(token));
         }
     };
 }
 
-#[derive(Debug)]
 pub enum Error {
-    ExpectedTextGot(Backtrace, String, String),
-    ExpectedSeparatorGot(Backtrace, char, char),
+    ExpectedText(Backtrace, Token),
+    ExpectedTextGot(Backtrace, String, Token),
+    ExpectedSeparator(Backtrace, Token),
+    ExpectedSeparatorGot(Backtrace, char, Token),
     UnexpectedToken(Backtrace, Token),
     MissingModuleName,
-    UnexpectedEndOfStream,
-    InvalidRangeValue,
-    InvalidNumberForEnumVariant(Backtrace, String),
+    UnexpectedEndOfStream(Backtrace),
+    InvalidRangeValue(Backtrace, Token),
+    InvalidNumberForEnumVariant(Backtrace, Token),
+}
+
+impl Error {
+    pub fn invalid_number_for_enum_variant(token: Token) -> Self {
+        Error::InvalidNumberForEnumVariant(Backtrace::new(), token)
+    }
+
+    pub fn invalid_range_value(token: Token) -> Self {
+        Error::InvalidRangeValue(Backtrace::new(), token)
+    }
+
+    pub fn no_text(token: Token) -> Self {
+        Error::ExpectedText(Backtrace::new(), token)
+    }
+
+    pub fn expected_text(text: String, token: Token) -> Self {
+        Error::ExpectedTextGot(Backtrace::new(), text, token)
+    }
+
+    pub fn no_separator(token: Token) -> Self {
+        Error::ExpectedSeparator(Backtrace::new(), token)
+    }
+
+    pub fn expected_separator(separator: char, token: Token) -> Self {
+        Error::ExpectedSeparatorGot(Backtrace::new(), separator, token)
+    }
+
+    pub fn unexpected_token(token: Token) -> Self {
+        Error::UnexpectedToken(Backtrace::new(), token)
+    }
+
+    pub fn unexpected_end_of_stream() -> Self {
+        Error::UnexpectedEndOfStream(Backtrace::new())
+    }
+
+    fn backtrace(&self) -> Option<&Backtrace> {
+        match self {
+            Error::ExpectedText(bt, _) => Some(bt),
+            Error::ExpectedTextGot(bt, _, _) => Some(bt),
+            Error::ExpectedSeparator(bt, _) => Some(bt),
+            Error::ExpectedSeparatorGot(bt, _, _) => Some(bt),
+            Error::UnexpectedToken(bt, _) => Some(bt),
+            Error::MissingModuleName => None,
+            Error::UnexpectedEndOfStream(bt) => Some(bt),
+            Error::InvalidRangeValue(bt, _) => Some(bt),
+            Error::InvalidNumberForEnumVariant(bt, _) => Some(bt),
+        }
+    }
+}
+
+impl StdError for Error {}
+
+impl Debug for Error {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        writeln!(f, "{}", self)?;
+        if let Some(bt) = self.backtrace() {
+            writeln!(f, "{:?}", bt)?;
+        }
+        Ok(())
+    }
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
+        match self {
+            Error::ExpectedText(_, token) => write!(
+                f,
+                "At line {}, column {} expected text, but instead got: {}",
+                token.location().line(),
+                token.location().column(),
+                token,
+            ),
+            Error::ExpectedTextGot(_, text, token) => write!(
+                f,
+                "At line {}, column {} expected a text like \"{}\", but instead got: {}",
+                token.location().line(),
+                token.location().column(),
+                text,
+                token,
+            ),
+            Error::ExpectedSeparator(_, token) => write!(
+                f,
+                "At line {}, column {} expected separator, but instead got: {}",
+                token.location().line(),
+                token.location().column(),
+                token,
+            ),
+            Error::ExpectedSeparatorGot(_, separator, token) => write!(
+                f,
+                "At line {}, column {} expected a separator like '{}', but instead got: {}",
+                token.location().line(),
+                token.location().column(),
+                separator,
+                token,
+            ),
+            Error::UnexpectedToken(_, token) => write!(
+                f,
+                "At line {}, column {} an unexpected token was encountered: {}",
+                token.location().line(),
+                token.location().column(),
+                token,
+            ),
+            Error::MissingModuleName => {
+                writeln!(f, "The ASN definition is missing the module name")
+            }
+            Error::UnexpectedEndOfStream(_) => write!(f, "Unexpected end of stream or file"),
+            Error::InvalidRangeValue(_, token) => write!(
+                f,
+                "At line {}, column {} an unexpected range value was encountered: {}",
+                token.location().line(),
+                token.location().column(),
+                token,
+            ),
+            Error::InvalidNumberForEnumVariant(_, token) => write!(
+                f,
+                "At line {}, column {} an invalid value for an enum variant was encountered: {}",
+                token.location().line(),
+                token.location().column(),
+                token,
+            ),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -62,93 +185,71 @@ impl Model<Asn> {
         let mut iter = value.into_iter();
 
         model.name = Self::read_name(&mut iter)?;
-        Self::skip_after(&mut iter, &Token::Text("BEGIN".into()))?;
+        Self::skip_until_after_text_ignore_ascii_case(&mut iter, "BEGIN")?;
 
         while let Some(token) = iter.next() {
-            match token {
-                t @ Token::Separator(_) => return Err(Error::UnexpectedToken(Backtrace::new(), t)),
-                Token::Text(text) => {
-                    let lower = text.to_lowercase();
-
-                    if lower.eq("end") {
-                        model.make_names_nice();
-                        return Ok(model);
-                    } else if lower.eq("imports") {
-                        Self::read_imports(&mut iter)?
-                            .into_iter()
-                            .for_each(|i| model.imports.push(i));
-                    } else {
-                        model
-                            .definitions
-                            .push(Self::read_definition(&mut iter, text)?);
-                    }
-                }
+            if token.eq_text_ignore_ascii_case("END") {
+                model.make_names_nice();
+                return Ok(model);
+            } else if token.eq_text_ignore_ascii_case("IMPORTS") {
+                Self::read_imports(&mut iter)?
+                    .into_iter()
+                    .for_each(|i| model.imports.push(i));
+            } else {
+                model.definitions.push(Self::read_definition(
+                    &mut iter,
+                    token.into_text_or_else(Error::unexpected_token)?,
+                )?);
             }
         }
-        Err(Error::UnexpectedEndOfStream)
+        Err(Error::unexpected_end_of_stream())
     }
 
     fn read_name(iter: &mut IntoIter<Token>) -> Result<String, Error> {
         iter.next()
-            .and_then(|token| {
-                if let Token::Text(text) = token {
-                    Some(text)
-                } else {
-                    None
-                }
-            })
+            .and_then(|token| token.into_text())
             .ok_or(Error::MissingModuleName)
     }
 
-    fn skip_after(iter: &mut IntoIter<Token>, token: &Token) -> Result<(), Error> {
+    fn skip_until_after_text_ignore_ascii_case(
+        iter: &mut IntoIter<Token>,
+        text: &str,
+    ) -> Result<(), Error> {
         for t in iter {
-            if t.eq(token) {
+            if t.eq_text_ignore_ascii_case(text) {
                 return Ok(());
             }
         }
-        Err(Error::UnexpectedEndOfStream)
+        Err(Error::unexpected_end_of_stream())
     }
 
     fn read_imports(iter: &mut IntoIter<Token>) -> Result<Vec<Import>, Error> {
         let mut imports = Vec::new();
         let mut import = Import::default();
         while let Some(token) = iter.next() {
-            match token {
-                Token::Separator(s) if s == ';' => {
-                    return Ok(imports);
+            if token.eq_separator(';') {
+                return Ok(imports);
+            } else {
+                let text = token.into_text_or_else(Error::unexpected_token)?;
+                import.what.push(text);
+                let token = Self::next(iter)?;
+                if token.eq_separator(',') {
+                    // ignore separator
+                } else if token.eq_text_ignore_ascii_case("FROM") {
+                    import.from = Self::next(iter)?.into_text_or_else(Error::unexpected_token)?;
+                    imports.push(import);
+                    import = Import::default();
                 }
-                Token::Text(text) => {
-                    import.what.push(text);
-                    match iter.next().ok_or(Error::UnexpectedEndOfStream)? {
-                        Token::Separator(s) if s == ',' => {}
-                        Token::Text(s) => {
-                            let lower = s.to_lowercase();
-                            if s.eq(",") {
-                            } else if lower.eq("from") {
-                                let token = iter.next().ok_or(Error::UnexpectedEndOfStream)?;
-                                if let Token::Text(from) = token {
-                                    import.from = from;
-                                    imports.push(import);
-                                    import = Import::default();
-                                } else {
-                                    return Err(Error::UnexpectedToken(Backtrace::new(), token));
-                                }
-                            }
-                        }
-                        t => return Err(Error::UnexpectedToken(Backtrace::new(), t)),
-                    }
-                }
-                _ => return Err(Error::UnexpectedToken(Backtrace::new(), token)),
             }
         }
-        Err(Error::UnexpectedEndOfStream)
+        Err(Error::unexpected_end_of_stream())
     }
     fn read_definition(iter: &mut IntoIter<Token>, name: String) -> Result<Definition<Asn>, Error> {
         Self::next_separator_ignore_case(iter, ':')?;
         Self::next_separator_ignore_case(iter, ':')?;
         Self::next_separator_ignore_case(iter, '=')?;
 
-        let token = iter.next().ok_or(Error::UnexpectedEndOfStream)?;
+        let token = Self::next(iter)?;
 
         if token.text().map_or(false, |s| s.eq("SEQUENCE")) {
             Ok(Definition(name, Self::read_sequence_or_sequence_of(iter)?))
@@ -171,7 +272,7 @@ impl Model<Asn> {
                 Self::read_role_given_text(iter, text.to_string())?,
             ))
         } else {
-            Err(Error::UnexpectedToken(Backtrace::new(), token))
+            Err(Error::unexpected_token(token))
         }
     }
 
@@ -183,22 +284,22 @@ impl Model<Asn> {
     fn read_role_given_text(iter: &mut IntoIter<Token>, text: String) -> Result<Asn, Error> {
         if text.eq_ignore_ascii_case("INTEGER") {
             Self::next_separator_ignore_case(iter, '(')?;
-            let start = Self::next_text(iter)?;
+            let start = Self::next(iter)?;
             Self::next_separator_ignore_case(iter, '.')?;
             Self::next_separator_ignore_case(iter, '.')?;
-            let end = Self::next_text(iter)?;
+            let end = Self::next(iter)?;
             Self::next_separator_ignore_case(iter, ')')?;
-            if start.eq("0") && end.eq("MAX") {
+            if start.eq_text("0") && end.eq_text_ignore_ascii_case("MAX") {
                 Ok(Asn::Integer(None))
-            } else if end.eq("MAX") {
-                Err(Error::UnexpectedToken(
-                    Backtrace::new(),
-                    Token::Text("MAX".into()),
-                ))
             } else {
                 Ok(Asn::Integer(Some(Range(
-                    start.parse::<i64>().map_err(|_| Error::InvalidRangeValue)?,
-                    end.parse::<i64>().map_err(|_| Error::InvalidRangeValue)?,
+                    start
+                        .text()
+                        .and_then(|t| t.parse::<i64>().ok())
+                        .ok_or_else(|| Error::invalid_range_value(start))?,
+                    end.text()
+                        .and_then(|t| t.parse::<i64>().ok())
+                        .ok_or_else(|| Error::invalid_range_value(end))?,
                 ))))
             }
         } else if text.eq_ignore_ascii_case("BOOLEAN") {
@@ -206,11 +307,11 @@ impl Model<Asn> {
         } else if text.eq_ignore_ascii_case("UTF8String") {
             Ok(Asn::UTF8String)
         } else if text.eq_ignore_ascii_case("OCTET") {
-            let token = iter.next().ok_or(Error::UnexpectedEndOfStream)?;
+            let token = Self::next(iter)?;
             if token.text().map_or(false, |t| t.eq("STRING")) {
                 Ok(Asn::OctetString)
             } else {
-                Err(Error::UnexpectedToken(Backtrace::new(), token))
+                Err(Error::unexpected_token(token))
             }
         } else if text.eq_ignore_ascii_case("CHOICE") {
             Ok(Asn::Choice(Self::read_choice(iter)?))
@@ -224,35 +325,24 @@ impl Model<Asn> {
     }
 
     fn read_sequence_or_sequence_of(iter: &mut IntoIter<Token>) -> Result<Asn, Error> {
-        let token = iter.next().ok_or(Error::UnexpectedEndOfStream)?;
-        match token {
-            Token::Text(of) => {
-                if of.eq_ignore_ascii_case("OF") {
-                    Ok(Asn::SequenceOf(Box::new(Self::read_role(iter)?)))
-                } else {
-                    Err(Error::UnexpectedToken(Backtrace::new(), Token::Text(of)))
+        let token = Self::next(iter)?;
+
+        if token.eq_text_ignore_ascii_case("OF") {
+            Ok(Asn::SequenceOf(Box::new(Self::read_role(iter)?)))
+        } else if token.eq_separator('{') {
+            let mut fields = Vec::new();
+
+            loop {
+                let (field, continues) = Self::read_field(iter)?;
+                fields.push(field);
+                if !continues {
+                    break;
                 }
             }
-            Token::Separator(separator) => {
-                if separator == '{' {
-                    let mut fields = Vec::new();
 
-                    loop {
-                        let (field, continues) = Self::read_field(iter)?;
-                        fields.push(field);
-                        if !continues {
-                            break;
-                        }
-                    }
-
-                    Ok(Asn::Sequence(fields))
-                } else {
-                    Err(Error::UnexpectedToken(
-                        Backtrace::new(),
-                        Token::Separator(separator),
-                    ))
-                }
-            }
+            Ok(Asn::Sequence(fields))
+        } else {
+            Err(Error::unexpected_token(token))
         }
     }
 
@@ -277,10 +367,10 @@ impl Model<Asn> {
             role: Self::read_role(iter)?,
             optional: false,
         };
-        let mut token = iter.next().ok_or(Error::UnexpectedEndOfStream)?;
+        let mut token = Self::next(iter)?;
         if let Some(_optional_flag) = token.text().map(|s| s.eq_ignore_ascii_case("OPTIONAL")) {
             field.optional = true;
-            token = iter.next().ok_or(Error::UnexpectedEndOfStream)?;
+            token = Self::next(iter)?;
         }
 
         let (continues, ends) = token
@@ -290,41 +380,29 @@ impl Model<Asn> {
         if continues || ends {
             Ok((field, continues))
         } else {
-            Err(Error::UnexpectedToken(Backtrace::new(), token))
+            Err(Error::unexpected_token(token))
         }
+    }
+
+    fn next(iter: &mut IntoIter<Token>) -> Result<Token, Error> {
+        iter.next().ok_or_else(Error::unexpected_end_of_stream)
     }
 
     fn next_text(iter: &mut IntoIter<Token>) -> Result<String, Error> {
-        match iter.next().ok_or(Error::UnexpectedEndOfStream)? {
-            Token::Text(text) => Ok(text),
-            t => Err(Error::UnexpectedToken(Backtrace::new(), t)),
-        }
+        Self::next(iter)?.into_text_or_else(Error::no_text)
     }
 
-    #[allow(unused)]
-    fn next_text_ignore_case(iter: &mut IntoIter<Token>, text: &str) -> Result<(), Error> {
-        let token = Self::next_text(iter)?;
-        if text.eq_ignore_ascii_case(&token) {
-            Ok(())
-        } else {
-            Err(Error::ExpectedTextGot(Backtrace::new(), text.into(), token))
+    fn next_separator_ignore_case(
+        iter: &mut IntoIter<Token>,
+        separator: char,
+    ) -> Result<(), Error> {
+        let token = Self::next(iter)?;
+        if let Some(token) = token.separator() {
+            if token.eq_ignore_ascii_case(&separator) {
+                return Ok(());
+            }
         }
-    }
-
-    fn next_seperator(iter: &mut IntoIter<Token>) -> Result<char, Error> {
-        match iter.next().ok_or(Error::UnexpectedEndOfStream)? {
-            Token::Separator(separator) => Ok(separator),
-            t => Err(Error::UnexpectedToken(Backtrace::new(), t)),
-        }
-    }
-
-    fn next_separator_ignore_case(iter: &mut IntoIter<Token>, text: char) -> Result<(), Error> {
-        let token = Self::next_seperator(iter)?;
-        if token.eq_ignore_ascii_case(&text) {
-            Ok(())
-        } else {
-            Err(Error::ExpectedSeparatorGot(Backtrace::new(), text, token))
-        }
+        Err(Error::expected_separator(separator, token))
     }
 
     pub fn make_names_nice(&mut self) {
@@ -700,8 +778,7 @@ pub(crate) mod tests {
     #[test]
     pub fn test_enumerated_advanced() {
         let model = Model::try_from(Tokenizer::default().parse(
-            r"
-            SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
+            r"SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
             BEGIN
     
             Basic ::= ENUMERATED {
@@ -881,36 +958,38 @@ impl TryFrom<&mut IntoIter<Token>> for Enumerated {
         };
 
         loop {
-            match iter.next().ok_or(Error::UnexpectedEndOfStream)? {
-                Token::Text(variant_name) => match Model::<Asn>::next_seperator(iter)? {
-                    s @ ',' | s @ '}' => {
-                        enumerated.variants.push(EnumeratedVariant {
-                            name: variant_name,
-                            number: None,
-                        });
-                        loop_ctrl_separator!(s);
-                    }
-                    '(' => {
-                        let text = Model::<Asn>::next_text(iter)?;
-                        let number = text.parse::<usize>().map_err(|_| {
-                            Error::InvalidNumberForEnumVariant(Backtrace::new(), text)
-                        })?;
-                        Model::<Asn>::next_separator_ignore_case(iter, ')')?;
-                        enumerated.variants.push(EnumeratedVariant {
-                            name: variant_name,
-                            number: Some(number),
-                        });
-                        loop_ctrl_separator!(Model::<Asn>::next_seperator(iter)?);
-                    }
-                    separator => loop_ctrl_separator!(separator),
-                },
-                Token::Separator('.') if !enumerated.variants.is_empty() => {
-                    Model::<Asn>::next_separator_ignore_case(iter, '.')?;
-                    Model::<Asn>::next_separator_ignore_case(iter, '.')?;
-                    enumerated.default = Some(enumerated.variants.len() - 1);
-                    loop_ctrl_separator!(Model::<Asn>::next_seperator(iter)?);
+            let token = Model::<Asn>::next(iter)?;
+
+            if token.eq_separator('.') && !enumerated.variants.is_empty() {
+                Model::<Asn>::next_separator_ignore_case(iter, '.')?;
+                Model::<Asn>::next_separator_ignore_case(iter, '.')?;
+                enumerated.default = Some(enumerated.variants.len() - 1);
+                loop_ctrl_separator!(Model::<Asn>::next(iter)?);
+            } else {
+                let variant_name = token.into_text_or_else(Error::no_text)?;
+                let token = Model::<Asn>::next(iter)?;
+
+                if token.eq_separator(',') || token.eq_separator('}') {
+                    enumerated.variants.push(EnumeratedVariant {
+                        name: variant_name,
+                        number: None,
+                    });
+                    loop_ctrl_separator!(token);
+                } else if token.eq_separator('(') {
+                    let token = Model::<Asn>::next(iter)?;
+                    let number = token
+                        .text()
+                        .and_then(|t| t.parse::<usize>().ok())
+                        .ok_or_else(|| Error::invalid_number_for_enum_variant(token))?;
+                    Model::<Asn>::next_separator_ignore_case(iter, ')')?;
+                    enumerated.variants.push(EnumeratedVariant {
+                        name: variant_name,
+                        number: Some(number),
+                    });
+                    loop_ctrl_separator!(Model::<Asn>::next(iter)?);
+                } else {
+                    loop_ctrl_separator!(token);
                 }
-                token => return Err(Error::UnexpectedToken(Backtrace::new(), token)),
             }
         }
 
