@@ -28,68 +28,103 @@ macro_rules! loop_ctrl_separator {
     };
 }
 
-pub enum Error {
-    ExpectedText(Backtrace, Token),
-    ExpectedTextGot(Backtrace, String, Token),
-    ExpectedSeparator(Backtrace, Token),
-    ExpectedSeparatorGot(Backtrace, char, Token),
-    UnexpectedToken(Backtrace, Token),
+#[derive(PartialOrd, PartialEq)]
+pub enum ErrorKind {
+    ExpectedText(Token),
+    ExpectedTextGot(String, Token),
+    ExpectedSeparator(Token),
+    ExpectedSeparatorGot(char, Token),
+    UnexpectedToken(Token),
     MissingModuleName,
-    UnexpectedEndOfStream(Backtrace),
-    InvalidRangeValue(Backtrace, Token),
-    InvalidNumberForEnumVariant(Backtrace, Token),
-    InvalidTag(Backtrace, Token),
+    UnexpectedEndOfStream,
+    InvalidRangeValue(Token),
+    InvalidNumberForEnumVariant(Token),
+    InvalidTag(Token),
+    InvalidPositionForExtensionMarker(Token),
+}
+
+pub struct Error {
+    kind: ErrorKind,
+    backtrace: Backtrace,
+}
+
+impl From<ErrorKind> for Error {
+    fn from(kind: ErrorKind) -> Self {
+        Error {
+            kind,
+            backtrace: Backtrace::new(),
+        }
+    }
+}
+
+impl PartialEq for Error {
+    fn eq(&self, other: &Self) -> bool {
+        self.kind.eq(&other.kind)
+    }
 }
 
 impl Error {
+    pub fn invalid_position_for_extension_marker(token: Token) -> Self {
+        ErrorKind::InvalidPositionForExtensionMarker(token).into()
+    }
+
     pub fn invalid_tag(token: Token) -> Self {
-        Error::InvalidTag(Backtrace::new(), token)
+        ErrorKind::InvalidTag(token).into()
     }
 
     pub fn invalid_number_for_enum_variant(token: Token) -> Self {
-        Error::InvalidNumberForEnumVariant(Backtrace::new(), token)
+        ErrorKind::InvalidNumberForEnumVariant(token).into()
     }
 
     pub fn invalid_range_value(token: Token) -> Self {
-        Error::InvalidRangeValue(Backtrace::new(), token)
+        ErrorKind::InvalidRangeValue(token).into()
     }
 
     pub fn no_text(token: Token) -> Self {
-        Error::ExpectedText(Backtrace::new(), token)
+        ErrorKind::ExpectedText(token).into()
     }
 
     pub fn expected_text(text: String, token: Token) -> Self {
-        Error::ExpectedTextGot(Backtrace::new(), text, token)
+        ErrorKind::ExpectedTextGot(text, token).into()
     }
 
     pub fn no_separator(token: Token) -> Self {
-        Error::ExpectedSeparator(Backtrace::new(), token)
+        ErrorKind::ExpectedSeparator(token).into()
     }
 
     pub fn expected_separator(separator: char, token: Token) -> Self {
-        Error::ExpectedSeparatorGot(Backtrace::new(), separator, token)
+        ErrorKind::ExpectedSeparatorGot(separator, token).into()
+    }
+
+    pub fn missing_module_name() -> Self {
+        ErrorKind::MissingModuleName.into()
     }
 
     pub fn unexpected_token(token: Token) -> Self {
-        Error::UnexpectedToken(Backtrace::new(), token)
+        ErrorKind::UnexpectedToken(token).into()
     }
 
     pub fn unexpected_end_of_stream() -> Self {
-        Error::UnexpectedEndOfStream(Backtrace::new())
+        ErrorKind::UnexpectedEndOfStream.into()
     }
 
-    fn backtrace(&self) -> Option<&Backtrace> {
-        match self {
-            Error::ExpectedText(bt, _) => Some(bt),
-            Error::ExpectedTextGot(bt, _, _) => Some(bt),
-            Error::ExpectedSeparator(bt, _) => Some(bt),
-            Error::ExpectedSeparatorGot(bt, _, _) => Some(bt),
-            Error::UnexpectedToken(bt, _) => Some(bt),
-            Error::MissingModuleName => None,
-            Error::UnexpectedEndOfStream(bt) => Some(bt),
-            Error::InvalidRangeValue(bt, _) => Some(bt),
-            Error::InvalidNumberForEnumVariant(bt, _) => Some(bt),
-            Error::InvalidTag(bt, _) => Some(bt),
+    fn backtrace(&self) -> &Backtrace {
+        &self.backtrace
+    }
+
+    pub fn token(&self) -> Option<&Token> {
+        match &self.kind {
+            ErrorKind::ExpectedText(t) => Some(t),
+            ErrorKind::ExpectedTextGot(_, t) => Some(t),
+            ErrorKind::ExpectedSeparator(t) => Some(t),
+            ErrorKind::ExpectedSeparatorGot(_, t) => Some(t),
+            ErrorKind::UnexpectedToken(t) => Some(t),
+            ErrorKind::MissingModuleName => None,
+            ErrorKind::UnexpectedEndOfStream => None,
+            ErrorKind::InvalidRangeValue(t) => Some(t),
+            ErrorKind::InvalidNumberForEnumVariant(t) => Some(t),
+            ErrorKind::InvalidTag(t) => Some(t),
+            ErrorKind::InvalidPositionForExtensionMarker(t) => Some(t),
         }
     }
 }
@@ -99,24 +134,22 @@ impl StdError for Error {}
 impl Debug for Error {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         writeln!(f, "{}", self)?;
-        if let Some(bt) = self.backtrace() {
-            writeln!(f, "{:?}", bt)?;
-        }
+        writeln!(f, "{:?}", self.backtrace())?;
         Ok(())
     }
 }
 
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        match self {
-            Error::ExpectedText(_, token) => write!(
+        match &self.kind {
+            ErrorKind::ExpectedText( token) => write!(
                 f,
                 "At line {}, column {} expected text, but instead got: {}",
                 token.location().line(),
                 token.location().column(),
                 token,
             ),
-            Error::ExpectedTextGot(_, text, token) => write!(
+            ErrorKind::ExpectedTextGot( text, token) => write!(
                 f,
                 "At line {}, column {} expected a text like \"{}\", but instead got: {}",
                 token.location().line(),
@@ -124,14 +157,14 @@ impl Display for Error {
                 text,
                 token,
             ),
-            Error::ExpectedSeparator(_, token) => write!(
+            ErrorKind::ExpectedSeparator( token) => write!(
                 f,
                 "At line {}, column {} expected separator, but instead got: {}",
                 token.location().line(),
                 token.location().column(),
                 token,
             ),
-            Error::ExpectedSeparatorGot(_, separator, token) => write!(
+            ErrorKind::ExpectedSeparatorGot( separator, token) => write!(
                 f,
                 "At line {}, column {} expected a separator like '{}', but instead got: {}",
                 token.location().line(),
@@ -139,37 +172,43 @@ impl Display for Error {
                 separator,
                 token,
             ),
-            Error::UnexpectedToken(_, token) => write!(
+            ErrorKind::UnexpectedToken( token) => write!(
                 f,
                 "At line {}, column {} an unexpected token was encountered: {}",
                 token.location().line(),
                 token.location().column(),
                 token,
             ),
-            Error::MissingModuleName => {
+            ErrorKind::MissingModuleName => {
                 writeln!(f, "The ASN definition is missing the module name")
             }
-            Error::UnexpectedEndOfStream(_) => write!(f, "Unexpected end of stream or file"),
-            Error::InvalidRangeValue(_, token) => write!(
+            ErrorKind::UnexpectedEndOfStream => write!(f, "Unexpected end of stream or file"),
+            ErrorKind::InvalidRangeValue( token) => write!(
                 f,
                 "At line {}, column {} an unexpected range value was encountered: {}",
                 token.location().line(),
                 token.location().column(),
                 token,
             ),
-            Error::InvalidNumberForEnumVariant(_, token) => write!(
+            ErrorKind::InvalidNumberForEnumVariant( token) => write!(
                 f,
                 "At line {}, column {} an invalid value for an enum variant was encountered: {}",
                 token.location().line(),
                 token.location().column(),
                 token,
             ),
-            Error::InvalidTag(_, token) => write!(
+            ErrorKind::InvalidTag( token) => write!(
                 f,
                 "At line {}, column {} an invalid value for a tag was encountered: {}",
                 token.location().line(),
                 token.location().column(),
                 token,
+            ),
+            ErrorKind::InvalidPositionForExtensionMarker( token) => write!(
+                f,
+                "At line {}, column {} an extension marker is present, which this is not allowed at that position",
+                token.location().line(),
+                token.location().column(),
             ),
         }
     }
@@ -221,7 +260,7 @@ impl Model<Asn> {
     fn read_name(iter: &mut IntoIter<Token>) -> Result<String, Error> {
         iter.next()
             .and_then(|token| token.into_text())
-            .ok_or(Error::MissingModuleName)
+            .ok_or(Error::missing_module_name())
     }
 
     fn skip_until_after_text_ignore_ascii_case(
@@ -277,7 +316,7 @@ impl Model<Asn> {
         } else if token.eq_text_ignore_ascii_case("CHOICE") {
             Ok(Definition(
                 name,
-                Type::Choice(Self::read_choice(iter)?).opt_tagged(tag),
+                Type::Choice(Choice::try_from(iter)?).opt_tagged(tag),
             ))
         } else if let Some(text) = token.text() {
             Ok(Definition(
@@ -339,7 +378,7 @@ impl Model<Asn> {
                 Err(Error::unexpected_token(token))
             }
         } else if text.eq_ignore_ascii_case("CHOICE") {
-            Ok(Type::Choice(Self::read_choice(iter)?))
+            Ok(Type::Choice(Choice::try_from(iter)?))
         } else if text.eq_ignore_ascii_case("ENUMERATED") {
             Ok(Type::Enumerated(Enumerated::try_from(iter)?))
         } else if text.eq_ignore_ascii_case("SEQUENCE") {
@@ -369,21 +408,6 @@ impl Model<Asn> {
         } else {
             Err(Error::unexpected_token(token))
         }
-    }
-
-    fn read_choice(iter: &mut IntoIter<Token>) -> Result<Vec<ChoiceEntry>, Error> {
-        Self::next_separator_ignore_case(iter, '{')?;
-        let mut fields = Vec::new();
-
-        loop {
-            let (field, continues) = Self::read_field(iter)?;
-            fields.push(ChoiceEntry(field.name, field.role));
-            if !continues {
-                break;
-            }
-        }
-
-        Ok(fields)
     }
 
     fn read_field(iter: &mut IntoIter<Token>) -> Result<(Field<Asn>, bool), Error> {
@@ -460,14 +484,18 @@ pub struct Import {
     pub from: String,
 }
 
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub struct ChoiceEntry(String, Asn);
-
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
 pub struct Range<T>(pub T, pub T);
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct Definition<T>(pub String, pub T);
+
+impl<T> Definition<T> {
+    #[cfg(test)]
+    pub fn new<I: ToString>(name: I, value: T) -> Self {
+        Definition(name.to_string(), value)
+    }
+}
 
 impl Tagged for Definition<Asn> {
     fn tag(&self) -> Option<Tag> {
@@ -628,7 +656,7 @@ pub enum Type {
     SequenceOf(Box<Type>),
     Sequence(Vec<Field<Asn>>),
     Enumerated(Enumerated),
-    Choice(Vec<ChoiceEntry>),
+    Choice(Choice),
     TypeReference(String),
 }
 
@@ -647,9 +675,133 @@ impl Type {
 }
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub struct Choice {
+    variants: Vec<ChoiceVariant>,
+    extension_after: Option<usize>,
+}
+
+impl Choice {
+    #[cfg(test)]
+    pub fn from_variants(variants: Vec<ChoiceVariant>) -> Self {
+        Self {
+            variants,
+            extension_after: None,
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.variants.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.variants.is_empty()
+    }
+
+    pub fn variants(&self) -> impl Iterator<Item = &ChoiceVariant> {
+        self.variants.iter()
+    }
+
+    pub fn is_extensible(&self) -> bool {
+        self.extension_after.is_some()
+    }
+
+    pub fn extension_after_index(&self) -> Option<usize> {
+        self.extension_after
+    }
+}
+
+impl TryFrom<&mut IntoIter<Token>> for Choice {
+    type Error = Error;
+
+    fn try_from(iter: &mut IntoIter<Token>) -> Result<Self, Self::Error> {
+        Model::<Asn>::next_separator_ignore_case(iter, '{')?;
+        let mut choice = Choice {
+            variants: Vec::new(),
+            extension_after: None,
+        };
+
+        loop {
+            let name_or_extension_marker = Model::<Asn>::next(iter)?;
+            if name_or_extension_marker.eq_separator('.') {
+                Model::<Asn>::next_separator_ignore_case(iter, '.')?;
+                Model::<Asn>::next_separator_ignore_case(iter, '.')?;
+
+                if choice.variants.is_empty() || choice.extension_after.is_some() {
+                    return Err(Error::invalid_position_for_extension_marker(
+                        name_or_extension_marker,
+                    ));
+                } else {
+                    choice.extension_after = Some(choice.variants.len() - 1);
+                }
+            } else {
+                let name = name_or_extension_marker.into_text_or_else(Error::no_text)?;
+                let (token, tag) = Model::<Asn>::next_with_opt_tag(iter)?;
+                let r#type = Model::<Asn>::read_role_given_text(
+                    iter,
+                    token.into_text_or_else(Error::no_text)?,
+                )?;
+                choice.variants.push(ChoiceVariant { name, tag, r#type });
+            }
+
+            let end_or_continuation_marker = Model::<Asn>::next(iter)?;
+
+            if end_or_continuation_marker.eq_separator(',') {
+                continue;
+            } else if end_or_continuation_marker.eq_separator('}') {
+                break;
+            } else {
+                return Err(Error::unexpected_token(end_or_continuation_marker));
+            }
+        }
+
+        Ok(choice)
+    }
+}
+
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub struct ChoiceVariant {
+    name: String,
+    tag: Option<Tag>,
+    r#type: Type,
+}
+
+impl ChoiceVariant {
+    #[cfg(test)]
+    pub fn name_type<I: ToString>(name: I, r#type: Type) -> Self {
+        ChoiceVariant {
+            name: name.to_string(),
+            tag: None,
+            r#type,
+        }
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    pub fn r#type(&self) -> &Type {
+        &self.r#type
+    }
+}
+
+impl Tagged for ChoiceVariant {
+    fn tag(&self) -> Option<Tag> {
+        self.tag
+    }
+
+    fn set_tag(&mut self, tag: Tag) {
+        self.tag = Some(tag)
+    }
+
+    fn reset_tag(&mut self) {
+        self.tag = None
+    }
+}
+
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct Enumerated {
     variants: Vec<EnumeratedVariant>,
-    default: Option<usize>,
+    extension_after: Option<usize>,
 }
 
 impl Enumerated {
@@ -659,7 +811,7 @@ impl Enumerated {
             variants: variants
                 .map(|name| EnumeratedVariant::from_name(name))
                 .collect(),
-            default: None,
+            extension_after: None,
         }
     }
 
@@ -675,11 +827,12 @@ impl Enumerated {
         self.variants.iter()
     }
 
-    pub fn default(&self) -> Option<(usize, &EnumeratedVariant)> {
-        match self.default {
-            Some(index) if index < self.variants.len() => Some((index, &self.variants[index])),
-            _ => None,
-        }
+    pub fn is_extensible(&self) -> bool {
+        self.extension_after.is_some()
+    }
+
+    pub fn extension_after_index(&self) -> Option<usize> {
+        self.extension_after
     }
 }
 
@@ -690,17 +843,21 @@ impl TryFrom<&mut IntoIter<Token>> for Enumerated {
         Model::<Asn>::next_separator_ignore_case(iter, '{')?;
         let mut enumerated = Self {
             variants: Vec::new(),
-            default: None,
+            extension_after: None,
         };
 
         loop {
             let token = Model::<Asn>::next(iter)?;
 
-            if token.eq_separator('.') && !enumerated.variants.is_empty() {
+            if token.eq_separator('.') {
                 Model::<Asn>::next_separator_ignore_case(iter, '.')?;
                 Model::<Asn>::next_separator_ignore_case(iter, '.')?;
-                enumerated.default = Some(enumerated.variants.len() - 1);
-                loop_ctrl_separator!(Model::<Asn>::next(iter)?);
+                if enumerated.variants.is_empty() || enumerated.extension_after.is_some() {
+                    return Err(Error::invalid_position_for_extension_marker(token));
+                } else {
+                    enumerated.extension_after = Some(enumerated.variants.len() - 1);
+                    loop_ctrl_separator!(Model::<Asn>::next(iter)?);
+                }
             } else {
                 let variant_name = token.into_text_or_else(Error::no_text)?;
                 let token = Model::<Asn>::next(iter)?;
@@ -760,7 +917,7 @@ impl EnumeratedVariant {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::parser::Tokenizer;
+    use crate::parser::{Location, Tokenizer};
 
     pub(crate) const SIMPLE_INTEGER_STRUCT_ASN: &str = r"
         SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
@@ -987,14 +1144,11 @@ pub(crate) mod tests {
                 "Woah".into(),
                 Type::Sequence(vec![Field {
                     name: "decision".into(),
-                    role: Type::Choice(vec![
-                        ChoiceEntry("this".into(), Type::TypeReference("This".into()).untagged()),
-                        ChoiceEntry("that".into(), Type::TypeReference("That".into()).untagged()),
-                        ChoiceEntry(
-                            "neither".into(),
-                            Type::TypeReference("Neither".into()).untagged()
-                        ),
-                    ])
+                    role: Type::Choice(Choice::from_variants(vec![
+                        ChoiceVariant::name_type("this", Type::TypeReference("This".into())),
+                        ChoiceVariant::name_type("that", Type::TypeReference("That".into())),
+                        ChoiceVariant::name_type("neither", Type::TypeReference("Neither".into())),
+                    ]))
                     .untagged(),
                     optional: false,
                 }])
@@ -1181,7 +1335,7 @@ pub(crate) mod tests {
                                 number: Some(9),
                             }
                         ],
-                        default: None,
+                        extension_after: None,
                     })
                     .untagged(),
                 ),
@@ -1198,7 +1352,7 @@ pub(crate) mod tests {
                                 number: Some(7),
                             },
                         ],
-                        default: Some(1),
+                        extension_after: Some(1),
                     })
                     .untagged(),
                 ),
@@ -1219,7 +1373,7 @@ pub(crate) mod tests {
                                 number: Some(11),
                             }
                         ],
-                        default: Some(1),
+                        extension_after: Some(1),
                     })
                     .untagged(),
                 )
@@ -1348,5 +1502,149 @@ pub(crate) mod tests {
             ][..],
             &model.definitions[..]
         )
+    }
+
+    #[test]
+    pub fn test_parsing_of_extensible_choices() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r"SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
+            BEGIN
+    
+            WithoutMarker ::= CHOICE {
+                abc Utf8String,
+                def Utf8String
+            }
+            
+            WithoutExtensionPresent ::= CHOICE {
+                abc Utf8String,
+                def Utf8String,
+                ...
+            }
+    
+            WithExtensionPresent ::= CHOICE {
+                abc Utf8String,
+                def Utf8String,
+                ...,
+                ghi Utf8String
+            }
+            
+            END
+        ",
+        ))
+        .expect("Failed to parse");
+
+        assert_eq!("SimpleSchema", model.name.as_str());
+        assert_eq!(
+            &[
+                Definition::new(
+                    "WithoutMarker",
+                    Type::Choice(Choice {
+                        variants: vec![
+                            ChoiceVariant::name_type("abc", Type::UTF8String),
+                            ChoiceVariant::name_type("def", Type::UTF8String),
+                        ],
+                        extension_after: None
+                    })
+                    .untagged()
+                ),
+                Definition::new(
+                    "WithoutExtensionPresent",
+                    Type::Choice(Choice {
+                        variants: vec![
+                            ChoiceVariant::name_type("abc", Type::UTF8String),
+                            ChoiceVariant::name_type("def", Type::UTF8String),
+                        ],
+                        extension_after: Some(1)
+                    })
+                    .untagged()
+                ),
+                Definition::new(
+                    "WithExtensionPresent",
+                    Type::Choice(Choice {
+                        variants: vec![
+                            ChoiceVariant::name_type("abc", Type::UTF8String),
+                            ChoiceVariant::name_type("def", Type::UTF8String),
+                            ChoiceVariant::name_type("ghi", Type::UTF8String),
+                        ],
+                        extension_after: Some(1)
+                    })
+                    .untagged()
+                )
+            ][..],
+            &model.definitions[..]
+        )
+    }
+
+    #[test]
+    pub fn test_parsing_of_extensible_with_markers_at_invalid_locations() {
+        assert_eq!(
+            Error::invalid_position_for_extension_marker(Token::Separator(
+                Location::at(4, 21),
+                '.'
+            )),
+            Model::try_from(Tokenizer::default().parse(
+                r"SimpleSchema DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+                Invalid ::= CHOICE {
+                    ...
+                }
+                
+                END",
+            ))
+            .expect_err("Parsed invalid definition")
+        );
+
+        assert_eq!(
+            Error::invalid_position_for_extension_marker(Token::Separator(
+                Location::at(4, 21),
+                '.'
+            )),
+            Model::try_from(Tokenizer::default().parse(
+                r"SimpleSchema DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+    
+                Invalid ::= CHOICE {
+                    ...,
+                    abc Utf8String
+                }
+                
+                END",
+            ))
+            .expect_err("Parsed invalid definition")
+        );
+
+        assert_eq!(
+            Error::invalid_position_for_extension_marker(Token::Separator(
+                Location::at(4, 21),
+                '.'
+            )),
+            Model::try_from(Tokenizer::default().parse(
+                r"SimpleSchema DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+    
+                Invalid ::= ENUMERATED {
+                    ...
+                }
+                
+                END",
+            ))
+            .expect_err("Parsed invalid definition")
+        );
+
+        assert_eq!(
+            Error::invalid_position_for_extension_marker(Token::Separator(
+                Location::at(4, 21),
+                '.'
+            )),
+            Model::try_from(Tokenizer::default().parse(
+                r"SimpleSchema DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+                Invalid ::= ENUMERATED {
+                    ...,
+                    abc(77)
+                }
+                
+                END",
+            ))
+            .expect_err("Parsed invalid definition")
+        );
     }
 }

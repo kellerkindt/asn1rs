@@ -1,10 +1,9 @@
-use crate::model::Asn;
-use crate::model::ChoiceEntry;
-use crate::model::Definition;
 use crate::model::Import;
 use crate::model::Model;
 use crate::model::Range;
 use crate::model::Type as AsnType;
+use crate::model::{Asn, ChoiceVariant};
+use crate::model::{Definition, Tag};
 
 const I8_MAX: i64 = i8::max_value() as i64;
 const I16_MAX: i64 = i16::max_value() as i64;
@@ -311,14 +310,25 @@ impl Model<Rust> {
                 defs.push(Definition(name.into(), Rust::TupleStruct(inner)));
             }
 
-            AsnType::Choice(entries) => {
-                let mut rust_entries = Vec::with_capacity(entries.len());
+            AsnType::Choice(choice) => {
+                let mut rust_entries = Vec::with_capacity(choice.len());
 
-                for ChoiceEntry(entry_name, asn) in entries.iter() {
-                    let rust_name = format!("{}{}", name, rust_struct_or_enum_name(entry_name));
-                    let rust_role =
-                        Self::definition_type_to_rust_type(&rust_name, &asn.r#type, defs);
-                    let rust_field_name = rust_variant_name(entry_name);
+                if choice.extension_after_index().is_some() {
+                    // TODO not yet supported
+                    panic!("Extensible CHOICE is not yet supported");
+                }
+
+                for (index, ChoiceVariant { name, tag, r#type }) in choice.variants().enumerate() {
+                    if tag
+                        .map(|n| n != Tag::ContextSpecific(index))
+                        .unwrap_or(false)
+                    {
+                        // TODO not yet supported
+                        panic!("Variants with non-auto choice-index are not yet supported")
+                    }
+                    let rust_name = format!("{}{}", name, rust_struct_or_enum_name(&name));
+                    let rust_role = Self::definition_type_to_rust_type(&rust_name, &r#type, defs);
+                    let rust_field_name = rust_variant_name(&name);
                     rust_entries.push((rust_field_name, rust_role));
                 }
 
@@ -328,15 +338,15 @@ impl Model<Rust> {
             AsnType::Enumerated(enumerated) => {
                 let mut rust_variants = Vec::with_capacity(enumerated.len());
 
-                if enumerated.default().is_some() {
+                if enumerated.extension_after_index().is_some() {
                     // TODO not yet supported
-                    panic!("Default variant for ENUMERATED is not yet supported");
+                    panic!("Extensible ENUMERATED is not yet supported");
                 }
 
-                for variant in enumerated.variants() {
-                    if variant.number.is_some() {
+                for (index, variant) in enumerated.variants().enumerate() {
+                    if variant.number.map(|n| n != index).unwrap_or(false) {
                         // TODO not yet supported
-                        panic!("Variants with non-auto numbers are not yet supported")
+                        panic!("Variants with non-auto choice-index are not yet supported")
                     }
                     rust_variants.push(rust_variant_name(variant.name()));
                 }
@@ -454,7 +464,7 @@ pub fn rust_module_name(name: &str) -> String {
 mod tests {
     use super::*;
     use crate::model::tests::*;
-    use crate::model::{Enumerated, Field};
+    use crate::model::{Choice, Enumerated, Field};
     use crate::parser::Tokenizer;
 
     #[test]
@@ -689,10 +699,10 @@ mod tests {
         let mut model_asn = Model::default();
         model_asn.definitions.push(Definition(
             "SimpleChoiceTest".into(),
-            AsnType::Choice(vec![
-                ChoiceEntry("bernd-das-brot".into(), AsnType::UTF8String.untagged()),
-                ChoiceEntry("nochSoEinBrot".into(), AsnType::OctetString.untagged()),
-            ])
+            AsnType::Choice(Choice::from_variants(vec![
+                ChoiceVariant::name_type("bernd-das-brot", AsnType::UTF8String),
+                ChoiceVariant::name_type("nochSoEinBrot", AsnType::OctetString),
+            ]))
             .untagged(),
         ));
 
@@ -716,19 +726,18 @@ mod tests {
         let mut model_asn = Model::default();
         model_asn.definitions.push(Definition(
             "ListChoiceTestWithNestedList".into(),
-            AsnType::Choice(vec![
-                ChoiceEntry(
-                    "normal-List".into(),
-                    AsnType::SequenceOf(Box::new(AsnType::UTF8String)).untagged(),
+            AsnType::Choice(Choice::from_variants(vec![
+                ChoiceVariant::name_type(
+                    "normal-List",
+                    AsnType::SequenceOf(Box::new(AsnType::UTF8String)),
                 ),
-                ChoiceEntry(
-                    "NESTEDList".into(),
+                ChoiceVariant::name_type(
+                    "NESTEDList",
                     AsnType::SequenceOf(Box::new(AsnType::SequenceOf(Box::new(
                         AsnType::OctetString,
-                    ))))
-                    .untagged(),
+                    )))),
                 ),
-            ])
+            ]))
             .untagged(),
         ));
 
