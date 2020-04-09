@@ -1043,4 +1043,39 @@ mod tests {
         assert_eq!(&[0x00], &buffer.content(),);
         Ok(())
     }
+
+    #[test]
+    fn test_int_normally_small_5() -> Result<(), UperError> {
+        // example from larmouth-asn1-book, p.296, Figure III-25
+        let mut buffer = BitBuffer::default();
+        buffer.write_int_normally_small(5)?;
+        // first 7 bits are relevant
+        assert_eq!(&[0b0000_101_0], &buffer.content());
+        assert_eq!(5, buffer.read_int_normally_small()?);
+        Ok(())
+    }
+
+    #[test]
+    fn test_int_normally_small_60() -> Result<(), UperError> {
+        // example from larmouth-asn1-book, p.296, Figure III-25
+        let mut buffer = BitBuffer::default();
+        buffer.write_int_normally_small(60)?;
+        // first 7 bits
+        assert_eq!(&[0b0111_100_0], &buffer.content());
+        assert_eq!(60, buffer.read_int_normally_small()?);
+        Ok(())
+    }
+
+    #[test]
+    fn test_int_normally_small_254() -> Result<(), UperError> {
+        // example from larmouth-asn1-book, p.296, Figure III-25
+        let mut buffer = BitBuffer::default();
+        buffer.write_int_normally_small(254)?;
+        // first 17 bits are relevant
+        assert_eq!(
+            &[0b1000_0000_, 0b1111_1111, 0b0_000_0000],
+            &buffer.content()
+        );
+        Ok(())
+    }
 }

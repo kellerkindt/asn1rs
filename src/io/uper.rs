@@ -84,6 +84,20 @@ pub trait Reader {
         Ok(value + lower)
     }
 
+    fn read_int_normally_small(&mut self) -> Result<u64, Error> {
+        // X.691-201508 11.6
+        let is_small = !self.read_bit()?;
+        if is_small {
+            // 11.6.1: 6 bit of the number
+            let mut buffer = [0u8; 8];
+            self.read_bit_string(&mut buffer[7..8], 2, 6)?;
+            Ok(u64::from_be_bytes(buffer))
+        } else {
+            // 11.6.2: (length-determinant + number)
+            self.read_int_max()
+        }
+    }
+
     fn read_int_max(&mut self) -> Result<u64, Error> {
         let len_in_bytes = self.read_length_determinant()?;
         if len_in_bytes > 8 {
@@ -189,12 +203,28 @@ pub trait Writer {
         Ok(())
     }
 
+    fn write_int_normally_small(&mut self, value: u64) -> Result<(), Error> {
+        // X.691-201508 11.6
+        if value <= 63 {
+            // 11.6.1: '0'bit + 6 bit of the number
+            self.write_bit(false)?;
+            let buffer = value.to_be_bytes();
+            self.write_bit_string(&buffer[7..8], 2, 6)?; // last 6 bits
+            Ok(())
+        } else {
+            // 11.6.2: '1'bit + (length-determinant + number)
+            self.write_bit(true)?;
+            self.write_int_max(value)?;
+            Ok(())
+        }
+    }
+
+    /// ??? X.691-201508 11.9
     fn write_int_max(&mut self, value: u64) -> Result<(), Error> {
         if value > i64::max_value() as u64 {
             return Err(Error::ValueNotInRange(value as i64, 0, i64::max_value()));
         }
-        let mut buffer = [0_u8; 8];
-        NetworkEndian::write_u64(&mut buffer[..], value);
+        let buffer = value.to_be_bytes();
         let byte_len = {
             let mut len = buffer.len();
             while len > 0 && buffer[buffer.len() - len] == 0x00 {
