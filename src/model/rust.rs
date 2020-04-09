@@ -313,7 +313,7 @@ impl Model<Rust> {
             AsnType::Choice(choice) => {
                 let mut rust_entries = Vec::with_capacity(choice.len());
 
-                if choice.extension_after_index().is_some() {
+                if choice.is_extensible() {
                     // TODO not yet supported
                     panic!("Extensible CHOICE is not yet supported");
                 }
@@ -338,7 +338,7 @@ impl Model<Rust> {
             AsnType::Enumerated(enumerated) => {
                 let mut rust_variants = Vec::with_capacity(enumerated.len());
 
-                if enumerated.extension_after_index().is_some() {
+                if enumerated.is_extensible() {
                     // TODO not yet supported
                     panic!("Extensible ENUMERATED is not yet supported");
                 }
