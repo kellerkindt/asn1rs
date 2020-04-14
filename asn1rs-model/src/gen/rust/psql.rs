@@ -1,6 +1,7 @@
 use crate::gen::rust::shared_psql::*;
 use crate::gen::rust::GeneratorSupplement;
 use crate::gen::rust::RustCodeGenerator;
+use crate::model::rust::Enum as RustEnum;
 use crate::model::sql::Sql;
 use crate::model::sql::ToSql;
 use crate::model::Definition;
@@ -401,13 +402,9 @@ impl PsqlInserter {
                     &fields[..],
                 );
             }
-            Rust::Enum(variants) => {
+            Rust::Enum(r_enum) => {
                 Self::impl_empty_query_statement(Self::new_query_statement_fn(implementation));
-                Self::impl_enum_query_fn(
-                    Self::new_query_fn(implementation, false),
-                    name,
-                    &variants[..],
-                );
+                Self::impl_enum_query_fn(Self::new_query_fn(implementation, false), name, r_enum);
                 Self::impl_enum_load_fn(Self::new_load_fn(implementation, true), name);
             }
             Rust::TupleStruct(rust) => {
@@ -594,9 +591,9 @@ impl PsqlInserter {
         func.push_block(block);
     }
 
-    fn impl_enum_query_fn(func: &mut Function, name: &str, variants: &[String]) {
+    fn impl_enum_query_fn(func: &mut Function, name: &str, r_enum: &RustEnum) {
         let mut block = Block::new("match id");
-        for (index, variant) in variants.iter().enumerate() {
+        for (index, variant) in r_enum.variants().enumerate() {
             block.line(&format!("{} => Ok({}::{}),", index, name, variant));
         }
         block.line(&format!("_ => Err({}::no_result()),", ERROR_TYPE));

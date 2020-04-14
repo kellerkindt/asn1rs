@@ -1,5 +1,6 @@
 use crate::gen::rust::GeneratorSupplement;
 use crate::gen::rust::RustCodeGenerator;
+use crate::model::rust::Enum as RustEnum;
 use crate::model::Definition;
 use crate::model::Rust;
 use crate::model::RustType;
@@ -57,8 +58,8 @@ impl UperSerializer {
                 }
                 Self::impl_read_fn_for_struct(function, fields);
             }
-            Rust::Enum(variants) => {
-                Self::impl_read_fn_for_enum(function, name, &variants[..]);
+            Rust::Enum(r_enum) => {
+                Self::impl_read_fn_for_enum(function, name, r_enum);
             }
             Rust::DataEnum(variants) => {
                 Self::impl_read_fn_for_data_enum(function, name, &variants[..]);
@@ -195,18 +196,25 @@ impl UperSerializer {
         function.line("Ok(me)");
     }
 
-    fn impl_read_fn_for_enum(function: &mut Function, name: &str, variants: &[String]) {
-        function.line(format!(
-            "let id = reader.read_int((0, {}))?;",
-            variants.len() - 1
-        ));
+    fn impl_read_fn_for_enum(function: &mut Function, name: &str, r_enum: &RustEnum) {
+        if let Some(last_standard_index) = r_enum.last_standard_index() {
+            function.line(format!(
+                "let id = reader.read_choice_index_extensible({})? as i64;",
+                last_standard_index + 1
+            ));
+        } else {
+            function.line(format!(
+                "let id = reader.read_int((0, {}))?;",
+                r_enum.len() - 1
+            ));
+        }
         let mut block_match = Block::new("match id");
-        for (i, variant) in variants.iter().enumerate() {
+        for (i, variant) in r_enum.variants().enumerate() {
             block_match.line(format!("{} => Ok({}::{}),", i, name, variant));
         }
         block_match.line(format!(
             "_ => Err(UperError::ValueNotInRange(id, 0, {}))",
-            variants.len() - 1
+            r_enum.len() - 1
         ));
         function.push_block(block_match);
     }
@@ -253,8 +261,8 @@ impl UperSerializer {
                 }
                 Self::impl_write_fn_for_struct(function, fields);
             }
-            Rust::Enum(variants) => {
-                Self::impl_write_fn_for_enum(function, name, &variants[..]);
+            Rust::Enum(r_enum) => {
+                Self::impl_write_fn_for_enum(function, name, r_enum);
             }
             Rust::DataEnum(variants) => {
                 Self::impl_write_fn_for_data_enum(function, name, &variants[..]);
@@ -427,16 +435,26 @@ impl UperSerializer {
         function.line("Ok(())");
     }
 
-    fn impl_write_fn_for_enum(function: &mut Function, name: &str, variants: &[String]) {
+    fn impl_write_fn_for_enum(function: &mut Function, name: &str, r_enum: &RustEnum) {
         let mut block = Block::new("match self");
-        for (i, variant) in variants.iter().enumerate() {
-            block.line(format!(
-                "{}::{} => writer.write_int({}, (0, {}))?,",
-                name,
-                &variant,
-                i,
-                variants.len() - 1
-            ));
+        for (i, variant) in r_enum.variants().enumerate() {
+            if let Some(last_standard_index) = r_enum.last_standard_index() {
+                block.line(format!(
+                    "{}::{} => writer.write_choice_index_extensible({}, {})?,",
+                    name,
+                    &variant,
+                    i,
+                    last_standard_index + 1
+                ));
+            } else {
+                block.line(format!(
+                    "{}::{} => writer.write_int({}, (0, {}))?,",
+                    name,
+                    &variant,
+                    i,
+                    r_enum.len() - 1
+                ));
+            }
         }
         function.push_block(block);
         function.line("Ok(())");

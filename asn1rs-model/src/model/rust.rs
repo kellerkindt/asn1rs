@@ -217,7 +217,7 @@ impl RustType {
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum Rust {
     Struct(Vec<(String, RustType)>),
-    Enum(Vec<String>),
+    Enum(Enum),
     DataEnum(Vec<(String, RustType)>),
 
     /// Used to represent a single, unnamed inner type
@@ -243,6 +243,26 @@ impl ToString for RustType {
             RustType::Complex(name) => return name.clone(),
         }
         .into()
+    }
+}
+
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub struct Enum {
+    variants: Vec<String>,
+    extended_after_index: Option<usize>,
+}
+
+impl Enum {
+    pub fn len(&self) -> usize {
+        self.variants.len()
+    }
+
+    pub fn variants(&self) -> impl Iterator<Item = &String> {
+        self.variants.iter()
+    }
+
+    pub fn last_standard_index(&self) -> Option<usize> {
+        self.extended_after_index
     }
 }
 
@@ -336,22 +356,16 @@ impl Model<Rust> {
             }
 
             AsnType::Enumerated(enumerated) => {
-                let mut rust_variants = Vec::with_capacity(enumerated.len());
+                let mut rust_enum = Enum {
+                    variants: Vec::with_capacity(enumerated.len()),
+                    extended_after_index: enumerated.extension_after_index(),
+                };
 
-                if enumerated.is_extensible() {
-                    // TODO not yet supported
-                    panic!("Extensible ENUMERATED is not yet supported");
+                for variant in enumerated.variants() {
+                    rust_enum.variants.push(rust_variant_name(variant.name()));
                 }
 
-                for (index, variant) in enumerated.variants().enumerate() {
-                    if variant.number.map(|n| n != index).unwrap_or(false) {
-                        // TODO not yet supported
-                        panic!("Variants with non-auto choice-index are not yet supported")
-                    }
-                    rust_variants.push(rust_variant_name(variant.name()));
-                }
-
-                defs.push(Definition(name.into(), Rust::Enum(rust_variants)));
+                defs.push(Definition(name.into(), Rust::Enum(rust_enum)));
             }
         }
     }

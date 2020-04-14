@@ -132,8 +132,8 @@ impl Model<Protobuf> {
 
                 Protobuf::Message(proto_fields)
             }
-            Rust::Enum(variants) => {
-                Protobuf::Enum(variants.iter().map(|v| proto_variant_name(v)).collect())
+            Rust::Enum(r_enum) => {
+                Protobuf::Enum(r_enum.variants().map(|v| proto_variant_name(v)).collect())
             }
             Rust::DataEnum(variants) => {
                 let mut proto_variants = Vec::with_capacity(variants.len());

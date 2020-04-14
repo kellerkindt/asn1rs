@@ -1,6 +1,7 @@
 use crate::gen::rust::GeneratorSupplement;
 use crate::gen::rust::RustCodeGenerator;
 use crate::model::protobuf::ToProtobufType;
+use crate::model::rust::Enum as RustEnum;
 use crate::model::Definition;
 use crate::model::ProtobufType;
 use crate::model::Rust;
@@ -73,8 +74,8 @@ impl ProtobufSerializer {
             Rust::Struct(fields) => {
                 Self::impl_read_fn_for_struct(function, name, &fields[..]);
             }
-            Rust::Enum(variants) => {
-                Self::impl_read_fn_for_enum(function, name, &variants[..]);
+            Rust::Enum(r_enum) => {
+                Self::impl_read_fn_for_enum(function, name, r_enum);
             }
             Rust::DataEnum(variants) => {
                 Self::impl_read_fn_for_data_enum(function, name, &variants[..]);
@@ -221,9 +222,9 @@ impl ProtobufSerializer {
         function.push_block(return_block);
     }
 
-    fn impl_read_fn_for_enum(function: &mut Function, name: &str, variants: &[String]) {
+    fn impl_read_fn_for_enum(function: &mut Function, name: &str, r_enum: &RustEnum) {
         let mut block_match = Block::new("match reader.read_varint()?");
-        for (field, variant) in variants.iter().enumerate() {
+        for (field, variant) in r_enum.variants().enumerate() {
             block_match.line(format!(
                 "{} => Ok({}::{}),",
                 field,
@@ -301,8 +302,8 @@ impl ProtobufSerializer {
             Rust::Struct(fields) => {
                 Self::impl_write_fn_for_struct(function, &fields[..]);
             }
-            Rust::Enum(variants) => {
-                Self::impl_write_fn_for_enum(function, name, &variants[..]);
+            Rust::Enum(r_enum) => {
+                Self::impl_write_fn_for_enum(function, name, r_enum);
             }
             Rust::DataEnum(variants) => {
                 Self::impl_write_fn_for_data_enum(function, name, &variants[..]);
@@ -469,9 +470,9 @@ impl ProtobufSerializer {
         };
     }
 
-    fn impl_write_fn_for_enum(function: &mut Function, name: &str, variants: &[String]) {
+    fn impl_write_fn_for_enum(function: &mut Function, name: &str, r_enum: &RustEnum) {
         let mut outer_block = Block::new("match self");
-        for (field, variant) in variants.iter().enumerate() {
+        for (field, variant) in r_enum.variants().enumerate() {
             outer_block.line(format!(
                 "{}::{} => writer.write_varint({})?,",
                 name,

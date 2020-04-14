@@ -1,4 +1,5 @@
 use crate::gen::RustCodeGenerator;
+use crate::model::rust::Enum;
 use crate::model::Definition;
 use crate::model::Model;
 use crate::model::Range;
@@ -139,7 +140,7 @@ impl Model<Sql> {
     fn definition_to_sql(name: &str, rust: &Rust, definitions: &mut Vec<Definition<Sql>>) {
         match rust {
             Rust::Struct(fields) => Self::rust_struct_to_sql_table(name, fields, definitions),
-            Rust::Enum(variants) => Self::rust_enum_to_sql_enum(name, variants, definitions),
+            Rust::Enum(rust_enum) => Self::rust_enum_to_sql_enum(name, rust_enum, definitions),
             Rust::DataEnum(fields) => Self::rust_data_enum_to_sql_table(name, fields, definitions),
             Rust::TupleStruct(rust) => {
                 Self::rust_tuple_struct_to_sql_table(name, rust, definitions)
@@ -238,10 +239,10 @@ impl Model<Sql> {
 
     pub fn rust_enum_to_sql_enum(
         name: &str,
-        variants: &[String],
+        r_enum: &Enum,
         definitions: &mut Vec<Definition<Sql>>,
     ) {
-        let variants = Vec::from(variants);
+        let variants = r_enum.variants().map(String::clone).collect();
         definitions.push(Definition(name.into(), Sql::Enum(variants)));
         Self::add_silently_prevent_any_delete(name, definitions);
     }

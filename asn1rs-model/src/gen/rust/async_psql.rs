@@ -1,6 +1,7 @@
 use crate::gen::rust::shared_psql::*;
 use crate::gen::rust::GeneratorSupplement;
 use crate::gen::RustCodeGenerator;
+use crate::model::rust::Enum as RustEnum;
 use crate::model::sql::{Sql, SqlType, ToSql};
 use crate::model::{Definition, Model, Rust, RustType};
 use codegen::{Block, Function, Impl, Scope};
@@ -33,7 +34,7 @@ impl GeneratorSupplement<Rust> for AsyncPsqlInserter {
         impl_insert_fn_content(false, true, name, fields, fn_insert);
     }
 
-    fn extend_impl_of_enum(&self, _name: &str, impl_scope: &mut Impl, _variants: &[String]) {
+    fn extend_impl_of_enum(&self, _name: &str, impl_scope: &mut Impl, _r_enum: &RustEnum) {
         AsyncPsqlInserter::append_retrieve_many_enums(impl_scope);
         AsyncPsqlInserter::append_retrieve_enum(impl_scope);
 

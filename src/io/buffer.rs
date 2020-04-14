@@ -1078,4 +1078,36 @@ mod tests {
         );
         Ok(())
     }
+
+    #[test]
+    fn test_write_choice_index_extensible() -> Result<(), UperError> {
+        fn write_once(
+            index: u64,
+            no_of_default_variants: u64,
+        ) -> Result<(usize, Vec<u8>), UperError> {
+            let mut buffer = BitBuffer::default();
+            buffer.write_choice_index_extensible(index, no_of_default_variants)?;
+            let bits = buffer.bit_len();
+            Ok((bits, buffer.into()))
+        }
+        assert_eq!((2, vec![0x00]), write_once(0, 2)?);
+        assert_eq!((2, vec![0x40]), write_once(1, 2)?);
+        assert_eq!((8, vec![0x80]), write_once(2, 2)?);
+        assert_eq!((8, vec![0x81]), write_once(3, 2)?);
+        Ok(())
+    }
+
+    #[test]
+    fn test_read_choice_index_extensible() -> Result<(), UperError> {
+        fn read_once(data: &[u8], bits: usize, no_of_variants: u64) -> Result<u64, UperError> {
+            let mut buffer = BitBuffer::default();
+            buffer.write_bit_string(data, 0, bits)?;
+            buffer.read_choice_index_extensible(no_of_variants)
+        }
+        assert_eq!(0, read_once(&[0x00], 2, 2)?);
+        assert_eq!(1, read_once(&[0x40], 2, 2)?);
+        assert_eq!(2, read_once(&[0x80], 8, 2)?);
+        assert_eq!(3, read_once(&[0x81], 8, 2)?);
+        Ok(())
+    }
 }

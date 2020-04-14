@@ -13,6 +13,7 @@ pub(crate) mod shared_psql;
 use self::protobuf::ProtobufSerializer;
 use self::uper::UperSerializer;
 use crate::gen::Generator;
+use crate::model::rust::Enum as RustEnum;
 use crate::model::Definition;
 use crate::model::Model;
 use crate::model::Range;
@@ -45,7 +46,7 @@ pub trait GeneratorSupplement<T> {
         _fields: &[(String, RustType)],
     ) {
     }
-    fn extend_impl_of_enum(&self, _name: &str, _impl_scope: &mut Impl, _variants: &[String]) {}
+    fn extend_impl_of_enum(&self, _name: &str, _impl_scope: &mut Impl, _r_enum: &RustEnum) {}
     fn extend_impl_of_data_enum(
         &self,
         _name: &str,
@@ -204,8 +205,8 @@ impl RustCodeGenerator {
         }
     }
 
-    fn add_enum(en_m: &mut Enum, _name: &str, variants: &[String]) {
-        for variant in variants.iter() {
+    fn add_enum(en_m: &mut Enum, _name: &str, rust_enum: &RustEnum) {
+        for variant in rust_enum.variants() {
             en_m.new_variant(&Self::rust_variant_name(variant));
         }
     }
@@ -243,12 +244,12 @@ impl RustCodeGenerator {
                     g.extend_impl_of_struct(name, implementation, fields);
                 }
             }
-            Rust::Enum(variants) => {
-                let implementation = Self::impl_enum(scope, name, variants);
+            Rust::Enum(r_enum) => {
+                let implementation = Self::impl_enum(scope, name, r_enum);
                 for g in generators {
-                    g.extend_impl_of_enum(name, implementation, variants);
+                    g.extend_impl_of_enum(name, implementation, r_enum);
                 }
-                Self::impl_enum_default(scope, name, variants);
+                Self::impl_enum_default(scope, name, r_enum);
             }
             Rust::DataEnum(variants) => {
                 let implementation = Self::impl_data_enum(scope, name, variants);
@@ -352,7 +353,7 @@ impl RustCodeGenerator {
             ));
     }
 
-    fn impl_enum_default(scope: &mut Scope, name: &str, variants: &[String]) {
+    fn impl_enum_default(scope: &mut Scope, name: &str, r_enum: &RustEnum) {
         scope
             .new_impl(name)
             .impl_trait("Default")
@@ -361,20 +362,20 @@ impl RustCodeGenerator {
             .line(format!(
                 "{}::{}",
                 name,
-                Self::rust_variant_name(&variants[0])
+                Self::rust_variant_name(r_enum.variants().next().unwrap())
             ));
     }
 
-    fn impl_enum<'a>(scope: &'a mut Scope, name: &str, variants: &[String]) -> &'a mut Impl {
+    fn impl_enum<'a>(scope: &'a mut Scope, name: &str, r_enum: &RustEnum) -> &'a mut Impl {
         let implementation = scope.new_impl(name);
 
-        Self::impl_enum_value_fn(implementation, name, variants);
-        Self::impl_enum_values_fn(implementation, name, variants);
-        Self::impl_enum_value_index_fn(implementation, name, variants);
+        Self::impl_enum_value_fn(implementation, name, r_enum);
+        Self::impl_enum_values_fn(implementation, name, r_enum);
+        Self::impl_enum_value_index_fn(implementation, name, r_enum);
         implementation
     }
 
-    fn impl_enum_value_fn(implementation: &mut Impl, name: &str, variants: &[String]) {
+    fn impl_enum_value_fn(implementation: &mut Impl, name: &str, r_enum: &RustEnum) {
         let value_fn = implementation
             .new_fn("variant")
             .vis("pub")
@@ -383,7 +384,7 @@ impl RustCodeGenerator {
 
         let mut block_match = Block::new("match index");
 
-        for (index, variant) in variants.iter().enumerate() {
+        for (index, variant) in r_enum.variants().enumerate() {
             block_match.line(format!(
                 "{} => Some({}::{}),",
                 index,
@@ -395,20 +396,20 @@ impl RustCodeGenerator {
         value_fn.push_block(block_match);
     }
 
-    fn impl_enum_values_fn(implementation: &mut Impl, name: &str, variants: &[String]) {
+    fn impl_enum_values_fn(implementation: &mut Impl, name: &str, r_enum: &RustEnum) {
         let values_fn = implementation
             .new_fn("variants")
             .vis("pub const")
-            .ret(format!("[Self; {}]", variants.len()))
+            .ret(format!("[Self; {}]", r_enum.len()))
             .line("[");
 
-        for variant in variants {
+        for variant in r_enum.variants() {
             values_fn.line(format!("{}::{},", name, Self::rust_variant_name(variant)));
         }
         values_fn.line("]");
     }
 
-    fn impl_enum_value_index_fn(implementation: &mut Impl, name: &str, variants: &[String]) {
+    fn impl_enum_value_index_fn(implementation: &mut Impl, name: &str, r_enum: &RustEnum) {
         let ordinal_fn = implementation
             .new_fn("value_index")
             .arg_self()
@@ -416,14 +417,17 @@ impl RustCodeGenerator {
             .ret("usize");
 
         let mut block = Block::new("match self");
-        variants.iter().enumerate().for_each(|(ordinal, variant)| {
-            block.line(format!(
-                "{}::{} => {},",
-                name,
-                Self::rust_variant_name(variant),
-                ordinal
-            ));
-        });
+        r_enum
+            .variants()
+            .enumerate()
+            .for_each(|(ordinal, variant)| {
+                block.line(format!(
+                    "{}::{} => {},",
+                    name,
+                    Self::rust_variant_name(variant),
+                    ordinal
+                ));
+            });
 
         ordinal_fn.push_block(block);
     }
