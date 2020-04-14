@@ -13,3 +13,9 @@ readme = "README.md"
 [dependencies]
 backtrace = "0.3.9"
 codegen = "0.1.1"
+
+[features]
+default = []
+# RustCodeGenerator -> GeneratorSupplement
+psql = []
+async-psql = []

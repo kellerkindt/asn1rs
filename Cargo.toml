@@ -43,8 +43,8 @@ asn1rs-macros = { version = "0.1.0", path = "asn1rs-macros", optional = true }
 
 [features]
 default = ["macros", "model"]
-psql = ["postgres"]
-async-psql = ["tokio", "tokio-postgres", "futures", "bytes"]
+psql = ["asn1rs-model/psql", "postgres"]
+async-psql = ["asn1rs-model/async-psql", "tokio", "tokio-postgres", "futures", "bytes"]
 legacy_bit_buffer = []
 macros = ["asn1rs-macros"]
 model = ["asn1rs-model"]
