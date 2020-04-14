@@ -7,8 +7,17 @@ asn_to_rust!(
     
     RangedMax ::= Integer (0..MAX)
     
+    NotRanged ::= Integer
+    
     END"
 );
+
+#[test]
+fn test_default_range() {
+    assert_eq!(RangedMax::value_min(), NotRanged::value_min());
+    assert_eq!(RangedMax::value_max(), NotRanged::value_max());
+    let _ = NotRanged(123_u64); // does not compile if the inner type is not u64
+}
 
 #[test]
 fn test_uper() {

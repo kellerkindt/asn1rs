@@ -13,6 +13,7 @@ use backtrace::Backtrace;
 use std::convert::TryFrom;
 use std::error::Error as StdError;
 use std::fmt::{Debug, Display, Formatter};
+use std::iter::Peekable;
 use std::vec::IntoIter;
 
 macro_rules! loop_ctrl_separator {
@@ -234,7 +235,7 @@ impl<T> Default for Model<T> {
 impl Model<Asn> {
     pub fn try_from(value: Vec<Token>) -> Result<Self, Error> {
         let mut model = Model::default();
-        let mut iter = value.into_iter();
+        let mut iter = value.into_iter().peekable();
 
         model.name = Self::read_name(&mut iter)?;
         Self::skip_until_after_text_ignore_ascii_case(&mut iter, "BEGIN")?;
@@ -257,14 +258,14 @@ impl Model<Asn> {
         Err(Error::unexpected_end_of_stream())
     }
 
-    fn read_name(iter: &mut IntoIter<Token>) -> Result<String, Error> {
+    fn read_name(iter: &mut Peekable<IntoIter<Token>>) -> Result<String, Error> {
         iter.next()
             .and_then(|token| token.into_text())
             .ok_or(Error::missing_module_name())
     }
 
     fn skip_until_after_text_ignore_ascii_case(
-        iter: &mut IntoIter<Token>,
+        iter: &mut Peekable<IntoIter<Token>>,
         text: &str,
     ) -> Result<(), Error> {
         for t in iter {
@@ -275,7 +276,7 @@ impl Model<Asn> {
         Err(Error::unexpected_end_of_stream())
     }
 
-    fn read_imports(iter: &mut IntoIter<Token>) -> Result<Vec<Import>, Error> {
+    fn read_imports(iter: &mut Peekable<IntoIter<Token>>) -> Result<Vec<Import>, Error> {
         let mut imports = Vec::new();
         let mut import = Import::default();
         while let Some(token) = iter.next() {
@@ -296,7 +297,10 @@ impl Model<Asn> {
         }
         Err(Error::unexpected_end_of_stream())
     }
-    fn read_definition(iter: &mut IntoIter<Token>, name: String) -> Result<Definition<Asn>, Error> {
+    fn read_definition(
+        iter: &mut Peekable<IntoIter<Token>>,
+        name: String,
+    ) -> Result<Definition<Asn>, Error> {
         Self::next_separator_ignore_case(iter, ':')?;
         Self::next_separator_ignore_case(iter, ':')?;
         Self::next_separator_ignore_case(iter, '=')?;
@@ -328,7 +332,9 @@ impl Model<Asn> {
         }
     }
 
-    fn next_with_opt_tag(iter: &mut IntoIter<Token>) -> Result<(Token, Option<Tag>), Error> {
+    fn next_with_opt_tag(
+        iter: &mut Peekable<IntoIter<Token>>,
+    ) -> Result<(Token, Option<Tag>), Error> {
         let token = Self::next(iter)?;
         if token.eq_separator('[') {
             let tag = Tag::try_from(&mut *iter)?;
@@ -340,31 +346,39 @@ impl Model<Asn> {
         }
     }
 
-    fn read_role(iter: &mut IntoIter<Token>) -> Result<Type, Error> {
+    fn read_role(iter: &mut Peekable<IntoIter<Token>>) -> Result<Type, Error> {
         let text = Self::next_text(iter)?;
         Self::read_role_given_text(iter, text)
     }
 
-    fn read_role_given_text(iter: &mut IntoIter<Token>, text: String) -> Result<Type, Error> {
+    fn read_role_given_text(
+        iter: &mut Peekable<IntoIter<Token>>,
+        text: String,
+    ) -> Result<Type, Error> {
         if text.eq_ignore_ascii_case("INTEGER") {
-            Self::next_separator_ignore_case(iter, '(')?;
-            let start = Self::next(iter)?;
-            Self::next_separator_ignore_case(iter, '.')?;
-            Self::next_separator_ignore_case(iter, '.')?;
-            let end = Self::next(iter)?;
-            Self::next_separator_ignore_case(iter, ')')?;
-            if start.eq_text("0") && end.eq_text_ignore_ascii_case("MAX") {
-                Ok(Type::Integer(None))
-            } else {
-                Ok(Type::Integer(Some(Range(
-                    start
-                        .text()
-                        .and_then(|t| t.parse::<i64>().ok())
-                        .ok_or_else(|| Error::invalid_range_value(start))?,
-                    end.text()
-                        .and_then(|t| t.parse::<i64>().ok())
-                        .ok_or_else(|| Error::invalid_range_value(end))?,
-                ))))
+            match iter.peek() {
+                Some(peeked) if peeked.eq_separator('(') => {
+                    Self::next_separator_ignore_case(iter, '(')?;
+                    let start = Self::next(iter)?;
+                    Self::next_separator_ignore_case(iter, '.')?;
+                    Self::next_separator_ignore_case(iter, '.')?;
+                    let end = Self::next(iter)?;
+                    Self::next_separator_ignore_case(iter, ')')?;
+                    if start.eq_text("0") && end.eq_text_ignore_ascii_case("MAX") {
+                        Ok(Type::Integer(None))
+                    } else {
+                        Ok(Type::Integer(Some(Range(
+                            start
+                                .text()
+                                .and_then(|t| t.parse::<i64>().ok())
+                                .ok_or_else(|| Error::invalid_range_value(start))?,
+                            end.text()
+                                .and_then(|t| t.parse::<i64>().ok())
+                                .ok_or_else(|| Error::invalid_range_value(end))?,
+                        ))))
+                    }
+                }
+                _ => Ok(Type::Integer(None)),
             }
         } else if text.eq_ignore_ascii_case("BOOLEAN") {
             Ok(Type::Boolean)
@@ -388,7 +402,7 @@ impl Model<Asn> {
         }
     }
 
-    fn read_sequence_or_sequence_of(iter: &mut IntoIter<Token>) -> Result<Type, Error> {
+    fn read_sequence_or_sequence_of(iter: &mut Peekable<IntoIter<Token>>) -> Result<Type, Error> {
         let token = Self::next(iter)?;
 
         if token.eq_text_ignore_ascii_case("OF") {
@@ -410,7 +424,7 @@ impl Model<Asn> {
         }
     }
 
-    fn read_field(iter: &mut IntoIter<Token>) -> Result<(Field<Asn>, bool), Error> {
+    fn read_field(iter: &mut Peekable<IntoIter<Token>>) -> Result<(Field<Asn>, bool), Error> {
         let name = Self::next_text(iter)?;
         let (token, tag) = Self::next_with_opt_tag(iter)?;
         let mut field = Field {
@@ -436,16 +450,16 @@ impl Model<Asn> {
         }
     }
 
-    fn next(iter: &mut IntoIter<Token>) -> Result<Token, Error> {
+    fn next(iter: &mut Peekable<IntoIter<Token>>) -> Result<Token, Error> {
         iter.next().ok_or_else(Error::unexpected_end_of_stream)
     }
 
-    fn next_text(iter: &mut IntoIter<Token>) -> Result<String, Error> {
+    fn next_text(iter: &mut Peekable<IntoIter<Token>>) -> Result<String, Error> {
         Self::next(iter)?.into_text_or_else(Error::no_text)
     }
 
     fn next_separator_ignore_case(
-        iter: &mut IntoIter<Token>,
+        iter: &mut Peekable<IntoIter<Token>>,
         separator: char,
     ) -> Result<(), Error> {
         let token = Self::next(iter)?;
@@ -540,10 +554,10 @@ pub enum Tag {
     ContextSpecific(usize),
 }
 
-impl TryFrom<&mut IntoIter<Token>> for Tag {
+impl TryFrom<&mut Peekable<IntoIter<Token>>> for Tag {
     type Error = Error;
 
-    fn try_from(iter: &mut IntoIter<Token>) -> Result<Self, Self::Error> {
+    fn try_from(iter: &mut Peekable<IntoIter<Token>>) -> Result<Self, Self::Error> {
         macro_rules! parse_tag_number {
             () => {
                 parse_tag_number!(Model::<Asn>::next(iter)?)
@@ -710,10 +724,10 @@ impl Choice {
     }
 }
 
-impl TryFrom<&mut IntoIter<Token>> for Choice {
+impl TryFrom<&mut Peekable<IntoIter<Token>>> for Choice {
     type Error = Error;
 
-    fn try_from(iter: &mut IntoIter<Token>) -> Result<Self, Self::Error> {
+    fn try_from(iter: &mut Peekable<IntoIter<Token>>) -> Result<Self, Self::Error> {
         Model::<Asn>::next_separator_ignore_case(iter, '{')?;
         let mut choice = Choice {
             variants: Vec::new(),
@@ -836,10 +850,10 @@ impl Enumerated {
     }
 }
 
-impl TryFrom<&mut IntoIter<Token>> for Enumerated {
+impl TryFrom<&mut Peekable<IntoIter<Token>>> for Enumerated {
     type Error = Error;
 
-    fn try_from(iter: &mut IntoIter<Token>) -> Result<Self, Self::Error> {
+    fn try_from(iter: &mut Peekable<IntoIter<Token>>) -> Result<Self, Self::Error> {
         Model::<Asn>::next_separator_ignore_case(iter, '{')?;
         let mut enumerated = Self {
             variants: Vec::new(),
