@@ -40,6 +40,9 @@ psql = ["postgres"]
 async-psql = ["tokio", "tokio-postgres", "futures", "bytes"]
 legacy_bit_buffer = []
 
+[dev-dependencies.asn1rs-macros]
+path = "asn1rs-macros"
+
 [[bench]]
 name = "bitbuffer"
 path = "benches/bitbuffer.rs"

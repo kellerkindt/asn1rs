@@ -1,0 +1,22 @@
+[package]
+name = "asn1rs-macros"
+version = "0.1.0"
+authors = ["Michael Watzko <michael@watzko.de>"]
+edition = "2018"
+description = "Macros for asn1rs"
+keywords = ["proc", "asn1", "uper", "protobuf", "sql", "compiler"]
+categories = ["encoding", "parsing"]
+repository = "https://github.com/kellerkindt/asn1rs-proc"
+license = "MIT/Apache-2.0"
+readme = "README.md"
+
+
+[lib]
+proc-macro = true
+
+
+[dependencies]
+syn = "1.0.17"
+
+[dependencies.asn1rs]
+path = ".."
