@@ -102,11 +102,21 @@ impl ProtobufSerializer {
             RustType::Complex(custom) => {
                 block_reader.line(format!("me.0.push({}::read_protobuf(reader)?);", custom))
             }
-            r => block_reader.line(format!(
-                "me.0.push(reader.read_{}()?{});",
-                r.to_protobuf().to_string(),
-                Self::get_as_rust_type_statement(&r),
-            )),
+            r => {
+                if aliased.as_no_option().is_vec() {
+                    block_reader.line(format!(
+                        "me.0.push(reader.read_{}()?{});",
+                        r.to_protobuf().to_string(),
+                        Self::get_as_rust_type_statement(&r),
+                    ))
+                } else {
+                    block_reader.line(format!(
+                        "me.0 = reader.read_{}()?{};",
+                        r.to_protobuf().to_string(),
+                        Self::get_as_rust_type_statement(&r),
+                    ))
+                }
+            }
         };
         block_while.push_block(block_reader);
         function.push_block(block_while);
@@ -353,110 +363,110 @@ impl ProtobufSerializer {
 
     fn impl_write_fn_for_tuple_struct(function: &mut Function, aliased: &RustType) {
         let mut block_writer = Block::new("");
-        Self::impl_write_for_vec_attribute(&mut block_writer, aliased, "0", 1);
+        Self::impl_write_field(1, aliased, "0", &mut block_writer);
         function.push_block(block_writer);
     }
 
     fn impl_write_fn_for_struct(function: &mut Function, fields: &[(String, RustType)]) {
         for (prev_tag, (field_name, field_type)) in fields.iter().enumerate() {
             let block_: &mut Function = function;
+            let field_name = RustCodeGenerator::rust_field_name(field_name, true);
             let mut block = if let RustType::Option(_) = field_type {
                 Block::new(&format!(
                     "if let Some(ref {}) = self.{}",
-                    RustCodeGenerator::rust_field_name(field_name, true),
-                    RustCodeGenerator::rust_field_name(field_name, true),
+                    &field_name, &field_name,
                 ))
             } else {
                 Block::new("")
             };
 
-            match &field_type.clone().no_option() {
-                RustType::Vec(_) => {
-                    Self::impl_write_for_vec_attribute(
-                        &mut block,
-                        field_type,
-                        &RustCodeGenerator::rust_field_name(field_name, true),
-                        prev_tag + 1,
-                    );
-                }
-                RustType::Complex(_) => {
-                    let format_line = format!(
-                        "{}{}.{}_format()",
-                        if let RustType::Option(_) = field_type {
-                            ""
-                        } else {
-                            "self."
-                        },
-                        RustCodeGenerator::rust_field_name(field_name, true),
-                        Self::CODEC.to_lowercase()
-                    );
-                    block.line(format!(
-                        "writer.write_tag({}, {})?;",
-                        prev_tag + 1,
-                        format_line,
-                    ));
-                    let mut block_if = Block::new(&format!(
-                        "if {} == {}Format::LengthDelimited",
-                        format_line,
-                        Self::CODEC
-                    ));
-                    block_if.line("let mut vec = Vec::new();");
-                    block_if.line(format!(
-                        "{}{}.write_protobuf(&mut vec as &mut dyn {}Writer)?;",
-                        if let RustType::Option(_) = field_type {
-                            ""
-                        } else {
-                            "self."
-                        },
-                        RustCodeGenerator::rust_field_name(field_name, true),
-                        Self::CODEC,
-                    ));
-                    block_if.line("writer.write_bytes(&vec[..])?;");
-
-                    let mut block_el = Block::new("else");
-                    block_el.line(format!(
-                        "{}{}.write_protobuf(writer)?;",
-                        if let RustType::Option(_) = field_type {
-                            ""
-                        } else {
-                            "self."
-                        },
-                        RustCodeGenerator::rust_field_name(field_name, true),
-                    ));
-
-                    block.push_block(block_if);
-                    block.push_block(block_el);
-                }
-                r => {
-                    block.line(format!(
-                        "writer.write_tagged_{}({}, {})?;",
-                        r.to_protobuf().to_string(),
-                        prev_tag + 1,
-                        Self::get_as_protobuf_type_statement(
-                            format!(
-                                "{}{}",
-                                if ProtobufType::String == r.to_protobuf()
-                                    || RustType::VecU8 == r.to_protobuf().to_rust()
-                                {
-                                    if let RustType::Option(_) = field_type {
-                                        ""
-                                    } else {
-                                        "&self."
-                                    }
-                                } else if let RustType::Option(_) = field_type {
-                                    "*"
-                                } else {
-                                    "self."
-                                },
-                                RustCodeGenerator::rust_field_name(field_name, true),
-                            ),
-                            r
-                        ),
-                    ));
-                }
-            };
+            Self::impl_write_field(prev_tag + 1, field_type, &field_name, &mut block);
             block_.push_block(block);
         }
+    }
+
+    fn impl_write_field(
+        tag: usize,
+        field_type: &RustType,
+        field_name: &str,
+        mut block: &mut Block,
+    ) {
+        match &field_type.clone().no_option() {
+            RustType::Vec(_) => {
+                Self::impl_write_for_vec_attribute(&mut block, field_type, &field_name, tag);
+            }
+            RustType::Complex(_) => {
+                let format_line = format!(
+                    "{}{}.{}_format()",
+                    if let RustType::Option(_) = field_type {
+                        ""
+                    } else {
+                        "self."
+                    },
+                    &field_name,
+                    Self::CODEC.to_lowercase()
+                );
+                block.line(format!("writer.write_tag({}, {})?;", tag, format_line,));
+                let mut block_if = Block::new(&format!(
+                    "if {} == {}Format::LengthDelimited",
+                    format_line,
+                    Self::CODEC
+                ));
+                block_if.line("let mut vec = Vec::new();");
+                block_if.line(format!(
+                    "{}{}.write_protobuf(&mut vec as &mut dyn {}Writer)?;",
+                    if let RustType::Option(_) = field_type {
+                        ""
+                    } else {
+                        "self."
+                    },
+                    &field_name,
+                    Self::CODEC,
+                ));
+                block_if.line("writer.write_bytes(&vec[..])?;");
+
+                let mut block_el = Block::new("else");
+                block_el.line(format!(
+                    "{}{}.write_protobuf(writer)?;",
+                    if let RustType::Option(_) = field_type {
+                        ""
+                    } else {
+                        "self."
+                    },
+                    &field_name,
+                ));
+
+                block.push_block(block_if);
+                block.push_block(block_el);
+            }
+            r => {
+                block.line(format!(
+                    "writer.write_tagged_{}({}, {})?;",
+                    r.to_protobuf().to_string(),
+                    tag,
+                    Self::get_as_protobuf_type_statement(
+                        format!(
+                            "{}{}",
+                            if ProtobufType::String == r.to_protobuf()
+                                || RustType::VecU8 == r.to_protobuf().to_rust()
+                            {
+                                if let RustType::Option(_) = field_type {
+                                    ""
+                                } else {
+                                    "&self."
+                                }
+                            } else if let RustType::Option(_) = field_type {
+                                "*"
+                            } else {
+                                "self."
+                            },
+                            &field_name,
+                        ),
+                        r
+                    ),
+                ));
+            }
+        };
     }
 
     fn impl_write_fn_for_enum(function: &mut Function, name: &str, variants: &[String]) {
