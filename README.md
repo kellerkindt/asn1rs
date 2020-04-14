@@ -250,7 +250,8 @@ send_to_another_host(buffer):
    - ```SEQUENCE```, ```SEQUENCE OF```, ```CHOICE``` and ```ENUMERATED```
    - inline ```SEQUENCE OF``` and ```CHOICE``` 
    - ```OPTIONAL```
-   - ```INTEGER``` with range value only (numbers or ```MIN```/```MAX```)
+   - ```INTEGER``` with range (numbers or ```MIN```/```MAX```)
+   - ```INTEGER``` without range (treated as ```INTEGER(0..MAX)```)
    - ```UTF8String```
    - ```OCTET STRING``` 
    - ```BOOLEAN```
