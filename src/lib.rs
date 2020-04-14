@@ -4,8 +4,16 @@
 #[cfg(feature = "psql")]
 extern crate postgres;
 
+#[cfg(feature = "macros")]
+pub extern crate asn1rs_macros as macros;
+
+#[cfg(feature = "model")]
 pub mod converter;
-pub mod gen;
+#[cfg(feature = "model")]
+pub use asn1rs_model::gen;
+#[cfg(feature = "model")]
+pub use asn1rs_model::model;
+#[cfg(feature = "model")]
+pub use asn1rs_model::parser;
+
 pub mod io;
-pub mod model;
-pub mod parser;

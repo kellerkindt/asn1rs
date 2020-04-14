@@ -1,7 +1,5 @@
-#[macro_use]
-extern crate asn1rs_macros;
-
 use asn1rs::io::buffer::BitBuffer;
+use asn1rs::macros::asn_to_rust;
 
 asn_to_rust!(
     r"BasicEnumerated DEFINITIONS AUTOMATIC TAGS ::=

@@ -1,9 +1,9 @@
 extern crate proc_macro;
 
-use asn1rs::gen::rust::RustCodeGenerator as RustGenerator;
-use asn1rs::gen::Generator;
-use asn1rs::model::Model;
-use asn1rs::parser::Tokenizer;
+use asn1rs_model::gen::rust::RustCodeGenerator as RustGenerator;
+use asn1rs_model::gen::Generator;
+use asn1rs_model::model::Model;
+use asn1rs_model::parser::Tokenizer;
 use proc_macro::TokenStream;
 use syn::parse_macro_input;
 use syn::LitStr;

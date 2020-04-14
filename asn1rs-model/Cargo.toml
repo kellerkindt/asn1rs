@@ -1,0 +1,15 @@
+[package]
+name = "asn1rs-model"
+version = "0.1.0"
+authors = ["Michael Watzko <michael@watzko.de>"]
+edition = "2018"
+description = "Rust, Protobuf and SQL model definitions for asn1rs"
+keywords = ["asn1", "protobuf", "sql", "model"]
+categories = ["parsing", "parser"]
+repository = "https://github.com/kellerkindt/asn1rs"
+license = "MIT/Apache-2.0"
+readme = "README.md"
+
+[dependencies]
+backtrace = "0.3.9"
+codegen = "0.1.1"

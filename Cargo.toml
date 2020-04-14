@@ -5,7 +5,7 @@ authors = ["Michael Watzko <michael@watzko.de>"]
 edition = "2018"
 description = "ASN.1 to Rust, Protobuf and SQL compiler/code generator. Supports ASN.1 UPER"
 keywords = ["asn1", "uper", "protobuf", "sql", "compiler"]
-categories = ["encoding", "parsing"]
+categories = ["encoding", "parsing", "parser"]
 repository = "https://github.com/kellerkindt/asn1rs"
 license = "MIT/Apache-2.0"
 readme = "README.md"
@@ -18,6 +18,7 @@ path = "src/lib.rs"
 [[bin]]
 name = "asn1rs"
 path = "src/main.rs"
+required-features = ["model"]
 
 
 [dependencies]
@@ -26,24 +27,32 @@ clap = "2.32.0"
 codegen = "0.1.1"
 byteorder = "1.2.4"
 
+# feature postgres
 postgres = { version = "0.15.2", optional = true }
 
+# feature async-psql
 tokio = { version = "0.2.11", optional = true, features = ["macros"]  }
 tokio-postgres = { version = "0.5.2", optional = true }
 futures = { version = "0.3.4", optional = true }
 bytes = { version = "0.5.4", optional = true }
 
+# feature asn1rs-*
+asn1rs-model = { version = "0.1.0", path = "asn1rs-model", optional = true }
+asn1rs-macros = { version = "0.1.0", path = "asn1rs-macros", optional = true }
+
 
 [features]
-default = []
+default = ["macros", "model"]
 psql = ["postgres"]
 async-psql = ["tokio", "tokio-postgres", "futures", "bytes"]
 legacy_bit_buffer = []
-
-[dev-dependencies.asn1rs-macros]
-path = "asn1rs-macros"
+macros = ["asn1rs-macros"]
+model = ["asn1rs-model"]
 
 [[bench]]
 name = "bitbuffer"
 path = "benches/bitbuffer.rs"
 required-features = ["legacy_bit_buffer"]
+
+[package.metadata.docs.rs]
+all-features = true

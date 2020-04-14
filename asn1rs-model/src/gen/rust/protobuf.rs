@@ -1,6 +1,5 @@
 use crate::gen::rust::GeneratorSupplement;
 use crate::gen::rust::RustCodeGenerator;
-use crate::io::protobuf::Format as ProtobufFormat;
 use crate::model::protobuf::ToProtobufType;
 use crate::model::Definition;
 use crate::model::ProtobufType;
@@ -529,9 +528,9 @@ impl ProtobufSerializer {
     fn impl_format_fn(function: &mut Function, Definition(name, rust): &Definition<Rust>) {
         #[allow(clippy::match_same_arms)] // to have the same order as the original enum
         let format = match rust {
-            Rust::TupleStruct(_) => Some(ProtobufFormat::LengthDelimited),
-            Rust::Struct(_) => Some(ProtobufFormat::LengthDelimited),
-            Rust::Enum(_) => Some(ProtobufFormat::VarInt),
+            Rust::TupleStruct(_) => Some("LengthDelimited"),
+            Rust::Struct(_) => Some("LengthDelimited"),
+            Rust::Enum(_) => Some("VarInt"),
             Rust::DataEnum(variants) => {
                 let mut block_match = Block::new("match self");
                 for (variant, role) in variants.iter() {
@@ -547,7 +546,7 @@ impl ProtobufSerializer {
             }
         };
         if let Some(format) = format {
-            function.line(format!("{}Format::{}", Self::CODEC, format.to_string()));
+            function.line(format!("{}Format::{}", Self::CODEC, format));
         }
     }
 

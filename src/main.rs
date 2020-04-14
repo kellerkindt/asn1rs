@@ -4,12 +4,13 @@
 #[cfg(feature = "psql")]
 extern crate postgres;
 
-mod cli;
-mod converter;
-mod gen;
-mod io;
-mod model;
-mod parser;
+pub use asn1rs_model::gen;
+pub use asn1rs_model::model;
+pub use asn1rs_model::parser;
+
+pub mod cli;
+pub mod converter;
+pub mod io;
 
 pub fn main() {
     let params = cli::parse_parameters();

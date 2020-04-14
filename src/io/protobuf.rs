@@ -81,18 +81,6 @@ pub enum Format {
     Fixed32 = 5,
 }
 
-impl ToString for Format {
-    fn to_string(&self) -> String {
-        match self {
-            Format::VarInt => "VarInt",
-            Format::Fixed64 => "Fixed64",
-            Format::LengthDelimited => "LengthDelimited",
-            Format::Fixed32 => "Fixed32",
-        }
-        .into()
-    }
-}
-
 impl Format {
     #[allow(unused)]
     pub fn from(id: u32) -> Result<Format, Error> {
