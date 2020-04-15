@@ -1,6 +1,7 @@
 use crate::gen::rust::GeneratorSupplement;
 use crate::gen::rust::RustCodeGenerator;
-use crate::model::rust::Enum as RustEnum;
+use crate::model::rust::DataEnum;
+use crate::model::rust::PlainEnum;
 use crate::model::Definition;
 use crate::model::Rust;
 use crate::model::RustType;
@@ -61,8 +62,8 @@ impl UperSerializer {
             Rust::Enum(r_enum) => {
                 Self::impl_read_fn_for_enum(function, name, r_enum);
             }
-            Rust::DataEnum(variants) => {
-                Self::impl_read_fn_for_data_enum(function, name, &variants[..]);
+            Rust::DataEnum(enumeration) => {
+                Self::impl_read_fn_for_data_enum(function, name, enumeration);
             }
         };
     }
@@ -71,7 +72,12 @@ impl UperSerializer {
         Self::impl_read_fn_header_for_type(function, name, aliased);
         function.push_block({
             let mut block = Block::new(&format!("Ok({}(", name));
-            Self::impl_read_fn_for_type(&mut block, &aliased.to_inner_type_string(), None, aliased);
+            Self::impl_read_fn_for_type(
+                &mut block,
+                &aliased.to_inner_type_string(),
+                Some(Member::Instance("0".into(), !aliased.is_primitive(), false)),
+                aliased,
+            );
             block.after("))");
             block
         });
@@ -102,20 +108,21 @@ impl UperSerializer {
             | RustType::I16(_)
             | RustType::U32(_)
             | RustType::I32(_)
-            | RustType::U64(Some(_))
             | RustType::I64(_) => {
+                let prefix = Self::min_max_prefix(&field_name);
                 block.line(format!(
                     "reader.read_int((i64::from(Self::{}min()), i64::from(Self::{}max())))? as {}",
-                    if let Some(ref field_name) = field_name {
-                        format!("{}_", field_name.name())
-                    } else {
-                        String::default()
-                    },
-                    if let Some(ref field_name) = field_name {
-                        format!("{}_", field_name.name())
-                    } else {
-                        String::default()
-                    },
+                    prefix,
+                    prefix,
+                    rust.to_string(),
+                ));
+            }
+            RustType::U64(Some(_)) => {
+                let prefix = Self::min_max_prefix(&field_name);
+                block.line(format!(
+                    "reader.read_int((Self::{}min() as i64, Self::{}max() as i64))? as {}",
+                    prefix,
+                    prefix,
                     rust.to_string(),
                 ));
             }
@@ -177,6 +184,18 @@ impl UperSerializer {
         };
     }
 
+    fn min_max_prefix(field_name: &Option<Member>) -> String {
+        if let Some(ref field_name) = field_name {
+            if field_name.name().ne("0") {
+                format!("{}_", field_name.name())
+            } else {
+                "value_".to_string()
+            }
+        } else {
+            String::default()
+        }
+    }
+
     fn impl_read_fn_for_struct(function: &mut Function, fields: &[(String, RustType)]) {
         function.line("let mut me = Self::default();");
         for (field_name, field_type) in fields.iter() {
@@ -196,7 +215,7 @@ impl UperSerializer {
         function.line("Ok(me)");
     }
 
-    fn impl_read_fn_for_enum(function: &mut Function, name: &str, r_enum: &RustEnum) {
+    fn impl_read_fn_for_enum(function: &mut Function, name: &str, r_enum: &PlainEnum) {
         if let Some(last_standard_index) = r_enum.last_standard_index() {
             function.line(format!(
                 "let id = reader.read_choice_index_extensible({})? as i64;",
@@ -219,29 +238,38 @@ impl UperSerializer {
         function.push_block(block_match);
     }
 
-    fn impl_read_fn_for_data_enum(
-        function: &mut Function,
-        name: &str,
-        variants: &[(String, RustType)],
-    ) {
-        if variants.len() > 1 {
-            function.line(&format!(
-                "let variant = reader.read_int((0, {}))?;",
-                variants.len() - 1
-            ));
+    fn impl_read_fn_for_data_enum(function: &mut Function, name: &str, enumeration: &DataEnum) {
+        if enumeration.len() > 1 {
+            if let Some(last_standard_index) = enumeration.last_standard_index() {
+                function.line(&format!(
+                    "let variant = reader.read_choice_index_extensible({})? as i64;",
+                    last_standard_index + 1
+                ));
+            } else {
+                function.line(&format!(
+                    "let variant = reader.read_int((0, {}))?;",
+                    enumeration.len() - 1
+                ));
+            }
         } else {
             function.line("let variant = 0;");
         }
         let mut block = Block::new("match variant");
-        for (i, (variant, role)) in variants.iter().enumerate() {
+        for (i, (variant, role)) in enumeration.variants().enumerate() {
+            let var_name = RustCodeGenerator::rust_module_name(variant);
             let mut block_case = Block::new(&format!("{} => Ok({}::{}(", i, name, variant));
-            Self::impl_read_fn_for_type(&mut block_case, &role.to_inner_type_string(), None, role);
+            Self::impl_read_fn_for_type(
+                &mut block_case,
+                &role.to_inner_type_string(),
+                Some(Member::Local(var_name, false, role.is_primitive())),
+                role,
+            );
             block_case.after(")),");
             block.push_block(block_case);
         }
         block.line(format!(
             "_ => Err(UperError::ValueNotInRange(variant, 0, {}))",
-            variants.len() - 1
+            enumeration.len() - 1
         ));
         function.push_block(block);
     }
@@ -264,8 +292,8 @@ impl UperSerializer {
             Rust::Enum(r_enum) => {
                 Self::impl_write_fn_for_enum(function, name, r_enum);
             }
-            Rust::DataEnum(variants) => {
-                Self::impl_write_fn_for_data_enum(function, name, &variants[..]);
+            Rust::DataEnum(enumeration) => {
+                Self::impl_write_fn_for_data_enum(function, name, enumeration);
             }
         }
     }
@@ -299,7 +327,7 @@ impl UperSerializer {
                 block.line(format!(
                     "writer.write_bit({})?;",
                     field_name
-                        .clone()
+                        .as_ref()
                         .map_or_else(|| "value".into(), |f| f.to_string()),
                 ));
             }
@@ -309,23 +337,26 @@ impl UperSerializer {
             | RustType::I16(_)
             | RustType::U32(_)
             | RustType::I32(_)
-            | RustType::U64(Some(_))
             | RustType::I64(_) => {
+                let prefix = Self::min_max_prefix(&field_name);
                 block.line(format!(
                     "writer.write_int(i64::from({}), (i64::from(Self::{}min()), i64::from(Self::{}max())))?;",
                     field_name
-                        .clone()
+                        .as_ref()
                         .map_or_else(|| "value".into(), |f| f.to_string()),
-                    if let Some(ref field_name) = field_name {
-                        format!("{}_", field_name.name())
-                    } else {
-                        String::default()
-                    },
-                    if let Some(field_name) = field_name {
-                        format!("{}_", field_name.name())
-                    } else {
-                        String::default()
-                    },
+                    prefix,
+                    prefix,
+                ));
+            }
+            RustType::U64(Some(_)) => {
+                let prefix = Self::min_max_prefix(&field_name);
+                block.line(format!(
+                    "writer.write_int({} as i64, (Self::{}min() as i64, Self::{}max() as i64))?;",
+                    field_name
+                        .as_ref()
+                        .map_or_else(|| "value".into(), |f| f.to_string()),
+                    prefix,
+                    prefix,
                 ));
             }
             RustType::U64(None) => {
@@ -412,7 +443,7 @@ impl UperSerializer {
                         |mut f| {
                             *f.name_mut() = RustCodeGenerator::rust_field_name(f.name(), true);
                             f.no_ref().to_string()
-                        }
+                        },
                     ),
                 ));
             }
@@ -435,7 +466,7 @@ impl UperSerializer {
         function.line("Ok(())");
     }
 
-    fn impl_write_fn_for_enum(function: &mut Function, name: &str, r_enum: &RustEnum) {
+    fn impl_write_fn_for_enum(function: &mut Function, name: &str, r_enum: &PlainEnum) {
         let mut block = Block::new("match self");
         for (i, variant) in r_enum.variants().enumerate() {
             if let Some(last_standard_index) = r_enum.last_standard_index() {
@@ -460,24 +491,29 @@ impl UperSerializer {
         function.line("Ok(())");
     }
 
-    fn impl_write_fn_for_data_enum(
-        function: &mut Function,
-        name: &str,
-        variants: &[(String, RustType)],
-    ) {
+    fn impl_write_fn_for_data_enum(function: &mut Function, name: &str, enumeration: &DataEnum) {
         let mut block = Block::new("match self");
-        for (i, (variant, role)) in variants.iter().enumerate() {
-            let mut block_case = Block::new(&format!("{}::{}(value) =>", name, variant,));
-            if variants.len() > 1 {
-                block_case.line(format!(
-                    "writer.write_int({}, (0, {}))?;",
-                    i,
-                    variants.len() - 1
-                ));
+        for (i, (variant, role)) in enumeration.variants().enumerate() {
+            let var_name = RustCodeGenerator::rust_module_name(variant);
+            let mut block_case = Block::new(&format!("{}::{}({}) =>", name, variant, var_name));
+            if enumeration.len() > 1 {
+                if let Some(last_standard_index) = enumeration.last_standard_index() {
+                    block_case.line(format!(
+                        "writer.write_choice_index_extensible({}, {})?;",
+                        i,
+                        last_standard_index + 1
+                    ));
+                } else {
+                    block_case.line(format!(
+                        "writer.write_int({}, (0, {}))?;",
+                        i,
+                        enumeration.len() - 1
+                    ));
+                }
             }
             Self::impl_write_fn_for_type(
                 &mut block_case,
-                Some(Member::Local("value".into(), false, role.is_primitive())),
+                Some(Member::Local(var_name, false, role.is_primitive())),
                 role,
             );
             block.push_block(block_case);

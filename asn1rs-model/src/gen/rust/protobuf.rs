@@ -1,7 +1,8 @@
 use crate::gen::rust::GeneratorSupplement;
 use crate::gen::rust::RustCodeGenerator;
 use crate::model::protobuf::ToProtobufType;
-use crate::model::rust::Enum as RustEnum;
+use crate::model::rust::DataEnum;
+use crate::model::rust::PlainEnum;
 use crate::model::Definition;
 use crate::model::ProtobufType;
 use crate::model::Rust;
@@ -77,8 +78,8 @@ impl ProtobufSerializer {
             Rust::Enum(r_enum) => {
                 Self::impl_read_fn_for_enum(function, name, r_enum);
             }
-            Rust::DataEnum(variants) => {
-                Self::impl_read_fn_for_data_enum(function, name, &variants[..]);
+            Rust::DataEnum(enumeration) => {
+                Self::impl_read_fn_for_data_enum(function, name, enumeration);
             }
         };
     }
@@ -222,7 +223,7 @@ impl ProtobufSerializer {
         function.push_block(return_block);
     }
 
-    fn impl_read_fn_for_enum(function: &mut Function, name: &str, r_enum: &RustEnum) {
+    fn impl_read_fn_for_enum(function: &mut Function, name: &str, r_enum: &PlainEnum) {
         let mut block_match = Block::new("match reader.read_varint()?");
         for (field, variant) in r_enum.variants().enumerate() {
             block_match.line(format!(
@@ -239,14 +240,10 @@ impl ProtobufSerializer {
         function.push_block(block_match);
     }
 
-    fn impl_read_fn_for_data_enum(
-        function: &mut Function,
-        name: &str,
-        variants: &[(String, RustType)],
-    ) {
+    fn impl_read_fn_for_data_enum(function: &mut Function, name: &str, enumeration: &DataEnum) {
         function.line("let tag = reader.read_tag()?;");
         let mut block_match = Block::new("match tag.0");
-        for (field, (variant, role)) in variants.iter().enumerate() {
+        for (field, (variant, role)) in enumeration.variants().enumerate() {
             let mut block_case = Block::new(&format!(
                 "{}{} =>",
                 field + 1, // + 1 for protobuf offset
@@ -305,8 +302,8 @@ impl ProtobufSerializer {
             Rust::Enum(r_enum) => {
                 Self::impl_write_fn_for_enum(function, name, r_enum);
             }
-            Rust::DataEnum(variants) => {
-                Self::impl_write_fn_for_data_enum(function, name, &variants[..]);
+            Rust::DataEnum(enumeration) => {
+                Self::impl_write_fn_for_data_enum(function, name, enumeration);
             }
         };
         function.line("Ok(())");
@@ -364,7 +361,7 @@ impl ProtobufSerializer {
 
     fn impl_write_fn_for_tuple_struct(function: &mut Function, aliased: &RustType) {
         let mut block_writer = Block::new("");
-        Self::impl_write_field(1, aliased, "0", &mut block_writer);
+        Self::impl_write_field(1, aliased, "0", &mut block_writer, false);
         function.push_block(block_writer);
     }
 
@@ -381,7 +378,7 @@ impl ProtobufSerializer {
                 Block::new("")
             };
 
-            Self::impl_write_field(prev_tag + 1, field_type, &field_name, &mut block);
+            Self::impl_write_field(prev_tag + 1, field_type, &field_name, &mut block, false);
             block_.push_block(block);
         }
     }
@@ -391,6 +388,7 @@ impl ProtobufSerializer {
         field_type: &RustType,
         field_name: &str,
         mut block: &mut Block,
+        deny_self: bool,
     ) {
         match &field_type.clone().no_option() {
             RustType::Vec(_) => {
@@ -399,7 +397,7 @@ impl ProtobufSerializer {
             RustType::Complex(_) => {
                 let format_line = format!(
                     "{}{}.{}_format()",
-                    if let RustType::Option(_) = field_type {
+                    if deny_self || field_type.is_option() {
                         ""
                     } else {
                         "self."
@@ -416,7 +414,7 @@ impl ProtobufSerializer {
                 block_if.line("let mut vec = Vec::new();");
                 block_if.line(format!(
                     "{}{}.write_protobuf(&mut vec as &mut dyn {}Writer)?;",
-                    if let RustType::Option(_) = field_type {
+                    if deny_self || field_type.is_option() {
                         ""
                     } else {
                         "self."
@@ -429,7 +427,7 @@ impl ProtobufSerializer {
                 let mut block_el = Block::new("else");
                 block_el.line(format!(
                     "{}{}.write_protobuf(writer)?;",
-                    if let RustType::Option(_) = field_type {
+                    if deny_self || field_type.is_option() {
                         ""
                     } else {
                         "self."
@@ -451,12 +449,12 @@ impl ProtobufSerializer {
                             if ProtobufType::String == r.to_protobuf()
                                 || RustType::VecU8 == r.to_protobuf().to_rust()
                             {
-                                if let RustType::Option(_) = field_type {
+                                if deny_self || field_type.is_option() {
                                     ""
                                 } else {
                                     "&self."
                                 }
-                            } else if let RustType::Option(_) = field_type {
+                            } else if deny_self || field_type.is_option() {
                                 "*"
                             } else {
                                 "self."
@@ -470,7 +468,7 @@ impl ProtobufSerializer {
         };
     }
 
-    fn impl_write_fn_for_enum(function: &mut Function, name: &str, r_enum: &RustEnum) {
+    fn impl_write_fn_for_enum(function: &mut Function, name: &str, r_enum: &PlainEnum) {
         let mut outer_block = Block::new("match self");
         for (field, variant) in r_enum.variants().enumerate() {
             outer_block.line(format!(
@@ -483,47 +481,15 @@ impl ProtobufSerializer {
         function.push_block(outer_block);
     }
 
-    fn impl_write_fn_for_data_enum(
-        function: &mut Function,
-        name: &str,
-        variants: &[(String, RustType)],
-    ) {
+    fn impl_write_fn_for_data_enum(function: &mut Function, name: &str, enumeration: &DataEnum) {
         let mut block_match = Block::new("match self");
-        for (field, (variant, role)) in variants.iter().enumerate() {
+        for (field, (variant, role)) in enumeration.variants().enumerate() {
             let mut block_case = Block::new(&format!(
                 "{}::{}(value) =>",
                 name,
                 RustCodeGenerator::rust_variant_name(variant),
             ));
-            if role.to_protobuf().is_primitive() {
-                block_case.line(&format!(
-                    "writer.write_tag({}, value.{}_format())?;",
-                    field + 1, // + 1 for protobuf offset
-                    Self::CODEC.to_lowercase()
-                ));
-                block_case.line(format!(
-                    "writer.write_{}({}value)?;",
-                    role.to_protobuf().to_string(),
-                    if role.to_protobuf().is_primitive() {
-                        "*"
-                    } else {
-                        ""
-                    }
-                ));
-            } else {
-                block_case.line("let mut vec = Vec::new();");
-                block_case.line(format!(
-                    "value.write_{}(&mut vec as &mut dyn {}Writer)?;",
-                    Self::CODEC.to_lowercase(),
-                    Self::CODEC
-                ));
-                block_case.line(&format!(
-                    "writer.write_tag({}, {}Format::LengthDelimited)?;",
-                    field + 1, // + 1 for protobuf offset
-                    Self::CODEC
-                ));
-                block_case.line("writer.write_bytes(&vec[..])?;");
-            }
+            Self::impl_write_field(field + 1, role, "value", &mut block_case, true);
             block_match.push_block(block_case);
         }
         function.push_block(block_match);
@@ -542,11 +508,11 @@ impl ProtobufSerializer {
             Rust::TupleStruct(_) => Some("LengthDelimited"),
             Rust::Struct(_) => Some("LengthDelimited"),
             Rust::Enum(_) => Some("VarInt"),
-            Rust::DataEnum(variants) => {
+            Rust::DataEnum(enumeration) => {
                 let mut block_match = Block::new("match self");
-                for (variant, role) in variants.iter() {
+                for (variant, role) in enumeration.variants() {
                     block_match.line(format!(
-                        "{}::{}(value) => {}",
+                        "{}::{}(value) => {},",
                         name,
                         RustCodeGenerator::rust_variant_name(variant),
                         Self::role_to_format(role, "value"),
@@ -600,9 +566,9 @@ impl ProtobufSerializer {
             Rust::Enum(_) => {
                 function.line("self == other");
             }
-            Rust::DataEnum(variants) => {
+            Rust::DataEnum(enumeration) => {
                 let mut block_match = Block::new("match self");
-                for (variant, _role) in variants.iter() {
+                for (variant, _role) in enumeration.variants() {
                     let mut block_case = Block::new(&format!(
                         "{}::{}(value) => ",
                         name,
@@ -643,7 +609,7 @@ impl ProtobufSerializer {
             ProtobufType::OneOf(_) => format!("{}Format::LengthDelimited", Self::CODEC),
             ProtobufType::Repeated(_) => format!("{}Format::LengthDelimited", Self::CODEC),
             ProtobufType::Complex(_complex_type) => {
-                format!("{}.{}_format(),", complex_name, Self::CODEC.to_lowercase())
+                format!("{}.{}_format()", complex_name, Self::CODEC.to_lowercase())
             }
         }
     }

@@ -135,17 +135,17 @@ impl Model<Protobuf> {
             Rust::Enum(r_enum) => {
                 Protobuf::Enum(r_enum.variants().map(|v| proto_variant_name(v)).collect())
             }
-            Rust::DataEnum(variants) => {
-                let mut proto_variants = Vec::with_capacity(variants.len());
-                for (name, rust) in variants.iter() {
-                    proto_variants.push((
+            Rust::DataEnum(enumeration) => {
+                let mut proto_enum = Vec::with_capacity(enumeration.len());
+                for (name, rust) in enumeration.variants() {
+                    proto_enum.push((
                         proto_field_name(name),
                         Self::definition_type_to_protobuf_type(rust),
                     ))
                 }
                 Protobuf::Message(vec![(
                     DATAENUM_VARIABLE_NAME_REPLACEMENT.into(),
-                    ProtobufType::OneOf(proto_variants),
+                    ProtobufType::OneOf(proto_enum),
                 )])
             }
             Rust::TupleStruct(inner) => Protobuf::Message(vec![(

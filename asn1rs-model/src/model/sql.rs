@@ -1,5 +1,6 @@
 use crate::gen::RustCodeGenerator;
-use crate::model::rust::Enum;
+use crate::model::rust::DataEnum;
+use crate::model::rust::PlainEnum;
 use crate::model::Definition;
 use crate::model::Model;
 use crate::model::Range;
@@ -141,7 +142,9 @@ impl Model<Sql> {
         match rust {
             Rust::Struct(fields) => Self::rust_struct_to_sql_table(name, fields, definitions),
             Rust::Enum(rust_enum) => Self::rust_enum_to_sql_enum(name, rust_enum, definitions),
-            Rust::DataEnum(fields) => Self::rust_data_enum_to_sql_table(name, fields, definitions),
+            Rust::DataEnum(enumeration) => {
+                Self::rust_data_enum_to_sql_table(name, enumeration, definitions)
+            }
             Rust::TupleStruct(rust) => {
                 Self::rust_tuple_struct_to_sql_table(name, rust, definitions)
             }
@@ -178,19 +181,19 @@ impl Model<Sql> {
             Sql::Table(columns, Default::default()),
         ));
 
-        Self::append_index_and_abandon_function(name, fields, definitions);
+        Self::append_index_and_abandon_function(name, fields.iter(), definitions);
         deferred.into_iter().for_each(|e| definitions.push(e));
     }
 
     pub fn rust_data_enum_to_sql_table(
         name: &str,
-        fields: &[(String, RustType)],
+        enumeration: &DataEnum,
         definitions: &mut Vec<Definition<Sql>>,
     ) {
-        let mut columns = Vec::with_capacity(fields.len() + 1);
+        let mut columns = Vec::with_capacity(enumeration.len() + 1);
         // TODO
-        if !fields
-            .iter()
+        if !enumeration
+            .variants()
             .map(|(name, _)| FOREIGN_KEY_DEFAULT_COLUMN.eq_ignore_ascii_case(name))
             .any(|found| found)
         {
@@ -200,7 +203,7 @@ impl Model<Sql> {
                 primary_key: true,
             });
         }
-        for (column, rust) in fields {
+        for (column, rust) in enumeration.variants() {
             columns.push(Column {
                 name: Self::sql_column_name(column),
                 sql: rust.to_sql().nullable(),
@@ -212,15 +215,15 @@ impl Model<Sql> {
             Sql::Table(
                 columns,
                 vec![Constraint::OneNotNull(
-                    fields
-                        .iter()
+                    enumeration
+                        .variants()
                         .map(|(name, _)| RustCodeGenerator::rust_module_name(name))
                         .collect::<Vec<String>>(),
                 )],
             ),
         ));
 
-        Self::append_index_and_abandon_function(name, fields, definitions);
+        Self::append_index_and_abandon_function(name, enumeration.variants(), definitions);
     }
 
     fn add_index_if_applicable(
@@ -239,10 +242,10 @@ impl Model<Sql> {
 
     pub fn rust_enum_to_sql_enum(
         name: &str,
-        r_enum: &Enum,
+        enumeration: &PlainEnum,
         definitions: &mut Vec<Definition<Sql>>,
     ) {
-        let variants = r_enum.variants().map(String::clone).collect();
+        let variants = enumeration.variants().map(String::clone).collect();
         definitions.push(Definition(name.into(), Sql::Enum(variants)));
         Self::add_silently_prevent_any_delete(name, definitions);
     }
@@ -343,9 +346,9 @@ impl Model<Sql> {
         }
     }
 
-    fn append_index_and_abandon_function(
+    fn append_index_and_abandon_function<'a>(
         name: &str,
-        fields: &[(String, RustType)],
+        fields: impl Iterator<Item = &'a (String, RustType)>,
         definitions: &mut Vec<Definition<Sql>>,
     ) {
         let mut children = Vec::new();

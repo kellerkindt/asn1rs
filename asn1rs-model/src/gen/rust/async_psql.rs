@@ -1,7 +1,8 @@
 use crate::gen::rust::shared_psql::*;
 use crate::gen::rust::GeneratorSupplement;
 use crate::gen::RustCodeGenerator;
-use crate::model::rust::Enum as RustEnum;
+use crate::model::rust::DataEnum;
+use crate::model::rust::PlainEnum;
 use crate::model::sql::{Sql, SqlType, ToSql};
 use crate::model::{Definition, Model, Rust, RustType};
 use codegen::{Block, Function, Impl, Scope};
@@ -34,7 +35,7 @@ impl GeneratorSupplement<Rust> for AsyncPsqlInserter {
         impl_insert_fn_content(false, true, name, fields, fn_insert);
     }
 
-    fn extend_impl_of_enum(&self, _name: &str, impl_scope: &mut Impl, _r_enum: &RustEnum) {
+    fn extend_impl_of_enum(&self, _name: &str, impl_scope: &mut Impl, _r_enum: &PlainEnum) {
         AsyncPsqlInserter::append_retrieve_many_enums(impl_scope);
         AsyncPsqlInserter::append_retrieve_enum(impl_scope);
 
@@ -47,17 +48,12 @@ impl GeneratorSupplement<Rust> for AsyncPsqlInserter {
         fn_insert.line("Ok(self.value_index() as i32)");
     }
 
-    fn extend_impl_of_data_enum(
-        &self,
-        name: &str,
-        impl_scope: &mut Impl,
-        variants: &[(String, RustType)],
-    ) {
+    fn extend_impl_of_data_enum(&self, name: &str, impl_scope: &mut Impl, enumeration: &DataEnum) {
         Self::append_retrieve_many_for_container_type(name, impl_scope);
         Self::append_retrieve_for_container_type(name, impl_scope);
 
         let fn_load = create_load_fn(impl_scope, true);
-        for (index, (variant, v_type)) in variants.iter().enumerate() {
+        for (index, (variant, v_type)) in enumeration.variants().enumerate() {
             let mut block = Block::new(&format!(
                 "if row.try_get::<usize, Option<i32>>({})?.is_some()",
                 index + 1
@@ -71,10 +67,10 @@ impl GeneratorSupplement<Rust> for AsyncPsqlInserter {
         let fn_insert = create_insert_fn(impl_scope, true);
         fn_insert.line(&format!(
             "let statement = context.prepared(\"{}\");",
-            data_enum_insert_statement(name, variants)
+            data_enum_insert_statement(name, enumeration)
         ));
-        let mut updated_variants = Vec::with_capacity(variants.len());
-        for (variant, v_type) in variants {
+        let mut updated_variants = Vec::with_capacity(enumeration.len());
+        for (variant, v_type) in enumeration.variants() {
             let module_name = RustCodeGenerator::rust_module_name(variant);
             fn_insert.line(&format!(
                 "let {} = if let Self::{}(value) = self {{ Some(value) }} else {{ None }};",

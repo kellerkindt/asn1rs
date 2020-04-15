@@ -1,4 +1,5 @@
 use crate::gen::RustCodeGenerator;
+use crate::model::rust::DataEnum;
 use crate::model::sql::Sql;
 use crate::model::{Model, RustType};
 
@@ -38,17 +39,17 @@ pub(crate) fn struct_insert_statement(name: &str, fields: &[(String, RustType)])
     )
 }
 
-pub(crate) fn data_enum_insert_statement(name: &str, fields: &[(String, RustType)]) -> String {
+pub(crate) fn data_enum_insert_statement(name: &str, enumeration: &DataEnum) -> String {
     format!(
         "INSERT INTO {}({}) VALUES({}) RETURNING id",
         name,
-        fields
-            .iter()
+        enumeration
+            .variants()
             .map(|(name, _)| RustCodeGenerator::rust_module_name(name))
             .collect::<Vec<String>>()
             .join(", "),
-        fields
-            .iter()
+        enumeration
+            .variants()
             .enumerate()
             .map(|(num, _)| format!("${}", num + 1))
             .collect::<Vec<String>>()

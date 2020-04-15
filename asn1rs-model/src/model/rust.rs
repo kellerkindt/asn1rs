@@ -1,9 +1,9 @@
+use crate::model::Definition;
 use crate::model::Import;
 use crate::model::Model;
 use crate::model::Range;
 use crate::model::Type as AsnType;
 use crate::model::{Asn, ChoiceVariant};
-use crate::model::{Definition, Tag};
 
 const I8_MAX: i64 = i8::max_value() as i64;
 const I16_MAX: i64 = i16::max_value() as i64;
@@ -14,6 +14,9 @@ const U8_MAX: u64 = u8::max_value() as u64;
 const U16_MAX: u64 = u16::max_value() as u64;
 const U32_MAX: u64 = u32::max_value() as u64;
 //const U64_MAX: u64 = u64::max_value() as u64;
+
+pub type PlainEnum = Enumeration<String>;
+pub type DataEnum = Enumeration<(String, RustType)>;
 
 /// Integers are ordered where Ixx < Uxx so
 /// that when comparing two instances `RustType`
@@ -98,6 +101,14 @@ impl RustType {
 
     pub fn is_vec(&self) -> bool {
         if let RustType::Vec(_) = self.as_no_option() {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn is_option(&self) -> bool {
+        if let RustType::Option(_) = self {
             true
         } else {
             false
@@ -217,8 +228,8 @@ impl RustType {
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum Rust {
     Struct(Vec<(String, RustType)>),
-    Enum(Enum),
-    DataEnum(Vec<(String, RustType)>),
+    Enum(PlainEnum),
+    DataEnum(DataEnum),
 
     /// Used to represent a single, unnamed inner type
     TupleStruct(RustType),
@@ -247,17 +258,21 @@ impl ToString for RustType {
 }
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub struct Enum {
-    variants: Vec<String>,
+pub struct Enumeration<T> {
+    variants: Vec<T>,
     extended_after_index: Option<usize>,
 }
 
-impl Enum {
+impl<T> Enumeration<T> {
     pub fn len(&self) -> usize {
         self.variants.len()
     }
 
-    pub fn variants(&self) -> impl Iterator<Item = &String> {
+    pub fn is_empty(&self) -> bool {
+        self.variants.is_empty()
+    }
+
+    pub fn variants(&self) -> impl Iterator<Item = &T> {
         self.variants.iter()
     }
 
@@ -331,32 +346,28 @@ impl Model<Rust> {
             }
 
             AsnType::Choice(choice) => {
-                let mut rust_entries = Vec::with_capacity(choice.len());
+                let mut enumeration = Enumeration {
+                    variants: Vec::with_capacity(choice.len()),
+                    extended_after_index: choice.extension_after_index(),
+                };
 
-                if choice.is_extensible() {
-                    // TODO not yet supported
-                    panic!("Extensible CHOICE is not yet supported");
-                }
-
-                for (index, ChoiceVariant { name, tag, r#type }) in choice.variants().enumerate() {
-                    if tag
-                        .map(|n| n != Tag::ContextSpecific(index))
-                        .unwrap_or(false)
-                    {
-                        // TODO not yet supported
-                        panic!("Variants with non-auto choice-index are not yet supported")
-                    }
+                for ChoiceVariant {
+                    name,
+                    tag: _,
+                    r#type,
+                } in choice.variants()
+                {
                     let rust_name = format!("{}{}", name, rust_struct_or_enum_name(&name));
                     let rust_role = Self::definition_type_to_rust_type(&rust_name, &r#type, defs);
                     let rust_field_name = rust_variant_name(&name);
-                    rust_entries.push((rust_field_name, rust_role));
+                    enumeration.variants.push((rust_field_name, rust_role));
                 }
 
-                defs.push(Definition(name.into(), Rust::DataEnum(rust_entries)));
+                defs.push(Definition(name.into(), Rust::DataEnum(enumeration)));
             }
 
             AsnType::Enumerated(enumerated) => {
-                let mut rust_enum = Enum {
+                let mut rust_enum = Enumeration {
                     variants: Vec::with_capacity(enumerated.len()),
                     extended_after_index: enumerated.extension_after_index(),
                 };

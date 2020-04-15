@@ -1,7 +1,8 @@
 use crate::gen::rust::shared_psql::*;
 use crate::gen::rust::GeneratorSupplement;
 use crate::gen::rust::RustCodeGenerator;
-use crate::model::rust::Enum as RustEnum;
+use crate::model::rust::DataEnum;
+use crate::model::rust::PlainEnum;
 use crate::model::sql::Sql;
 use crate::model::sql::ToSql;
 use crate::model::Definition;
@@ -81,16 +82,16 @@ impl PsqlInserter {
                     &fields[..],
                 );
             }
-            Rust::DataEnum(fields) => {
+            Rust::DataEnum(enumeration) => {
                 Self::impl_data_enum_insert_statement(
                     Self::new_insert_statement_fn(implementation),
                     name,
-                    &fields[..],
+                    enumeration,
                 );
                 Self::impl_data_enum_insert_fn(
                     Self::new_insert_fn(implementation, true),
                     name,
-                    &fields[..],
+                    enumeration,
                 );
             }
             Rust::Enum(_) => {
@@ -155,12 +156,15 @@ impl PsqlInserter {
     fn impl_data_enum_insert_statement(
         function: &mut Function,
         name: &str,
-        fields: &[(String, RustType)],
+        enumeration: &DataEnum,
     ) {
-        if fields.is_empty() {
+        if enumeration.is_empty() {
             Self::impl_tuple_insert_statement(function, name);
         } else {
-            function.line(&format!("\"{}\"", data_enum_insert_statement(name, fields)));
+            function.line(&format!(
+                "\"{}\"",
+                data_enum_insert_statement(name, enumeration)
+            ));
         }
     }
 
@@ -291,13 +295,9 @@ impl PsqlInserter {
         }
     }
 
-    fn impl_data_enum_insert_fn(
-        function: &mut Function,
-        name: &str,
-        fields: &[(String, RustType)],
-    ) {
-        let mut variables = Vec::with_capacity(fields.len());
-        for (variant, rust) in fields {
+    fn impl_data_enum_insert_fn(function: &mut Function, name: &str, enumeration: &DataEnum) {
+        let mut variables = Vec::with_capacity(enumeration.len());
+        for (variant, rust) in enumeration.variants() {
             let variable = RustCodeGenerator::rust_field_name(
                 &RustCodeGenerator::rust_module_name(variant),
                 true,
@@ -393,13 +393,13 @@ impl PsqlInserter {
                     &fields[..],
                 );
             }
-            Rust::DataEnum(fields) => {
+            Rust::DataEnum(enumeration) => {
                 Self::impl_query_statement(Self::new_query_statement_fn(implementation), name);
                 Self::impl_data_enum_query_fn(Self::new_query_fn(implementation, true), name);
                 Self::impl_data_enum_load_fn(
                     Self::new_load_fn(implementation, true),
                     name,
-                    &fields[..],
+                    enumeration,
                 );
             }
             Rust::Enum(r_enum) => {
@@ -566,19 +566,19 @@ impl PsqlInserter {
             name, ERROR_TYPE
         ));
     }
-    fn impl_data_enum_load_fn(func: &mut Function, name: &str, variants: &[(String, RustType)]) {
+    fn impl_data_enum_load_fn(func: &mut Function, name: &str, enumeration: &DataEnum) {
         func.line(&format!(
             "let (index, id) = {}::first_not_null(row, &[{}])?;",
             ERROR_TYPE,
-            variants
-                .iter()
+            enumeration
+                .variants()
                 .enumerate()
                 .map(|e| format!("{}", e.0 + 1))
                 .collect::<Vec<String>>()
                 .join(", ")
         ));
         let mut block = Block::new("match index");
-        for (index, (variant, rust)) in variants.iter().enumerate() {
+        for (index, (variant, rust)) in enumeration.variants().enumerate() {
             block.line(&format!(
                 "{} => Ok({}::{}({}::query_with(transaction, id)?)),",
                 index + 1,
@@ -591,7 +591,7 @@ impl PsqlInserter {
         func.push_block(block);
     }
 
-    fn impl_enum_query_fn(func: &mut Function, name: &str, r_enum: &RustEnum) {
+    fn impl_enum_query_fn(func: &mut Function, name: &str, r_enum: &PlainEnum) {
         let mut block = Block::new("match id");
         for (index, variant) in r_enum.variants().enumerate() {
             block.line(&format!("{} => Ok({}::{}),", index, name, variant));
