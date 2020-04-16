@@ -279,6 +279,10 @@ impl<T> Enumeration<T> {
     pub fn last_standard_index(&self) -> Option<usize> {
         self.extended_after_index
     }
+
+    pub fn is_extensible(&self) -> bool {
+        self.extended_after_index.is_some()
+    }
 }
 
 impl Model<Rust> {

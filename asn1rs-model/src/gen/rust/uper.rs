@@ -257,11 +257,9 @@ impl UperSerializer {
         let mut block = Block::new("match variant");
         for (i, (variant, role)) in enumeration.variants().enumerate() {
             let mut block_case = Block::new(&format!("{} => Ok({}::{}(", i, name, variant));
-
             let var_name = RustCodeGenerator::rust_module_name(variant);
-            let is_extended_variant = Self::is_extended_variant(enumeration, i);
 
-            if is_extended_variant {
+            if Self::is_extended_variant(enumeration, i) {
                 block_case.line(
                     "let mut reader = reader.read_substring_with_length_determinant_prefix()?;",
                 );
@@ -276,10 +274,19 @@ impl UperSerializer {
             block_case.after(")),");
             block.push_block(block_case);
         }
-        block.line(format!(
-            "_ => Err(UperError::ValueNotInRange(variant, 0, {}))",
+        let err_line = format!(
+            "Err(UperError::ValueNotInRange(variant, 0, {}))",
             enumeration.len() - 1
-        ));
+        );
+        if enumeration.is_extensible() {
+            let mut block_default = Block::new("_ => ");
+            block_default.line("// skip the content of the unknown variant");
+            block_default.line("let _ = reader.read_substring_with_length_determinant_prefix()?;");
+            block_default.line(err_line);
+            block.push_block(block_default);
+        } else {
+            block.line(format!("_ => {}", err_line));
+        }
         function.push_block(block);
     }
 
