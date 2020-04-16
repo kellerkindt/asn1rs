@@ -233,10 +233,36 @@ use asn1rs::io::protobuf::*;
 
 let mut buffer = Vec::default();
 buffer.write_varint(1337).unwrap();
-buffer.wrote_string("Still UTF8 Text").unwrap();
+buffer.write_string("Still UTF8 Text").unwrap();
 
 send_to_another_host(buffer):
 ``` 
+
+#### Inlining ASN.1 with procedural macros
+
+Useful for tests or very small definitions. See ```tests/``` for more examples.
+```rust
+use asn1rs::io::buffer::BitBuffer;
+use asn1rs::macros::asn_to_rust;
+
+asn_to_rust!(
+    r"BasicInteger DEFINITIONS AUTOMATIC TAGS ::=
+    BEGIN
+    
+    RangedMax ::= Integer (0..MAX)
+    
+    NotRanged ::= Integer
+    
+    END"
+);
+
+#[test]
+fn test_default_range() {
+    assert_eq!(RangedMax::value_min(), NotRanged::value_min());
+    assert_eq!(RangedMax::value_max(), NotRanged::value_max());
+    let _ = NotRanged(123_u64); // does not compile if the inner type is not u64
+}
+```
 
 ## What works
  - Generating Rust Code with serializtion support for
@@ -248,6 +274,7 @@ send_to_another_host(buffer):
  - Generating PostgreSQL Schema files
  - Support for the following ASN.1 datatypes:
    - ```SEQUENCE```, ```SEQUENCE OF```, ```CHOICE``` and ```ENUMERATED```
+   - extensible variation of ```CHOICE``` and ```ENUMERATED```
    - inline ```SEQUENCE OF``` and ```CHOICE``` 
    - ```OPTIONAL```
    - ```INTEGER``` with range (numbers or ```MIN```/```MAX```)
@@ -256,13 +283,13 @@ send_to_another_host(buffer):
    - ```OCTET STRING``` 
    - ```BOOLEAN```
    - using previously declared message types
-   - ```IMPORTS .. FROM ..;```  
-   
+   - ```IMPORTS .. FROM ..;```
+ - Line comments (```--- some comment```)
+ - parsing and ignoring in UPER unused TAGs and ENUMERATED-Variant number assignments
 
 ## What doesn't work
  - most of the (not mentioned) remaining ASN.1 data-types
  - probably most non-trivial ASN.1 declarations
- - comments
  - let me know
 
 ## TODO
