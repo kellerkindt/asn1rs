@@ -1,3 +1,4 @@
+use crate::io::buffer::BitBuffer;
 use byteorder::ByteOrder;
 use byteorder::NetworkEndian;
 
@@ -61,6 +62,15 @@ pub trait Uper {
 }
 
 pub trait Reader {
+    /// Sub-strings larger than 16k are not supported
+    fn read_substring_with_length_determinant_prefix(&mut self) -> Result<BitBuffer, Error> {
+        let byte_len = self.read_length_determinant()?;
+        let bit_len = byte_len * BYTE_LEN;
+        let mut bytes = vec![0x00_u8; byte_len];
+        self.read_bit_string(&mut bytes[..], 0, bit_len)?;
+        Ok(BitBuffer::from_bits(bytes, bit_len))
+    }
+
     fn read_utf8_string(&mut self) -> Result<String, Error> {
         let len = self.read_length_determinant()?;
         let mut buffer = vec![0_u8; len];
@@ -185,6 +195,18 @@ pub trait Reader {
 }
 
 pub trait Writer {
+    /// Sub-strings larger than 16k are not supported
+    fn write_substring_with_length_determinant_prefix(
+        &mut self,
+        fun: &dyn Fn(&mut dyn Writer) -> Result<(), Error>,
+    ) -> Result<(), Error> {
+        let mut buffer = BitBuffer::default();
+        fun(&mut buffer as &mut dyn Writer)?;
+        self.write_length_determinant(buffer.byte_len())?;
+        self.write_bit_string(&buffer.content(), 0, buffer.bit_len())?;
+        Ok(())
+    }
+
     fn write_utf8_string(&mut self, value: &str) -> Result<(), Error> {
         self.write_length_determinant(value.len())?;
         self.write_bit_string_till_end(value.as_bytes(), 0)?;

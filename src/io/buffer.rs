@@ -1,7 +1,7 @@
-use crate::io::uper::Reader as UperReader;
 use crate::io::uper::Writer as UperWriter;
 use crate::io::uper::BYTE_LEN;
 use crate::io::uper::{Error as UperError, Error};
+use crate::io::uper::{Reader as UperReader, Writer};
 use std::iter;
 
 #[allow(clippy::module_name_repetitions)]
@@ -193,6 +193,23 @@ impl From<Vec<u8>> for BitBuffer {
 }
 
 impl UperReader for BitBuffer {
+    fn read_substring_with_length_determinant_prefix(&mut self) -> Result<BitBuffer, Error> {
+        // let the new buffer have the same bit_alignment as this current instance
+        // so that ```bit_string_copy_bulked``` can utilize the fast copy-path
+        let byte_len = self.read_length_determinant()?;
+        let bit_len = byte_len * BYTE_LEN;
+        let bit_offset = self.read_position % BYTE_LEN;
+
+        let mut bytes = vec![0x00_u8; byte_len + if bit_offset > 0 { 1 } else { 0 }];
+        self.read_bit_string(&mut bytes[..], bit_offset, bit_len)?;
+
+        Ok(BitBuffer {
+            buffer: bytes,
+            write_position: bit_len + bit_offset,
+            read_position: bit_offset,
+        })
+    }
+
     fn read_bit_string(
         &mut self,
         buffer: &mut [u8],
@@ -212,6 +229,22 @@ impl UperReader for BitBuffer {
 }
 
 impl UperWriter for BitBuffer {
+    fn write_substring_with_length_determinant_prefix(
+        &mut self,
+        fun: &dyn Fn(&mut dyn Writer) -> Result<(), Error>,
+    ) -> Result<(), Error> {
+        let mut buffer = BitBuffer::default();
+        let bit_offset = self.write_position % BYTE_LEN;
+        // let the new buffer have the same bit_alignment as this current instance
+        // so that ```bit_string_copy_bulked``` can utilize the fast copy-path
+        buffer.write_bit_string(&[0x00_u8], 0, bit_offset)?;
+        fun(&mut buffer)?;
+        let byte_len = (buffer.bit_len() - bit_offset + (BYTE_LEN - 1)) / BYTE_LEN;
+        self.write_length_determinant(byte_len)?;
+        self.write_bit_string(buffer.content(), bit_offset, buffer.bit_len() - bit_offset)?;
+        Ok(())
+    }
+
     fn write_bit_string(
         &mut self,
         buffer: &[u8],

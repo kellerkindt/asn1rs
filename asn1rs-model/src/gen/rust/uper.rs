@@ -1,7 +1,7 @@
 use crate::gen::rust::GeneratorSupplement;
 use crate::gen::rust::RustCodeGenerator;
-use crate::model::rust::DataEnum;
 use crate::model::rust::PlainEnum;
+use crate::model::rust::{DataEnum, Enumeration};
 use crate::model::Definition;
 use crate::model::Rust;
 use crate::model::RustType;
@@ -256,14 +256,23 @@ impl UperSerializer {
         }
         let mut block = Block::new("match variant");
         for (i, (variant, role)) in enumeration.variants().enumerate() {
-            let var_name = RustCodeGenerator::rust_module_name(variant);
             let mut block_case = Block::new(&format!("{} => Ok({}::{}(", i, name, variant));
+
+            let var_name = RustCodeGenerator::rust_module_name(variant);
+            let is_extended_variant = Self::is_extended_variant(enumeration, i);
+
+            if is_extended_variant {
+                block_case.line(
+                    "let mut reader = reader.read_substring_with_length_determinant_prefix()?;",
+                );
+            }
             Self::impl_read_fn_for_type(
                 &mut block_case,
                 &role.to_inner_type_string(),
                 Some(Member::Local(var_name, false, role.is_primitive())),
                 role,
             );
+
             block_case.after(")),");
             block.push_block(block_case);
         }
@@ -496,13 +505,29 @@ impl UperSerializer {
         for (i, (variant, role)) in enumeration.variants().enumerate() {
             let var_name = RustCodeGenerator::rust_module_name(variant);
             let mut block_case = Block::new(&format!("{}::{}({}) =>", name, variant, var_name));
+
             if enumeration.len() > 1 {
+                let is_extended_variant = Self::is_extended_variant(enumeration, i);
+
                 if let Some(last_standard_index) = enumeration.last_standard_index() {
                     block_case.line(format!(
                         "writer.write_choice_index_extensible({}, {})?;",
                         i,
                         last_standard_index + 1
                     ));
+                    if is_extended_variant {
+                        let mut block_substring = Block::new(
+                            "writer.write_substring_with_length_determinant_prefix(&|writer| ",
+                        );
+                        Self::impl_write_fn_for_type(
+                            &mut block_substring,
+                            Some(Member::Local(var_name.clone(), false, role.is_primitive())),
+                            role,
+                        );
+                        block_substring.line("Ok(())");
+                        block_substring.after(")?;");
+                        block_case.push_block(block_substring);
+                    }
                 } else {
                     block_case.line(format!(
                         "writer.write_int({}, (0, {}))?;",
@@ -510,16 +535,25 @@ impl UperSerializer {
                         enumeration.len() - 1
                     ));
                 }
+                if !is_extended_variant {
+                    Self::impl_write_fn_for_type(
+                        &mut block_case,
+                        Some(Member::Local(var_name, false, role.is_primitive())),
+                        role,
+                    );
+                }
             }
-            Self::impl_write_fn_for_type(
-                &mut block_case,
-                Some(Member::Local(var_name, false, role.is_primitive())),
-                role,
-            );
             block.push_block(block_case);
         }
         function.push_block(block);
         function.line("Ok(())");
+    }
+
+    fn is_extended_variant<T>(enumeration: &Enumeration<T>, variant: usize) -> bool {
+        enumeration
+            .last_standard_index()
+            .map(|last| variant > last)
+            .unwrap_or(false)
     }
 }
 
