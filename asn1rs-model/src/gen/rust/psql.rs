@@ -20,6 +20,9 @@ const TRAIT_PSQL_REPRESENTABLE: &str = "PsqlRepresentable";
 const TRAIT_PSQL_INSERTABLE: &str = "PsqlInsertable";
 const TRAIT_PSQL_QUERYABLE: &str = "PsqlQueryable";
 
+#[deprecated(
+    note = "There is no active-maintainer for this anymore, eventually, support for non-async psql will be dropped"
+)]
 #[allow(clippy::module_name_repetitions)]
 pub struct PsqlInserter;
 
