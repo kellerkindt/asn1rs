@@ -1143,4 +1143,61 @@ mod tests {
         assert_eq!(3, read_once(&[0x81], 8, 2)?);
         Ok(())
     }
+
+    #[test]
+    fn test_sub_string_with_length_delimiter_prefix() {
+        let mut buffer = BitBuffer::default();
+        buffer
+            .write_substring_with_length_determinant_prefix(&|writer| writer.write_int_max(1337))
+            .unwrap();
+        assert_eq!(&[0x03, 0x02, 0x05, 0x39], buffer.content());
+        let mut inner = buffer
+            .read_substring_with_length_determinant_prefix()
+            .unwrap();
+        assert_eq!(1337, inner.read_int_max().unwrap());
+    }
+
+    #[test]
+    fn test_sub_string_with_length_delimiter_prefix_not_aligned() {
+        let mut buffer = BitBuffer::default();
+        buffer.write_bit(false).unwrap();
+        buffer.write_bit(false).unwrap();
+        buffer.write_bit(false).unwrap();
+        buffer.write_bit(false).unwrap();
+        buffer
+            .write_substring_with_length_determinant_prefix(&|writer| writer.write_int_max(1337))
+            .unwrap();
+        assert_eq!(&[0x00, 0x30, 0x20, 0x53, 0x90], buffer.content());
+        assert_eq!(false, buffer.read_bit().unwrap());
+        assert_eq!(false, buffer.read_bit().unwrap());
+        assert_eq!(false, buffer.read_bit().unwrap());
+        assert_eq!(false, buffer.read_bit().unwrap());
+        let mut inner = buffer
+            .read_substring_with_length_determinant_prefix()
+            .unwrap();
+        assert_eq!(1337, inner.read_int_max().unwrap());
+    }
+    #[test]
+    fn test_sub_string_with_length_delimiter_prefix_raw_not_aligned() {
+        let mut buffer = ([0_u8; 1024], 0_usize);
+        let writer = &mut (&mut buffer.0[..], &mut buffer.1) as &mut dyn UperWriter;
+        writer.write_bit(false).unwrap();
+        writer.write_bit(false).unwrap();
+        writer.write_bit(false).unwrap();
+        writer.write_bit(false).unwrap();
+        writer
+            .write_substring_with_length_determinant_prefix(&|writer| writer.write_int_max(1337))
+            .unwrap();
+        assert_eq!(&[0x00, 0x30, 0x20, 0x53, 0x90], &buffer.0[..5]);
+        buffer.1 = 0;
+        let reader = &mut (&buffer.0[..], &mut buffer.1) as &mut dyn UperReader;
+        assert_eq!(false, reader.read_bit().unwrap());
+        assert_eq!(false, reader.read_bit().unwrap());
+        assert_eq!(false, reader.read_bit().unwrap());
+        assert_eq!(false, reader.read_bit().unwrap());
+        let mut inner = reader
+            .read_substring_with_length_determinant_prefix()
+            .unwrap();
+        assert_eq!(1337, inner.read_int_max().unwrap());
+    }
 }
