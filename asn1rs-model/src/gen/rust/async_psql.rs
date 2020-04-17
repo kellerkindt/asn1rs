@@ -110,6 +110,19 @@ fn impl_insert_fn_content(
     let mut params = Vec::default();
     let mut to_await = Vec::default();
     for insert in fields.iter().filter_map(|(field_name, r_type)| {
+        let field_name = RustCodeGenerator::rust_field_name(field_name, true);
+        let field_name_as_variable = if field_name
+            .chars()
+            .next()
+            .map(|c| c.is_alphanumeric())
+            .unwrap_or(false)
+        {
+            Some(format!("value_{}", field_name))
+        } else {
+            None
+        };
+        let field_name_as_variable = field_name_as_variable.as_ref().map(String::as_str);
+
         if r_type.is_vec() {
             None
         } else {
@@ -118,8 +131,9 @@ fn impl_insert_fn_content(
                 on_self,
                 name,
                 container,
-                &RustCodeGenerator::rust_field_name(field_name, true),
+                &field_name,
                 r_type,
+                field_name_as_variable,
             ))
         }
     }) {
@@ -159,12 +173,12 @@ fn impl_insert_fn_content(
     to_await.clear();
     for insert in fields.iter().filter_map(|(field_name, r_type)| {
         if r_type.is_vec() {
-            Some(insert_field(
+            Some(insert_vec_field(
                 is_tuple_struct,
                 on_self,
                 name,
                 container,
-                &RustCodeGenerator::rust_field_name(field_name, true),
+                &field_name,
                 r_type,
             ))
         } else {
@@ -264,6 +278,7 @@ fn insert_field(
     container: &mut impl Container,
     field_name: &str,
     r_type: &RustType,
+    field_name_as_variable: Option<&str>,
 ) -> FieldInsert {
     if let RustType::Option(inner) = r_type {
         insert_optional_field(
@@ -273,6 +288,7 @@ fn insert_field(
             container,
             field_name,
             inner,
+            field_name_as_variable,
         )
     } else if r_type.is_vec() {
         insert_vec_field(
@@ -284,9 +300,15 @@ fn insert_field(
             r_type,
         )
     } else if Model::<Sql>::is_primitive(r_type) {
-        insert_sql_primitive_field(on_self, container, field_name, r_type)
+        insert_sql_primitive_field(
+            on_self,
+            container,
+            field_name,
+            r_type,
+            field_name_as_variable,
+        )
     } else {
-        insert_complex_field(on_self, container, field_name)
+        insert_complex_field(on_self, container, field_name, field_name_as_variable)
     }
 }
 
@@ -297,6 +319,7 @@ fn insert_optional_field(
     container: &mut impl Container,
     field_name: &str,
     inner: &RustType,
+    field_name_as_variable: Option<&str>,
 ) -> FieldInsert {
     insert_optional_field_maybe_async(
         is_tuple_struct,
@@ -305,6 +328,7 @@ fn insert_optional_field(
         container,
         field_name,
         inner,
+        field_name_as_variable,
         false,
     )
 }
@@ -316,13 +340,15 @@ fn insert_optional_field_maybe_async(
     container: &mut impl Container,
     field_name: &str,
     inner: &RustType,
+    field_name_as_variable: Option<&str>,
     call_await: bool,
 ) -> FieldInsert {
+    let variable_name = field_name_as_variable.unwrap_or(field_name).to_string();
     let mut block_async = Block::new(&format!("let {} = async", field_name));
     if inner.as_no_option().is_vec() {
         let mut let_some = Block::new(&format!(
             "if let Some({}) = {}self.{}",
-            field_name,
+            variable_name,
             if inner.as_no_option().is_primitive() {
                 ""
             } else {
@@ -336,8 +362,9 @@ fn insert_optional_field_maybe_async(
                 on_self,
                 struct_name,
                 &mut let_some,
-                field_name,
+                &variable_name,
                 next,
+                None,
                 true,
             );
         } else {
@@ -357,7 +384,7 @@ fn insert_optional_field_maybe_async(
     } else {
         let mut block_some = Block::new(&format!(
             "if let Some({}) = {}{}{}",
-            field_name,
+            variable_name,
             if inner.is_primitive() { "" } else { "&" },
             if on_self { "self." } else { "" },
             field_name
@@ -368,11 +395,11 @@ fn insert_optional_field_maybe_async(
                 let conversion = inner.as_no_option().to_sql().to_rust();
                 block_some_inner.line(&format!(
                     "{} as {}",
-                    field_name,
+                    variable_name,
                     conversion.to_inner_type_string()
                 ));
             } else {
-                block_some_inner.line(field_name);
+                block_some_inner.line(variable_name);
             }
         } else {
             match insert_field(
@@ -380,8 +407,9 @@ fn insert_optional_field_maybe_async(
                 false,
                 struct_name,
                 &mut block_some_inner,
-                field_name,
+                &variable_name,
                 inner,
+                None,
             ) {
                 FieldInsert::AsyncVec => {}
                 FieldInsert::AsyncComplex(name) => {
@@ -464,6 +492,7 @@ fn insert_sql_primitive_field(
     container: &mut impl Container,
     field_name: &str,
     r_type: &RustType,
+    field_name_as_variable: Option<&str>,
 ) -> FieldInsert {
     let rerust = r_type.to_sql().to_rust();
     let conversion = if rerust.ne(r_type) {
@@ -471,9 +500,10 @@ fn insert_sql_primitive_field(
     } else {
         None
     };
+    let variable = field_name_as_variable.unwrap_or(field_name).to_string();
     container.line(&format!(
         "let {} = {}{}{}{}{};",
-        field_name,
+        variable,
         if r_type.is_primitive() { "" } else { "&" },
         if on_self { "self." } else { "" },
         field_name,
@@ -483,22 +513,24 @@ fn insert_sql_primitive_field(
             .map(|r| r.to_string())
             .unwrap_or_default(),
     ));
-    FieldInsert::Primitive(field_name.to_string(), conversion)
+    FieldInsert::Primitive(variable, conversion)
 }
 
 fn insert_complex_field(
     on_self: bool,
     container: &mut impl Container,
     field_name: &str,
+    field_name_as_variable: Option<&str>,
 ) -> FieldInsert {
+    let variable_name = field_name_as_variable.unwrap_or(field_name).to_string();
     container.line(&format!(
         "let {} = {}{}.{}(context);",
-        field_name,
+        variable_name,
         if on_self { "self." } else { "" },
         field_name,
         insert_fn_name()
     ));
-    FieldInsert::AsyncComplex(field_name.to_string())
+    FieldInsert::AsyncComplex(variable_name)
 }
 
 enum FieldInsert {
