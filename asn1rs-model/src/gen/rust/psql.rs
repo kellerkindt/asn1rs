@@ -20,6 +20,9 @@ const TRAIT_PSQL_REPRESENTABLE: &str = "PsqlRepresentable";
 const TRAIT_PSQL_INSERTABLE: &str = "PsqlInsertable";
 const TRAIT_PSQL_QUERYABLE: &str = "PsqlQueryable";
 
+/// The tuple implementation has general flaws in where in which
+/// it was initially designed to represent lists only. Later extensions
+/// patch only certain uncovered edge-cases and are hacked into place.
 #[deprecated(
     note = "There is no active-maintainer for this anymore, eventually, support for non-async psql will be dropped"
 )]
@@ -350,11 +353,19 @@ impl PsqlInserter {
 
     /// Expects a variable called `statement` to be reachable and usable
     fn list_insert_for_each(name: &str, rust: &RustType, list: &str) -> Block {
-        let mut block_for = Block::new(&if let RustType::Option(_) = rust {
-            format!("for value in self.{}.iter().flatten()", name)
+        let mut block_for = if rust.as_no_option().is_vec() {
+            Block::new(&if let RustType::Option(_) = rust {
+                format!("for value in self.{}.iter().flatten()", name)
+            } else {
+                format!("for value in &self.{}", name)
+            })
+        } else if rust.is_option() {
+            Block::new(&format!("if let Some(value) = &self.{}", name))
         } else {
-            format!("for value in &self.{}", name)
-        });
+            let mut block = Block::new("");
+            block.line(format!("let value = &self.{};", name));
+            block
+        };
         if Model::<Sql>::is_primitive(rust) {
             let inner_sql = rust.clone().into_inner_type().to_sql();
             let inner_rust = rust.clone().into_inner_type();
@@ -368,7 +379,7 @@ impl PsqlInserter {
                     if use_from_instead_of_as {
                         format!("{}::from(*value)", as_target)
                     } else {
-                        format!("*value as {}", as_target)
+                        format!("(*value) as {}", as_target)
                     },
                 ));
             }
@@ -613,28 +624,47 @@ impl PsqlInserter {
     fn impl_tupl_struct_query_fn(func: &mut Function, name: &str, rust: &RustType) {
         func.line("let statement = transaction.prepare_cached(Self::query_statement())?;");
         func.line("let rows = statement.query(&[&id])?;");
-        func.line("let mut values = Vec::with_capacity(rows.len());");
         let inner = rust.clone().into_inner_type();
         if Model::<Sql>::is_primitive(&inner) {
-            let mut block = Block::new("for row in rows.iter()");
             let from_sql = inner.to_sql().to_rust();
+
             let load = format!(
                 "row.get_opt::<usize, {}>(0).ok_or_else({}::no_result)??",
                 from_sql.to_string(),
                 ERROR_TYPE,
             );
-            block.line(&format!(
-                "values.push({});",
-                Self::wrap_for_query_in_as_or_from_if_required(&load, rust).unwrap_or(load)
-            ));
-            func.push_block(block);
-        } else {
+            let load_wrapped =
+                Self::wrap_for_query_in_as_or_from_if_required(&load, rust).unwrap_or(load);
+
+            if rust.is_vec() {
+                func.line("let mut values = Vec::with_capacity(rows.len());");
+                let mut block = Block::new("for row in rows.iter()");
+                block.line(&format!("values.push({});", load_wrapped));
+                func.push_block(block);
+            } else {
+                func.line(format!(
+                    "let row = rows.iter().next().ok_or_else({}::no_result)?;",
+                    ERROR_TYPE
+                ));
+                func.line(format!("let values = {};", load_wrapped));
+            }
+        } else if rust.is_vec() {
+            func.line("let mut values = Vec::with_capacity(rows.len());");
             let mut block = Block::new("for row in rows.iter()");
             block.line(&format!(
                 "values.push({}::load_from(transaction, &row)?);",
                 inner.to_string()
             ));
             func.push_block(block);
+        } else {
+            func.line(format!(
+                "let row = rows.iter().next().ok_or_else({}::no_result)?;",
+                ERROR_TYPE
+            ));
+            func.line(format!(
+                "let values = {}::load_from(transaction, &row)?;",
+                inner.to_string()
+            ));
         }
         func.line(&format!("Ok({}(values))", name));
     }
