@@ -497,7 +497,7 @@ pub fn rust_module_name(name: &str) -> String {
 mod tests {
     use super::*;
     use crate::model::tests::*;
-    use crate::model::{Choice, Enumerated, Field};
+    use crate::model::{Choice, Enumerated, EnumeratedVariant, Field, Tag, Type};
     use crate::parser::Tokenizer;
 
     #[test]
@@ -939,6 +939,78 @@ mod tests {
                 )])
             ),
             model_rust.definitions[0]
+        );
+    }
+
+    #[test]
+    pub fn test_extensible_enum() {
+        let mut model_asn = Model::default();
+        model_asn.name = "ExtensibleEnum".to_string();
+        model_asn.definitions.push(Definition(
+            "Extensible".to_string(),
+            AsnType::Enumerated(Enumerated {
+                variants: vec![
+                    "abc".into(),
+                    "def".into(),
+                    EnumeratedVariant {
+                        name: "ghi".to_string(),
+                        number: Some(42),
+                    },
+                ],
+                extension_after: Some(2),
+            })
+            .untagged(),
+        ));
+        let model_rust = model_asn.to_rust();
+        assert_eq!("extensible_enum", model_rust.name);
+        assert_eq!(model_asn.imports, model_rust.imports);
+        assert_eq!(
+            &[Definition(
+                "Extensible".into(),
+                Rust::Enum(PlainEnum {
+                    variants: vec!["Abc".to_string(), "Def".to_string(), "Ghi".to_string()],
+                    extended_after_index: Some(2)
+                })
+            )],
+            &model_rust.definitions[..]
+        );
+    }
+    #[test]
+    pub fn test_extensible_choice() {
+        let mut model_asn = Model::default();
+        model_asn.name = "ExtensibleChoice".to_string();
+        model_asn.definitions.push(Definition(
+            "Extensible".to_string(),
+            AsnType::Choice(Choice {
+                variants: vec![
+                    ChoiceVariant::name_type("abc", Type::OctetString),
+                    ChoiceVariant::name_type("def", Type::Integer(None)),
+                    ChoiceVariant {
+                        name: "ghi".to_string(),
+                        tag: Some(Tag::Universal(4)),
+                        r#type: Type::Boolean,
+                    },
+                ],
+                extension_after: Some(2),
+            })
+            .untagged(),
+        ));
+        let model_rust = model_asn.to_rust();
+        assert_eq!("extensible_choice", model_rust.name);
+        assert_eq!(model_asn.imports, model_rust.imports);
+        assert_eq!(
+            &[Definition(
+                "Extensible".into(),
+                Rust::DataEnum(DataEnum {
+                    variants: vec![
+                        ("Abc".to_string(), RustType::VecU8),
+                        ("Def".to_string(), RustType::U64(None)),
+                        ("Ghi".to_string(), RustType::Bool),
+                    ],
+                    extended_after_index: Some(2)
+                })
+            )],
+            &model_rust.definitions[..]
         );
     }
 }

@@ -774,9 +774,9 @@ impl TryFrom<&mut Peekable<IntoIter<Token>>> for Choice {
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct ChoiceVariant {
-    name: String,
-    tag: Option<Tag>,
-    r#type: Type,
+    pub(crate) name: String,
+    pub(crate) tag: Option<Tag>,
+    pub(crate) r#type: Type,
 }
 
 impl ChoiceVariant {
@@ -906,8 +906,18 @@ impl TryFrom<&mut Peekable<IntoIter<Token>>> for Enumerated {
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct EnumeratedVariant {
-    name: String,
-    number: Option<usize>,
+    pub(crate) name: String,
+    pub(crate) number: Option<usize>,
+}
+
+#[cfg(test)]
+impl<S: ToString> From<S> for EnumeratedVariant {
+    fn from(s: S) -> Self {
+        EnumeratedVariant {
+            name: s.to_string(),
+            number: None,
+        }
+    }
 }
 
 impl EnumeratedVariant {
