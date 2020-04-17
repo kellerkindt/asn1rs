@@ -59,6 +59,15 @@ impl Error {
         }
     }
 
+    pub fn first_present(row: &Row, columns: &[usize]) -> Result<usize, Error> {
+        for column in columns {
+            if row.get_bytes(column).is_some() {
+                return Ok(*column);
+            }
+        }
+        Err(Error::no_result())
+    }
+
     pub fn first_not_null<T: postgres::types::FromSql>(
         row: &Row,
         columns: &[usize],

@@ -316,7 +316,11 @@ impl PsqlInserter {
             ));
 
             if sql_primitive {
-                block_if.line("Some(value)");
+                block_if.line(format!(
+                    "Some({})",
+                    Self::wrap_for_insert_in_as_or_from_if_required("*value", rust)
+                        .unwrap_or_else(|| "value".to_string())
+                ));
             } else {
                 block_if.line("Some(value.insert_with(transaction)?)");
             };
@@ -581,8 +585,8 @@ impl PsqlInserter {
         ));
     }
     fn impl_data_enum_load_fn(func: &mut Function, name: &str, enumeration: &DataEnum) {
-        func.line(&format!(
-            "let (index, id) = {}::first_not_null(row, &[{}])?;",
+        func.line(format!(
+            "let index = {}::first_present(row, &[{}])?;",
             ERROR_TYPE,
             enumeration
                 .variants()
@@ -593,13 +597,36 @@ impl PsqlInserter {
         ));
         let mut block = Block::new("match index");
         for (index, (variant, rust)) in enumeration.variants().enumerate() {
-            block.line(&format!(
-                "{} => Ok({}::{}({}::query_with(transaction, id)?)),",
-                index + 1,
-                name,
-                variant,
-                rust.clone().into_inner_type().to_string(),
-            ));
+            let mut block_case =
+                Block::new(&format!("{} => Ok({}::{}(", index + 1, name, variant,));
+
+            if Model::<Sql>::is_primitive(rust.as_inner_type()) {
+                if let Some(wrap) = Self::wrap_for_query_in_as_or_from_if_required("", rust) {
+                    block_case.line(format!(
+                        "row.get_opt::<_, {}>({}).ok_or_else({}::no_result)??{}",
+                        rust.as_inner_type().to_sql().to_rust().to_string(),
+                        index + 1,
+                        ERROR_TYPE,
+                        wrap
+                    ));
+                } else {
+                    block_case.line(format!(
+                        "row.get_opt::<_, {}>({}).ok_or_else({}::no_result)??",
+                        rust.as_inner_type().to_sql().to_rust().to_string(),
+                        index + 1,
+                        ERROR_TYPE
+                    ));
+                }
+            } else {
+                block_case.line(&format!(
+                    "{}::query_with(transaction, row.get({}))?",
+                    rust.clone().into_inner_type().to_string(),
+                    index + 1
+                ));
+            }
+
+            block_case.after(")),");
+            block.push_block(block_case);
         }
         block.line(&format!("_ => Err({}::no_result()),", ERROR_TYPE));
         func.push_block(block);
