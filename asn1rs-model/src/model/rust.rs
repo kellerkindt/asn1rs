@@ -262,6 +262,15 @@ pub struct Enumeration<T> {
     variants: Vec<T>,
     extended_after_index: Option<usize>,
 }
+#[cfg(test)]
+impl<T> From<Vec<T>> for Enumeration<T> {
+    fn from(variants: Vec<T>) -> Self {
+        Enumeration {
+            variants,
+            extended_after_index: None,
+        }
+    }
+}
 
 impl<T> Enumeration<T> {
     pub fn len(&self) -> usize {
@@ -529,13 +538,16 @@ mod tests {
         assert_eq!(
             Definition(
                 "WoahDecision".into(),
-                Rust::Enum(vec![
-                    "ABORT".into(),
-                    "RETURN".into(),
-                    "CONFIRM".into(),
-                    "MAYDAY".into(),
-                    "THE_CAKE_IS_A_LIE".into()
-                ])
+                Rust::Enum(
+                    vec![
+                        "ABORT".into(),
+                        "RETURN".into(),
+                        "CONFIRM".into(),
+                        "MAYDAY".into(),
+                        "THE_CAKE_IS_A_LIE".into()
+                    ]
+                    .into()
+                )
             ),
             modle_rust.definitions[0]
         );
@@ -628,18 +640,21 @@ mod tests {
         assert_eq!(
             Definition(
                 "Neither".into(),
-                Rust::Enum(vec!["ABC".into(), "DEF".into(),])
+                Rust::Enum(vec!["ABC".into(), "DEF".into(),].into())
             ),
             model_rust.definitions[2]
         );
         assert_eq!(
             Definition(
                 "WoahDecision".into(),
-                Rust::DataEnum(vec![
-                    ("This".into(), RustType::Complex("This".into())),
-                    ("That".into(), RustType::Complex("That".into())),
-                    ("Neither".into(), RustType::Complex("Neither".into())),
-                ])
+                Rust::DataEnum(
+                    vec![
+                        ("This".into(), RustType::Complex("This".into())),
+                        ("That".into(), RustType::Complex("That".into())),
+                        ("Neither".into(), RustType::Complex("Neither".into())),
+                    ]
+                    .into()
+                )
             ),
             model_rust.definitions[3]
         );
@@ -712,7 +727,7 @@ mod tests {
         assert_eq!(
             Definition(
                 "SimpleEnumTest".into(),
-                Rust::Enum(vec!["Bernd".into(), "DasVerdammte".into(), "Brooot".into(),])
+                Rust::Enum(vec!["Bernd".into(), "DasVerdammte".into(), "Brooot".into(),].into())
             ),
             model_rust.definitions[0]
         );
@@ -736,10 +751,13 @@ mod tests {
         assert_eq!(
             Definition(
                 "SimpleChoiceTest".into(),
-                Rust::DataEnum(vec![
-                    ("BerndDasBrot".into(), RustType::String),
-                    ("NochSoEinBrot".into(), RustType::VecU8),
-                ])
+                Rust::DataEnum(
+                    vec![
+                        ("BerndDasBrot".into(), RustType::String),
+                        ("NochSoEinBrot".into(), RustType::VecU8),
+                    ]
+                    .into()
+                )
             ),
             model_rust.definitions[0]
         )
@@ -771,16 +789,19 @@ mod tests {
         assert_eq!(
             Definition(
                 "ListChoiceTestWithNestedList".into(),
-                Rust::DataEnum(vec![
-                    (
-                        "NormalList".into(),
-                        RustType::Vec(Box::new(RustType::String))
-                    ),
-                    (
-                        "NESTEDList".into(),
-                        RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::VecU8))))
-                    ),
-                ])
+                Rust::DataEnum(
+                    vec![
+                        (
+                            "NormalList".into(),
+                            RustType::Vec(Box::new(RustType::String))
+                        ),
+                        (
+                            "NESTEDList".into(),
+                            RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::VecU8))))
+                        ),
+                    ]
+                    .into()
+                )
             ),
             model_rust.definitions[0]
         )

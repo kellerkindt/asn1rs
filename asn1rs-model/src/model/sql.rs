@@ -529,10 +529,13 @@ mod tests {
             }],
             definitions: vec![Definition(
                 "PersonState".into(),
-                Rust::DataEnum(vec![
-                    ("DeadSince".into(), RustType::String),
-                    ("Alive".into(), RustType::Complex("Person".into())),
-                ]),
+                Rust::DataEnum(
+                    vec![
+                        ("DeadSince".into(), RustType::String),
+                        ("Alive".into(), RustType::Complex("Person".into())),
+                    ]
+                    .into(),
+                ),
             )],
         }
         .to_sql();
@@ -597,7 +600,7 @@ mod tests {
             }],
             definitions: vec![Definition(
                 "City".into(),
-                Rust::Enum(vec!["Esslingen".into(), "Stuttgart".into()]),
+                Rust::Enum(vec!["Esslingen".into(), "Stuttgart".into()].into()),
             )],
         }
         .to_sql();

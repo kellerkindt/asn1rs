@@ -260,7 +260,7 @@ mod tests {
         test_model_definition_conversion(
             &[Definition(
                 "SuchEnum".into(),
-                Rust::Enum(vec!["VeryWow".into(), "MuchGreat".into()]),
+                Rust::Enum(vec!["VeryWow".into(), "MuchGreat".into()].into()),
             )],
             &[Definition(
                 "SuchEnum".into(),
@@ -291,7 +291,7 @@ mod tests {
         test_model_definition_conversion(
             &[Definition(
                 "SuchDataEnum".into(),
-                Rust::DataEnum(vec![("MuchVariant".into(), RustType::String)]),
+                Rust::DataEnum(vec![("MuchVariant".into(), RustType::String)].into()),
             )],
             &[Definition(
                 "SuchDataEnum".into(),
@@ -307,7 +307,10 @@ mod tests {
     fn test_multiple_rust_defs_to_protobuf() {
         test_model_definition_conversion(
             &[
-                Definition("First".into(), Rust::Enum(vec!["A".into(), "B".into()])),
+                Definition(
+                    "First".into(),
+                    Rust::Enum(vec!["A".into(), "B".into()].into()),
+                ),
                 Definition("Second".into(), Rust::TupleStruct(RustType::VecU8)),
             ],
             &[
