@@ -106,7 +106,6 @@ fn impl_insert_fn_content(
     fields: &[(String, RustType)],
     container: &mut impl Container,
 ) {
-    let mut primitives = Vec::default();
     let mut params = Vec::default();
     let mut to_await = Vec::default();
     for insert in fields.iter().filter_map(|(field_name, r_type)| {
@@ -145,8 +144,7 @@ fn impl_insert_fn_content(
                 to_await.push(name.clone());
                 params.push(name.clone());
             }
-            FieldInsert::Primitive(name, conversion) => {
-                primitives.push((name.clone(), conversion));
+            FieldInsert::Primitive(name, _conversion) => {
                 params.push(name);
             }
         }
@@ -394,7 +392,7 @@ fn insert_optional_field_maybe_async(
             if inner.is_primitive() && inner.as_no_option().to_sql().to_rust().ne(inner) {
                 let conversion = inner.as_no_option().to_sql().to_rust();
                 block_some_inner.line(&format!(
-                    "{} as {}",
+                    "*{} as {}",
                     variable_name,
                     conversion.to_inner_type_string()
                 ));
