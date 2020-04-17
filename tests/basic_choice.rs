@@ -17,7 +17,7 @@ asn_to_rust!(
         def INTEGER,
         ..., -- whatever reserved blubber comment
         ghi INTEGER,
-        jkl INTEGER,
+        jkl Basic,
         mno UTF8String
     }
     
@@ -96,6 +96,14 @@ pub fn test_basic_uper() {
         &Basic::Def("Hello again!".to_string()),
     );
     serialize_and_deserialize_uper(26, &[0x80, 0x81, 0x4e, 0x40], &Basic::Ghi(1337));
+}
+
+#[test]
+fn test_extensible_choice_inner_complex() {
+    let jkl = Extensible::Jkl(Basic::Ghi(1337));
+    let (bits, buffer) = serialize_uper(&jkl);
+    let jkl_deserialized = deserialize_uper(&buffer[..], bits);
+    assert_eq!(jkl, jkl_deserialized);
 }
 
 #[test]

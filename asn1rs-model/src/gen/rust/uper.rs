@@ -263,6 +263,10 @@ impl UperSerializer {
                 block_case.line(
                     "let mut reader = reader.read_substring_with_length_determinant_prefix()?;",
                 );
+                block_case.line(format!(
+                    "let reader = &mut reader as &mut dyn {}Reader;",
+                    Self::CODEC
+                ));
             }
             Self::impl_read_fn_for_type(
                 &mut block_case,
