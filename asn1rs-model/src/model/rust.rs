@@ -355,12 +355,7 @@ impl Model<Rust> {
                     extended_after_index: choice.extension_after_index(),
                 };
 
-                for ChoiceVariant {
-                    name,
-                    tag: _,
-                    r#type,
-                } in choice.variants()
-                {
+                for ChoiceVariant { name, r#type, .. } in choice.variants() {
                     let rust_name = format!("{}{}", name, rust_struct_or_enum_name(&name));
                     let rust_role = Self::definition_type_to_rust_type(&rust_name, &r#type, defs);
                     let rust_field_name = rust_variant_name(&name);

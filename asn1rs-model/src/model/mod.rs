@@ -261,7 +261,7 @@ impl Model<Asn> {
     fn read_name(iter: &mut Peekable<IntoIter<Token>>) -> Result<String, Error> {
         iter.next()
             .and_then(|token| token.into_text())
-            .ok_or(Error::missing_module_name())
+            .ok_or_else(Error::missing_module_name)
     }
 
     fn skip_until_after_text_ignore_ascii_case(

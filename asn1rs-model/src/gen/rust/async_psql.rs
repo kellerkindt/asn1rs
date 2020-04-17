@@ -122,7 +122,7 @@ fn impl_insert_fn_content(
         } else {
             None
         };
-        let field_name_as_variable = field_name_as_variable.as_ref().map(String::as_str);
+        let field_name_as_variable = field_name_as_variable.as_deref();
 
         if r_type.is_vec() {
             None
@@ -334,6 +334,7 @@ fn insert_optional_field(
     )
 }
 
+#[allow(clippy::too_many_arguments)] // sad but for that's the way it is, one could try to refactor this with a new type combining on_self, field_name, inner and field_name_as_variable into some reasonable type
 fn insert_optional_field_maybe_async(
     is_tuple_struct: bool,
     on_self: bool,
