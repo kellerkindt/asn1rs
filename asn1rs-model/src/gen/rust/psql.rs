@@ -23,9 +23,8 @@ const TRAIT_PSQL_QUERYABLE: &str = "PsqlQueryable";
 /// The tuple implementation has general flaws in where in which
 /// it was initially designed to represent lists only. Later extensions
 /// patch only certain uncovered edge-cases and are hacked into place.
-#[deprecated(
-    note = "There is no active-maintainer for this anymore, eventually, support for non-async psql will be dropped"
-)]
+///
+/// The CHOICE/data-enum implementation also had/s quite a few flaws
 #[allow(clippy::module_name_repetitions)]
 pub struct PsqlInserter;
 
