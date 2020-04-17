@@ -73,8 +73,10 @@ impl GeneratorSupplement<Rust> for AsyncPsqlInserter {
         for (variant, v_type) in enumeration.variants() {
             let module_name = RustCodeGenerator::rust_module_name(variant);
             fn_insert.line(&format!(
-                "let {} = if let Self::{}(value) = self {{ Some(value) }} else {{ None }};",
-                module_name, variant
+                "let {} = if let Self::{}(value) = self {{ Some({}value) }} else {{ None }};",
+                module_name,
+                variant,
+                if v_type.is_primitive() { "*" } else { "" }
             ));
             updated_variants.push((module_name, RustType::Option(Box::new(v_type.clone()))));
         }
@@ -113,7 +115,7 @@ fn impl_insert_fn_content(
         let field_name_as_variable = if field_name
             .chars()
             .next()
-            .map(|c| c.is_alphanumeric())
+            .map(|c| c.is_numeric())
             .unwrap_or(false)
         {
             Some(format!("value_{}", field_name))
@@ -171,13 +173,14 @@ fn impl_insert_fn_content(
     to_await.clear();
     for insert in fields.iter().filter_map(|(field_name, r_type)| {
         if r_type.is_vec() {
-            Some(insert_vec_field(
+            Some(insert_field(
                 is_tuple_struct,
                 on_self,
                 name,
                 container,
                 &field_name,
                 r_type,
+                None,
             ))
         } else {
             None
@@ -392,7 +395,7 @@ fn insert_optional_field_maybe_async(
             if inner.is_primitive() && inner.as_no_option().to_sql().to_rust().ne(inner) {
                 let conversion = inner.as_no_option().to_sql().to_rust();
                 block_some_inner.line(&format!(
-                    "*{} as {}",
+                    "{} as {}",
                     variable_name,
                     conversion.to_inner_type_string()
                 ));
