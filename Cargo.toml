@@ -10,6 +10,11 @@ repository = "https://github.com/kellerkindt/asn1rs"
 license = "MIT/Apache-2.0"
 readme = "README.md"
 
+[workspace]
+members = [
+    "asn1rs-macros",
+    "asn1rs-model"
+]
 
 [lib]
 name = "asn1rs"
