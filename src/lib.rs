@@ -17,3 +17,4 @@ pub use asn1rs_model::model;
 pub use asn1rs_model::parser;
 
 pub mod io;
+pub mod syn;
