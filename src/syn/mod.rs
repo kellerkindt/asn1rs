@@ -187,6 +187,14 @@ mod tests {
             opt: None,
             some: Some("Lorem Ipsum".to_string()),
         };
+
+        // Writing sequence Whatever
+        //  Writing Utf8String(MIN..MAX): SeGreatName
+        //  Writing OPTIONAL
+        //   None
+        //  Writing OPTIONAL
+        //   Some
+        //    Writing Utf8String(MIN..MAX): Lorem Ipsum
         value.write(&mut writer).unwrap();
     }
 }
