@@ -117,17 +117,6 @@ mod tests {
             }
         }
 
-        impl Writable for Whatever {
-            fn write<W: Writer>(&self, writer: &mut W) -> Result<(), <W as Writer>::Error> {
-                AsnDefWhatever::write_value(writer, self)
-            }
-        }
-        impl Readable for Whatever {
-            fn read<R: Reader>(reader: &mut R) -> Result<Self, <R as Reader>::Error> {
-                AsnDefWhatever::read_value(reader)
-            }
-        }
-
         #[derive(Default)]
         struct PrintlnWriter(usize);
 
