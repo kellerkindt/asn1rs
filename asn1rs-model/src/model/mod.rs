@@ -622,8 +622,8 @@ pub trait Tagged {
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct Asn {
-    tag: Option<Tag>,
-    r#type: Type,
+    pub tag: Option<Tag>,
+    pub r#type: Type,
 }
 
 impl Asn {
