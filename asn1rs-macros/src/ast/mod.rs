@@ -1,10 +1,12 @@
 mod range;
 mod tag;
 
-use asn1rs_model::model::{Definition, Field, Range, Tag, Type};
+use asn1rs_model::model::{Definition, Field, Model, Range, Tag, Type};
 use proc_macro::TokenStream;
 use quote::quote;
 use range::MaybeRanged;
+use std::str::FromStr;
+use syn::export::TokenStream2;
 use syn::parse::{Parse, ParseBuffer};
 use syn::spanned::Spanned;
 use syn::Item;
@@ -17,6 +19,8 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let attributes = parse_macro_input!(attr as AttributeArgs);
     let item = parse_macro_input!(item as Item);
+
+    let mut additional_impl: Vec<TokenStream2> = Vec::default();
 
     let item = match item {
         Item::Struct(mut strct) => {
@@ -63,8 +67,19 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
                 }
             }
             println!("---------- parsed");
-            let definition = Definition(strct.ident.to_string(), Type::Sequence(fields));
+            let definition = Definition(strct.ident.to_string(), Type::Sequence(fields).untagged());
             println!("{:#?}", definition);
+            let model: Model<asn1rs_model::model::Asn> = Model {
+                name: "__proc_macro".to_string(),
+                imports: vec![],
+                definitions: vec![definition],
+            };
+            let model_rust = model.to_rust();
+
+            use asn1rs_model::gen::rust::walker::AsnDefWalker;
+            let stringified = AsnDefWalker::stringify(&model_rust);
+            additional_impl.push(TokenStream2::from_str(&stringified).unwrap());
+
             println!("---------- output");
             let st = Item::Struct(strct.clone());
             println!("{}", TokenStream::from(quote! {#st}).to_string());
@@ -73,7 +88,14 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
         item => item,
     };
 
-    TokenStream::from(quote! {#item})
+    let result = TokenStream::from(quote! {
+        #item
+        #(#additional_impl)*
+    });
+
+    println!("---------- result");
+    println!("{}", result.to_string());
+    result
 }
 
 #[derive(Debug, Default)]

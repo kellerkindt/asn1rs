@@ -18,3 +18,7 @@ pub use asn1rs_model::parser;
 
 pub mod io;
 pub mod syn;
+
+pub mod prelude {
+    pub use crate::syn::*;
+}

@@ -1,8 +1,13 @@
 use std::marker::PhantomData;
 
+pub mod numbers;
 pub mod optional;
 pub mod sequence;
 pub mod utf8string;
+
+pub use numbers::Integer;
+pub use sequence::Sequence;
+pub use utf8string::Utf8String;
 
 pub trait Reader {
     type Error;
@@ -17,6 +22,10 @@ pub trait Reader {
     ) -> Result<S, Self::Error>;
 
     fn read_opt<T: ReadableType>(&mut self) -> Result<Option<T::Type>, Self::Error>;
+
+    fn read_int(&mut self, range: (i64, i64)) -> Result<i64, Self::Error>;
+
+    fn read_int_max(&mut self) -> Result<u64, Self::Error>;
 
     fn read_utf8string<C: utf8string::Constraint>(&mut self) -> Result<String, Self::Error>;
 }
@@ -52,6 +61,10 @@ pub trait Writer {
     ) -> Result<(), Self::Error>;
 
     fn write_opt<T: WritableType>(&mut self, value: Option<&T::Type>) -> Result<(), Self::Error>;
+
+    fn write_int(&mut self, value: i64, range: (i64, i64)) -> Result<(), Self::Error>;
+
+    fn write_int_max(&mut self, value: u64) -> Result<(), Self::Error>;
 
     fn write_utf8string<C: utf8string::Constraint>(
         &mut self,
@@ -96,7 +109,7 @@ mod tests {
 
         impl sequence::Constraint for Whatever {
             const NAME: &'static str = "Whatever";
-            const OPTIONAL_FIELDS: usize = 1;
+            const OPTIONAL_FIELDS: usize = 2;
 
             fn read_seq<R: Reader>(reader: &mut R) -> Result<Self, <R as Reader>::Error>
             where
@@ -161,6 +174,16 @@ mod tests {
                         Ok(())
                     }
                 })
+            }
+
+            fn write_int(&mut self, value: i64, (min, max): (i64, i64)) -> Result<(), Self::Error> {
+                self.indented_println(&format!("WRITING Integer({}..{}) {}", min, max, value));
+                Ok(())
+            }
+
+            fn write_int_max(&mut self, value: u64) -> Result<(), Self::Error> {
+                self.indented_println(&format!("WRITING Integer {}", value));
+                Ok(())
             }
 
             fn write_utf8string<C: utf8string::Constraint>(

@@ -1,5 +1,6 @@
 pub mod protobuf;
 pub mod uper;
+pub mod walker;
 
 #[cfg(feature = "psql")]
 pub mod psql;
