@@ -9,8 +9,8 @@ use std::str::FromStr;
 use syn::export::TokenStream2;
 use syn::parse::{Parse, ParseBuffer};
 use syn::spanned::Spanned;
-use syn::Item;
-use syn::{parse_macro_input, AttributeArgs};
+use syn::{parse_macro_input, AttributeArgs, Meta};
+use syn::{Item, NestedMeta};
 use tag::AttrTag;
 
 pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
@@ -19,6 +19,19 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let attributes = parse_macro_input!(attr as AttributeArgs);
     let item = parse_macro_input!(item as Item);
+
+    let asn_type_decl = match attributes.get(0) {
+        None => panic!("Missing ASN attribute"),
+        Some(NestedMeta::Meta(Meta::Path(path))) => path
+            .segments
+            .iter()
+            .next()
+            .expect("Missing ASN Attribute in path")
+            .ident
+            .to_string()
+            .to_lowercase(),
+        _ => panic!("Invalid ASN Attribute type"),
+    };
 
     let mut additional_impl: Vec<TokenStream2> = Vec::default();
 
