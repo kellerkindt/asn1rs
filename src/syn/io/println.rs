@@ -27,6 +27,28 @@ impl Writer for PrintlnWriter {
         self.with_increased_indentation(|w| f(w))
     }
 
+    fn write_enumerated<C: enumerated::Constraint>(
+        &mut self,
+        enumerated: &C,
+    ) -> Result<(), Self::Error> {
+        self.indented_println(&format!("Write enumerated {}", C::NAME));
+        self.with_increased_indentation(|w| {
+            if C::EXTENSIBLE {
+                w.indented_println("extensible");
+            } else {
+                w.indented_println("normal");
+            }
+            w.with_increased_indentation(|w| {
+                w.indented_println(&format!(
+                    "choice_index {}/{}",
+                    enumerated.choice_index(),
+                    C::STD_VARIANTS
+                ));
+                Ok(())
+            })
+        })
+    }
+
     fn write_opt<T: WritableType>(&mut self, value: Option<&T::Type>) -> Result<(), Self::Error> {
         self.indented_println("Writing OPTIONAL");
         self.with_increased_indentation(|w| {

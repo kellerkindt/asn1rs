@@ -1,4 +1,4 @@
-use crate::syn::{Readable, ReadableType, Reader, Writable, WritableType, Writer};
+use crate::syn::{ReadableType, Reader, WritableType, Writer};
 use core::marker::PhantomData;
 
 pub struct Sequence<T: Constraint>(PhantomData<T>);
@@ -41,17 +41,5 @@ where
     #[inline]
     fn read_value<R: Reader>(reader: &mut R) -> Result<Self::Type, <R as Reader>::Error> {
         reader.read_sequence::<C, Self::Type, _>(C::read_seq)
-    }
-}
-
-impl<C: Constraint> Writable for C {
-    fn write<W: Writer>(&self, writer: &mut W) -> Result<(), <W as Writer>::Error> {
-        Sequence::<C>::write_value(writer, self)
-    }
-}
-
-impl<C: Constraint> Readable for C {
-    fn read<R: Reader>(reader: &mut R) -> Result<Self, <R as Reader>::Error> {
-        Sequence::<C>::read_value(reader)
     }
 }

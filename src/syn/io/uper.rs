@@ -1,9 +1,8 @@
 use crate::io::buffer::BitBuffer;
 use crate::io::uper::Error as UperError;
-use crate::io::uper::Reader as _;
-use crate::io::uper::Writer as _;
+use crate::io::uper::Reader as _UperReader;
+use crate::io::uper::Writer as _UperWriter;
 use crate::prelude::*;
-use std::fmt::{Display, Formatter};
 
 #[derive(Default)]
 pub struct UperWriter {
@@ -37,11 +36,31 @@ impl Writer for UperWriter {
             // insert in reverse order so that a simple pop() in `write_opt` retrieves
             // the relevant position
             self.optional_positions.push(write_pos + i);
-            self.buffer.write_bit(false);
+            if let Err(e) = self.buffer.write_bit(false) {
+                self.buffer.write_position = write_pos; // undo write_bits
+                return Err(e);
+            }
         }
         f(self)?;
         assert_eq!(before, self.optional_positions.len());
         Ok(())
+    }
+
+    fn write_enumerated<C: enumerated::Constraint>(
+        &mut self,
+        enumerated: &C,
+    ) -> Result<(), Self::Error> {
+        if C::EXTENSIBLE {
+            self.buffer.write_choice_index_extensible(
+                enumerated.choice_index() as u64,
+                C::STD_VARIANTS as u64,
+            )
+        } else {
+            self.buffer.write_int(
+                enumerated.choice_index() as i64,
+                (0, C::STD_VARIANTS as i64),
+            )
+        }
     }
 
     fn write_opt<T: WritableType>(
@@ -118,6 +137,19 @@ impl Reader for UperReader {
         let result = f(self);
         assert_eq!(position, self.optionals.len());
         result
+    }
+
+    fn read_enumerated<C: enumerated::Constraint>(&mut self) -> Result<C, Self::Error> {
+        if C::EXTENSIBLE {
+            self.buffer
+                .read_choice_index_extensible(C::STD_VARIANTS as u64)
+                .map(|v| v as usize)
+                .map(C::from_choice_index)
+        } else {
+            self.read_int((0, C::STD_VARIANTS as i64))
+                .map(|v| v as usize)
+                .map(C::from_choice_index)
+        }
     }
 
     fn read_opt<T: ReadableType>(

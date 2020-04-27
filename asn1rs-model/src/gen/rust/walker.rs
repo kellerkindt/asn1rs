@@ -75,30 +75,13 @@ impl AsnDefWalker {
     fn write_constraints(&self, scope: &mut Scope, Definition(name, r#type): &Definition<Rust>) {
         match r#type {
             Rust::Struct(fields) => {
-                self.write_sequence_constraint(scope, &name, &fields);
                 self.write_field_constraints(scope, &name, &fields);
+                self.write_sequence_constraint(scope, &name, &fields);
             }
             Rust::Enum(_) => {}
             Rust::DataEnum(_) => {}
             Rust::TupleStruct(_) => {}
         }
-    }
-
-    fn write_sequence_constraint(
-        &self,
-        scope: &mut Scope,
-        name: &str,
-        fields: &[(String, RustType)],
-    ) {
-        let mut imp = Impl::new(name);
-        imp.impl_trait(format!("{}sequence::Constraint", CRATE_SYN_PREFIX));
-
-        self.write_sequence_constraint_read_fn(&mut imp, name, fields);
-        self.write_sequence_constraint_write_fn(&mut imp, name, fields);
-
-        scope.raw(&Self::write_sequence_constraint_insert_consts(
-            name, fields, imp,
-        ));
     }
 
     fn write_field_constraints(
@@ -174,6 +157,48 @@ impl AsnDefWalker {
                 RustType::Complex(_) => {}
             }
         }
+    }
+
+    fn write_sequence_constraint(
+        &self,
+        scope: &mut Scope,
+        name: &str,
+        fields: &[(String, RustType)],
+    ) {
+        let mut imp = Impl::new(name);
+        imp.impl_trait(format!("{}sequence::Constraint", CRATE_SYN_PREFIX));
+
+        self.write_sequence_constraint_read_fn(&mut imp, name, fields);
+        self.write_sequence_constraint_write_fn(&mut imp, name, fields);
+
+        scope.raw(&Self::write_sequence_constraint_insert_consts(
+            name, fields, imp,
+        ));
+    }
+
+    fn impl_readable(&self, scope: &mut Scope, name: &str) {
+        let imp = scope
+            .new_impl(name)
+            .impl_trait(format!("{}Readable", CRATE_SYN_PREFIX));
+
+        imp.new_fn("read")
+            .generic(&format!("R: {}Reader", CRATE_SYN_PREFIX))
+            .arg("reader", "&mut R")
+            .ret("Result<Self, R::Error>")
+            .line(format!("AsnDef{}::read_value(reader)", name));
+    }
+
+    fn impl_writable(&self, scope: &mut Scope, name: &str) {
+        let imp = scope
+            .new_impl(name)
+            .impl_trait(format!("{}Writable", CRATE_SYN_PREFIX));
+
+        imp.new_fn("write")
+            .generic(&format!("W: {}Writer", CRATE_SYN_PREFIX))
+            .arg_ref_self()
+            .arg("writer", "&mut W")
+            .ret("Result<(), W::Error>")
+            .line(format!("AsnDef{}::write_value(writer, self)", name));
     }
 
     fn write_integer_constraint_type<T: Display>(
@@ -286,6 +311,8 @@ impl GeneratorSupplement<Rust> for AsnDefWalker {
     fn impl_supplement(&self, scope: &mut Scope, definition: &Definition<Rust>) {
         self.write_type_definitions(scope, definition);
         self.write_constraints(scope, definition);
+        self.impl_readable(scope, &definition.0);
+        self.impl_writable(scope, &definition.0);
     }
 }
 
@@ -339,10 +366,12 @@ pub mod tests {
     }
 
     #[test]
-    pub fn test_whatever_struct_constraint_impl() {
+    pub fn test_whatever_struct_constraint_and_read_write_impl() {
         let def = simple_whatever_sequence();
         let mut scope = Scope::new();
         AsnDefWalker.write_constraints(&mut scope, &def);
+        AsnDefWalker.impl_readable(&mut scope, &def.0);
+        AsnDefWalker.impl_writable(&mut scope, &def.0);
         let string = scope.to_string();
         println!("{}", string);
 
@@ -362,27 +391,40 @@ pub mod tests {
 
         assert_lines(
             r#"
-        impl ::asn1rs::syn::sequence::Constraint for Whatever {
-            const NAME: &'static str = "Whatever";
-            const OPTIONAL_FIELDS: usize = 2;
-            
-            fn read_seq<R: ::asn1rs::syn::Reader>(reader: &mut R) -> Result<Self, R::Error>
-            where Self: Sized,
-            {
-                Ok(Self {
-                    name: AsnDefWhateverName::read_value(reader)?,
-                    opt: AsnDefWhateverOpt::read_value(reader)?,
-                    some: AsnDefWhateverSome::read_value(reader)?,
-                })
+            impl ::asn1rs::syn::sequence::Constraint for Whatever {
+                const NAME: &'static str = "Whatever";
+                const OPTIONAL_FIELDS: usize = 2;
+                
+                fn read_seq<R: ::asn1rs::syn::Reader>(reader: &mut R) -> Result<Self, R::Error>
+                where Self: Sized,
+                {
+                    Ok(Self {
+                        name: AsnDefWhateverName::read_value(reader)?,
+                        opt: AsnDefWhateverOpt::read_value(reader)?,
+                        some: AsnDefWhateverSome::read_value(reader)?,
+                    })
+                }
+                
+                fn write_seq<W: ::asn1rs::syn::Writer>(&self, writer: &mut W) -> Result<(), W::Error> {
+                    AsnDefWhateverName::write_value(writer, &self.name)?;
+                    AsnDefWhateverOpt::write_value(writer, &self.opt)?;
+                    AsnDefWhateverSome::write_value(writer, &self.some)?;
+                    Ok(())
+                }
             }
             
-            fn write_seq<W: ::asn1rs::syn::Writer>(&self, writer: &mut W) -> Result<(), W::Error> {
-                AsnDefWhateverName::write_value(writer, &self.name)?;
-                AsnDefWhateverOpt::write_value(writer, &self.opt)?;
-                AsnDefWhateverSome::write_value(writer, &self.some)?;
-                Ok(())
+            impl ::asn1rs::syn::Readable for Whatever {
+                fn read<R: ::asn1rs::syn::Reader>(reader: &mut R) -> Result<Self, R::Error> {
+                    AsnDefWhatever::read_value(reader)
+                }
             }
-        }
+            
+            impl ::asn1rs::syn::Writable for Whatever {
+                fn write<W: ::asn1rs::syn::Writer>(&self, writer: &mut W) -> Result<(), W::Error> {
+                    AsnDefWhatever::write_value(writer, self)
+                }
+            }
+                
         "#,
             &string,
         );

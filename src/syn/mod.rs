@@ -1,11 +1,13 @@
 use std::marker::PhantomData;
 
+pub mod enumerated;
 pub mod io;
 pub mod numbers;
 pub mod optional;
 pub mod sequence;
 pub mod utf8string;
 
+pub use enumerated::Enumerated;
 pub use numbers::Integer;
 pub use sequence::Sequence;
 pub use utf8string::Utf8String;
@@ -28,6 +30,8 @@ pub trait Reader {
         &mut self,
         f: F,
     ) -> Result<S, Self::Error>;
+
+    fn read_enumerated<C: enumerated::Constraint>(&mut self) -> Result<C, Self::Error>;
 
     fn read_opt<T: ReadableType>(&mut self) -> Result<Option<T::Type>, Self::Error>;
 
@@ -73,6 +77,11 @@ pub trait Writer {
     fn write_sequence<C: sequence::Constraint, F: Fn(&mut Self) -> Result<(), Self::Error>>(
         &mut self,
         f: F,
+    ) -> Result<(), Self::Error>;
+
+    fn write_enumerated<C: enumerated::Constraint>(
+        &mut self,
+        enumerated: &C,
     ) -> Result<(), Self::Error>;
 
     fn write_opt<T: WritableType>(&mut self, value: Option<&T::Type>) -> Result<(), Self::Error>;
@@ -143,6 +152,12 @@ mod tests {
                 AsnDefWhateverOpt::write_value(writer, &self.opt)?;
                 AsnDefWhateverSome::write_value(writer, &self.some)?;
                 Ok(())
+            }
+        }
+
+        impl Writable for Whatever {
+            fn write<W: Writer>(&self, writer: &mut W) -> Result<(), <W as Writer>::Error> {
+                AsnDefWhatever::write_value(writer, self)
             }
         }
 
