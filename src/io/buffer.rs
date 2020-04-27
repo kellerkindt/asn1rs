@@ -8,8 +8,8 @@ use std::iter;
 #[derive(Debug, Default)]
 pub struct BitBuffer {
     buffer: Vec<u8>,
-    write_position: usize,
-    read_position: usize,
+    pub(crate) write_position: usize,
+    pub(crate) read_position: usize,
 }
 
 impl BitBuffer {
@@ -61,6 +61,20 @@ impl BitBuffer {
 
     pub fn byte_len(&self) -> usize {
         self.buffer.len()
+    }
+
+    /// Changes the write-position to the given position for the closure call.
+    /// Restores the original write position after the call.
+    ///
+    /// # Panics
+    /// Positions beyond the current buffer length will result in panics.
+    pub fn with_write_position_at<T, F: Fn(&mut Self) -> T>(&mut self, position: usize, f: F) -> T {
+        assert!(position <= self.buffer.len());
+        let before = self.write_position;
+        self.write_position = position;
+        let result = f(self);
+        self.write_position = before;
+        result
     }
 }
 
