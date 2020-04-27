@@ -52,13 +52,13 @@ impl Writer for UperWriter {
     ) -> Result<(), Self::Error> {
         if C::EXTENSIBLE {
             self.buffer.write_choice_index_extensible(
-                enumerated.choice_index() as u64,
-                C::STD_VARIANTS as u64,
+                enumerated.to_choice_index() as u64,
+                C::STD_VARIANT_COUNT as u64,
             )
         } else {
             self.buffer.write_int(
-                enumerated.choice_index() as i64,
-                (0, C::STD_VARIANTS as i64),
+                enumerated.to_choice_index() as i64,
+                (0, C::STD_VARIANT_COUNT as i64),
             )
         }
     }
@@ -142,14 +142,16 @@ impl Reader for UperReader {
     fn read_enumerated<C: enumerated::Constraint>(&mut self) -> Result<C, Self::Error> {
         if C::EXTENSIBLE {
             self.buffer
-                .read_choice_index_extensible(C::STD_VARIANTS as u64)
+                .read_choice_index_extensible(C::STD_VARIANT_COUNT as u64)
                 .map(|v| v as usize)
-                .map(C::from_choice_index)
         } else {
-            self.read_int((0, C::STD_VARIANTS as i64))
+            self.read_int((0, C::STD_VARIANT_COUNT as i64))
                 .map(|v| v as usize)
-                .map(C::from_choice_index)
         }
+        .and_then(|index| {
+            C::from_choice_index(index)
+                .ok_or_else(|| UperError::InvalidChoiceIndex(index, C::VARIANT_COUNT))
+        })
     }
 
     fn read_opt<T: ReadableType>(

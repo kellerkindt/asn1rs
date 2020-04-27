@@ -40,9 +40,10 @@ impl Writer for PrintlnWriter {
             }
             w.with_increased_indentation(|w| {
                 w.indented_println(&format!(
-                    "choice_index {}/{}",
-                    enumerated.choice_index(),
-                    C::STD_VARIANTS
+                    "choice_index {}/{}/{}",
+                    enumerated.to_choice_index(),
+                    C::STD_VARIANT_COUNT,
+                    C::VARIANT_COUNT
                 ));
                 Ok(())
             })

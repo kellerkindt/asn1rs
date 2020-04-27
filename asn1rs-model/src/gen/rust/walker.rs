@@ -1,5 +1,6 @@
 use crate::gen::rust::GeneratorSupplement;
 use crate::gen::RustCodeGenerator;
+use crate::model::rust::PlainEnum;
 use crate::model::{Definition, Model, Range, Rust, RustType};
 use codegen::{Block, Impl, Scope};
 use std::fmt::Display;
@@ -78,7 +79,9 @@ impl AsnDefWalker {
                 self.write_field_constraints(scope, &name, &fields);
                 self.write_sequence_constraint(scope, &name, &fields);
             }
-            Rust::Enum(_) => {}
+            Rust::Enum(plain) => {
+                self.write_enumerated_constraint(scope, &name, plain);
+            }
             Rust::DataEnum(_) => {}
             Rust::TupleStruct(_) => {}
         }
@@ -171,9 +174,7 @@ impl AsnDefWalker {
         self.write_sequence_constraint_read_fn(&mut imp, name, fields);
         self.write_sequence_constraint_write_fn(&mut imp, name, fields);
 
-        scope.raw(&Self::write_sequence_constraint_insert_consts(
-            name, fields, imp,
-        ));
+        Self::write_sequence_constraint_insert_consts(scope, name, fields, imp);
     }
 
     fn impl_readable(&self, scope: &mut Scope, name: &str) {
@@ -201,6 +202,50 @@ impl AsnDefWalker {
             .line(format!("AsnDef{}::write_value(writer, self)", name));
     }
 
+    fn write_enumerated_constraint(&self, scope: &mut Scope, name: &str, enumerated: &PlainEnum) {
+        let mut imp = Impl::new(name);
+        imp.impl_trait(format!("{}::enumerated::Constraint", CRATE_SYN_PREFIX));
+
+        imp.new_fn("to_choice_index")
+            .arg_ref_self()
+            .ret("usize")
+            .push_block({
+                let mut match_block = Block::new("match self");
+                for (index, variant) in enumerated.variants().enumerate() {
+                    match_block.line(format!("Self::{} => {},", variant, index));
+                }
+                match_block
+            });
+
+        imp.new_fn("from_choice_index")
+            .arg("index", "usize")
+            .ret("Option<Self>")
+            .push_block({
+                let mut match_block = Block::new("match index");
+                for (index, variant) in enumerated.variants().enumerate() {
+                    match_block.line(format!("{} => Some(Self::{}),", index, variant));
+                }
+                match_block.line("_ => None,");
+                match_block
+            });
+
+        Self::insert_consts(
+            scope,
+            imp,
+            &[
+                format!("const NAME: &str = \"{}\";", name),
+                format!("const VARIANT_COUNT: usize = {};", enumerated.len()),
+                format!(
+                    "const STD_VARIANT_COUNT: usize = {};",
+                    enumerated
+                        .last_standard_index()
+                        .unwrap_or_else(|| enumerated.len())
+                ),
+                format!("const EXTENSIBLE: bool = {};", enumerated.is_extensible()),
+            ],
+        );
+    }
+
     fn write_integer_constraint_type<T: Display>(
         scope: &mut Scope,
         name: &str,
@@ -221,21 +266,37 @@ impl AsnDefWalker {
     }
 
     fn write_sequence_constraint_insert_consts(
+        scope: &mut Scope,
         name: &str,
         fields: &[(String, RustType)],
         imp: Impl,
-    ) -> String {
+    ) {
+        Self::insert_consts(
+            scope,
+            imp,
+            &[
+                format!(
+                    "const OPTIONAL_FIELDS: usize = {};",
+                    fields.iter().filter(|f| f.1.is_option()).count()
+                ),
+                format!("const NAME: &'static str = \"{}\";", name),
+            ],
+        );
+    }
+
+    fn insert_consts<S: ToString, I: IntoIterator<Item = S>>(
+        scope: &mut Scope,
+        imp: Impl,
+        consts: I,
+    ) {
         let string = Scope::new().push_impl(imp).to_string();
         let mut lines = string.lines().map(ToString::to_string).collect::<Vec<_>>();
-        lines.insert(
-            1,
-            format!(
-                "    const OPTIONAL_FIELDS: usize = {};",
-                fields.iter().filter(|f| f.1.is_option()).count()
-            ),
-        );
-        lines.insert(1, format!("const NAME: &'static str = \"{}\";", name));
-        lines.join("\n")
+
+        for cnst in consts {
+            lines.insert(1, cnst.to_string());
+        }
+
+        scope.raw(&lines.join("\n"));
     }
 
     fn write_sequence_constraint_read_fn(

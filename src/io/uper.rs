@@ -15,6 +15,7 @@ pub enum Error {
     UnsupportedOperation(String),
     InsufficientSpaceInDestinationBuffer,
     InsufficientDataInSourceBuffer,
+    InvalidChoiceIndex(usize, usize),
     ValueNotInRange(i64, i64, i64),
     EndOfStream,
 }
@@ -33,6 +34,11 @@ impl std::fmt::Display for Error {
             Error::InsufficientDataInSourceBuffer => write!(
                 f,
                 "There is insufficient data in the source buffer for this operation"
+            ),
+            Error::InvalidChoiceIndex(index, variant_count) => write!(
+                f,
+                "Unexpected choice-index {} with variant count {}",
+                index, variant_count
             ),
             Error::ValueNotInRange(value, min, max) => write!(
                 f,

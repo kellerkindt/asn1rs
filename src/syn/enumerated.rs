@@ -11,12 +11,13 @@ impl<C: Constraint> Default for Enumerated<C> {
 
 pub trait Constraint: Sized {
     const NAME: &'static str;
-    const STD_VARIANTS: usize;
+    const VARIANT_COUNT: usize;
+    const STD_VARIANT_COUNT: usize;
     const EXTENSIBLE: bool = false;
 
-    fn choice_index(&self) -> usize;
+    fn to_choice_index(&self) -> usize;
 
-    fn from_choice_index(index: usize) -> Self;
+    fn from_choice_index(index: usize) -> Option<Self>;
 }
 
 impl<C: Constraint> WritableType for Enumerated<C> {
