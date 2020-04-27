@@ -17,7 +17,7 @@ pub struct Potato {
 
 #[test]
 fn test_compiles() {
-    let _ = Potato {
+    let p = Potato {
         size: 123,
         size2: 1234,
         size3: 234,
