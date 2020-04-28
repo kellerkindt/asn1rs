@@ -1,7 +1,7 @@
 mod range;
 mod tag;
 
-use asn1rs_model::model::{Definition, Field, Model, Range, Tag, Type};
+use asn1rs_model::model::{Definition, Enumerated, Field, Model, Range, Tag, Type};
 use proc_macro::TokenStream;
 use quote::quote;
 use range::MaybeRanged;
@@ -35,8 +35,14 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let mut additional_impl: Vec<TokenStream2> = Vec::default();
 
+    let mut model: Model<asn1rs_model::model::Asn> = Model {
+        name: "__proc_macro".to_string(),
+        imports: vec![],
+        definitions: vec![],
+    };
+
     let item = match item {
-        Item::Struct(mut strct) => {
+        Item::Struct(mut strct) if asn_type_decl == "sequence" => {
             let mut fields = Vec::new();
             for field in strct.fields.iter_mut() {
                 let mut removed = None;
@@ -82,24 +88,46 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
             println!("---------- parsed");
             let definition = Definition(strct.ident.to_string(), Type::Sequence(fields).untagged());
             println!("{:#?}", definition);
-            let model: Model<asn1rs_model::model::Asn> = Model {
-                name: "__proc_macro".to_string(),
-                imports: vec![],
-                definitions: vec![definition],
-            };
-            let model_rust = model.to_rust();
-
-            use asn1rs_model::gen::rust::walker::AsnDefWalker;
-            let stringified = AsnDefWalker::stringify(&model_rust);
-            additional_impl.push(TokenStream2::from_str(&stringified).unwrap());
+            model.definitions.push(definition);
 
             println!("---------- output");
             let st = Item::Struct(strct.clone());
             println!("{}", TokenStream::from(quote! {#st}).to_string());
+
             Item::Struct(strct)
+        }
+        Item::Enum(enm) if asn_type_decl == "enumerated" => {
+            let plain_enum = enm.variants.iter().all(|v| v.fields.is_empty());
+            let variants = enm
+                .variants
+                .iter()
+                .map(|v| v.ident.to_string())
+                .collect::<Vec<_>>();
+            if plain_enum {
+                // TODO extensible
+                // TODO tags
+                let enumerated = Enumerated::from_names(variants.into_iter());
+                model.definitions.push(Definition(
+                    enm.ident.to_string(),
+                    Type::Enumerated(enumerated).untagged(),
+                ));
+            } else {
+                // data enum
+                panic!("ENUMERATED does not allow data carried on Variants. Consider type CHOICE");
+            }
+
+            Item::Enum(enm)
         }
         item => item,
     };
+
+    if !model.definitions.is_empty() {
+        let model_rust = model.to_rust();
+
+        use asn1rs_model::gen::rust::walker::AsnDefWalker;
+        let stringified = AsnDefWalker::stringify(&model_rust);
+        additional_impl.push(TokenStream2::from_str(&stringified).unwrap());
+    }
 
     let result = TokenStream::from(quote! {
         #item

@@ -25,7 +25,12 @@ impl AsnDefWalker {
                     self.write_type_declaration(scope, &name, &field, r#type);
                 }
             }
-            Rust::Enum(_) => {}
+            Rust::Enum(_enm) => {
+                scope.raw(&format!(
+                    "type AsnDef{} = {}Enumerated<{}>;",
+                    name, CRATE_SYN_PREFIX, name
+                ));
+            }
             Rust::DataEnum(_) => {}
             Rust::TupleStruct(_) => {}
         }
@@ -204,7 +209,7 @@ impl AsnDefWalker {
 
     fn write_enumerated_constraint(&self, scope: &mut Scope, name: &str, enumerated: &PlainEnum) {
         let mut imp = Impl::new(name);
-        imp.impl_trait(format!("{}::enumerated::Constraint", CRATE_SYN_PREFIX));
+        imp.impl_trait(format!("{}enumerated::Constraint", CRATE_SYN_PREFIX));
 
         imp.new_fn("to_choice_index")
             .arg_ref_self()
@@ -233,7 +238,7 @@ impl AsnDefWalker {
             scope,
             imp,
             &[
-                format!("const NAME: &str = \"{}\";", name),
+                format!("const NAME: &'static str = \"{}\";", name),
                 format!("const VARIANT_COUNT: usize = {};", enumerated.len()),
                 format!(
                     "const STD_VARIANT_COUNT: usize = {};",

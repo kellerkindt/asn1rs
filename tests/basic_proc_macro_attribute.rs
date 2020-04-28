@@ -68,3 +68,29 @@ fn test_deserialize_with_uper() {
         p
     );
 }
+
+#[asn(enumerated)]
+#[derive(Debug, PartialOrd, PartialEq)]
+pub enum Topping {
+    NotPineapple,
+    EvenLessPineapple,
+    NoPineappleAtAll,
+}
+
+#[test]
+fn topping_test_serialize_with_uper() {
+    let mut uper = UperWriter::default();
+    uper.write(&Topping::NotPineapple).unwrap();
+    uper.write(&Topping::EvenLessPineapple).unwrap();
+    uper.write(&Topping::NoPineappleAtAll).unwrap();
+    assert_eq!(&[0x00 | 0x40 >> 2 | 0x80 >> 4], uper.byte_content());
+    assert_eq!(6, uper.bit_len());
+}
+
+#[test]
+fn topping_test_deserialize_with_uper() {
+    let mut uper = UperReader::from_bits(vec![0x00_u8 | 0x40 >> 2 | 0x80 >> 4], 6);
+    assert_eq!(Topping::NotPineapple, uper.read::<Topping>().unwrap());
+    assert_eq!(Topping::EvenLessPineapple, uper.read::<Topping>().unwrap());
+    assert_eq!(Topping::NoPineappleAtAll, uper.read::<Topping>().unwrap());
+}

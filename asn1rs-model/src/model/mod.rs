@@ -819,8 +819,7 @@ pub struct Enumerated {
 }
 
 impl Enumerated {
-    #[cfg(test)]
-    pub(crate) fn from_names<'a, 'b: 'a>(variants: impl Iterator<Item = &'a &'b str>) -> Self {
+    pub fn from_names<I: ToString>(variants: impl Iterator<Item = I>) -> Self {
         Self {
             variants: variants
                 .map(|name| EnumeratedVariant::from_name(name))
@@ -921,8 +920,7 @@ impl<S: ToString> From<S> for EnumeratedVariant {
 }
 
 impl EnumeratedVariant {
-    #[cfg(test)]
-    pub(crate) fn from_name(name: &str) -> Self {
+    pub fn from_name<I: ToString>(name: I) -> Self {
         Self {
             name: name.to_string(),
             number: None,
@@ -1158,8 +1156,7 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "Neither".into(),
-                Type::Enumerated(Enumerated::from_names(["ABC".into(), "DEF".into()].iter()))
-                    .untagged()
+                Type::Enumerated(Enumerated::from_names(["ABC", "DEF"].iter())).untagged()
             ),
             model.definitions[2]
         );
