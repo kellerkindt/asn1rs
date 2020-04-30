@@ -8,6 +8,7 @@ pub mod numbers;
 pub mod octetstring;
 pub mod optional;
 pub mod sequence;
+pub mod sequenceof;
 pub mod utf8string;
 
 pub use choice::Choice;
@@ -16,6 +17,7 @@ pub use enumerated::Enumerated;
 pub use numbers::Integer;
 pub use octetstring::OctetString;
 pub use sequence::Sequence;
+pub use sequenceof::SequenceOf;
 pub use utf8string::Utf8String;
 
 pub trait Reader {
@@ -36,6 +38,10 @@ pub trait Reader {
         &mut self,
         f: F,
     ) -> Result<S, Self::Error>;
+
+    fn read_sequence_of<C: sequenceof::Constraint, T: ReadableType>(
+        &mut self,
+    ) -> Result<Vec<T::Type>, Self::Error>;
 
     fn read_enumerated<C: enumerated::Constraint>(&mut self) -> Result<C, Self::Error>;
 
@@ -87,6 +93,11 @@ pub trait Writer {
     fn write_sequence<C: sequence::Constraint, F: Fn(&mut Self) -> Result<(), Self::Error>>(
         &mut self,
         f: F,
+    ) -> Result<(), Self::Error>;
+
+    fn write_sequence_of<C: sequenceof::Constraint, T: WritableType>(
+        &mut self,
+        slice: &[T::Type],
     ) -> Result<(), Self::Error>;
 
     fn write_enumerated<C: enumerated::Constraint>(

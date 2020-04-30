@@ -17,6 +17,7 @@ pub enum Error {
     InsufficientDataInSourceBuffer,
     InvalidChoiceIndex(usize, usize),
     ValueNotInRange(i64, i64, i64),
+    SizeNotInRange(usize, usize, usize),
     EndOfStream,
 }
 
@@ -44,6 +45,11 @@ impl std::fmt::Display for Error {
                 f,
                 "The value {} is not within the inclusive range of {} and {}",
                 value, min, max
+            ),
+            Error::SizeNotInRange(size, min, max) => write!(
+                f,
+                "The size {} is not within the inclusive range of {} and {}",
+                size, min, max
             ),
             Error::EndOfStream => write!(
                 f,

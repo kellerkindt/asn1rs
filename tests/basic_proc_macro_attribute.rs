@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use asn1rs::syn::io::{UperReader, UperWriter};
+use asn1rs::syn::io::{PrintlnWriter, UperReader, UperWriter};
 use asn1rs::syn::Reader;
 use asn1rs_macros::asn;
 
@@ -262,7 +262,7 @@ pub struct Optional {
 }
 
 #[test]
-fn optional_test_uper() {
+fn test_optional_uper() {
     let mut uper = UperWriter::default();
     let v = Optional { value: Some(1337) };
     uper.write(&v).unwrap();
@@ -271,5 +271,88 @@ fn optional_test_uper() {
     assert_eq!(3 * 8 + 1, uper.bit_len());
     let mut uper = uper.into_reader();
     assert_eq!(v, uper.read::<Optional>().unwrap());
+    assert_eq!(0, uper.bits_remaining());
+}
+
+#[asn(sequence)]
+#[derive(Debug, PartialOrd, PartialEq)]
+pub struct CrazyList {
+    #[asn(sequence_of(optional(optional(sequence_of(integer)))))]
+    values: Vec<Option<Option<Vec<u64>>>>,
+}
+
+#[test]
+fn test_crazy_list_println() {
+    let mut writer = PrintlnWriter::default();
+    let list = CrazyList {
+        values: vec![Some(Some(vec![13])), Some(Some(vec![37])), Some(None), None],
+    };
+    // Prints something like
+    //
+    // Writing sequence CrazyList
+    //  Writing sequence-of (MIN..MAX)
+    //   Writing OPTIONAL
+    //    Some
+    //     Writing OPTIONAL
+    //      Some
+    //       Writing sequence-of (MIN..MAX)
+    //        WRITING Integer 13
+    //   Writing OPTIONAL
+    //    Some
+    //     Writing OPTIONAL
+    //      Some
+    //       Writing sequence-of (MIN..MAX)
+    //        WRITING Integer 37
+    //   Writing OPTIONAL
+    //    Some
+    //     Writing OPTIONAL
+    //      None
+    //   Writing OPTIONAL
+    //    None
+    list.write(&mut writer).unwrap();
+}
+
+#[test]
+fn test_crazy_list_uper() {
+    let mut uper = UperWriter::default();
+    let list = CrazyList {
+        values: vec![Some(Some(vec![13])), Some(Some(vec![37])), Some(None), None],
+    };
+    uper.write(&list).unwrap();
+    assert_eq!(
+        &[
+            // from analytic, I hate myself for it and I am sorry to everyone that needs to adjust this
+            //           ...well... probably myself in the future... so self.await ... hehe ...
+            // -- 0
+            0x04, // 4 elements in the list
+            // -- 1
+            0b11 << 6 // first element: Some, Some
+                | 0x01 >> 2, // length of inner list, part 1
+            // -- 2
+            0x01 << 6 // length of inner list, part2
+                | 0x01 >> 2, // length of integer, part 1
+            // -- 3
+            0x01 << 6 // length of integer, part 2
+                | (13 >> 2), // value of integer, part 1
+            // -- 4
+            13 << 6 // value of integer, part 2, end of element
+                | 0b11 << 4 // second element: Some, Some
+                | 0x01 >> 4, // length of inner list, part 1
+            // -- 5
+            0x01 << 4 // length of inner list, part 2
+                | 0x01 >> 4, // length of integer, part 1
+            // -- 6
+            0x01 << 4 // length of integer, part 2
+                | 37 >> 4, // value of integer, part 1
+            // -- 7
+            37 << 4 // value of integer, part 2, end of element
+                | 0b10 << 2 // third element: Some, None
+                | 0b0 << 1 // fourth element: None
+        ],
+        uper.byte_content()
+    );
+    assert_eq!(7 * 8 + 7, uper.bit_len());
+    let mut uper = uper.into_reader();
+    assert_eq!(list, uper.read::<CrazyList>().unwrap());
     assert_eq!(0, uper.bits_remaining());
 }

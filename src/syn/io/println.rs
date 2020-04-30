@@ -27,6 +27,27 @@ impl Writer for PrintlnWriter {
         self.with_increased_indentation(|w| f(w))
     }
 
+    fn write_sequence_of<C: sequenceof::Constraint, T: WritableType>(
+        &mut self,
+        slice: &[T::Type],
+    ) -> Result<(), Self::Error> {
+        self.indented_println(format!(
+            "Writing sequence-of ({}..{})",
+            C::MIN
+                .map(|v| format!("{}", v))
+                .unwrap_or_else(|| String::from("MIN")),
+            C::MAX
+                .map(|v| format!("{}", v))
+                .unwrap_or_else(|| String::from("MAX")),
+        ));
+        self.with_increased_indentation(|w| {
+            for value in slice {
+                T::write_value(w, value)?;
+            }
+            Ok(())
+        })
+    }
+
     fn write_enumerated<C: enumerated::Constraint>(
         &mut self,
         enumerated: &C,

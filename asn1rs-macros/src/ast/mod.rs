@@ -276,6 +276,12 @@ fn parse_type<'a>(input: &'a ParseBuffer<'a>) -> syn::Result<Type> {
             let inner = parse_type(&content)?;
             Ok(Type::Optional(Box::new(inner)))
         }
+        "sequence_of" => {
+            let content;
+            parenthesized!(content in input);
+            let inner = parse_type(&content)?;
+            Ok(Type::SequenceOf(Box::new(inner)))
+        }
         r#type => Err(input.error(format!("Unexpected attribute: `{}`", r#type))),
     }
 }
