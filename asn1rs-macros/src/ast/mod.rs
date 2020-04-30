@@ -241,6 +241,7 @@ impl Parse for Asn {
             let ident = input.step(|c| c.ident().ok_or_else(|| c.error("Expected ASN-Type")))?;
             match ident.to_string().to_lowercase().as_str() {
                 "utf8string" if first => asn.r#type = Some(Type::UTF8String),
+                "octet_string" if first => asn.r#type = Some(Type::OctetString),
                 "integer" if first => {
                     let range = MaybeRanged::parse(input)?;
                     asn.r#type = Some(Type::Integer(range.0.map(|(min, max)| Range(min, max))));

@@ -231,3 +231,25 @@ BEGIN
 END
 
 */
+
+#[asn(sequence)]
+#[derive(Debug, PartialOrd, PartialEq)]
+pub struct AreWeBinaryYet {
+    #[asn(octet_string)]
+    binary: Vec<u8>,
+}
+
+#[test]
+fn are_we_binary_yet_uper() {
+    let mut uper = UperWriter::default();
+    let are_we = AreWeBinaryYet {
+        binary: vec![0x13, 0x37],
+    };
+    uper.write(&are_we).unwrap();
+    // https://asn1.io/asn1playground/
+    assert_eq!(&[02, 0x13, 0x37], uper.byte_content());
+    assert_eq!(3 * 8, uper.bit_len());
+    let mut uper = uper.into_reader();
+    assert_eq!(are_we, uper.read::<AreWeBinaryYet>().unwrap());
+    assert_eq!(0, uper.bits_remaining());
+}

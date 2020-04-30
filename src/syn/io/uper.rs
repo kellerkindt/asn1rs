@@ -115,6 +115,14 @@ impl Writer for UperWriter {
     ) -> Result<(), Self::Error> {
         self.buffer.write_utf8_string(value)
     }
+
+    fn write_octet_string<C: octetstring::Constraint>(
+        &mut self,
+        value: &[u8],
+    ) -> Result<(), Self::Error> {
+        self.buffer
+            .write_octet_string(value, bit_buffer_range::<C>())
+    }
 }
 
 pub struct UperReader {
@@ -218,5 +226,19 @@ impl Reader for UperReader {
 
     fn read_utf8string<C: utf8string::Constraint>(&mut self) -> Result<String, Self::Error> {
         self.buffer.read_utf8_string()
+    }
+
+    fn read_octet_string<C: octetstring::Constraint>(&mut self) -> Result<Vec<u8>, Self::Error> {
+        self.buffer.read_octet_string(bit_buffer_range::<C>())
+    }
+}
+
+fn bit_buffer_range<C: octetstring::Constraint>() -> Option<(i64, i64)> {
+    match (C::MIN, C::MAX) {
+        (None, None) => None,
+        (min, max) => Some((
+            min.unwrap_or(0) as i64,
+            max.unwrap_or(std::i64::MAX as usize) as i64, // TODO never verified!
+        )),
     }
 }

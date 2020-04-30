@@ -4,7 +4,7 @@ use crate::prelude::*;
 pub struct PrintlnWriter(usize);
 
 impl PrintlnWriter {
-    fn indented_println(&self, text: &str) {
+    fn indented_println<T: std::fmt::Display>(&self, text: T) {
         println!("{}{}", " ".repeat(self.0), text);
     }
 
@@ -107,6 +107,14 @@ impl Writer for PrintlnWriter {
                 .unwrap_or_else(|| String::from("MAX")),
             value
         ));
+        Ok(())
+    }
+
+    fn write_octet_string<C: octetstring::Constraint>(
+        &mut self,
+        value: &[u8],
+    ) -> Result<(), Self::Error> {
+        self.indented_println(format!("WRITING OctetString {:?}", value));
         Ok(())
     }
 }

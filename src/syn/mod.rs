@@ -5,6 +5,7 @@ pub mod complex;
 pub mod enumerated;
 pub mod io;
 pub mod numbers;
+pub mod octetstring;
 pub mod optional;
 pub mod sequence;
 pub mod utf8string;
@@ -13,6 +14,7 @@ pub use choice::Choice;
 pub use complex::Complex;
 pub use enumerated::Enumerated;
 pub use numbers::Integer;
+pub use octetstring::OctetString;
 pub use sequence::Sequence;
 pub use utf8string::Utf8String;
 
@@ -46,6 +48,8 @@ pub trait Reader {
     fn read_int_max(&mut self) -> Result<u64, Self::Error>;
 
     fn read_utf8string<C: utf8string::Constraint>(&mut self) -> Result<String, Self::Error>;
+
+    fn read_octet_string<C: octetstring::Constraint>(&mut self) -> Result<Vec<u8>, Self::Error>;
 }
 
 pub trait Readable: Sized {
@@ -101,6 +105,11 @@ pub trait Writer {
     fn write_utf8string<C: utf8string::Constraint>(
         &mut self,
         value: &str,
+    ) -> Result<(), Self::Error>;
+
+    fn write_octet_string<C: octetstring::Constraint>(
+        &mut self,
+        value: &[u8],
     ) -> Result<(), Self::Error>;
 }
 
