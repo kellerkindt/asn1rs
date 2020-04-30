@@ -2,10 +2,15 @@ use crate::syn::{ReadableType, Reader, WritableType, Writer};
 use core::marker::PhantomData;
 use std::convert::TryFrom;
 
-#[derive(Default)]
-pub struct Integer<T = u64, C: Constraint<T> = NoConstraint>(PhantomData<T>, PhantomData<C>);
+pub struct Integer<T: Copy = u64, C: Constraint<T> = NoConstraint>(PhantomData<T>, PhantomData<C>);
 
-pub trait Constraint<T> {
+impl<T: Copy, C: Constraint<T>> Default for Integer<T, C> {
+    fn default() -> Self {
+        Integer(Default::default(), Default::default())
+    }
+}
+
+pub trait Constraint<T: Copy> {
     const MIN: Option<T> = None;
     const MAX: Option<T> = None;
 }
@@ -13,7 +18,7 @@ pub trait Constraint<T> {
 #[derive(Default)]
 pub struct NoConstraint;
 
-impl<T> Constraint<T> for NoConstraint {}
+impl<T: Copy> Constraint<T> for NoConstraint {}
 
 macro_rules! read_write {
     ( $($T:ident),+ ) => {$(
@@ -71,7 +76,7 @@ impl<C: Constraint<u64>> WritableType for Integer<u64, C> {
         value: &Self::Type,
     ) -> Result<(), <W as Writer>::Error> {
         let value = *value;
-        if C::MIN.is_none() & &C::MAX.is_none() {
+        if C::MIN.is_none() && C::MAX.is_none() {
             writer.write_int_max(value)
         } else {
             let value = i64::try_from(value).unwrap();

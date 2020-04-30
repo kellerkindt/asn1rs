@@ -821,9 +821,7 @@ pub struct Enumerated {
 impl Enumerated {
     pub fn from_names<I: ToString>(variants: impl Iterator<Item = I>) -> Self {
         Self {
-            variants: variants
-                .map(|name| EnumeratedVariant::from_name(name))
-                .collect(),
+            variants: variants.map(EnumeratedVariant::from_name).collect(),
             extension_after: None,
         }
     }
