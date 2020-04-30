@@ -7,13 +7,16 @@ The crate can be used as standalone binary using its command line interface or i
 
 [![Crates.io][crates-badge]][crates-url]
 [![MIT licensed][mit-badge]][mit-url]
+[![APACHE licensed][apache-badge]][apache-url]
 [![Build Status][github-badge]][github-url]
 | [API Docs](https://docs.rs/asn1rs/)
 
 [crates-badge]: https://img.shields.io/crates/v/asn1rs.svg
 [crates-url]: https://crates.io/crates/asn1rs
 [mit-badge]: https://img.shields.io/badge/license-MIT-blue.svg
-[mit-url]: LICENSE
+[mit-url]: LICENSE-MIT
+[apache-badge]: https://img.shields.io/badge/license-APACHE-blue.svg
+[apache-url]: LICENSE-APACHE
 [github-badge]: https://github.com/kellerkindt/asn1rs/workflows/Rust/badge.svg
 [github-url]: https://github.com/kellerkindt/asn1rs/actions?query=workflow%3ARust
 
