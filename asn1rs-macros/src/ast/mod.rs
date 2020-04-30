@@ -7,6 +7,7 @@ use asn1rs_model::model::{
 use proc_macro::TokenStream;
 use quote::quote;
 use range::MaybeRanged;
+use std::convert::Infallible;
 use std::str::FromStr;
 use syn::export::TokenStream2;
 use syn::parenthesized;
@@ -48,8 +49,11 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
         Item::Struct(mut strct) if asn_type_decl == "sequence" => {
             let mut fields = Vec::new();
             for field in strct.fields.iter_mut() {
+                if field.ident.is_none() {
+                    return compile_error_ts(field.span(), "Unnamed fields are not allowed here");
+                }
                 let mut removed = None;
-                'inner: for i in 0..field.attrs.len() {
+                for i in 0..field.attrs.len() {
                     if field.attrs[i]
                         .path
                         .segments
@@ -60,7 +64,6 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
                         .eq("asn")
                     {
                         removed = Some(field.attrs.remove(i));
-                        break 'inner;
                     }
                 }
                 if let Some(removed) = removed {
@@ -85,6 +88,59 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
             }
             println!("---------- parsed");
             let definition = Definition(strct.ident.to_string(), Type::Sequence(fields).untagged());
+            println!("{:#?}", definition);
+            model.definitions.push(definition);
+
+            println!("---------- output");
+            let st = Item::Struct(strct.clone());
+            println!("{}", TokenStream::from(quote! {#st}).to_string());
+
+            Item::Struct(strct)
+        }
+        Item::Struct(mut strct) if asn_type_decl == "transparent" => {
+            if strct.fields.len() != 1 || strct.fields.iter().next().unwrap().ident.is_some() {
+                return compile_error_ts(
+                    strct.span(),
+                    "Transparent structs have to have exactly one unnamed field",
+                );
+            }
+
+            let field = strct.fields.iter_mut().next().unwrap();
+            let mut attribute = None;
+            'inner: for i in 0..field.attrs.len() {
+                if field.attrs[i]
+                    .path
+                    .segments
+                    .first()
+                    .unwrap()
+                    .ident
+                    .to_string()
+                    .eq("asn")
+                {
+                    attribute = Some(field.attrs.remove(i));
+                    break 'inner;
+                }
+            }
+
+            let r#type = if let Some(attribute) = attribute {
+                match attribute.parse_args::<Asn>() {
+                    Ok(asn) => match into_asn(&field.ty, asn) {
+                        Some(asn) => asn,
+                        None => {
+                            return compile_error_ts(attribute.span(), "Missing ASN-Type");
+                        }
+                    },
+                    Err(e) => return TokenStream::from(e.to_compile_error()),
+                }
+            } else {
+                return compile_error_ts(
+                    field.span(),
+                    "Field has is missing a [asn(...)] attribute",
+                );
+            };
+
+            println!("---------- parsed");
+            let definition = Definition(strct.ident.to_string(), r#type);
             println!("{:#?}", definition);
             model.definitions.push(definition);
 
@@ -122,8 +178,11 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
                 .variants
                 .iter_mut()
                 .map(|v| {
-                    if v.fields.len() != 1 {
-                        panic!("Variants of CHOICE have to have exactly one field");
+                    if v.fields.len() != 1 || v.fields.iter().next().unwrap().ident.is_some() {
+                        compile_err_ts(
+                            v.span(),
+                            "Variants of CHOICE have to have exactly one unnamed field",
+                        )?;
                     }
                     let mut attr = None;
                     'inner: for i in 0..v.attrs.len() {
@@ -243,7 +302,7 @@ impl Parse for Asn {
                         asn.tag = Some(tag.0);
                     }
                     attribute => {
-                        return Err(input.error(format!("Unexpected attribute: `{}`", attribute)))
+                        return Err(input.error(format!("Unexpected attribute: `{}`", attribute)));
                     }
                 }
             }
@@ -284,4 +343,19 @@ fn parse_type<'a>(input: &'a ParseBuffer<'a>) -> syn::Result<Type> {
         }
         r#type => Err(input.error(format!("Unexpected attribute: `{}`", r#type))),
     }
+}
+
+fn compile_err_ts<T: std::fmt::Display>(
+    span: proc_macro2::Span,
+    msg: T,
+) -> Result<Infallible, TokenStream> {
+    Err(compile_error_ts(span, msg))
+}
+
+fn compile_error_ts<T: std::fmt::Display>(span: proc_macro2::Span, msg: T) -> TokenStream {
+    TokenStream::from(compile_error_ts2(span, msg))
+}
+
+fn compile_error_ts2<T: std::fmt::Display>(span: proc_macro2::Span, msg: T) -> TokenStream2 {
+    syn::Error::new(span, msg).to_compile_error()
 }

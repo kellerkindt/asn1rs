@@ -356,3 +356,93 @@ fn test_crazy_list_uper() {
     assert_eq!(list, uper.read::<CrazyList>().unwrap());
     assert_eq!(0, uper.bits_remaining());
 }
+
+#[asn(transparent)]
+#[derive(Debug, PartialOrd, PartialEq)]
+pub struct FlatList(#[asn(sequence_of(integer))] Vec<u64>);
+
+#[test]
+fn test_flat_list_println() {
+    // Writing sequence FlatList
+    //  Writing sequence-of (MIN..MAX)
+    //   WRITING Integer 13
+    //   WRITING Integer 37
+    //   WRITING Integer 42
+    PrintlnWriter::default()
+        .write(&FlatList(vec![13, 37, 42]))
+        .unwrap();
+}
+
+#[test]
+fn test_flat_list_uper() {
+    let mut uper = UperWriter::default();
+    let v = FlatList(vec![13, 37, 42]);
+    uper.write(&v).unwrap();
+    // https://asn1.io/asn1playground/
+    assert_eq!(
+        &[0x03, 0x01, 0x0D, 0x01, 0x25, 0x01, 0x2A],
+        uper.byte_content()
+    );
+    assert_eq!(7 * 8, uper.bit_len());
+    let mut uper = uper.into_reader();
+    assert_eq!(v, uper.read::<FlatList>().unwrap());
+    assert_eq!(0, uper.bits_remaining());
+}
+
+#[asn(transparent)]
+#[derive(Debug, PartialOrd, PartialEq)]
+pub struct Important(#[asn(optional(integer))] Option<u64>);
+
+#[test]
+fn test_transparent_important_println() {
+    // Writing sequence FlatList
+    //  Writing sequence-of (MIN..MAX)
+    //   WRITING Integer 13
+    //   WRITING Integer 37
+    //   WRITING Integer 42
+    PrintlnWriter::default()
+        .write(&Important(Some(42)))
+        .unwrap();
+}
+
+#[test]
+fn test_transparent_important_uper_some() {
+    let mut uper = UperWriter::default();
+    let v = Important(Some(42));
+    uper.write(&v).unwrap();
+    // invalid according to https://asn1.io/asn1playground/
+    // but who cares... :P
+    assert_eq!(
+        &[
+            // --- 0
+            0b1 << 7 // Some
+                | 0x01 >> 1, // length of the integer, part 1
+            // --- 1
+            0x01 << 7 // length of the integer, part 2
+                | 42 >> 1, // value of the  integer, part 1
+            // --- 2
+            42 << 7 // value of the integer, part 2
+        ],
+        uper.byte_content()
+    );
+
+    assert_eq!(2 * 8 + 1, uper.bit_len());
+    let mut uper = uper.into_reader();
+    assert_eq!(v, uper.read::<Important>().unwrap());
+    assert_eq!(0, uper.bits_remaining());
+}
+
+#[test]
+fn test_transparent_important_uper_none() {
+    let mut uper = UperWriter::default();
+    let v = Important(None);
+    uper.write(&v).unwrap();
+    // invalid according to https://asn1.io/asn1playground/
+    // but who cares... :P
+    assert_eq!(&[0b0 << 7], uper.byte_content());
+
+    assert_eq!(1, uper.bit_len());
+    let mut uper = uper.into_reader();
+    assert_eq!(v, uper.read::<Important>().unwrap());
+    assert_eq!(0, uper.bits_remaining());
+}

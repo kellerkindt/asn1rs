@@ -40,7 +40,13 @@ impl AsnDefWalker {
                     self.write_type_declaration(scope, &name, &field, r#type);
                 }
             }
-            Rust::TupleStruct(_) => unimplemented!("TupleStruct in Walker::write_type_definitions"),
+            Rust::TupleStruct(field) => {
+                scope.raw(&format!(
+                    "type AsnDef{} = {}Sequence<{}>;",
+                    name, CRATE_SYN_PREFIX, name
+                ));
+                self.write_type_declaration(scope, &name, "0", field);
+            }
         }
     }
 
@@ -100,7 +106,11 @@ impl AsnDefWalker {
                 self.write_enumerated_constraint(scope, &name, plain);
             }
             Rust::DataEnum(data) => self.write_choice_constraint(scope, &name, data),
-            Rust::TupleStruct(_) => unimplemented!("TupleStruct for Walker::write_constraints"),
+            Rust::TupleStruct(field) => {
+                let fields = [(String::from("0"), field.clone())];
+                self.write_field_constraints(scope, &name, &fields[..]);
+                self.write_sequence_constraint(scope, &name, &fields[..]);
+            }
         }
     }
 
