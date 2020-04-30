@@ -58,7 +58,7 @@ impl AsnDefWalker {
             RustType::U64(Some(_)) => {
                 format!("{}Integer<u64, {}Constraint>", CRATE_SYN_PREFIX, name)
             }
-            RustType::U64(None) => format!("{}Integer", CRATE_SYN_PREFIX),
+            RustType::U64(None) => format!("{}Integer<u64>", CRATE_SYN_PREFIX),
             RustType::String => format!("{}Utf8String", CRATE_SYN_PREFIX),
             RustType::VecU8 => format!("{}OctetString", CRATE_SYN_PREFIX),
             RustType::Vec(inner) => format!(
