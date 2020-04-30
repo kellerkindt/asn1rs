@@ -1,6 +1,6 @@
 use crate::gen::rust::GeneratorSupplement;
 use crate::gen::RustCodeGenerator;
-use crate::model::rust::PlainEnum;
+use crate::model::rust::{DataEnum, PlainEnum};
 use crate::model::{Definition, Model, Range, Rust, RustType};
 use codegen::{Block, Impl, Scope};
 use std::fmt::Display;
@@ -31,8 +31,16 @@ impl AsnDefWalker {
                     name, CRATE_SYN_PREFIX, name
                 ));
             }
-            Rust::DataEnum(_) => {}
-            Rust::TupleStruct(_) => {}
+            Rust::DataEnum(enm) => {
+                scope.raw(&format!(
+                    "type AsnDef{} = {}Choice<{}>;",
+                    name, CRATE_SYN_PREFIX, name
+                ));
+                for (field, r#type) in enm.variants() {
+                    self.write_type_declaration(scope, &name, &field, r#type);
+                }
+            }
+            Rust::TupleStruct(_) => unimplemented!("TupleStruct in Walker::write_type_definitions"),
         }
     }
 
@@ -87,8 +95,8 @@ impl AsnDefWalker {
             Rust::Enum(plain) => {
                 self.write_enumerated_constraint(scope, &name, plain);
             }
-            Rust::DataEnum(_) => {}
-            Rust::TupleStruct(_) => {}
+            Rust::DataEnum(data) => self.write_choice_constraint(scope, &name, data),
+            Rust::TupleStruct(_) => unimplemented!("TupleStruct for Walker::write_constraints"),
         }
     }
 
@@ -247,6 +255,71 @@ impl AsnDefWalker {
                         .unwrap_or_else(|| enumerated.len())
                 ),
                 format!("const EXTENSIBLE: bool = {};", enumerated.is_extensible()),
+            ],
+        );
+    }
+
+    fn write_choice_constraint(&self, scope: &mut Scope, name: &str, choice: &DataEnum) {
+        let mut imp = Impl::new(name);
+        imp.impl_trait(format!("{}choice::Constraint", CRATE_SYN_PREFIX));
+
+        imp.new_fn("to_choice_index")
+            .arg_ref_self()
+            .ret("usize")
+            .push_block({
+                let mut match_block = Block::new("match self");
+                for (index, (variant, _type)) in choice.variants().enumerate() {
+                    match_block.line(format!("Self::{}(_) => {},", variant, index));
+                }
+                match_block
+            });
+
+        imp.new_fn("write_content")
+            .generic(&format!("W: {}Writer", CRATE_SYN_PREFIX))
+            .arg_ref_self()
+            .arg("writer", "&mut W")
+            .ret("Result<(), W::Error>")
+            .push_block({
+                let mut match_block = Block::new("match self");
+                for (variant, _type) in choice.variants() {
+                    let combined = Self::combined_field_type_name(name, variant);
+                    match_block.line(format!(
+                        "Self::{}(c) => AsnDef{}::write_value(writer, c),",
+                        variant, combined
+                    ));
+                }
+                match_block
+            });
+
+        imp.new_fn("read_content")
+            .generic(&format!("R: {}Reader", CRATE_SYN_PREFIX))
+            .arg("index", "usize")
+            .arg("reader", "&mut R")
+            .ret("Result<Option<Self>, R::Error>")
+            .push_block({
+                let mut match_block = Block::new("match index");
+                for (index, (variant, _type)) in choice.variants().enumerate() {
+                    let combined = Self::combined_field_type_name(name, variant);
+                    match_block.line(format!(
+                        "{} => Ok(Some(Self::{}(AsnDef{}::read_value(reader)?))),",
+                        index, variant, combined
+                    ));
+                }
+                match_block.line("_ => Ok(None),");
+                match_block
+            });
+
+        Self::insert_consts(
+            scope,
+            imp,
+            &[
+                format!("const NAME: &'static str = \"{}\";", name),
+                format!("const VARIANT_COUNT: usize = {};", choice.len()),
+                format!(
+                    "const STD_VARIANT_COUNT: usize = {};",
+                    choice.last_standard_index().unwrap_or_else(|| choice.len())
+                ),
+                format!("const EXTENSIBLE: bool = {};", choice.is_extensible()),
             ],
         );
     }

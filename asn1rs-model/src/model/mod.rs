@@ -695,7 +695,6 @@ pub struct Choice {
 }
 
 impl Choice {
-    #[cfg(test)]
     pub fn from_variants(variants: Vec<ChoiceVariant>) -> Self {
         Self {
             variants,
@@ -774,9 +773,9 @@ impl TryFrom<&mut Peekable<IntoIter<Token>>> for Choice {
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct ChoiceVariant {
-    pub(crate) name: String,
-    pub(crate) tag: Option<Tag>,
-    pub(crate) r#type: Type,
+    pub name: String,
+    pub tag: Option<Tag>,
+    pub r#type: Type,
 }
 
 impl ChoiceVariant {

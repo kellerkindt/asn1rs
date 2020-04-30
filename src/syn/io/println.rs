@@ -50,6 +50,26 @@ impl Writer for PrintlnWriter {
         })
     }
 
+    fn write_choice<C: choice::Constraint>(&mut self, choice: &C) -> Result<(), Self::Error> {
+        self.indented_println(&format!("Write choice {}", C::NAME));
+        self.with_increased_indentation(|w| {
+            if C::EXTENSIBLE {
+                w.indented_println("extensible");
+            } else {
+                w.indented_println("normal");
+            }
+            w.with_increased_indentation(|w| {
+                w.indented_println(&format!(
+                    "choice_index {}/{}/{}",
+                    choice.to_choice_index(),
+                    C::STD_VARIANT_COUNT,
+                    C::VARIANT_COUNT
+                ));
+                choice.write_content(w)
+            })
+        })
+    }
+
     fn write_opt<T: WritableType>(&mut self, value: Option<&T::Type>) -> Result<(), Self::Error> {
         self.indented_println("Writing OPTIONAL");
         self.with_increased_indentation(|w| {

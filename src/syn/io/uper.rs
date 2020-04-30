@@ -68,9 +68,24 @@ impl Writer for UperWriter {
         } else {
             self.buffer.write_int(
                 enumerated.to_choice_index() as i64,
-                (0, C::STD_VARIANT_COUNT as i64),
+                (0, C::STD_VARIANT_COUNT as i64 - 1),
             )
         }
+    }
+
+    fn write_choice<C: choice::Constraint>(&mut self, choice: &C) -> Result<(), Self::Error> {
+        if C::EXTENSIBLE {
+            self.buffer.write_choice_index_extensible(
+                choice.to_choice_index() as u64,
+                C::STD_VARIANT_COUNT as u64,
+            )?;
+        } else {
+            self.buffer.write_int(
+                choice.to_choice_index() as i64,
+                (0, C::STD_VARIANT_COUNT as i64 - 1),
+            )?;
+        }
+        choice.write_content(self)
     }
 
     fn write_opt<T: WritableType>(
@@ -159,11 +174,26 @@ impl Reader for UperReader {
                 .read_choice_index_extensible(C::STD_VARIANT_COUNT as u64)
                 .map(|v| v as usize)
         } else {
-            self.read_int((0, C::STD_VARIANT_COUNT as i64))
+            self.read_int((0, C::STD_VARIANT_COUNT as i64 - 1))
                 .map(|v| v as usize)
         }
         .and_then(|index| {
             C::from_choice_index(index)
+                .ok_or_else(|| UperError::InvalidChoiceIndex(index, C::VARIANT_COUNT))
+        })
+    }
+
+    fn read_choice<C: choice::Constraint>(&mut self) -> Result<C, Self::Error> {
+        if C::EXTENSIBLE {
+            self.buffer
+                .read_choice_index_extensible(C::STD_VARIANT_COUNT as u64)
+                .map(|v| v as usize)
+        } else {
+            self.read_int((0, C::STD_VARIANT_COUNT as i64 - 1))
+                .map(|v| v as usize)
+        }
+        .and_then(|index| {
+            C::read_content(index, self)?
                 .ok_or_else(|| UperError::InvalidChoiceIndex(index, C::VARIANT_COUNT))
         })
     }

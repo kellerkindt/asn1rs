@@ -96,6 +96,7 @@ pub trait Reader {
         }
     }
 
+    /// Range is inclusive
     fn read_int(&mut self, range: (i64, i64)) -> Result<i64, Error> {
         let (lower, upper) = range;
         let leading_zeros = ((upper - lower) as u64).leading_zeros();
@@ -233,6 +234,7 @@ pub trait Writer {
         }
     }
 
+    /// Range is inclusive
     fn write_int(&mut self, value: i64, range: (i64, i64)) -> Result<(), Error> {
         let (lower, upper) = range;
         let value = {

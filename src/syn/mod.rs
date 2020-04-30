@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+pub mod choice;
 pub mod complex;
 pub mod enumerated;
 pub mod io;
@@ -8,6 +9,7 @@ pub mod optional;
 pub mod sequence;
 pub mod utf8string;
 
+pub use choice::Choice;
 pub use complex::Complex;
 pub use enumerated::Enumerated;
 pub use numbers::Integer;
@@ -34,6 +36,8 @@ pub trait Reader {
     ) -> Result<S, Self::Error>;
 
     fn read_enumerated<C: enumerated::Constraint>(&mut self) -> Result<C, Self::Error>;
+
+    fn read_choice<C: choice::Constraint>(&mut self) -> Result<C, Self::Error>;
 
     fn read_opt<T: ReadableType>(&mut self) -> Result<Option<T::Type>, Self::Error>;
 
@@ -85,6 +89,8 @@ pub trait Writer {
         &mut self,
         enumerated: &C,
     ) -> Result<(), Self::Error>;
+
+    fn write_choice<C: choice::Constraint>(&mut self, choice: &C) -> Result<(), Self::Error>;
 
     fn write_opt<T: WritableType>(&mut self, value: Option<&T::Type>) -> Result<(), Self::Error>;
 

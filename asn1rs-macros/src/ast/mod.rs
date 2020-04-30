@@ -1,7 +1,9 @@
 mod range;
 mod tag;
 
-use asn1rs_model::model::{Definition, Enumerated, Field, Model, Range, Tag, Type};
+use asn1rs_model::model::{
+    Choice, ChoiceVariant, Definition, Enumerated, Field, Model, Range, Tag, Type,
+};
 use proc_macro::TokenStream;
 use quote::quote;
 use range::MaybeRanged;
@@ -63,17 +65,11 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
                 if let Some(removed) = removed {
                     match removed.parse_args::<Asn>() {
                         Ok(asn) => {
-                            let parsed = asn1rs_model::model::Asn {
-                                tag: asn.tag,
-                                r#type: match asn.r#type {
-                                    Some(some) => {
-                                        if let Type::TypeReference(_) = some {
-                                            let ty = field.ty.clone();
-                                            Type::TypeReference(quote! { #ty }.to_string())
-                                        } else {
-                                            some
-                                        }
-                                    }
+                            fields.push(Field {
+                                name: field.ident.as_ref().map(ToString::to_string).unwrap(),
+                                optional: asn.optional,
+                                role: match into_asn(&field.ty, asn) {
+                                    Some(asn) => asn,
                                     None => {
                                         return TokenStream::from(
                                             syn::Error::new(field.span(), "Missing ASN-Type")
@@ -81,11 +77,6 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
                                         );
                                     }
                                 },
-                            };
-                            fields.push(Field {
-                                name: field.ident.as_ref().map(ToString::to_string).unwrap(),
-                                role: parsed,
-                                optional: asn.optional,
                             });
                         }
                         Err(e) => return TokenStream::from(e.to_compile_error()),
@@ -125,6 +116,74 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
 
             Item::Enum(enm)
         }
+        Item::Enum(mut enm) if asn_type_decl == "choice" => {
+            let data_enum = enm.variants.iter().all(|v| !v.fields.is_empty());
+            let variants = enm
+                .variants
+                .iter_mut()
+                .map(|v| {
+                    if v.fields.len() != 1 {
+                        panic!("Variants of CHOICE have to have exactly one field");
+                    }
+                    let mut attr = None;
+                    'inner: for i in 0..v.attrs.len() {
+                        if v.attrs[i]
+                            .path
+                            .segments
+                            .first()
+                            .unwrap()
+                            .ident
+                            .to_string()
+                            .eq("asn")
+                        {
+                            attr = Some(v.attrs.remove(i));
+                            break 'inner;
+                        }
+                    }
+                    let attr = attr.expect("Missing #[asn(..)] attribute");
+
+                    match attr.parse_args::<Asn>() {
+                        Ok(asn) => match into_asn(&v.fields.iter().next().unwrap().ty, asn) {
+                            Some(asn) => {
+                                let name = v.ident.to_string();
+                                Ok(ChoiceVariant {
+                                    name,
+                                    tag: asn.tag,
+                                    r#type: asn.r#type,
+                                })
+                            }
+                            None => Err(TokenStream::from(
+                                syn::Error::new(v.span(), "Missing ASN-Type").to_compile_error(),
+                            )),
+                        },
+                        Err(e) => Err(TokenStream::from(e.to_compile_error())),
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            if data_enum {
+                // TODO extensible
+                // TODO tags
+                let choice = Choice::from_variants({
+                    let mut new = Vec::with_capacity(variants.len());
+                    for var in variants {
+                        new.push(match var {
+                            Ok(variant) => variant,
+                            Err(e) => return e,
+                        });
+                    }
+                    new
+                });
+                model.definitions.push(Definition(
+                    enm.ident.to_string(),
+                    Type::Choice(choice).untagged(),
+                ));
+            } else {
+                // mixed case
+                panic!("CHOICE does not allow any Variant to not have data attached!");
+            }
+            Item::Enum(enm)
+        }
         item => item,
     };
 
@@ -144,6 +203,22 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
     println!("---------- result");
     println!("{}", result.to_string());
     result
+}
+
+fn into_asn(ty: &syn::Type, asn: Asn) -> Option<asn1rs_model::model::Asn> {
+    Some(asn1rs_model::model::Asn {
+        tag: asn.tag,
+        r#type: match asn.r#type {
+            Some(some) => {
+                if let Type::TypeReference(_) = some {
+                    Type::TypeReference(quote! { #ty }.to_string())
+                } else {
+                    some
+                }
+            }
+            None => return None,
+        },
+    })
 }
 
 #[derive(Debug, Default)]

@@ -1,6 +1,7 @@
 #![allow(unused)]
 
 use asn1rs::syn::io::{UperReader, UperWriter};
+use asn1rs::syn::Reader;
 use asn1rs_macros::asn;
 
 #[asn(sequence)]
@@ -151,3 +152,82 @@ fn pizza_test_uper_3() {
     assert_eq!(pizza, uper.read::<Pizza>().unwrap());
     assert_eq!(0, uper.bits_remaining());
 }
+
+#[asn(choice)]
+#[derive(Debug, PartialOrd, PartialEq)]
+pub enum WhatToEat {
+    #[asn(complex)]
+    Potato(Potato),
+    #[asn(complex)]
+    Pizza(Pizza),
+}
+
+#[test]
+fn what_to_eat_test_uper_1() {
+    let mut uper = UperWriter::default();
+    let what = WhatToEat::Pizza(Pizza {
+        size: 3,
+        topping: Topping::EvenLessPineapple,
+    });
+    uper.write(&what).unwrap();
+    // https://asn1.io/asn1playground/
+    assert_eq!(&[0xC8], uper.byte_content());
+    assert_eq!(5, uper.bit_len());
+    let mut uper = uper.into_reader();
+    assert_eq!(what, uper.read::<WhatToEat>().unwrap());
+    assert_eq!(0, uper.bits_remaining());
+}
+
+#[test]
+fn what_to_eat_test_uper_2() {
+    let mut uper = UperWriter::default();
+    let what = WhatToEat::Potato(Potato {
+        size: 13,
+        size2: 37,
+        size3: 42,
+        string: "such tasty potato".to_string(),
+    });
+    uper.write(&what).unwrap();
+    // https://asn1.io/asn1playground/
+    assert_eq!(
+        &[
+            0x00, 0x86, 0x80, 0x92, 0x9E, 0x11, 0x73, 0x75, 0x63, 0x68, 0x20, 0x74, 0x61, 0x73,
+            0x74, 0x79, 0x20, 0x70, 0x6F, 0x74, 0x61, 0x74, 0x6F
+        ],
+        uper.byte_content()
+    );
+    assert_eq!(23 * 8, uper.bit_len());
+    let mut uper = uper.into_reader();
+    assert_eq!(what, uper.read::<WhatToEat>().unwrap());
+    assert_eq!(0, uper.bits_remaining());
+}
+
+/*
+BasicSchema DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+  Potato ::= SEQUENCE {
+    size INTEGER,
+    size2 INTEGER,
+    size3 INTEGER(12..128),
+    string Utf8String
+  }
+
+  Topping ::= ENUMERATED
+  {
+    not_pineapple,
+    even_less_pineapple,
+    no_pineapple_at_all
+  }
+
+  Pizza ::= SEQUENCE {
+    size INTEGER(1..4),
+    topping Topping
+  }
+
+  WhatToEat ::= CHOICE {
+    potato Potato,
+    pizza Pizza
+  }
+END
+
+*/
