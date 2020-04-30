@@ -73,8 +73,12 @@ impl AsnDefWalker {
 
     fn write_type_declaration(&self, scope: &mut Scope, base: &str, name: &str, r#type: &RustType) {
         let combined = Self::combined_field_type_name(base, name);
-        let type_dec = Self::type_declaration(r#type, &combined);
+        let type_dec = Self::type_declaration(r#type, &Self::constraint_impl_name(&combined));
         scope.raw(&format!("type AsnDef{} = {};", combined, type_dec));
+    }
+
+    fn constraint_impl_name(combined: &str) -> String {
+        format!("___ans1rs_{}", combined)
     }
 
     #[must_use]
@@ -332,6 +336,7 @@ impl AsnDefWalker {
         Range(min, max): &Range<T>,
     ) {
         let combined = Self::combined_field_type_name(name, field) + "Constraint";
+        let combined = Self::constraint_impl_name(&combined);
 
         scope.new_struct(&combined).derive("Default");
         scope.raw(&format!(
