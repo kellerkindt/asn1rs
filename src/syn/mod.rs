@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+pub mod complex;
 pub mod enumerated;
 pub mod io;
 pub mod numbers;
@@ -7,6 +8,7 @@ pub mod optional;
 pub mod sequence;
 pub mod utf8string;
 
+pub use complex::Complex;
 pub use enumerated::Enumerated;
 pub use numbers::Integer;
 pub use sequence::Sequence;

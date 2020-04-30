@@ -18,6 +18,16 @@ impl UperWriter {
     pub const fn bit_len(&self) -> usize {
         self.buffer.bit_len()
     }
+
+    pub fn into_bytes_vec(self) -> Vec<u8> {
+        self.buffer.into()
+    }
+
+    pub fn into_reader(self) -> UperReader {
+        let bits = self.bit_len();
+        let bytes = self.into_bytes_vec();
+        UperReader::from_bits(bytes, bits)
+    }
 }
 
 impl Writer for UperWriter {
@@ -105,6 +115,10 @@ impl UperReader {
             buffer: BitBuffer::from_bits(bytes.into(), bit_len),
             optionals: Vec::default(),
         }
+    }
+
+    pub fn bits_remaining(&self) -> usize {
+        self.buffer.write_position - self.buffer.read_position
     }
 }
 

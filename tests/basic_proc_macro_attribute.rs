@@ -94,3 +94,60 @@ fn topping_test_deserialize_with_uper() {
     assert_eq!(Topping::EvenLessPineapple, uper.read::<Topping>().unwrap());
     assert_eq!(Topping::NoPineappleAtAll, uper.read::<Topping>().unwrap());
 }
+
+#[asn(sequence)]
+#[derive(Debug, PartialOrd, PartialEq)]
+pub struct Pizza {
+    #[asn(integer(1..4))]
+    size: u8,
+    #[asn(complex)]
+    topping: Topping,
+}
+
+#[test]
+fn pizza_test_uper_1() {
+    let mut uper = UperWriter::default();
+    let pizza = Pizza {
+        size: 2,
+        topping: Topping::NotPineapple,
+    };
+    uper.write(&pizza).unwrap();
+    // https://asn1.io/asn1playground/
+    assert_eq!(&[0x40], uper.byte_content());
+    assert_eq!(4, uper.bit_len());
+    let mut uper = uper.into_reader();
+    assert_eq!(pizza, uper.read::<Pizza>().unwrap());
+    assert_eq!(0, uper.bits_remaining());
+}
+
+#[test]
+fn pizza_test_uper_2() {
+    let mut uper = UperWriter::default();
+    let pizza = Pizza {
+        size: 1,
+        topping: Topping::NoPineappleAtAll,
+    };
+    uper.write(&pizza).unwrap();
+    // https://asn1.io/asn1playground/
+    assert_eq!(&[0x20], uper.byte_content());
+    assert_eq!(4, uper.bit_len());
+    let mut uper = uper.into_reader();
+    assert_eq!(pizza, uper.read::<Pizza>().unwrap());
+    assert_eq!(0, uper.bits_remaining());
+}
+
+#[test]
+fn pizza_test_uper_3() {
+    let mut uper = UperWriter::default();
+    let pizza = Pizza {
+        size: 3,
+        topping: Topping::EvenLessPineapple,
+    };
+    uper.write(&pizza).unwrap();
+    // https://asn1.io/asn1playground/
+    assert_eq!(&[0x90], uper.byte_content());
+    assert_eq!(4, uper.bit_len());
+    let mut uper = uper.into_reader();
+    assert_eq!(pizza, uper.read::<Pizza>().unwrap());
+    assert_eq!(0, uper.bits_remaining());
+}

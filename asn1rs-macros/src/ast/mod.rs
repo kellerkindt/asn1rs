@@ -66,7 +66,14 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
                             let parsed = asn1rs_model::model::Asn {
                                 tag: asn.tag,
                                 r#type: match asn.r#type {
-                                    Some(some) => some,
+                                    Some(some) => {
+                                        if let Type::TypeReference(_) = some {
+                                            let ty = field.ty.clone();
+                                            Type::TypeReference(quote! { #ty }.to_string())
+                                        } else {
+                                            some
+                                        }
+                                    }
                                     None => {
                                         return TokenStream::from(
                                             syn::Error::new(field.span(), "Missing ASN-Type")
@@ -163,6 +170,7 @@ impl Parse for Asn {
                     let range = MaybeRanged::parse(input)?;
                     asn.r#type = Some(Type::Integer(range.0.map(|(min, max)| Range(min, max))));
                 }
+                "complex" if first => asn.r#type = Some(Type::TypeReference(String::default())),
                 "tag" if !first => {
                     let tag = AttrTag::parse(input)?;
                     asn.tag = Some(tag.0);
