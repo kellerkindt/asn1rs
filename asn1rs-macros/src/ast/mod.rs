@@ -9,6 +9,7 @@ use quote::quote;
 use range::MaybeRanged;
 use std::str::FromStr;
 use syn::export::TokenStream2;
+use syn::parenthesized;
 use syn::parse::{Parse, ParseBuffer};
 use syn::spanned::Spanned;
 use syn::{parse_macro_input, AttributeArgs, Meta};
@@ -67,7 +68,6 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
                         Ok(asn) => {
                             fields.push(Field {
                                 name: field.ident.as_ref().map(ToString::to_string).unwrap(),
-                                optional: asn.optional,
                                 role: match into_asn(&field.ty, asn) {
                                     Some(asn) => asn,
                                     None => {
@@ -225,37 +225,27 @@ fn into_asn(ty: &syn::Type, asn: Asn) -> Option<asn1rs_model::model::Asn> {
 struct Asn {
     r#type: Option<Type>,
     tag: Option<Tag>,
-    // TODO allow nested optional
-    /// this needs refactoring as well as [`Type`] because it does not support nested `Optional`s
-    ///
-    /// [`Type`]: asn1rs_model::model::Type  
-    optional: bool,
 }
 
 impl Parse for Asn {
     fn parse<'a>(input: &'a ParseBuffer<'a>) -> syn::Result<Self> {
         let mut asn = Self::default();
-        let mut first = true;
 
         while !input.cursor().eof() {
-            let ident = input.step(|c| c.ident().ok_or_else(|| c.error("Expected ASN-Type")))?;
-            match ident.to_string().to_lowercase().as_str() {
-                "utf8string" if first => asn.r#type = Some(Type::UTF8String),
-                "octet_string" if first => asn.r#type = Some(Type::OctetString),
-                "integer" if first => {
-                    let range = MaybeRanged::parse(input)?;
-                    asn.r#type = Some(Type::Integer(range.0.map(|(min, max)| Range(min, max))));
+            if asn.r#type.is_none() {
+                asn.r#type = Some(parse_type(input)?);
+            } else {
+                let ident =
+                    input.step(|c| c.ident().ok_or_else(|| c.error("Expected ASN-Type")))?;
+                match ident.to_string().to_lowercase().as_str() {
+                    "tag" => {
+                        let tag = AttrTag::parse(input)?;
+                        asn.tag = Some(tag.0);
+                    }
+                    attribute => {
+                        return Err(input.error(format!("Unexpected attribute: `{}`", attribute)))
+                    }
                 }
-                "complex" if first => asn.r#type = Some(Type::TypeReference(String::default())),
-                "tag" if !first => {
-                    let tag = AttrTag::parse(input)?;
-                    asn.tag = Some(tag.0);
-                }
-                // TODO allow nested optional, see comment in Asn above
-                "optional" if !first => {
-                    asn.optional = true;
-                }
-                r#type => return Err(input.error(format!("Unexpected attribute: `{}`", r#type))),
             }
             if !input.cursor().eof() && !input.peek(syn::token::Comma) {
                 return Err(input.error("Attributes must be separated by comma"));
@@ -265,8 +255,27 @@ impl Parse for Asn {
                         .ok_or_else(|| input.error("Attributes must be separated by comma"))
                 })?;
             }
-            first = false;
         }
         Ok(asn)
+    }
+}
+
+fn parse_type<'a>(input: &'a ParseBuffer<'a>) -> syn::Result<Type> {
+    let ident = input.step(|c| c.ident().ok_or_else(|| c.error("Expected ASN-Type")))?;
+    match ident.to_string().to_lowercase().as_str() {
+        "utf8string" => Ok(Type::UTF8String),
+        "octet_string" => Ok(Type::OctetString),
+        "integer" => {
+            let range = MaybeRanged::parse(input)?;
+            Ok(Type::Integer(range.0.map(|(min, max)| Range(min, max))))
+        }
+        "complex" => Ok(Type::TypeReference(String::default())),
+        "optional" => {
+            let content;
+            parenthesized!(content in input);
+            let inner = parse_type(&content)?;
+            Ok(Type::Optional(Box::new(inner)))
+        }
+        r#type => Err(input.error(format!("Unexpected attribute: `{}`", r#type))),
     }
 }

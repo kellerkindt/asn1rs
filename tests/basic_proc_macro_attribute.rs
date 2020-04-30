@@ -253,3 +253,23 @@ fn are_we_binary_yet_uper() {
     assert_eq!(are_we, uper.read::<AreWeBinaryYet>().unwrap());
     assert_eq!(0, uper.bits_remaining());
 }
+
+#[asn(sequence)]
+#[derive(Debug, PartialOrd, PartialEq)]
+pub struct Optional {
+    #[asn(optional(integer))]
+    value: Option<u64>,
+}
+
+#[test]
+fn optional_test_uper() {
+    let mut uper = UperWriter::default();
+    let v = Optional { value: Some(1337) };
+    uper.write(&v).unwrap();
+    // https://asn1.io/asn1playground/
+    assert_eq!(&[0x81, 0x02, 0x9C, 0x80], uper.byte_content());
+    assert_eq!(3 * 8 + 1, uper.bit_len());
+    let mut uper = uper.into_reader();
+    assert_eq!(v, uper.read::<Optional>().unwrap());
+    assert_eq!(0, uper.bits_remaining());
+}

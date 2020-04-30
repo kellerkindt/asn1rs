@@ -431,11 +431,10 @@ impl Model<Asn> {
             name,
             role: Self::read_role_given_text(iter, token.into_text_or_else(Error::no_text)?)?
                 .opt_tagged(tag),
-            optional: false,
         };
         let mut token = Self::next(iter)?;
         if let Some(_optional_flag) = token.text().map(|s| s.eq_ignore_ascii_case("OPTIONAL")) {
-            field.optional = true;
+            field.role.optional();
             token = Self::next(iter)?;
         }
 
@@ -529,7 +528,6 @@ impl Tagged for Definition<Asn> {
 pub struct Field<T> {
     pub name: String,
     pub role: T,
-    pub optional: bool,
 }
 
 impl<T: Tagged> Tagged for Field<T> {
@@ -627,6 +625,11 @@ pub struct Asn {
 }
 
 impl Asn {
+    pub fn optional(&mut self) {
+        let optional = self.r#type.clone().optional();
+        self.r#type = optional;
+    }
+
     pub const fn opt_tagged(tag: Option<Tag>, r#type: Type) -> Self {
         Self { tag, r#type }
     }
@@ -667,6 +670,8 @@ pub enum Type {
     UTF8String,
     OctetString,
 
+    Optional(Box<Type>),
+
     SequenceOf(Box<Type>),
     Sequence(Vec<Field<Asn>>),
     Enumerated(Enumerated),
@@ -675,6 +680,10 @@ pub enum Type {
 }
 
 impl Type {
+    pub fn optional(self) -> Self {
+        Self::Optional(Box::new(self))
+    }
+
     pub const fn opt_tagged(self, tag: Option<Tag>) -> Asn {
         Asn::opt_tagged(tag, self)
     }
@@ -965,22 +974,18 @@ pub(crate) mod tests {
                     Field {
                         name: "small".into(),
                         role: Type::Integer(Some(Range(0, 255))).untagged(),
-                        optional: false,
                     },
                     Field {
                         name: "bigger".into(),
                         role: Type::Integer(Some(Range(0, 65535))).untagged(),
-                        optional: false,
                     },
                     Field {
                         name: "negative".into(),
                         role: Type::Integer(Some(Range(-1, 255))).untagged(),
-                        optional: false,
                     },
                     Field {
                         name: "unlimited".into(),
-                        role: Type::Integer(None).untagged(),
-                        optional: true,
+                        role: Type::Integer(None).optional().untagged(),
                     }
                 ])
                 .untagged()
@@ -1020,8 +1025,8 @@ pub(crate) mod tests {
                     role: Type::Enumerated(Enumerated::from_names(
                         ["ABORT", "RETURN", "CONFIRM", "MAYDAY", "THE_CAKE_IS_A_LIE",].iter()
                     ))
+                    .optional()
                     .untagged(),
-                    optional: true,
                 }])
                 .untagged(),
             ),
@@ -1078,7 +1083,6 @@ pub(crate) mod tests {
                         name: "also-ones".into(),
                         role: Type::SequenceOf(Box::new(Type::Integer(Some(Range(0, 1)))))
                             .untagged(),
-                        optional: false,
                     },
                     Field {
                         name: "nesteds".into(),
@@ -1086,15 +1090,14 @@ pub(crate) mod tests {
                             Type::Integer(Some(Range(0, 1)))
                         ))))
                         .untagged(),
-                        optional: false,
                     },
                     Field {
                         name: "optionals".into(),
                         role: Type::SequenceOf(Box::new(Type::SequenceOf(Box::new(
                             Type::Integer(None)
                         ))))
+                        .optional()
                         .untagged(),
-                        optional: true,
                     },
                 ])
                 .untagged()
@@ -1168,7 +1171,6 @@ pub(crate) mod tests {
                         ChoiceVariant::name_type("neither", Type::TypeReference("Neither".into())),
                     ]))
                     .untagged(),
-                    optional: false,
                 }])
                 .untagged(),
             ),
@@ -1206,23 +1208,21 @@ pub(crate) mod tests {
                         Field {
                             name: "ones".into(),
                             role: Type::Integer(Some(Range(0, 1))).untagged(),
-                            optional: false,
                         },
                         Field {
                             name: "list-ones".into(),
                             role: Type::SequenceOf(Box::new(Type::Integer(Some(Range(0, 1)))))
                                 .untagged(),
-                            optional: false,
                         },
                         Field {
                             name: "optional-ones".into(),
                             role: Type::SequenceOf(Box::new(Type::Integer(Some(Range(0, 1)))))
+                                .optional()
                                 .untagged(),
-                            optional: true,
                         },
                     ])
+                    .optional()
                     .untagged(),
-                    optional: true,
                 }])
                 .untagged()
             ),
@@ -1493,13 +1493,11 @@ pub(crate) mod tests {
                         Field {
                             name: "abc".to_string(),
                             role: Type::Integer(None).tagged(Tag::ContextSpecific(1)),
-                            optional: false,
                         },
                         Field {
                             name: "def".to_string(),
                             role: Type::Integer(Some(Range(0, 255)))
                                 .tagged(Tag::ContextSpecific(2)),
-                            optional: false,
                         }
                     ])
                     .tagged(Tag::Universal(2)),

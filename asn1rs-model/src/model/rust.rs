@@ -1,9 +1,9 @@
-use crate::model::Definition;
 use crate::model::Import;
 use crate::model::Model;
 use crate::model::Range;
 use crate::model::Type as AsnType;
 use crate::model::{Asn, ChoiceVariant};
+use crate::model::{Definition, Type};
 
 const I8_MAX: i64 = i8::max_value() as i64;
 const I16_MAX: i64 = i16::max_value() as i64;
@@ -333,6 +333,13 @@ impl Model<Rust> {
                 defs.push(Definition(name.into(), Rust::TupleStruct(rust_type)));
             }
 
+            AsnType::Optional(inner) => {
+                let inner = RustType::Option(Box::new(Self::definition_type_to_rust_type(
+                    name, inner, defs,
+                )));
+                defs.push(Definition(name.into(), Rust::TupleStruct(inner)))
+            }
+
             AsnType::Sequence(fields) => {
                 let mut rust_fields = Vec::with_capacity(fields.len());
 
@@ -341,11 +348,7 @@ impl Model<Rust> {
                     let rust_role =
                         Self::definition_type_to_rust_type(&rust_name, &field.role.r#type, defs);
                     let rust_field_name = rust_field_name(&field.name);
-                    if field.optional {
-                        rust_fields.push((rust_field_name, RustType::Option(Box::new(rust_role))));
-                    } else {
-                        rust_fields.push((rust_field_name, rust_role));
-                    }
+                    rust_fields.push((rust_field_name, rust_role));
                 }
 
                 defs.push(Definition(name.into(), Rust::Struct(rust_fields)));
@@ -421,6 +424,9 @@ impl Model<Rust> {
             AsnType::Integer(None) => RustType::U64(None),
             AsnType::UTF8String => RustType::String,
             AsnType::OctetString => RustType::VecU8,
+            Type::Optional(inner) => RustType::Option(Box::new(
+                Self::definition_type_to_rust_type(name, inner, defs),
+            )),
             AsnType::SequenceOf(asn) => RustType::Vec(Box::new(
                 Self::definition_type_to_rust_type(name, asn, defs),
             )),
@@ -860,8 +866,9 @@ mod tests {
             "OptionalStructListTest".into(),
             AsnType::Sequence(vec![Field {
                 name: "strings".into(),
-                role: AsnType::SequenceOf(Box::new(AsnType::UTF8String)).untagged(),
-                optional: true,
+                role: AsnType::SequenceOf(Box::new(AsnType::UTF8String))
+                    .optional()
+                    .untagged(),
             }])
             .untagged(),
         ));
@@ -890,7 +897,6 @@ mod tests {
             AsnType::Sequence(vec![Field {
                 name: "strings".into(),
                 role: AsnType::SequenceOf(Box::new(AsnType::UTF8String)).untagged(),
-                optional: false,
             }])
             .untagged(),
         ));
@@ -922,7 +928,6 @@ mod tests {
                     AsnType::UTF8String,
                 ))))
                 .untagged(),
-                optional: false,
             }])
             .untagged(),
         ));
