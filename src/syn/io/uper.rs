@@ -66,9 +66,9 @@ impl Writer for UperWriter {
                 C::STD_VARIANT_COUNT as u64,
             )
         } else {
-            self.buffer.write_int(
-                enumerated.to_choice_index() as i64,
-                (0, C::STD_VARIANT_COUNT as i64 - 1),
+            self.buffer.write_choice_index(
+                enumerated.to_choice_index() as u64,
+                C::STD_VARIANT_COUNT as u64,
             )
         }
     }
@@ -80,10 +80,8 @@ impl Writer for UperWriter {
                 C::STD_VARIANT_COUNT as u64,
             )?;
         } else {
-            self.buffer.write_int(
-                choice.to_choice_index() as i64,
-                (0, C::STD_VARIANT_COUNT as i64 - 1),
-            )?;
+            self.buffer
+                .write_choice_index(choice.to_choice_index() as u64, C::STD_VARIANT_COUNT as u64)?;
         }
         choice.write_content(self)
     }
@@ -174,7 +172,8 @@ impl Reader for UperReader {
                 .read_choice_index_extensible(C::STD_VARIANT_COUNT as u64)
                 .map(|v| v as usize)
         } else {
-            self.read_int((0, C::STD_VARIANT_COUNT as i64 - 1))
+            self.buffer
+                .read_choice_index(C::STD_VARIANT_COUNT as u64)
                 .map(|v| v as usize)
         }
         .and_then(|index| {
@@ -189,7 +188,8 @@ impl Reader for UperReader {
                 .read_choice_index_extensible(C::STD_VARIANT_COUNT as u64)
                 .map(|v| v as usize)
         } else {
-            self.read_int((0, C::STD_VARIANT_COUNT as i64 - 1))
+            self.buffer
+                .read_choice_index(C::STD_VARIANT_COUNT as u64)
                 .map(|v| v as usize)
         }
         .and_then(|index| {

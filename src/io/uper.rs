@@ -92,8 +92,12 @@ pub trait Reader {
         if self.read_bit()? {
             Ok((self.read_int_normally_small()? + no_of_default_variants) as u64)
         } else {
-            Ok(self.read_int((0, no_of_default_variants as i64 - 1))? as u64)
+            self.read_choice_index(no_of_default_variants)
         }
+    }
+
+    fn read_choice_index(&mut self, no_of_default_variants: u64) -> Result<u64, Error> {
+        Ok(self.read_int((0, no_of_default_variants as i64 - 1))? as u64)
     }
 
     /// Range is inclusive
@@ -230,8 +234,12 @@ pub trait Writer {
             self.write_int_normally_small((index - no_of_default_variants) as u64)
         } else {
             self.write_bit(false)?;
-            self.write_int(index as i64, (0, no_of_default_variants as i64 - 1))
+            self.write_choice_index(index, no_of_default_variants)
         }
+    }
+
+    fn write_choice_index(&mut self, index: u64, no_of_default_variants: u64) -> Result<(), Error> {
+        self.write_int(index as i64, (0, no_of_default_variants as i64 - 1))
     }
 
     /// Range is inclusive
