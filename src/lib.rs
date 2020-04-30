@@ -7,6 +7,10 @@ extern crate postgres;
 #[cfg(feature = "macros")]
 pub extern crate asn1rs_macros as macros;
 
+// provide an empty module, so that `use asn1rs::macros::*;` does not fail
+#[cfg(not(feature = "macros"))]
+pub mod macros {}
+
 #[cfg(feature = "model")]
 pub mod converter;
 #[cfg(feature = "model")]
@@ -20,5 +24,8 @@ pub mod io;
 pub mod syn;
 
 pub mod prelude {
+    #[cfg(feature = "macros")]
+    pub use crate::macros::*;
+    pub use crate::syn::io::*;
     pub use crate::syn::*;
 }

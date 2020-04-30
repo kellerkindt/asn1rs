@@ -458,9 +458,7 @@ impl AsnDefWalker {
 }
 
 impl GeneratorSupplement<Rust> for AsnDefWalker {
-    fn add_imports(&self, scope: &mut Scope) {
-        scope.raw("use asn1rs::prelude::*;");
-    }
+    fn add_imports(&self, _scope: &mut Scope) {}
 
     fn impl_supplement(&self, scope: &mut Scope, definition: &Definition<Rust>) {
         self.write_type_definitions(scope, definition);

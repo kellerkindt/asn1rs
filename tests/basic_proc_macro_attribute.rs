@@ -1,8 +1,4 @@
-#![allow(unused)]
-
-use asn1rs::syn::io::{PrintlnWriter, UperReader, UperWriter};
-use asn1rs::syn::Reader;
-use asn1rs_macros::asn;
+use asn1rs::prelude::*;
 
 #[asn(sequence)]
 #[derive(Debug, Default, PartialOrd, PartialEq)]
@@ -19,7 +15,7 @@ pub struct Potato {
 
 #[test]
 fn test_compiles() {
-    let p = Potato {
+    let _p = Potato {
         size: 123,
         size2: 1234,
         size3: 234,
