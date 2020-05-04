@@ -73,6 +73,7 @@ read_write!(u8, u16, u32);
 impl<C: Constraint<u64>> WritableType for Integer<u64, C> {
     type Type = u64;
 
+    #[inline]
     fn write_value<W: Writer>(
         writer: &mut W,
         value: &Self::Type,
@@ -98,6 +99,7 @@ impl<C: Constraint<u64>> WritableType for Integer<u64, C> {
 impl<C: Constraint<u64>> ReadableType for Integer<u64, C> {
     type Type = u64;
 
+    #[inline]
     fn read_value<R: Reader>(reader: &mut R) -> Result<Self::Type, <R as Reader>::Error> {
         if C::MIN.is_none() && C::MAX.is_none() {
             Ok(reader.read_int_max()?)

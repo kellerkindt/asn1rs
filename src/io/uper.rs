@@ -18,6 +18,7 @@ pub enum Error {
     InvalidChoiceIndex(usize, usize),
     ValueNotInRange(i64, i64, i64),
     SizeNotInRange(usize, usize, usize),
+    OptFlagsExhausted,
     EndOfStream,
 }
 
@@ -51,6 +52,7 @@ impl std::fmt::Display for Error {
                 "The size {} is not within the inclusive range of {} and {}",
                 size, min, max
             ),
+            Error::OptFlagsExhausted => write!(f, "All optional flags have already been exhausted"),
             Error::EndOfStream => write!(
                 f,
                 "Can no longer read or write any bytes from the underlying dataset"

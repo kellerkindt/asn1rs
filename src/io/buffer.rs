@@ -64,17 +64,30 @@ impl BitBuffer {
     }
 
     /// Changes the write-position to the given position for the closure call.
-    /// Restores the original write position after the call.
+    /// Restores the original write-position after the call.
     ///
     /// # Panics
     /// Positions beyond the current buffer length will result in panics.
     #[inline]
     pub fn with_write_position_at<T, F: Fn(&mut Self) -> T>(&mut self, position: usize, f: F) -> T {
-        assert!(position <= self.buffer.len() * 8);
-        let before = self.write_position;
-        self.write_position = position;
+        debug_assert!(position <= self.buffer.len() * 8);
+        let before = core::mem::replace(&mut self.write_position, position);
         let result = f(self);
         self.write_position = before;
+        result
+    }
+
+    /// Changes the read-position to the given position for the closure call.
+    /// Restores the original read-position after the call.
+    ///
+    /// # Panics
+    /// Positions beyond the current write-position will result in panics.
+    #[inline]
+    pub fn with_read_position_at<T, F: Fn(&mut Self) -> T>(&mut self, position: usize, f: F) -> T {
+        debug_assert!(position < self.write_position);
+        let before = core::mem::replace(&mut self.read_position, position);
+        let result = f(self);
+        self.read_position = before;
         result
     }
 }

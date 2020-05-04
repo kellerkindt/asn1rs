@@ -3,50 +3,12 @@ use crate::io::uper::Error as UperError;
 use crate::io::uper::Reader as _UperReader;
 use crate::io::uper::Writer as _UperWriter;
 use crate::prelude::*;
-
-pub struct ScopeStack<T> {
-    scopes: Vec<Vec<T>>,
-    scope: Vec<T>,
-}
-
-impl<T> Default for ScopeStack<T> {
-    fn default() -> Self {
-        ScopeStack {
-            scopes: Vec::with_capacity(16),
-            scope: Vec::default(),
-        }
-    }
-}
-
-impl<T> ScopeStack<T> {
-    #[inline]
-    pub fn current_mut(&mut self) -> &mut Vec<T> {
-        &mut self.scope
-    }
-
-    #[inline]
-    pub fn stash(&mut self) {
-        self.push(Vec::default())
-    }
-
-    #[inline]
-    pub fn push(&mut self, mut scope: Vec<T>) {
-        std::mem::swap(&mut scope, &mut self.scope);
-        self.scopes.push(scope);
-    }
-
-    #[inline]
-    pub fn pop(&mut self) -> Vec<T> {
-        let mut scope = self.scopes.pop().unwrap_or_default();
-        std::mem::swap(&mut scope, &mut self.scope);
-        scope
-    }
-}
+use std::ops::Range;
 
 #[derive(Default)]
 pub struct UperWriter {
     buffer: BitBuffer,
-    scope: ScopeStack<usize>,
+    scope: Option<Range<usize>>,
 }
 
 impl UperWriter {
@@ -69,21 +31,20 @@ impl UperWriter {
     }
 
     #[inline]
-    pub fn scope_pushed<R, F: Fn(&mut Self) -> R>(
-        &mut self,
-        scope: Vec<usize>,
-        f: F,
-    ) -> (R, Vec<usize>) {
-        self.scope.push(scope);
+    pub fn scope_pushed<R, F: Fn(&mut Self) -> R>(&mut self, scope: Range<usize>, f: F) -> R {
+        let original = core::mem::replace(&mut self.scope, Some(scope));
         let result = f(self);
-        (result, self.scope.pop())
+        let scope = core::mem::replace(&mut self.scope, original);
+        let scope = scope.unwrap(); // save because this is the original from above
+        debug_assert_eq!(scope.start, scope.end);
+        result
     }
 
     #[inline]
     pub fn scope_stashed<R, F: Fn(&mut Self) -> R>(&mut self, f: F) -> R {
-        self.scope.stash();
+        let scope = self.scope.take();
         let result = f(self);
-        self.scope.pop();
+        self.scope = scope;
         result
     }
 }
@@ -96,24 +57,21 @@ impl Writer for UperWriter {
         &mut self,
         f: F,
     ) -> Result<(), Self::Error> {
-        // In UPER the optional flag for all OPTIONAL values are written before any field
-        // value is written. This reserves the bits, so that on a later call of `write_opt`
-        // the value can be set to the actual state.
-        let mut list = Vec::default();
+        // In UPER the values for all OPTIONAL flags are written before any field
+        // value is written. This remembers their position, so a later call of `write_opt`
+        // can write them to the buffer
         let write_pos = self.buffer.write_position;
-        for i in (0..C::OPTIONAL_FIELDS).rev() {
+        let range = write_pos..write_pos + C::OPTIONAL_FIELDS; // TODO
+        for _ in 0..C::OPTIONAL_FIELDS {
             // insert in reverse order so that a simple pop() in `write_opt` retrieves
             // the relevant position
-            list.push(write_pos + i);
             if let Err(e) = self.buffer.write_bit(false) {
                 self.buffer.write_position = write_pos; // undo write_bits
                 return Err(e);
             }
         }
-        let (result, scope) = self.scope_pushed(list, f);
-        result?; // first error on this before throwing non-informative assert errors
-        debug_assert!(scope.is_empty());
-        Ok(())
+
+        self.scope_pushed(range, f)
     }
 
     #[inline]
@@ -176,9 +134,16 @@ impl Writer for UperWriter {
         &mut self,
         value: Option<&<T as WritableType>::Type>,
     ) -> Result<(), Self::Error> {
-        if let Some(position) = self.scope.current_mut().pop() {
-            self.buffer
-                .with_write_position_at(position, |buffer| buffer.write_bit(value.is_some()))?;
+        if let Some(range) = &mut self.scope {
+            if range.start < range.end {
+                let result = self
+                    .buffer
+                    .with_write_position_at(range.start, |b| b.write_bit(value.is_some()));
+                range.start += 1;
+                result?;
+            } else {
+                return Err(UperError::OptFlagsExhausted);
+            }
         } else {
             self.buffer.write_bit(value.is_some())?;
         }
@@ -224,7 +189,7 @@ impl Writer for UperWriter {
 
 pub struct UperReader {
     buffer: BitBuffer,
-    scope: ScopeStack<bool>,
+    scope: Option<Range<usize>>,
 }
 
 impl UperReader {
@@ -235,26 +200,25 @@ impl UperReader {
         }
     }
 
-    pub fn bits_remaining(&self) -> usize {
+    #[inline]
+    pub const fn bits_remaining(&self) -> usize {
         self.buffer.write_position - self.buffer.read_position
     }
 
     #[inline]
-    pub fn scope_pushed<R, F: Fn(&mut Self) -> R>(
-        &mut self,
-        scope: Vec<bool>,
-        f: F,
-    ) -> (R, Vec<bool>) {
-        self.scope.push(scope);
+    pub fn scope_pushed<R, F: Fn(&mut Self) -> R>(&mut self, scope: Range<usize>, f: F) -> R {
+        let original = core::mem::replace(&mut self.scope, Some(scope));
         let result = f(self);
-        (result, self.scope.pop())
+        let scope = core::mem::replace(&mut self.scope, original);
+        debug_assert_eq!(scope.clone().unwrap().start, scope.unwrap().end); // save because this is the original from above
+        result
     }
 
     #[inline]
     pub fn scope_stashed<R, F: Fn(&mut Self) -> R>(&mut self, f: F) -> R {
-        self.scope.stash();
+        let scope = self.scope.take();
         let result = f(self);
-        self.scope.pop();
+        self.scope = scope;
         result
     }
 }
@@ -271,17 +235,15 @@ impl Reader for UperReader {
         &mut self,
         f: F,
     ) -> Result<S, Self::Error> {
-        // In UPER the optional flag for all OPTIONAL values are written before any field
-        // value is written. This loads those bits, so that on a later call of `read_opt` can
-        // retrieve them by a simple call of `pop` on the optionals buffer
-        let mut optionals = vec![false; C::OPTIONAL_FIELDS];
-        for i in (0..C::OPTIONAL_FIELDS).rev() {
-            optionals[i] = self.buffer.read_bit()?;
+        // In UPER the values for all OPTIONAL flags are written before any field
+        // value is written. This remembers their position, so a later call of `read_opt`
+        // can retrieve them from the buffer
+        let range = self.buffer.read_position..self.buffer.read_position + C::OPTIONAL_FIELDS;
+        if self.buffer.bit_len() < range.end {
+            return Err(UperError::EndOfStream);
         }
-        let (result, scope) = self.scope_pushed(optionals, f);
-        let result = result?; // first error on this before throwing non-informative assert errors
-        debug_assert!(scope.is_empty());
-        Ok(result)
+        self.buffer.read_position = range.end; // skip optional
+        self.scope_pushed(range, f)
     }
 
     #[inline]
@@ -292,15 +254,16 @@ impl Reader for UperReader {
         let max = C::MAX.unwrap_or(std::usize::MAX);
         let len = self.buffer.read_length_determinant()? + min; // TODO untested for MIN != 0
         if len > max {
-            return Err(UperError::SizeNotInRange(len, min, max));
+            Err(UperError::SizeNotInRange(len, min, max))
+        } else {
+            self.scope_stashed(|w| {
+                let mut vec = Vec::with_capacity(len);
+                for _ in 0..len {
+                    vec.push(T::read_value(w)?);
+                }
+                Ok(vec)
+            })
         }
-        self.scope_stashed(|w| {
-            let mut vec = Vec::with_capacity(len);
-            for _ in 0..len {
-                vec.push(T::read_value(w)?);
-            }
-            Ok(vec)
-        })
     }
 
     #[inline]
@@ -343,8 +306,16 @@ impl Reader for UperReader {
     fn read_opt<T: ReadableType>(
         &mut self,
     ) -> Result<Option<<T as ReadableType>::Type>, Self::Error> {
-        let value = if let Some(pre_fetched) = self.scope.current_mut().pop() {
-            pre_fetched
+        let value = if let Some(range) = &mut self.scope {
+            if range.start < range.end {
+                let result = self
+                    .buffer
+                    .with_read_position_at(range.start, |b| b.read_bit());
+                range.start += 1;
+                result?
+            } else {
+                return Err(UperError::OptFlagsExhausted);
+            }
         } else {
             self.buffer.read_bit()?
         };
