@@ -16,11 +16,11 @@ use self::uper::UperSerializer;
 use crate::gen::Generator;
 use crate::model::rust::DataEnum;
 use crate::model::rust::PlainEnum;
-use crate::model::Definition;
 use crate::model::Model;
 use crate::model::Range;
 use crate::model::Rust;
 use crate::model::RustType;
+use crate::model::{Asn, Definition, Tag, Type as AsnType, Type};
 use codegen::Block;
 use codegen::Enum;
 use codegen::Function;
@@ -148,6 +148,7 @@ impl RustCodeGenerator {
         let mut scope = Scope::new();
         generators.iter().for_each(|g| g.add_imports(&mut scope));
 
+        scope.import("asn1rs::prelude", "*");
         for import in &model.imports {
             let from = format!("super::{}", &Self::rust_module_name(&import.from));
             for what in &import.what {
@@ -170,7 +171,7 @@ impl RustCodeGenerator {
     fn add_definition(&self, scope: &mut Scope, Definition(name, rust): &Definition<Rust>) {
         match rust {
             Rust::Struct(fields) => Self::add_struct(
-                self.new_struct(scope, name),
+                self.new_struct(scope, name, false),
                 name,
                 fields,
                 self.direct_field_access,
@@ -182,7 +183,7 @@ impl RustCodeGenerator {
                 Self::add_data_enum(self.new_enum(scope, name, false), name, enumeration)
             }
             Rust::TupleStruct(inner) => Self::add_tuple_struct(
-                self.new_struct(scope, name),
+                self.new_struct(scope, name, true),
                 name,
                 inner,
                 self.direct_field_access,
@@ -197,13 +198,15 @@ impl RustCodeGenerator {
         pub_access: bool,
     ) {
         for (field_name, field_type) in fields.iter() {
-            let name = Self::rust_field_name(field_name, true);
-            let name = if pub_access {
-                format!("pub {}", name)
-            } else {
-                name
-            };
-            str_ct.field(&name, field_type.to_string());
+            str_ct.field(
+                &format!(
+                    "{} {}{}",
+                    Self::asn_attribute(&field_type.clone().into_asn().untagged()),
+                    if pub_access { "pub " } else { "" },
+                    Self::rust_field_name(field_name, true),
+                ),
+                field_type.to_string(),
+            );
         }
     }
 
@@ -216,7 +219,9 @@ impl RustCodeGenerator {
     fn add_data_enum(en_m: &mut Enum, _name: &str, enumeration: &DataEnum) {
         for (variant, rust_type) in enumeration.variants() {
             en_m.new_variant(&format!(
-                "{}({})",
+                "{} {}({})",
+                // TODO assuming untagged
+                Self::asn_attribute(&rust_type.clone().into_asn().untagged()),
                 Self::rust_variant_name(variant),
                 rust_type.to_string(),
             ));
@@ -224,13 +229,53 @@ impl RustCodeGenerator {
     }
 
     fn add_tuple_struct(str_ct: &mut Struct, _name: &str, inner: &RustType, pub_access: bool) {
-        let field_type = inner.to_string();
-        let field_type = if pub_access {
-            format!("pub {}", field_type)
-        } else {
-            field_type
-        };
-        str_ct.tuple_field(&field_type);
+        // TODO assuming untagged
+        str_ct.tuple_field(format!(
+            "{} {}{}",
+            Self::asn_attribute(&inner.clone().into_asn().untagged()),
+            if pub_access { "pub " } else { "" },
+            inner.to_string(),
+        ));
+    }
+
+    fn asn_attribute(asn: &Asn) -> String {
+        format!(
+            "#[asn({}){}{}]",
+            Self::asn_attribute_type(&asn.r#type),
+            if asn.tag.is_some() { ", " } else { "" },
+            if let Some(tag) = &asn.tag {
+                Self::asn_attribute_tag(tag)
+            } else {
+                String::default()
+            }
+        )
+    }
+
+    fn asn_attribute_type(r#type: &AsnType) -> String {
+        match r#type {
+            Type::Boolean => String::from("boolean"),
+            Type::Integer(Some(Range(min, max))) => format!("integer({}..{})", min, max),
+            Type::Integer(None) => format!("integer(min..max)"),
+            Type::UTF8String => String::from("utf8string"),
+            Type::OctetString => String::from("octet_string"),
+            Type::Optional(inner) => format!("option({})", Self::asn_attribute_type(&*inner)),
+            Type::SequenceOf(inner) => {
+                format!("sequence_of({})", Self::asn_attribute_type(&*inner))
+            }
+            Type::Sequence(_) => String::from("sequence"),
+            Type::Enumerated(_) => String::from("enumerated"),
+            Type::Choice(_) => String::from("choice"),
+            Type::TypeReference(inner) => format!("complex({})", inner),
+        }
+    }
+
+    fn asn_attribute_tag(tag: &Tag) -> String {
+        match tag {
+            Tag::Universal(t) => format!("tag(UNIVERSAL({}))", t),
+            Tag::Application(t) => format!("tag(APPLICATION({}))", t),
+            Tag::Private(t) => format!("tag(PRIVATE({}))", t),
+            Tag::ContextSpecific(t) => format!("tag({})", t),
+        }
     }
 
     fn impl_definition(
@@ -605,7 +650,20 @@ impl RustCodeGenerator {
         out
     }
 
-    fn new_struct<'a>(&self, scope: &'a mut Scope, name: &str) -> &'a mut Struct {
+    fn new_struct<'a>(
+        &self,
+        scope: &'a mut Scope,
+        name: &str,
+        asn_transparent: bool,
+    ) -> &'a mut Struct {
+        scope.raw(&format!(
+            "#[asn({})]",
+            if asn_transparent {
+                "transparent"
+            } else {
+                "sequence"
+            }
+        ));
         let str_ct = scope
             .new_struct(name)
             .vis("pub")
@@ -621,6 +679,10 @@ impl RustCodeGenerator {
     }
 
     fn new_enum<'a>(&self, scope: &'a mut Scope, name: &str, c_enum: bool) -> &'a mut Enum {
+        scope.raw(&format!(
+            "#[asn({})]",
+            if c_enum { "enumerated" } else { "choice" }
+        ));
         let en_m = scope
             .new_enum(name)
             .vis("pub")

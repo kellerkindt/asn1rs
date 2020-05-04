@@ -181,8 +181,16 @@ impl AsnDefExpander {
                 RustType::U64(_) => {}
                 RustType::String => {}
                 RustType::VecU8 => {}
-                RustType::Vec(_) => {}
-                RustType::Option(_) => {}
+                RustType::Vec(inner) => self.write_field_constraints(
+                    scope,
+                    name,
+                    &[(field.to_string(), *inner.clone())],
+                ),
+                RustType::Option(inner) => self.write_field_constraints(
+                    scope,
+                    name,
+                    &[(field.to_string(), *inner.clone())],
+                ),
                 RustType::Complex(_) => {}
             }
         }

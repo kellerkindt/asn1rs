@@ -152,6 +152,42 @@ impl RustType {
         }
     }
 
+    pub fn into_asn(self) -> AsnType {
+        match self {
+            RustType::Bool => AsnType::Boolean,
+            RustType::I8(Range(min, max)) => {
+                AsnType::Integer(Some(Range(i64::from(min), i64::from(max))))
+            }
+            RustType::U8(Range(min, max)) => {
+                AsnType::Integer(Some(Range(i64::from(min), i64::from(max))))
+            }
+            RustType::I16(Range(min, max)) => {
+                AsnType::Integer(Some(Range(i64::from(min), i64::from(max))))
+            }
+            RustType::U16(Range(min, max)) => {
+                AsnType::Integer(Some(Range(i64::from(min), i64::from(max))))
+            }
+            RustType::I32(Range(min, max)) => {
+                AsnType::Integer(Some(Range(i64::from(min), i64::from(max))))
+            }
+            RustType::U32(Range(min, max)) => {
+                AsnType::Integer(Some(Range(i64::from(min), i64::from(max))))
+            }
+            RustType::I64(Range(min, max)) => {
+                AsnType::Integer(Some(Range(i64::from(min), i64::from(max))))
+            }
+            RustType::U64(Some(Range(min, max))) => {
+                AsnType::Integer(Some(Range(min as i64, max as i64)))
+            }
+            RustType::U64(None) => AsnType::Integer(None),
+            RustType::String => AsnType::UTF8String,
+            RustType::VecU8 => AsnType::OctetString,
+            RustType::Vec(inner) => AsnType::SequenceOf(Box::new(inner.into_asn())),
+            RustType::Option(value) => AsnType::Optional(Box::new(value.into_asn())),
+            RustType::Complex(name) => AsnType::TypeReference(name),
+        }
+    }
+
     pub fn similar(&self, other: &Self) -> bool {
         match self {
             RustType::Bool => return *other == RustType::Bool,
