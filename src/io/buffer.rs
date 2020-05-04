@@ -68,8 +68,9 @@ impl BitBuffer {
     ///
     /// # Panics
     /// Positions beyond the current buffer length will result in panics.
+    #[inline]
     pub fn with_write_position_at<T, F: Fn(&mut Self) -> T>(&mut self, position: usize, f: F) -> T {
-        assert!(position <= self.buffer.len());
+        assert!(position <= self.buffer.len() * 8);
         let before = self.write_position;
         self.write_position = position;
         let result = f(self);
