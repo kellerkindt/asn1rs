@@ -192,6 +192,10 @@ impl Writer for UperWriter {
         self.buffer
             .write_octet_string(value, bit_buffer_range::<C>())
     }
+
+    fn write_boolean<C: boolean::Constraint>(&mut self, value: bool) -> Result<(), Self::Error> {
+        self.buffer.write_bit(value)
+    }
 }
 
 pub struct UperReader {
@@ -334,6 +338,10 @@ impl Reader for UperReader {
 
     fn read_octet_string<C: octetstring::Constraint>(&mut self) -> Result<Vec<u8>, Self::Error> {
         self.buffer.read_octet_string(bit_buffer_range::<C>())
+    }
+
+    fn read_boolean<C: boolean::Constraint>(&mut self) -> Result<bool, Self::Error> {
+        self.buffer.read_bit()
     }
 }
 

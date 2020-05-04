@@ -249,8 +249,8 @@ pub(crate) fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
     if !model.definitions.is_empty() {
         let model_rust = model.to_rust();
 
-        use asn1rs_model::gen::rust::walker::AsnDefWalker;
-        let stringified = AsnDefWalker::stringify(&model_rust);
+        use asn1rs_model::gen::rust::walker::AsnDefExpander;
+        let stringified = AsnDefExpander::stringify(&model_rust);
         additional_impl.push(TokenStream2::from_str(&stringified).unwrap());
     }
 
@@ -329,12 +329,13 @@ fn parse_type<'a>(input: &'a ParseBuffer<'a>) -> syn::Result<Type> {
             Ok(Type::Integer(range.0.map(|(min, max)| Range(min, max))))
         }
         "complex" => Ok(Type::TypeReference(String::default())),
-        "optional" => {
+        "option" => {
             let content;
             parenthesized!(content in input);
             let inner = parse_type(&content)?;
             Ok(Type::Optional(Box::new(inner)))
         }
+        "boolean" => Ok(Type::Boolean),
         "sequence_of" => {
             let content;
             parenthesized!(content in input);

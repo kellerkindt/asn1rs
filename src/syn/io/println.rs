@@ -138,4 +138,9 @@ impl Writer for PrintlnWriter {
         self.indented_println(format!("WRITING OctetString {:?}", value));
         Ok(())
     }
+
+    fn write_boolean<C: boolean::Constraint>(&mut self, value: bool) -> Result<(), Self::Error> {
+        self.indented_println(format!("WRITING Boolean {}", value));
+        Ok(())
+    }
 }

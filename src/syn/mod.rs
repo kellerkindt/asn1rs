@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+pub mod boolean;
 pub mod choice;
 pub mod complex;
 pub mod enumerated;
@@ -11,6 +12,7 @@ pub mod sequence;
 pub mod sequenceof;
 pub mod utf8string;
 
+pub use boolean::Boolean;
 pub use choice::Choice;
 pub use complex::Complex;
 pub use enumerated::Enumerated;
@@ -56,6 +58,8 @@ pub trait Reader {
     fn read_utf8string<C: utf8string::Constraint>(&mut self) -> Result<String, Self::Error>;
 
     fn read_octet_string<C: octetstring::Constraint>(&mut self) -> Result<Vec<u8>, Self::Error>;
+
+    fn read_boolean<C: boolean::Constraint>(&mut self) -> Result<bool, Self::Error>;
 }
 
 pub trait Readable: Sized {
@@ -122,6 +126,8 @@ pub trait Writer {
         &mut self,
         value: &[u8],
     ) -> Result<(), Self::Error>;
+
+    fn write_boolean<C: boolean::Constraint>(&mut self, value: bool) -> Result<(), Self::Error>;
 }
 
 pub trait Writable {

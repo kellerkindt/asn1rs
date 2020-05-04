@@ -253,7 +253,7 @@ fn are_we_binary_yet_uper() {
 #[asn(sequence)]
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct Optional {
-    #[asn(optional(integer))]
+    #[asn(option(integer))]
     value: Option<u64>,
 }
 
@@ -273,7 +273,7 @@ fn test_optional_uper() {
 #[asn(sequence)]
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct CrazyList {
-    #[asn(sequence_of(optional(optional(sequence_of(integer)))))]
+    #[asn(sequence_of(option(option(sequence_of(integer)))))]
     values: Vec<Option<Option<Vec<u64>>>>,
 }
 
@@ -387,7 +387,7 @@ fn test_flat_list_uper() {
 
 #[asn(transparent)]
 #[derive(Debug, PartialOrd, PartialEq)]
-pub struct Important(#[asn(optional(integer))] Option<u64>);
+pub struct Important(#[asn(option(integer))] Option<u64>);
 
 #[test]
 fn test_transparent_important_println() {
@@ -440,5 +440,33 @@ fn test_transparent_important_uper_none() {
     assert_eq!(1, uper.bit_len());
     let mut uper = uper.into_reader();
     assert_eq!(v, uper.read::<Important>().unwrap());
+    assert_eq!(0, uper.bits_remaining());
+}
+
+#[asn(sequence)]
+#[derive(Debug, Default, PartialOrd, PartialEq)]
+pub struct BoolContainer {
+    #[asn(boolean)]
+    bool1: bool,
+    #[asn(boolean)]
+    bool2: bool,
+    #[asn(boolean)]
+    bool3: bool,
+}
+
+#[test]
+fn test_bool_container_uper() {
+    let mut uper = UperWriter::default();
+    let v = BoolContainer {
+        bool1: false,
+        bool2: true,
+        bool3: true,
+    };
+    uper.write(&v).unwrap();
+    assert_eq!(&[0b011_0_0000], uper.byte_content());
+    assert_eq!(3, uper.bit_len());
+
+    let mut uper = uper.into_reader();
+    assert_eq!(v, uper.read::<BoolContainer>().unwrap());
     assert_eq!(0, uper.bits_remaining());
 }

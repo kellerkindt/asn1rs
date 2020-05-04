@@ -1,4 +1,3 @@
-use crate::gen::rust::GeneratorSupplement;
 use crate::gen::RustCodeGenerator;
 use crate::model::rust::{DataEnum, PlainEnum};
 use crate::model::{Definition, Model, Range, Rust, RustType};
@@ -7,9 +6,9 @@ use std::fmt::Display;
 
 pub const CRATE_SYN_PREFIX: &str = "::asn1rs::syn::";
 
-pub struct AsnDefWalker;
+pub struct AsnDefExpander;
 
-impl AsnDefWalker {
+impl AsnDefExpander {
     fn write_type_definitions(
         &self,
         scope: &mut Scope,
@@ -53,7 +52,7 @@ impl AsnDefWalker {
     #[must_use]
     pub fn type_declaration(r#type: &RustType, name: &str) -> String {
         match r#type {
-            RustType::Bool => format!("{}Bool", CRATE_SYN_PREFIX),
+            RustType::Bool => format!("{}Boolean", CRATE_SYN_PREFIX),
             RustType::I8(_) => format!("{}Integer<i8, {}Constraint>", CRATE_SYN_PREFIX, name),
             RustType::U8(_) => format!("{}Integer<u8, {}Constraint>", CRATE_SYN_PREFIX, name),
             RustType::I16(_) => format!("{}Integer<i16, {}Constraint>", CRATE_SYN_PREFIX, name),
@@ -90,7 +89,7 @@ impl AsnDefWalker {
     #[must_use]
     pub fn combined_field_type_name(base: &str, name: &str) -> String {
         format!(
-            "{}{}",
+            "{}Field{}",
             RustCodeGenerator::rust_variant_name(base),
             RustCodeGenerator::rust_variant_name(name)
         )
@@ -447,30 +446,20 @@ impl AsnDefWalker {
         let mut scope = Scope::new();
         let myself = Self;
 
-        myself.add_imports(&mut scope);
-
         for definition in &model.definitions {
-            myself.impl_supplement(&mut scope, definition);
+            myself.write_type_definitions(&mut scope, definition);
+            myself.write_constraints(&mut scope, definition);
+            myself.impl_readable(&mut scope, &definition.0);
+            myself.impl_writable(&mut scope, &definition.0);
         }
 
         scope.to_string()
     }
 }
 
-impl GeneratorSupplement<Rust> for AsnDefWalker {
-    fn add_imports(&self, _scope: &mut Scope) {}
-
-    fn impl_supplement(&self, scope: &mut Scope, definition: &Definition<Rust>) {
-        self.write_type_definitions(scope, definition);
-        self.write_constraints(scope, definition);
-        self.impl_readable(scope, &definition.0);
-        self.impl_writable(scope, &definition.0);
-    }
-}
-
 #[cfg(test)]
 pub mod tests {
-    use crate::gen::rust::walker::AsnDefWalker;
+    use crate::gen::rust::walker::AsnDefExpander;
     use crate::model::{Definition, Rust, RustType};
     use codegen::Scope;
 
@@ -495,7 +484,7 @@ pub mod tests {
     pub fn test_whatever_struct_type_declaration() {
         let def = simple_whatever_sequence();
         let mut scope = Scope::new();
-        AsnDefWalker.write_type_definitions(&mut scope, &def);
+        AsnDefExpander.write_type_definitions(&mut scope, &def);
         let string = scope.to_string();
         println!("{}", string);
         let mut lines = string.lines().filter(|l| !l.is_empty());
@@ -504,15 +493,15 @@ pub mod tests {
             lines.next()
         );
         assert_eq!(
-            Some("type AsnDefWhateverName = ::asn1rs::syn::Utf8String;"),
+            Some("type AsnDefWhateverFieldName = ::asn1rs::syn::Utf8String;"),
             lines.next()
         );
         assert_eq!(
-            Some("type AsnDefWhateverOpt = Option<::asn1rs::syn::Utf8String>;"),
+            Some("type AsnDefWhateverFieldOpt = Option<::asn1rs::syn::Utf8String>;"),
             lines.next()
         );
         assert_eq!(
-            Some("type AsnDefWhateverSome = Option<::asn1rs::syn::Utf8String>;"),
+            Some("type AsnDefWhateverFieldSome = Option<::asn1rs::syn::Utf8String>;"),
             lines.next()
         );
     }
@@ -521,9 +510,9 @@ pub mod tests {
     pub fn test_whatever_struct_constraint_and_read_write_impl() {
         let def = simple_whatever_sequence();
         let mut scope = Scope::new();
-        AsnDefWalker.write_constraints(&mut scope, &def);
-        AsnDefWalker.impl_readable(&mut scope, &def.0);
-        AsnDefWalker.impl_writable(&mut scope, &def.0);
+        AsnDefExpander.write_constraints(&mut scope, &def);
+        AsnDefExpander.impl_readable(&mut scope, &def.0);
+        AsnDefExpander.impl_writable(&mut scope, &def.0);
         let string = scope.to_string();
         println!("{}", string);
 
@@ -551,16 +540,16 @@ pub mod tests {
                 where Self: Sized,
                 {
                     Ok(Self {
-                        name: AsnDefWhateverName::read_value(reader)?,
-                        opt: AsnDefWhateverOpt::read_value(reader)?,
-                        some: AsnDefWhateverSome::read_value(reader)?,
+                        name: AsnDefWhateverFieldName::read_value(reader)?,
+                        opt: AsnDefWhateverFieldOpt::read_value(reader)?,
+                        some: AsnDefWhateverFieldSome::read_value(reader)?,
                     })
                 }
                 
                 fn write_seq<W: ::asn1rs::syn::Writer>(&self, writer: &mut W) -> Result<(), W::Error> {
-                    AsnDefWhateverName::write_value(writer, &self.name)?;
-                    AsnDefWhateverOpt::write_value(writer, &self.opt)?;
-                    AsnDefWhateverSome::write_value(writer, &self.some)?;
+                    AsnDefWhateverFieldName::write_value(writer, &self.name)?;
+                    AsnDefWhateverFieldOpt::write_value(writer, &self.opt)?;
+                    AsnDefWhateverFieldSome::write_value(writer, &self.some)?;
                     Ok(())
                 }
             }
