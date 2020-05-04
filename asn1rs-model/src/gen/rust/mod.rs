@@ -255,7 +255,7 @@ impl RustCodeGenerator {
         match r#type {
             Type::Boolean => String::from("boolean"),
             Type::Integer(Some(Range(min, max))) => format!("integer({}..{})", min, max),
-            Type::Integer(None) => format!("integer(min..max)"),
+            Type::Integer(None) => String::from("integer(min..max)"),
             Type::UTF8String => String::from("utf8string"),
             Type::OctetString => String::from("octet_string"),
             Type::Optional(inner) => format!("option({})", Self::asn_attribute_type(&*inner)),

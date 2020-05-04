@@ -173,9 +173,7 @@ impl RustType {
             RustType::U32(Range(min, max)) => {
                 AsnType::Integer(Some(Range(i64::from(min), i64::from(max))))
             }
-            RustType::I64(Range(min, max)) => {
-                AsnType::Integer(Some(Range(i64::from(min), i64::from(max))))
-            }
+            RustType::I64(Range(min, max)) => AsnType::Integer(Some(Range(min, max))),
             RustType::U64(Some(Range(min, max))) => {
                 AsnType::Integer(Some(Range(min as i64, max as i64)))
             }
