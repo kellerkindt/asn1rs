@@ -3,6 +3,7 @@ use crate::syn::{ReadableType, Reader, WritableType, Writer};
 impl<T: WritableType> WritableType for Option<T> {
     type Type = Option<T::Type>;
 
+    #[inline]
     fn write_value<W: Writer>(
         writer: &mut W,
         value: &Self::Type,
@@ -14,6 +15,7 @@ impl<T: WritableType> WritableType for Option<T> {
 impl<T: ReadableType> ReadableType for Option<T> {
     type Type = Option<T::Type>;
 
+    #[inline]
     fn read_value<R: Reader>(reader: &mut R) -> Result<Self::Type, <R as Reader>::Error> {
         reader.read_opt::<T>()
     }

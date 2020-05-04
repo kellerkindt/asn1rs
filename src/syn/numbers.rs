@@ -26,6 +26,7 @@ macro_rules! read_write {
         impl<C: Constraint<$T>> WritableType for Integer<$T, C> {
             type Type = $T;
 
+            #[inline]
             fn write_value<W: Writer>(
                 writer: &mut W,
                 value: &Self::Type,
@@ -48,6 +49,7 @@ macro_rules! read_write {
         impl<C: Constraint<$T>> ReadableType for Integer<$T, C> {
             type Type = $T;
 
+            #[inline]
             fn read_value<R: Reader>(reader: &mut R) -> Result<Self::Type, <R as Reader>::Error> {
                 if C::MIN.is_none() && C::MAX.is_none() {
                     Ok(reader.read_int_max()? as $T)

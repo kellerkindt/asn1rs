@@ -4,26 +4,38 @@ use crate::io::uper::Reader as _UperReader;
 use crate::io::uper::Writer as _UperWriter;
 use crate::prelude::*;
 
-#[derive(Default)]
 pub struct ScopeStack<T> {
     scopes: Vec<Vec<T>>,
     scope: Vec<T>,
 }
 
+impl<T> Default for ScopeStack<T> {
+    fn default() -> Self {
+        ScopeStack {
+            scopes: Vec::with_capacity(16),
+            scope: Vec::default(),
+        }
+    }
+}
+
 impl<T> ScopeStack<T> {
+    #[inline]
     pub fn current_mut(&mut self) -> &mut Vec<T> {
         &mut self.scope
     }
 
+    #[inline]
     pub fn stash(&mut self) {
         self.push(Vec::default())
     }
 
+    #[inline]
     pub fn push(&mut self, mut scope: Vec<T>) {
         std::mem::swap(&mut scope, &mut self.scope);
         self.scopes.push(scope);
     }
 
+    #[inline]
     pub fn pop(&mut self) -> Vec<T> {
         let mut scope = self.scopes.pop().unwrap_or_default();
         std::mem::swap(&mut scope, &mut self.scope);
@@ -56,6 +68,7 @@ impl UperWriter {
         UperReader::from_bits(bytes, bits)
     }
 
+    #[inline]
     pub fn scope_pushed<R, F: Fn(&mut Self) -> R>(
         &mut self,
         scope: Vec<usize>,
@@ -66,6 +79,7 @@ impl UperWriter {
         (result, self.scope.pop())
     }
 
+    #[inline]
     pub fn scope_stashed<R, F: Fn(&mut Self) -> R>(&mut self, f: F) -> R {
         self.scope.stash();
         let result = f(self);
@@ -77,6 +91,7 @@ impl UperWriter {
 impl Writer for UperWriter {
     type Error = UperError;
 
+    #[inline]
     fn write_sequence<C: sequence::Constraint, F: Fn(&mut Self) -> Result<(), Self::Error>>(
         &mut self,
         f: F,
@@ -97,10 +112,11 @@ impl Writer for UperWriter {
         }
         let (result, scope) = self.scope_pushed(list, f);
         result?; // first error on this before throwing non-informative assert errors
-        assert!(scope.is_empty());
+        debug_assert!(scope.is_empty());
         Ok(())
     }
 
+    #[inline]
     fn write_sequence_of<C: sequenceof::Constraint, T: WritableType>(
         &mut self,
         slice: &[T::Type],
@@ -119,6 +135,7 @@ impl Writer for UperWriter {
         })
     }
 
+    #[inline]
     fn write_enumerated<C: enumerated::Constraint>(
         &mut self,
         enumerated: &C,
@@ -136,6 +153,7 @@ impl Writer for UperWriter {
         }
     }
 
+    #[inline]
     fn write_choice<C: choice::Constraint>(&mut self, choice: &C) -> Result<(), Self::Error> {
         self.scope_stashed(|w| {
             if C::EXTENSIBLE {
@@ -153,6 +171,7 @@ impl Writer for UperWriter {
         })
     }
 
+    #[inline]
     fn write_opt<T: WritableType>(
         &mut self,
         value: Option<&<T as WritableType>::Type>,
@@ -170,14 +189,17 @@ impl Writer for UperWriter {
         }
     }
 
+    #[inline]
     fn write_int(&mut self, value: i64, range: (i64, i64)) -> Result<(), Self::Error> {
         self.buffer.write_int(value, range)
     }
 
+    #[inline]
     fn write_int_max(&mut self, value: u64) -> Result<(), Self::Error> {
         self.buffer.write_int_max(value)
     }
 
+    #[inline]
     fn write_utf8string<C: utf8string::Constraint>(
         &mut self,
         value: &str,
@@ -185,6 +207,7 @@ impl Writer for UperWriter {
         self.buffer.write_utf8_string(value)
     }
 
+    #[inline]
     fn write_octet_string<C: octetstring::Constraint>(
         &mut self,
         value: &[u8],
@@ -193,6 +216,7 @@ impl Writer for UperWriter {
             .write_octet_string(value, bit_buffer_range::<C>())
     }
 
+    #[inline]
     fn write_boolean<C: boolean::Constraint>(&mut self, value: bool) -> Result<(), Self::Error> {
         self.buffer.write_bit(value)
     }
@@ -215,6 +239,7 @@ impl UperReader {
         self.buffer.write_position - self.buffer.read_position
     }
 
+    #[inline]
     pub fn scope_pushed<R, F: Fn(&mut Self) -> R>(
         &mut self,
         scope: Vec<bool>,
@@ -225,6 +250,7 @@ impl UperReader {
         (result, self.scope.pop())
     }
 
+    #[inline]
     pub fn scope_stashed<R, F: Fn(&mut Self) -> R>(&mut self, f: F) -> R {
         self.scope.stash();
         let result = f(self);
@@ -236,6 +262,7 @@ impl UperReader {
 impl Reader for UperReader {
     type Error = UperError;
 
+    #[inline]
     fn read_sequence<
         C: sequence::Constraint,
         S: Sized,
@@ -253,10 +280,11 @@ impl Reader for UperReader {
         }
         let (result, scope) = self.scope_pushed(optionals, f);
         let result = result?; // first error on this before throwing non-informative assert errors
-        assert!(scope.is_empty());
+        debug_assert!(scope.is_empty());
         Ok(result)
     }
 
+    #[inline]
     fn read_sequence_of<C: sequenceof::Constraint, T: ReadableType>(
         &mut self,
     ) -> Result<Vec<T::Type>, Self::Error> {
@@ -275,6 +303,7 @@ impl Reader for UperReader {
         })
     }
 
+    #[inline]
     fn read_enumerated<C: enumerated::Constraint>(&mut self) -> Result<C, Self::Error> {
         if C::EXTENSIBLE {
             self.buffer
@@ -291,6 +320,7 @@ impl Reader for UperReader {
         })
     }
 
+    #[inline]
     fn read_choice<C: choice::Constraint>(&mut self) -> Result<C, Self::Error> {
         self.scope_stashed(|w| {
             if C::EXTENSIBLE {
@@ -309,6 +339,7 @@ impl Reader for UperReader {
         })
     }
 
+    #[inline]
     fn read_opt<T: ReadableType>(
         &mut self,
     ) -> Result<Option<<T as ReadableType>::Type>, Self::Error> {
@@ -324,27 +355,33 @@ impl Reader for UperReader {
         }
     }
 
+    #[inline]
     fn read_int(&mut self, range: (i64, i64)) -> Result<i64, Self::Error> {
         self.buffer.read_int(range)
     }
 
+    #[inline]
     fn read_int_max(&mut self) -> Result<u64, Self::Error> {
         self.buffer.read_int_max()
     }
 
+    #[inline]
     fn read_utf8string<C: utf8string::Constraint>(&mut self) -> Result<String, Self::Error> {
         self.buffer.read_utf8_string()
     }
 
+    #[inline]
     fn read_octet_string<C: octetstring::Constraint>(&mut self) -> Result<Vec<u8>, Self::Error> {
         self.buffer.read_octet_string(bit_buffer_range::<C>())
     }
 
+    #[inline]
     fn read_boolean<C: boolean::Constraint>(&mut self) -> Result<bool, Self::Error> {
         self.buffer.read_bit()
     }
 }
 
+#[inline]
 fn bit_buffer_range<C: octetstring::Constraint>() -> Option<(i64, i64)> {
     match (C::MIN, C::MAX) {
         (None, None) => None,

@@ -18,6 +18,7 @@ impl Constraint for NoConstraint {}
 impl<C: Constraint> WritableType for Boolean<C> {
     type Type = bool;
 
+    #[inline]
     fn write_value<W: Writer>(
         writer: &mut W,
         value: &Self::Type,
@@ -29,6 +30,7 @@ impl<C: Constraint> WritableType for Boolean<C> {
 impl<C: Constraint> ReadableType for Boolean<C> {
     type Type = bool;
 
+    #[inline]
     fn read_value<R: Reader>(reader: &mut R) -> Result<Self::Type, <R as Reader>::Error> {
         reader.read_boolean::<C>()
     }
