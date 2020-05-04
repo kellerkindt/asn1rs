@@ -97,7 +97,7 @@ fn topping_test_deserialize_with_uper() {
 pub struct Pizza {
     #[asn(integer(1..4))]
     size: u8,
-    #[asn(complex)]
+    #[asn(complex(Topping))]
     topping: Topping,
 }
 
@@ -152,9 +152,9 @@ fn pizza_test_uper_3() {
 #[asn(choice)]
 #[derive(Debug, PartialOrd, PartialEq)]
 pub enum WhatToEat {
-    #[asn(complex)]
+    #[asn(complex(Potato))]
     Potato(Potato),
-    #[asn(complex)]
+    #[asn(complex(Pizza))]
     Pizza(Pizza),
 }
 
@@ -470,3 +470,7 @@ fn test_bool_container_uper() {
     assert_eq!(v, uper.read::<BoolContainer>().unwrap());
     assert_eq!(0, uper.bits_remaining());
 }
+
+#[asn(transparent)]
+#[derive(Debug, Default, PartialOrd, PartialEq)]
+pub struct NegativeRangeMin(#[asn(integer(- 12..12))] i8);

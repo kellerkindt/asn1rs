@@ -328,7 +328,13 @@ fn parse_type<'a>(input: &'a ParseBuffer<'a>) -> syn::Result<Type> {
             let range = MaybeRanged::parse(input)?;
             Ok(Type::Integer(range.0.map(|(min, max)| Range(min, max))))
         }
-        "complex" => Ok(Type::TypeReference(String::default())),
+        "complex" => {
+            let content;
+            parenthesized!(content in input);
+            let ident =
+                content.step(|c| c.ident().ok_or_else(|| c.error("Expected type identifier")))?;
+            Ok(Type::TypeReference(ident.to_string()))
+        }
         "option" => {
             let content;
             parenthesized!(content in input);

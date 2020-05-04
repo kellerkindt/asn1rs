@@ -1,5 +1,6 @@
 use proc_macro2::Delimiter;
-use syn::parse::{Parse, ParseBuffer};
+use syn::buffer::Cursor;
+use syn::parse::{Parse, ParseBuffer, StepCursor};
 
 pub struct MaybeRanged(pub Option<(i64, i64)>);
 
@@ -11,20 +12,12 @@ impl Parse for MaybeRanged {
                     .group(Delimiter::Parenthesis)
                     .ok_or_else(|| stepper.error("Expected range"))?;
 
-                let (min, c) = a
-                    .ident()
-                    .map(|(a, b)| (a.to_string(), b))
-                    .or_else(|| a.literal().map(|(a, b)| (a.to_string(), b)))
-                    .ok_or_else(|| stepper.error("Expected min value"))?;
+                let (min, c) = number_potentially_negative(&stepper, a, "Expected min value")?;
 
                 let (_, c) = c.punct().ok_or_else(|| stepper.error("Expected dot"))?;
                 let (_, c) = c.punct().ok_or_else(|| stepper.error("Expected dot"))?;
 
-                let (max, _c) = c
-                    .ident()
-                    .map(|(a, b)| (a.to_string(), b))
-                    .or_else(|| c.literal().map(|(a, b)| (a.to_string(), b)))
-                    .ok_or_else(|| stepper.error("Expected max value"))?;
+                let (max, _c) = number_potentially_negative(&stepper, c, "Expected max value")?;
 
                 let min = min.to_lowercase();
                 let max = max.to_lowercase();
@@ -41,4 +34,31 @@ impl Parse for MaybeRanged {
             Ok(MaybeRanged(None))
         }
     }
+}
+
+fn number_potentially_negative<'a>(
+    stepper: &'a StepCursor<'_, 'a>,
+    a: Cursor<'a>,
+    err: &str,
+) -> Result<(String, Cursor<'a>), syn::Error> {
+    let (min, c) = ident_or_literal_or_punct(&stepper, a, err)?;
+    println!("NUMBER v1 : {}", min);
+    if min == "-" {
+        let (min, c) = ident_or_literal_or_punct(&stepper, c, err)?;
+        Ok((format!("-{}", min), c))
+    } else {
+        Ok((min, c))
+    }
+}
+
+fn ident_or_literal_or_punct<'a>(
+    stepper: &'a StepCursor<'_, 'a>,
+    a: Cursor<'a>,
+    err: &str,
+) -> Result<(String, Cursor<'a>), syn::Error> {
+    a.ident()
+        .map(|(a, b)| (a.to_string(), b))
+        .or_else(|| a.literal().map(|(a, b)| (a.to_string(), b)))
+        .or_else(|| a.punct().map(|(a, b)| (a.to_string(), b)))
+        .ok_or_else(|| stepper.error(err))
 }
