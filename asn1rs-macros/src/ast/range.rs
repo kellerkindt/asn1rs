@@ -42,7 +42,6 @@ fn number_potentially_negative<'a>(
     err: &str,
 ) -> Result<(String, Cursor<'a>), syn::Error> {
     let (min, c) = ident_or_literal_or_punct(&stepper, a, err)?;
-    println!("NUMBER v1 : {}", min);
     if min == "-" {
         let (min, c) = ident_or_literal_or_punct(&stepper, c, err)?;
         Ok((format!("-{}", min), c))

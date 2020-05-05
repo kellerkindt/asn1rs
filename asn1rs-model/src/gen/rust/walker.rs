@@ -6,9 +6,9 @@ use std::fmt::Display;
 
 pub const CRATE_SYN_PREFIX: &str = "::asn1rs::syn::";
 
-pub struct AsnDefExpander;
+pub struct AsnDefWriter;
 
-impl AsnDefExpander {
+impl AsnDefWriter {
     fn write_type_definitions(
         &self,
         scope: &mut Scope,
@@ -467,7 +467,7 @@ impl AsnDefExpander {
 
 #[cfg(test)]
 pub mod tests {
-    use crate::gen::rust::walker::AsnDefExpander;
+    use crate::gen::rust::walker::AsnDefWriter;
     use crate::model::{Definition, Rust, RustType};
     use codegen::Scope;
 
@@ -492,7 +492,7 @@ pub mod tests {
     pub fn test_whatever_struct_type_declaration() {
         let def = simple_whatever_sequence();
         let mut scope = Scope::new();
-        AsnDefExpander.write_type_definitions(&mut scope, &def);
+        AsnDefWriter.write_type_definitions(&mut scope, &def);
         let string = scope.to_string();
         println!("{}", string);
         let mut lines = string.lines().filter(|l| !l.is_empty());
@@ -518,9 +518,9 @@ pub mod tests {
     pub fn test_whatever_struct_constraint_and_read_write_impl() {
         let def = simple_whatever_sequence();
         let mut scope = Scope::new();
-        AsnDefExpander.write_constraints(&mut scope, &def);
-        AsnDefExpander.impl_readable(&mut scope, &def.0);
-        AsnDefExpander.impl_writable(&mut scope, &def.0);
+        AsnDefWriter.write_constraints(&mut scope, &def);
+        AsnDefWriter.impl_readable(&mut scope, &def.0);
+        AsnDefWriter.impl_writable(&mut scope, &def.0);
         let string = scope.to_string();
         println!("{}", string);
 

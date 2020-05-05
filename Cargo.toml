@@ -53,6 +53,7 @@ async-psql = ["asn1rs-model/async-psql", "tokio", "tokio-postgres", "futures", "
 legacy_bit_buffer = []
 macros = ["asn1rs-macros"]
 model = ["asn1rs-model"]
+debug-proc-macro = ["asn1rs-macros/debug-proc-macro"]
 
 [[bench]]
 name = "bitbuffer"
