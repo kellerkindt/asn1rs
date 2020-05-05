@@ -25,6 +25,7 @@ pub use utf8string::Utf8String;
 pub trait Reader {
     type Error;
 
+    #[inline]
     fn read<T: Readable>(&mut self) -> Result<T, Self::Error>
     where
         Self: Sized,
@@ -69,6 +70,7 @@ pub trait Readable: Sized {
 pub trait ReadableType {
     type Type: Sized;
 
+    #[inline]
     fn read_ref<R: Reader>(&self, reader: &mut R) -> Result<Self::Type, R::Error> {
         Self::read_value(reader)
     }
@@ -79,6 +81,7 @@ pub trait ReadableType {
 impl<T: Readable> ReadableType for T {
     type Type = T;
 
+    #[inline]
     fn read_value<R: Reader>(reader: &mut R) -> Result<T, R::Error> {
         T::read(reader)
     }
@@ -87,6 +90,7 @@ impl<T: Readable> ReadableType for T {
 pub trait Writer {
     type Error;
 
+    #[inline]
     fn write<T: Writable>(&mut self, value: &T) -> Result<(), Self::Error>
     where
         Self: Sized,
@@ -137,6 +141,7 @@ pub trait Writable {
 pub trait WritableType {
     type Type;
 
+    #[inline]
     fn write_ref<W: Writer>(&self, writer: &mut W, value: &Self::Type) -> Result<(), W::Error> {
         Self::write_value(writer, value)
     }
