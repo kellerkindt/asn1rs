@@ -246,7 +246,7 @@ impl RustCodeGenerator {
 
     fn asn_attribute(asn: &Asn) -> String {
         format!(
-            "#[asn({}){}{}]",
+            "#[asn({}{}{})]",
             Self::asn_attribute_type(&asn.r#type),
             if asn.tag.is_some() { ", " } else { "" },
             if let Some(tag) = &asn.tag {

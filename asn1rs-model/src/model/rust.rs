@@ -1089,7 +1089,8 @@ mod tests {
                     variants: vec![
                         DataVariant::from_name_type("Abc".to_string(), RustType::VecU8),
                         DataVariant::from_name_type("Def".to_string(), RustType::U64(None)),
-                        DataVariant::from_name_type("Ghi".to_string(), RustType::Bool),
+                        DataVariant::from_name_type("Ghi".to_string(), RustType::Bool)
+                            .with_tag(Tag::Universal(4)),
                     ],
                     extended_after_index: Some(2)
                 })
