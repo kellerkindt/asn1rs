@@ -991,10 +991,7 @@ mod tests {
                 variants: vec![
                     "abc".into(),
                     "def".into(),
-                    EnumeratedVariant {
-                        name: "ghi".to_string(),
-                        number: Some(42),
-                    },
+                    EnumeratedVariant::from_name_number("ghi", 42),
                 ],
                 extension_after: Some(2),
             })

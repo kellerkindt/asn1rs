@@ -14,6 +14,8 @@ pub mod macros {}
 #[cfg(feature = "model")]
 pub mod converter;
 #[cfg(feature = "model")]
+pub use asn1rs_model::ast;
+#[cfg(feature = "model")]
 pub use asn1rs_model::gen;
 #[cfg(feature = "model")]
 pub use asn1rs_model::model;

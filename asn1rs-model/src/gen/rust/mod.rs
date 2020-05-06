@@ -168,7 +168,7 @@ impl RustCodeGenerator {
         (file, scope.to_string())
     }
 
-    fn add_definition(&self, scope: &mut Scope, Definition(name, rust): &Definition<Rust>) {
+    pub fn add_definition(&self, scope: &mut Scope, Definition(name, rust): &Definition<Rust>) {
         match rust {
             Rust::Struct(fields) => Self::add_struct(
                 self.new_struct(scope, name, false),

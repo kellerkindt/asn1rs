@@ -827,11 +827,23 @@ pub struct Enumerated {
 }
 
 impl Enumerated {
+    pub fn from_variants(variants: impl Into<Vec<EnumeratedVariant>>) -> Self {
+        Self {
+            variants: variants.into(),
+            extension_after: None,
+        }
+    }
+
     pub fn from_names<I: ToString>(variants: impl Iterator<Item = I>) -> Self {
         Self {
             variants: variants.map(EnumeratedVariant::from_name).collect(),
             extension_after: None,
         }
+    }
+
+    pub const fn with_extension_after(mut self, extension_after: Option<usize>) -> Self {
+        self.extension_after = extension_after;
+        self
     }
 
     pub fn len(&self) -> usize {
@@ -882,10 +894,9 @@ impl TryFrom<&mut Peekable<IntoIter<Token>>> for Enumerated {
                 let token = Model::<Asn>::next(iter)?;
 
                 if token.eq_separator(',') || token.eq_separator('}') {
-                    enumerated.variants.push(EnumeratedVariant {
-                        name: variant_name,
-                        number: None,
-                    });
+                    enumerated
+                        .variants
+                        .push(EnumeratedVariant::from_name(variant_name));
                     loop_ctrl_separator!(token);
                 } else if token.eq_separator('(') {
                     let token = Model::<Asn>::next(iter)?;
@@ -894,10 +905,9 @@ impl TryFrom<&mut Peekable<IntoIter<Token>>> for Enumerated {
                         .and_then(|t| t.parse::<usize>().ok())
                         .ok_or_else(|| Error::invalid_number_for_enum_variant(token))?;
                     Model::<Asn>::next_separator_ignore_case(iter, ')')?;
-                    enumerated.variants.push(EnumeratedVariant {
-                        name: variant_name,
-                        number: Some(number),
-                    });
+                    enumerated
+                        .variants
+                        .push(EnumeratedVariant::from_name_number(variant_name, number));
                     loop_ctrl_separator!(Model::<Asn>::next(iter)?);
                 } else {
                     loop_ctrl_separator!(token);
@@ -918,10 +928,7 @@ pub struct EnumeratedVariant {
 #[cfg(test)]
 impl<S: ToString> From<S> for EnumeratedVariant {
     fn from(s: S) -> Self {
-        EnumeratedVariant {
-            name: s.to_string(),
-            number: None,
-        }
+        EnumeratedVariant::from_name(s)
     }
 }
 
@@ -931,6 +938,18 @@ impl EnumeratedVariant {
             name: name.to_string(),
             number: None,
         }
+    }
+
+    pub fn from_name_number<I: ToString>(name: I, number: usize) -> Self {
+        Self {
+            name: name.to_string(),
+            number: Some(number),
+        }
+    }
+
+    pub const fn with_number_opt(mut self, number: Option<usize>) -> Self {
+        self.number = number;
+        self
     }
 
     pub fn name(&self) -> &str {
@@ -1344,14 +1363,8 @@ pub(crate) mod tests {
                     "WithExplicitNumber".to_string(),
                     Type::Enumerated(Enumerated {
                         variants: vec![
-                            EnumeratedVariant {
-                                name: "abc".to_string(),
-                                number: Some(1),
-                            },
-                            EnumeratedVariant {
-                                name: "def".to_string(),
-                                number: Some(9),
-                            }
+                            EnumeratedVariant::from_name_number("abc", 1),
+                            EnumeratedVariant::from_name_number("def", 9)
                         ],
                         extension_after: None,
                     })
@@ -1361,14 +1374,8 @@ pub(crate) mod tests {
                     "WithExplicitNumberAndDefaultMark".to_string(),
                     Type::Enumerated(Enumerated {
                         variants: vec![
-                            EnumeratedVariant {
-                                name: "abc".to_string(),
-                                number: Some(4),
-                            },
-                            EnumeratedVariant {
-                                name: "def".to_string(),
-                                number: Some(7),
-                            },
+                            EnumeratedVariant::from_name_number("abc", 4),
+                            EnumeratedVariant::from_name_number("def", 7),
                         ],
                         extension_after: Some(1),
                     })
@@ -1378,18 +1385,9 @@ pub(crate) mod tests {
                     "WithExplicitNumberAndDefaultMarkV2".to_string(),
                     Type::Enumerated(Enumerated {
                         variants: vec![
-                            EnumeratedVariant {
-                                name: "abc".to_string(),
-                                number: Some(8),
-                            },
-                            EnumeratedVariant {
-                                name: "def".to_string(),
-                                number: Some(1),
-                            },
-                            EnumeratedVariant {
-                                name: "v2".to_string(),
-                                number: Some(11),
-                            }
+                            EnumeratedVariant::from_name_number("abc", 8),
+                            EnumeratedVariant::from_name_number("def", 1),
+                            EnumeratedVariant::from_name_number("v2", 11)
                         ],
                         extension_after: Some(1),
                     })

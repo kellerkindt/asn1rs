@@ -1,7 +1,6 @@
 extern crate proc_macro;
-extern crate proc_macro2;
 
-mod ast;
+use asn1rs_model::ast;
 
 use asn1rs_model::gen::rust::RustCodeGenerator as RustGenerator;
 use asn1rs_model::gen::Generator;
@@ -33,5 +32,5 @@ pub fn asn_to_rust(item: TokenStream) -> TokenStream {
 
 #[proc_macro_attribute]
 pub fn asn(attr: TokenStream, item: TokenStream) -> TokenStream {
-    ast::parse(attr, item)
+    TokenStream::from(ast::parse(attr.into(), item.into()))
 }

@@ -41,23 +41,26 @@ fn number_potentially_negative<'a>(
     a: Cursor<'a>,
     err: &str,
 ) -> Result<(String, Cursor<'a>), syn::Error> {
-    let (min, c) = ident_or_literal_or_punct(&stepper, a, err)?;
+    let (min, c) = ident_or_literal_or_punct_or_err(&stepper, a, err)?;
     if min == "-" {
-        let (min, c) = ident_or_literal_or_punct(&stepper, c, err)?;
+        let (min, c) = ident_or_literal_or_punct_or_err(&stepper, c, err)?;
         Ok((format!("-{}", min), c))
     } else {
         Ok((min, c))
     }
 }
 
-fn ident_or_literal_or_punct<'a>(
+pub fn ident_or_literal_or_punct_or_err<'a>(
     stepper: &'a StepCursor<'_, 'a>,
     a: Cursor<'a>,
     err: &str,
 ) -> Result<(String, Cursor<'a>), syn::Error> {
+    ident_or_literal_or_punct(a).ok_or_else(|| stepper.error(err))
+}
+
+pub fn ident_or_literal_or_punct(a: Cursor<'_>) -> Option<(String, Cursor<'_>)> {
     a.ident()
         .map(|(a, b)| (a.to_string(), b))
         .or_else(|| a.literal().map(|(a, b)| (a.to_string(), b)))
         .or_else(|| a.punct().map(|(a, b)| (a.to_string(), b)))
-        .ok_or_else(|| stepper.error(err))
 }
