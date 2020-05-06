@@ -510,7 +510,7 @@ impl<T> Definition<T> {
     }
 }
 
-impl Tagged for Definition<Asn> {
+impl TagProperty for Definition<Asn> {
     fn tag(&self) -> Option<Tag> {
         self.1.tag()
     }
@@ -530,7 +530,7 @@ pub struct Field<T> {
     pub role: T,
 }
 
-impl<T: Tagged> Tagged for Field<T> {
+impl<T: TagProperty> TagProperty for Field<T> {
     fn tag(&self) -> Option<Tag> {
         self.role.tag()
     }
@@ -583,7 +583,7 @@ impl TryFrom<&mut Peekable<IntoIter<Token>>> for Tag {
     }
 }
 
-pub trait Tagged {
+pub trait TagProperty {
     fn tag(&self) -> Option<Tag>;
 
     fn set_tag(&mut self, tag: Tag);
@@ -649,7 +649,7 @@ impl From<Type> for Asn {
     }
 }
 
-impl Tagged for Asn {
+impl TagProperty for Asn {
     fn tag(&self) -> Option<Tag> {
         self.tag
     }
@@ -806,7 +806,7 @@ impl ChoiceVariant {
     }
 }
 
-impl Tagged for ChoiceVariant {
+impl TagProperty for ChoiceVariant {
     fn tag(&self) -> Option<Tag> {
         self.tag
     }

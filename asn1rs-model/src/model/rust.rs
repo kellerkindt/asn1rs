@@ -3,7 +3,7 @@ use crate::model::Range;
 use crate::model::Type as AsnType;
 use crate::model::{Asn, ChoiceVariant};
 use crate::model::{Definition, Type};
-use crate::model::{Import, Tag, Tagged};
+use crate::model::{Import, Tag, TagProperty};
 
 const I8_MAX: i64 = i8::max_value() as i64;
 const I16_MAX: i64 = i16::max_value() as i64;
@@ -355,7 +355,7 @@ impl DataVariant {
     }
 }
 
-impl Tagged for DataVariant {
+impl TagProperty for DataVariant {
     fn tag(&self) -> Option<Tag> {
         self.tag
     }

@@ -20,7 +20,7 @@ use crate::model::Model;
 use crate::model::Range;
 use crate::model::Rust;
 use crate::model::RustType;
-use crate::model::Tagged;
+use crate::model::TagProperty;
 use crate::model::{Asn, Definition, Tag, Type as AsnType, Type};
 use codegen::Block;
 use codegen::Enum;
