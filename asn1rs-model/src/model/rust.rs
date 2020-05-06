@@ -342,11 +342,6 @@ impl DataVariant {
         }
     }
 
-    pub const fn with_tag_opt(mut self, tag: Option<Tag>) -> Self {
-        self.tag = tag;
-        self
-    }
-
     pub fn fallback_representation(&self) -> &(String, RustType) {
         &self.name_type
     }
