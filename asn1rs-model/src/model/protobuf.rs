@@ -137,10 +137,10 @@ impl Model<Protobuf> {
             }
             Rust::DataEnum(enumeration) => {
                 let mut proto_enum = Vec::with_capacity(enumeration.len());
-                for (name, rust) in enumeration.variants() {
+                for variant in enumeration.variants() {
                     proto_enum.push((
-                        proto_field_name(name),
-                        Self::definition_type_to_protobuf_type(rust),
+                        proto_field_name(variant.name()),
+                        Self::definition_type_to_protobuf_type(variant.r#type()),
                     ))
                 }
                 Protobuf::Message(vec![(
@@ -291,7 +291,9 @@ mod tests {
         test_model_definition_conversion(
             &[Definition(
                 "SuchDataEnum".into(),
-                Rust::DataEnum(vec![("MuchVariant".into(), RustType::String)].into()),
+                Rust::DataEnum(
+                    vec![DataVariant::from_name_type("MuchVariant", RustType::String)].into(),
+                ),
             )],
             &[Definition(
                 "SuchDataEnum".into(),

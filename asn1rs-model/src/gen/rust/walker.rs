@@ -35,8 +35,8 @@ impl AsnDefWriter {
                     "type AsnDef{} = {}Choice<{}>;",
                     name, CRATE_SYN_PREFIX, name
                 ));
-                for (field, r#type) in enm.variants() {
-                    self.write_type_declaration(scope, &name, &field, r#type);
+                for variant in enm.variants() {
+                    self.write_type_declaration(scope, &name, variant.name(), variant.r#type());
                 }
             }
             Rust::TupleStruct(field) => {
@@ -289,8 +289,8 @@ impl AsnDefWriter {
             .ret("usize")
             .push_block({
                 let mut match_block = Block::new("match self");
-                for (index, (variant, _type)) in choice.variants().enumerate() {
-                    match_block.line(format!("Self::{}(_) => {},", variant, index));
+                for (index, variant) in choice.variants().enumerate() {
+                    match_block.line(format!("Self::{}(_) => {},", variant.name(), index));
                 }
                 match_block
             });
@@ -302,11 +302,12 @@ impl AsnDefWriter {
             .ret("Result<(), W::Error>")
             .push_block({
                 let mut match_block = Block::new("match self");
-                for (variant, _type) in choice.variants() {
-                    let combined = Self::combined_field_type_name(name, variant);
+                for variant in choice.variants() {
+                    let combined = Self::combined_field_type_name(name, variant.name());
                     match_block.line(format!(
                         "Self::{}(c) => AsnDef{}::write_value(writer, c),",
-                        variant, combined
+                        variant.name(),
+                        combined
                     ));
                 }
                 match_block
@@ -319,11 +320,13 @@ impl AsnDefWriter {
             .ret("Result<Option<Self>, R::Error>")
             .push_block({
                 let mut match_block = Block::new("match index");
-                for (index, (variant, _type)) in choice.variants().enumerate() {
-                    let combined = Self::combined_field_type_name(name, variant);
+                for (index, variant) in choice.variants().enumerate() {
+                    let combined = Self::combined_field_type_name(name, variant.name());
                     match_block.line(format!(
                         "{} => Ok(Some(Self::{}(AsnDef{}::read_value(reader)?))),",
-                        index, variant, combined
+                        index,
+                        variant.name(),
+                        combined
                     ));
                 }
                 match_block.line("_ => Ok(None),");

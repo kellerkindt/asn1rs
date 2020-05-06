@@ -255,9 +255,9 @@ impl UperSerializer {
             function.line("let variant = 0;");
         }
         let mut block = Block::new("match variant");
-        for (i, (variant, role)) in enumeration.variants().enumerate() {
-            let mut block_case = Block::new(&format!("{} => Ok({}::{}(", i, name, variant));
-            let var_name = RustCodeGenerator::rust_module_name(variant);
+        for (i, variant) in enumeration.variants().enumerate() {
+            let mut block_case = Block::new(&format!("{} => Ok({}::{}(", i, name, variant.name()));
+            let var_name = RustCodeGenerator::rust_module_name(variant.name());
 
             if Self::is_extended_variant(enumeration, i) {
                 block_case.line(
@@ -270,9 +270,13 @@ impl UperSerializer {
             }
             Self::impl_read_fn_for_type(
                 &mut block_case,
-                &role.to_inner_type_string(),
-                Some(Member::Local(var_name, false, role.is_primitive())),
-                role,
+                &variant.r#type().to_inner_type_string(),
+                Some(Member::Local(
+                    var_name,
+                    false,
+                    variant.r#type().is_primitive(),
+                )),
+                variant.r#type(),
             );
 
             block_case.after(")),");
@@ -513,9 +517,10 @@ impl UperSerializer {
 
     fn impl_write_fn_for_data_enum(function: &mut Function, name: &str, enumeration: &DataEnum) {
         let mut block = Block::new("match self");
-        for (i, (variant, role)) in enumeration.variants().enumerate() {
-            let var_name = RustCodeGenerator::rust_module_name(variant);
-            let mut block_case = Block::new(&format!("{}::{}({}) =>", name, variant, var_name));
+        for (i, variant) in enumeration.variants().enumerate() {
+            let var_name = RustCodeGenerator::rust_module_name(variant.name());
+            let mut block_case =
+                Block::new(&format!("{}::{}({}) =>", name, variant.name(), var_name));
 
             if enumeration.len() > 1 {
                 let is_extended_variant = Self::is_extended_variant(enumeration, i);
@@ -532,8 +537,12 @@ impl UperSerializer {
                         );
                         Self::impl_write_fn_for_type(
                             &mut block_substring,
-                            Some(Member::Local(var_name.clone(), false, role.is_primitive())),
-                            role,
+                            Some(Member::Local(
+                                var_name.clone(),
+                                false,
+                                variant.r#type().is_primitive(),
+                            )),
+                            variant.r#type(),
                         );
                         block_substring.line("Ok(())");
                         block_substring.after(")?;");
@@ -549,8 +558,12 @@ impl UperSerializer {
                 if !is_extended_variant {
                     Self::impl_write_fn_for_type(
                         &mut block_case,
-                        Some(Member::Local(var_name, false, role.is_primitive())),
-                        role,
+                        Some(Member::Local(
+                            var_name,
+                            false,
+                            variant.r#type().is_primitive(),
+                        )),
+                        variant.r#type(),
                     );
                 }
             }

@@ -20,6 +20,7 @@ use crate::model::Model;
 use crate::model::Range;
 use crate::model::Rust;
 use crate::model::RustType;
+use crate::model::Tagged;
 use crate::model::{Asn, Definition, Tag, Type as AsnType, Type};
 use codegen::Block;
 use codegen::Enum;
@@ -217,13 +218,18 @@ impl RustCodeGenerator {
     }
 
     fn add_data_enum(en_m: &mut Enum, _name: &str, enumeration: &DataEnum) {
-        for (variant, rust_type) in enumeration.variants() {
+        for variant in enumeration.variants() {
             en_m.new_variant(&format!(
                 "{} {}({})",
-                // TODO assuming untagged
-                Self::asn_attribute(&rust_type.clone().into_asn().untagged()),
-                Self::rust_variant_name(variant),
-                rust_type.to_string(),
+                Self::asn_attribute(
+                    &variant
+                        .r#type()
+                        .clone()
+                        .into_asn()
+                        .opt_tagged(variant.tag())
+                ),
+                Self::rust_variant_name(variant.name()),
+                variant.r#type().to_string(),
             ));
         }
     }
@@ -489,9 +495,9 @@ impl RustCodeGenerator {
         Self::impl_data_enum_values_fn(implementation, name, enumeration);
         Self::impl_data_enum_value_index_fn(implementation, name, enumeration);
 
-        for (variant_name, field_type) in enumeration.variants() {
-            let field_name = Self::rust_module_name(variant_name);
-            Self::add_min_max_fn_if_applicable(implementation, Some(&field_name), field_type);
+        for variant in enumeration.variants() {
+            let field_name = Self::rust_module_name(variant.name());
+            Self::add_min_max_fn_if_applicable(implementation, Some(&field_name), variant.r#type());
         }
 
         implementation
@@ -504,11 +510,11 @@ impl RustCodeGenerator {
             .ret(format!("[Self; {}]", enumeration.len()))
             .line("[");
 
-        for (variant, _) in enumeration.variants() {
+        for variant in enumeration.variants() {
             values_fn.line(format!(
                 "{}::{}(Default::default()),",
                 name,
-                Self::rust_variant_name(variant)
+                Self::rust_variant_name(variant.name())
             ));
         }
         values_fn.line("]");
@@ -529,11 +535,11 @@ impl RustCodeGenerator {
         enumeration
             .variants()
             .enumerate()
-            .for_each(|(ordinal, (variant, _))| {
+            .for_each(|(ordinal, variant)| {
                 block.line(format!(
                     "{}::{}(_) => {},",
                     name,
-                    Self::rust_variant_name(variant),
+                    Self::rust_variant_name(variant.name()),
                     ordinal
                 ));
             });
@@ -550,7 +556,7 @@ impl RustCodeGenerator {
             .line(format!(
                 "{}::{}(Default::default())",
                 name,
-                Self::rust_variant_name(&enumeration.variants().next().unwrap().0)
+                Self::rust_variant_name(enumeration.variants().next().unwrap().name())
             ));
     }
 

@@ -1,6 +1,6 @@
 use crate::gen::RustCodeGenerator;
-use crate::model::rust::DataEnum;
 use crate::model::rust::PlainEnum;
+use crate::model::rust::{DataEnum, DataVariant};
 use crate::model::Definition;
 use crate::model::Model;
 use crate::model::Range;
@@ -194,7 +194,7 @@ impl Model<Sql> {
         // TODO
         if !enumeration
             .variants()
-            .map(|(name, _)| FOREIGN_KEY_DEFAULT_COLUMN.eq_ignore_ascii_case(name))
+            .map(|variant| FOREIGN_KEY_DEFAULT_COLUMN.eq_ignore_ascii_case(variant.name()))
             .any(|found| found)
         {
             columns.push(Column {
@@ -203,10 +203,10 @@ impl Model<Sql> {
                 primary_key: true,
             });
         }
-        for (column, rust) in enumeration.variants() {
+        for variant in enumeration.variants() {
             columns.push(Column {
-                name: Self::sql_column_name(column),
-                sql: rust.to_sql().nullable(),
+                name: Self::sql_column_name(variant.name()),
+                sql: variant.r#type().to_sql().nullable(),
                 primary_key: false,
             });
         }
@@ -217,13 +217,19 @@ impl Model<Sql> {
                 vec![Constraint::OneNotNull(
                     enumeration
                         .variants()
-                        .map(|(name, _)| RustCodeGenerator::rust_module_name(name))
+                        .map(|variant| RustCodeGenerator::rust_module_name(variant.name()))
                         .collect::<Vec<String>>(),
                 )],
             ),
         ));
 
-        Self::append_index_and_abandon_function(name, enumeration.variants(), definitions);
+        Self::append_index_and_abandon_function(
+            name,
+            enumeration
+                .variants()
+                .map(DataVariant::fallback_representation),
+            definitions,
+        );
     }
 
     fn add_index_if_applicable(
@@ -531,8 +537,8 @@ mod tests {
                 "PersonState".into(),
                 Rust::DataEnum(
                     vec![
-                        ("DeadSince".into(), RustType::String),
-                        ("Alive".into(), RustType::Complex("Person".into())),
+                        DataVariant::from_name_type("DeadSince", RustType::String),
+                        DataVariant::from_name_type("Alive", RustType::Complex("Person".into())),
                     ]
                     .into(),
                 ),

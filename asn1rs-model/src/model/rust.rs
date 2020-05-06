@@ -1,9 +1,9 @@
-use crate::model::Import;
 use crate::model::Model;
 use crate::model::Range;
 use crate::model::Type as AsnType;
 use crate::model::{Asn, ChoiceVariant};
 use crate::model::{Definition, Type};
+use crate::model::{Import, Tag, Tagged};
 
 const I8_MAX: i64 = i8::max_value() as i64;
 const I16_MAX: i64 = i16::max_value() as i64;
@@ -16,7 +16,7 @@ const U32_MAX: u64 = u32::max_value() as u64;
 //const U64_MAX: u64 = u64::max_value() as u64;
 
 pub type PlainEnum = Enumeration<String>;
-pub type DataEnum = Enumeration<(String, RustType)>;
+pub type DataEnum = Enumeration<DataVariant>;
 
 /// Integers are ordered where Ixx < Uxx so
 /// that when comparing two instances `RustType`
@@ -328,6 +328,52 @@ impl<T> Enumeration<T> {
     }
 }
 
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub struct DataVariant {
+    name_type: (String, RustType),
+    tag: Option<Tag>,
+}
+
+impl DataVariant {
+    pub fn from_name_type<T: ToString>(name: T, r#type: RustType) -> Self {
+        Self {
+            name_type: (name.to_string(), r#type),
+            tag: None,
+        }
+    }
+
+    pub const fn with_tag_opt(mut self, tag: Option<Tag>) -> Self {
+        self.tag = tag;
+        self
+    }
+
+    pub fn fallback_representation(&self) -> &(String, RustType) {
+        &self.name_type
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name_type.0
+    }
+
+    pub fn r#type(&self) -> &RustType {
+        &self.name_type.1
+    }
+}
+
+impl Tagged for DataVariant {
+    fn tag(&self) -> Option<Tag> {
+        self.tag
+    }
+
+    fn set_tag(&mut self, tag: Tag) {
+        self.tag = Some(tag);
+    }
+
+    fn reset_tag(&mut self) {
+        self.tag = None;
+    }
+}
+
 impl Model<Rust> {
     pub fn convert_asn_to_rust(asn_model: &Model<Asn>) -> Model<Rust> {
         let mut model = Model {
@@ -401,11 +447,13 @@ impl Model<Rust> {
                     extended_after_index: choice.extension_after_index(),
                 };
 
-                for ChoiceVariant { name, r#type, .. } in choice.variants() {
+                for ChoiceVariant { name, r#type, tag } in choice.variants() {
                     let rust_name = format!("{}{}", name, rust_struct_or_enum_name(&name));
                     let rust_role = Self::definition_type_to_rust_type(&rust_name, &r#type, defs);
                     let rust_field_name = rust_variant_name(&name);
-                    enumeration.variants.push((rust_field_name, rust_role));
+                    enumeration.variants.push(
+                        DataVariant::from_name_type(rust_field_name, rust_role).with_tag_opt(*tag),
+                    );
                 }
 
                 defs.push(Definition(name.into(), Rust::DataEnum(enumeration)));
@@ -689,9 +737,9 @@ mod tests {
                 "WoahDecision".into(),
                 Rust::DataEnum(
                     vec![
-                        ("This".into(), RustType::Complex("This".into())),
-                        ("That".into(), RustType::Complex("That".into())),
-                        ("Neither".into(), RustType::Complex("Neither".into())),
+                        DataVariant::from_name_type("This", RustType::Complex("This".into())),
+                        DataVariant::from_name_type("That", RustType::Complex("That".into())),
+                        DataVariant::from_name_type("Neither", RustType::Complex("Neither".into())),
                     ]
                     .into()
                 )
@@ -793,8 +841,8 @@ mod tests {
                 "SimpleChoiceTest".into(),
                 Rust::DataEnum(
                     vec![
-                        ("BerndDasBrot".into(), RustType::String),
-                        ("NochSoEinBrot".into(), RustType::VecU8),
+                        DataVariant::from_name_type("BerndDasBrot", RustType::String),
+                        DataVariant::from_name_type("NochSoEinBrot", RustType::VecU8),
                     ]
                     .into()
                 )
@@ -831,12 +879,12 @@ mod tests {
                 "ListChoiceTestWithNestedList".into(),
                 Rust::DataEnum(
                     vec![
-                        (
-                            "NormalList".into(),
+                        DataVariant::from_name_type(
+                            "NormalList",
                             RustType::Vec(Box::new(RustType::String))
                         ),
-                        (
-                            "NESTEDList".into(),
+                        DataVariant::from_name_type(
+                            "NESTEDList",
                             RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::VecU8))))
                         ),
                     ]
@@ -1039,9 +1087,9 @@ mod tests {
                 "Extensible".into(),
                 Rust::DataEnum(DataEnum {
                     variants: vec![
-                        ("Abc".to_string(), RustType::VecU8),
-                        ("Def".to_string(), RustType::U64(None)),
-                        ("Ghi".to_string(), RustType::Bool),
+                        DataVariant::from_name_type("Abc".to_string(), RustType::VecU8),
+                        DataVariant::from_name_type("Def".to_string(), RustType::U64(None)),
+                        DataVariant::from_name_type("Ghi".to_string(), RustType::Bool),
                     ],
                     extended_after_index: Some(2)
                 })

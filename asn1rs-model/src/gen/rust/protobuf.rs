@@ -243,21 +243,22 @@ impl ProtobufSerializer {
     fn impl_read_fn_for_data_enum(function: &mut Function, name: &str, enumeration: &DataEnum) {
         function.line("let tag = reader.read_tag()?;");
         let mut block_match = Block::new("match tag.0");
-        for (field, (variant, role)) in enumeration.variants().enumerate() {
+        for (field, variant) in enumeration.variants().enumerate() {
             let mut block_case = Block::new(&format!(
                 "{}{} =>",
                 field + 1, // + 1 for protobuf offset
-                if role.to_protobuf().is_primitive() {
+                if variant.r#type().to_protobuf().is_primitive() {
                     "".into()
                 } else {
                     format!(" if tag.1 == {}Format::LengthDelimited", Self::CODEC)
                 },
             ));
-            let complex_name = if let RustType::Complex(name) = role.clone().into_inner_type() {
-                Some(name)
-            } else {
-                None
-            };
+            let complex_name =
+                if let RustType::Complex(name) = variant.r#type().clone().into_inner_type() {
+                    Some(name)
+                } else {
+                    None
+                };
             if let Some(complex_name) = complex_name {
                 block_case.line("let bytes = reader.read_bytes()?;");
                 block_case.line(format!(
@@ -270,13 +271,13 @@ impl ProtobufSerializer {
                 // primitive
                 block_case.line(format!(
                     "let value = reader.read_{}()?;",
-                    role.to_protobuf().to_string()
+                    variant.r#type().to_protobuf().to_string()
                 ));
             }
             block_case.line(format!(
                 "Ok({}::{}(value))",
                 name,
-                RustCodeGenerator::rust_variant_name(variant)
+                RustCodeGenerator::rust_variant_name(variant.name())
             ));
             block_match.push_block(block_case);
         }
@@ -483,13 +484,13 @@ impl ProtobufSerializer {
 
     fn impl_write_fn_for_data_enum(function: &mut Function, name: &str, enumeration: &DataEnum) {
         let mut block_match = Block::new("match self");
-        for (field, (variant, role)) in enumeration.variants().enumerate() {
+        for (field, variant) in enumeration.variants().enumerate() {
             let mut block_case = Block::new(&format!(
                 "{}::{}(value) =>",
                 name,
-                RustCodeGenerator::rust_variant_name(variant),
+                RustCodeGenerator::rust_variant_name(variant.name()),
             ));
-            Self::impl_write_field(field + 1, role, "value", &mut block_case, true);
+            Self::impl_write_field(field + 1, variant.r#type(), "value", &mut block_case, true);
             block_match.push_block(block_case);
         }
         function.push_block(block_match);
@@ -510,12 +511,12 @@ impl ProtobufSerializer {
             Rust::Enum(_) => Some("VarInt"),
             Rust::DataEnum(enumeration) => {
                 let mut block_match = Block::new("match self");
-                for (variant, role) in enumeration.variants() {
+                for variant in enumeration.variants() {
                     block_match.line(format!(
                         "{}::{}(value) => {},",
                         name,
-                        RustCodeGenerator::rust_variant_name(variant),
-                        Self::role_to_format(role, "value"),
+                        RustCodeGenerator::rust_variant_name(variant.name()),
+                        Self::role_to_format(variant.r#type(), "value"),
                     ));
                 }
                 function.push_block(block_match);
@@ -568,16 +569,16 @@ impl ProtobufSerializer {
             }
             Rust::DataEnum(enumeration) => {
                 let mut block_match = Block::new("match self");
-                for (variant, _role) in enumeration.variants() {
+                for variant in enumeration.variants() {
                     let mut block_case = Block::new(&format!(
                         "{}::{}(value) => ",
                         name,
-                        RustCodeGenerator::rust_variant_name(variant),
+                        RustCodeGenerator::rust_variant_name(variant.name()),
                     ));
                     let mut block_if = Block::new(&format!(
                         "if let {}::{}(ref other_value) = other",
                         name,
-                        RustCodeGenerator::rust_variant_name(variant),
+                        RustCodeGenerator::rust_variant_name(variant.name()),
                     ));
                     block_if.line(format!(
                         "value.{}_eq(other_value)",

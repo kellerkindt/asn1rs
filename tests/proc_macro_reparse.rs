@@ -49,6 +49,7 @@ fn test_standard_choice() {
 END"#,
     )
 }
+
 fn parse_asn_map_to_rust_map_to_stringify_with_proc_macro_annotation_re_parse_check_equal(
     asn: &str,
 ) {
@@ -67,6 +68,11 @@ fn parse_asn_map_to_rust_map_to_stringify_with_proc_macro_annotation_re_parse_ch
             .join("\n")
             .parse::<TokenStream>()
             .unwrap();
+
+        println!("---");
+        println!("ATTRIBUTE: {}", attribute.to_string());
+        println!("BODY:      {}", body.to_string());
+        println!("---");
 
         let re_parsed = asn1rs::ast::parse_asn_definition(attribute, body)
             .map(|(d, _item)| d)
