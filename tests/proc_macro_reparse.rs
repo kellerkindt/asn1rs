@@ -25,7 +25,7 @@ fn test_standard_enum() {
     parse_asn_map_to_rust_map_to_stringify_with_proc_macro_annotation_re_parse_check_equal(
         r#"BasicSchema DEFINITIONS AUTOMATIC TAGS ::= BEGIN
 
-  Enum ::= ENUMERATED {
+  MyType ::= [UNIVERSAL 5] ENUMERATED {
     implicit,
     number(7),
     wow
@@ -40,7 +40,22 @@ fn test_standard_choice() {
     parse_asn_map_to_rust_map_to_stringify_with_proc_macro_annotation_re_parse_check_equal(
         r#"BasicSchema DEFINITIONS AUTOMATIC TAGS ::= BEGIN
 
-  Choice ::= Choice {
+  MyType ::= [PRIVATE 1] Choice {
+    abc Utf8String,
+    def [APPLICATION 7] INTEGER,
+    ghi Utf8String
+  }
+  
+END"#,
+    )
+}
+
+#[test]
+fn test_standard_sequence() {
+    parse_asn_map_to_rust_map_to_stringify_with_proc_macro_annotation_re_parse_check_equal(
+        r#"BasicSchema DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+  MyType ::= [5] Sequence {
     abc Utf8String,
     def [APPLICATION 7] INTEGER,
     ghi Utf8String
