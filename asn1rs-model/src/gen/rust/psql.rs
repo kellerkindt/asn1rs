@@ -302,22 +302,24 @@ impl PsqlInserter {
 
     fn impl_data_enum_insert_fn(function: &mut Function, name: &str, enumeration: &DataEnum) {
         let mut variables = Vec::with_capacity(enumeration.len());
-        for (variant, rust) in enumeration.variants() {
+        for variant in enumeration.variants() {
             let variable = RustCodeGenerator::rust_field_name(
-                &RustCodeGenerator::rust_module_name(variant),
+                &RustCodeGenerator::rust_module_name(variant.name()),
                 true,
             );
-            let sql_primitive = Model::<Sql>::is_primitive(rust);
+            let sql_primitive = Model::<Sql>::is_primitive(variant.r#type());
             variables.push(format!("&{}", variable));
             let mut block_if = Block::new(&format!(
                 "let {} = if let {}::{}(value) = self",
-                variable, name, variant
+                variable,
+                name,
+                variant.name()
             ));
 
             if sql_primitive {
                 block_if.line(format!(
                     "Some({})",
-                    Self::wrap_for_insert_in_as_or_from_if_required("*value", rust)
+                    Self::wrap_for_insert_in_as_or_from_if_required("*value", variant.r#type())
                         .unwrap_or_else(|| "value".to_string())
                 ));
             } else {
@@ -595,15 +597,26 @@ impl PsqlInserter {
                 .join(", ")
         ));
         let mut block = Block::new("match index");
-        for (index, (variant, rust)) in enumeration.variants().enumerate() {
-            let mut block_case =
-                Block::new(&format!("{} => Ok({}::{}(", index + 1, name, variant,));
+        for (index, variant) in enumeration.variants().enumerate() {
+            let mut block_case = Block::new(&format!(
+                "{} => Ok({}::{}(",
+                index + 1,
+                name,
+                variant.name()
+            ));
 
-            if Model::<Sql>::is_primitive(rust.as_inner_type()) {
-                if let Some(wrap) = Self::wrap_for_query_in_as_or_from_if_required("", rust) {
+            if Model::<Sql>::is_primitive(variant.r#type().as_inner_type()) {
+                if let Some(wrap) =
+                    Self::wrap_for_query_in_as_or_from_if_required("", variant.r#type())
+                {
                     block_case.line(format!(
                         "row.get_opt::<_, {}>({}).ok_or_else({}::no_result)??{}",
-                        rust.as_inner_type().to_sql().to_rust().to_string(),
+                        variant
+                            .r#type()
+                            .as_inner_type()
+                            .to_sql()
+                            .to_rust()
+                            .to_string(),
                         index + 1,
                         ERROR_TYPE,
                         wrap
@@ -611,7 +624,12 @@ impl PsqlInserter {
                 } else {
                     block_case.line(format!(
                         "row.get_opt::<_, {}>({}).ok_or_else({}::no_result)??",
-                        rust.as_inner_type().to_sql().to_rust().to_string(),
+                        variant
+                            .r#type()
+                            .as_inner_type()
+                            .to_sql()
+                            .to_rust()
+                            .to_string(),
                         index + 1,
                         ERROR_TYPE
                     ));
@@ -619,7 +637,7 @@ impl PsqlInserter {
             } else {
                 block_case.line(&format!(
                     "{}::query_with(transaction, row.get({}))?",
-                    rust.clone().into_inner_type().to_string(),
+                    variant.r#type().clone().into_inner_type().to_string(),
                     index + 1
                 ));
             }

@@ -45,7 +45,7 @@ pub(crate) fn data_enum_insert_statement(name: &str, enumeration: &DataEnum) -> 
         name,
         enumeration
             .variants()
-            .map(|(name, _)| RustCodeGenerator::rust_module_name(name))
+            .map(|variant| RustCodeGenerator::rust_module_name(variant.name()))
             .collect::<Vec<String>>()
             .join(", "),
         enumeration

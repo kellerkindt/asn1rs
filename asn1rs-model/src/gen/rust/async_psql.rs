@@ -53,13 +53,13 @@ impl GeneratorSupplement<Rust> for AsyncPsqlInserter {
         Self::append_retrieve_for_container_type(name, impl_scope);
 
         let fn_load = create_load_fn(impl_scope, true);
-        for (index, (variant, v_type)) in enumeration.variants().enumerate() {
+        for (index, variant) in enumeration.variants().enumerate() {
             let mut block = Block::new(&format!(
                 "if row.try_get::<usize, Option<i32>>({})?.is_some()",
                 index + 1
             ));
-            Self::append_load_field(false, name, &mut block, index, "value", v_type);
-            block.line(&format!("return Ok({}::{}(value));", name, variant));
+            Self::append_load_field(false, name, &mut block, index, "value", variant.r#type());
+            block.line(&format!("return Ok({}::{}(value));", name, variant.name()));
             fn_load.push_block(block);
         }
         fn_load.line(format!("Err({}::Error::RowUnloadable)", MODULE_NAME));
@@ -70,15 +70,22 @@ impl GeneratorSupplement<Rust> for AsyncPsqlInserter {
             data_enum_insert_statement(name, enumeration)
         ));
         let mut updated_variants = Vec::with_capacity(enumeration.len());
-        for (variant, v_type) in enumeration.variants() {
-            let module_name = RustCodeGenerator::rust_module_name(variant);
+        for variant in enumeration.variants() {
+            let module_name = RustCodeGenerator::rust_module_name(variant.name());
             fn_insert.line(&format!(
                 "let {} = if let Self::{}(value) = self {{ Some({}value) }} else {{ None }};",
                 module_name,
-                variant,
-                if v_type.is_primitive() { "*" } else { "" }
+                variant.name(),
+                if variant.r#type().is_primitive() {
+                    "*"
+                } else {
+                    ""
+                }
             ));
-            updated_variants.push((module_name, RustType::Option(Box::new(v_type.clone()))));
+            updated_variants.push((
+                module_name,
+                RustType::Option(Box::new(variant.r#type().clone())),
+            ));
         }
         impl_insert_fn_content(false, false, name, &updated_variants[..], fn_insert);
     }
