@@ -216,7 +216,7 @@ impl UperSerializer {
     }
 
     fn impl_read_fn_for_enum(function: &mut Function, name: &str, r_enum: &PlainEnum) {
-        if let Some(last_standard_index) = r_enum.last_standard_index() {
+        if let Some(last_standard_index) = r_enum.extension_after_index() {
             function.line(format!(
                 "let id = reader.read_choice_index_extensible({})? as i64;",
                 last_standard_index + 1
@@ -240,7 +240,7 @@ impl UperSerializer {
 
     fn impl_read_fn_for_data_enum(function: &mut Function, name: &str, enumeration: &DataEnum) {
         if enumeration.len() > 1 {
-            if let Some(last_standard_index) = enumeration.last_standard_index() {
+            if let Some(last_standard_index) = enumeration.extension_after_index() {
                 function.line(&format!(
                     "let variant = reader.read_choice_index_extensible({})? as i64;",
                     last_standard_index + 1
@@ -493,7 +493,7 @@ impl UperSerializer {
     fn impl_write_fn_for_enum(function: &mut Function, name: &str, r_enum: &PlainEnum) {
         let mut block = Block::new("match self");
         for (i, variant) in r_enum.variants().enumerate() {
-            if let Some(last_standard_index) = r_enum.last_standard_index() {
+            if let Some(last_standard_index) = r_enum.extension_after_index() {
                 block.line(format!(
                     "{}::{} => writer.write_choice_index_extensible({}, {})?,",
                     name,
@@ -525,7 +525,7 @@ impl UperSerializer {
             if enumeration.len() > 1 {
                 let is_extended_variant = Self::is_extended_variant(enumeration, i);
 
-                if let Some(last_standard_index) = enumeration.last_standard_index() {
+                if let Some(last_standard_index) = enumeration.extension_after_index() {
                     block_case.line(format!(
                         "writer.write_choice_index_extensible({}, {})?;",
                         i,
@@ -575,7 +575,7 @@ impl UperSerializer {
 
     fn is_extended_variant<T>(enumeration: &Enumeration<T>, variant: usize) -> bool {
         enumeration
-            .last_standard_index()
+            .extension_after_index()
             .map(|last| variant > last)
             .unwrap_or(false)
     }

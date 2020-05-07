@@ -2,7 +2,8 @@ mod attribute;
 mod range;
 mod tag;
 
-use crate::model::{Asn as AsnModelType, EnumeratedVariant};
+use crate::ast::attribute::{Context, DefinitionHeader, Transparent};
+use crate::model::{Asn as AsnModelType, EnumeratedVariant, TagProperty};
 use crate::model::{Choice, ChoiceVariant, Definition, Enumerated, Field, Model, Type};
 use attribute::AsnAttribute;
 use quote::quote;
@@ -10,8 +11,7 @@ use std::convert::Infallible;
 use std::str::FromStr;
 use syn::export::TokenStream2 as TokenStream;
 use syn::spanned::Spanned;
-use syn::Meta;
-use syn::{Attribute, Item, NestedMeta};
+use syn::{Attribute, Item};
 
 pub fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
     if cfg!(feature = "debug-proc-macro") {
@@ -77,46 +77,42 @@ pub fn parse_asn_definition(
     attr: TokenStream,
     item: TokenStream,
 ) -> Result<(Option<Definition<AsnModelType>>, Item), TokenStream> {
+    let item_span = item.span();
     let attr_span = attr.span();
-    let attribute = syn::parse2::<NestedMeta>(attr);
-    let item = syn::parse2::<Item>(item).unwrap();
 
-    let asn_type_decl = match attribute {
-        Err(e) => {
-            return Err(compile_error_ts(
-                attr_span,
-                format!("Missing ASN attribute: {}", e),
-            ))
-        }
-        Ok(NestedMeta::Meta(Meta::Path(path))) => path
-            .segments
-            .iter()
-            .next()
-            .expect("Missing ASN Attribute in path")
-            .ident
-            .to_string()
-            .to_lowercase(),
-        _ => return Err(compile_error_ts(attr_span, "Invalid ASN Attribute type")),
-    };
+    println!("ATTRIBUTE: {}", attr.to_string());
+    println!("ITEM:      {}", item.to_string());
 
-    parse_item_definition(item, &asn_type_decl)
-}
+    let item = syn::parse2::<Item>(item)
+        .map_err(|e| compile_error_ts(item_span, format!("Invalid Item: {}", e)))?;
+    let asn = syn::parse2::<AsnAttribute<DefinitionHeader>>(attr.clone()).map_err(|e| {
+        compile_error_ts(
+            attr_span,
+            format!("Invalid ASN attribute ('{}'): {}", attr.to_string(), e),
+        )
+    })?;
 
-fn parse_item_definition(
-    item: syn::Item,
-    asn_type_decl: &str,
-) -> Result<(Option<Definition<AsnModelType>>, Item), TokenStream> {
     match item {
-        Item::Struct(strct) if asn_type_decl == "sequence" => parse_sequence(strct),
-        Item::Struct(strct) if asn_type_decl == "transparent" => parse_transparent(strct),
-        Item::Enum(enm) if asn_type_decl == "enumerated" => parse_enumerated(enm),
-        Item::Enum(enm) if asn_type_decl == "choice" => parse_choice(enm),
+        Item::Struct(strct) if asn.primary.eq_ignore_ascii_case("sequence") => {
+            parse_sequence(strct, &asn, attr_span)
+        }
+        Item::Struct(strct) if asn.primary.eq_ignore_ascii_case("transparent") => {
+            parse_transparent(strct, &asn, attr_span)
+        }
+        Item::Enum(enm) if asn.primary.eq_ignore_ascii_case("enumerated") => {
+            parse_enumerated(enm, &asn, attr_span)
+        }
+        Item::Enum(enm) if asn.primary.eq_ignore_ascii_case("choice") => {
+            parse_choice(enm, &asn, attr_span)
+        }
         item => Ok((None, item)),
     }
 }
 
 fn parse_sequence(
     mut strct: syn::ItemStruct,
+    asn: &AsnAttribute<DefinitionHeader>,
+    _asn_span: proc_macro2::Span,
 ) -> Result<(Option<Definition<AsnModelType>>, Item), TokenStream> {
     let fields = strct
         .fields
@@ -129,18 +125,22 @@ fn parse_sequence(
                 )?;
             }
 
-            parse_and_remove_first_asn_attribute_type(field.span(), &field.ty, &mut field.attrs)
-                .map(|asn| Field {
-                    name: field.ident.as_ref().unwrap().to_string(),
-                    role: asn,
-                })
+            parse_and_remove_first_asn_attribute_type::<Transparent>(
+                field.span(),
+                &field.ty,
+                &mut field.attrs,
+            )
+            .map(|asn| Field {
+                name: field.ident.as_ref().unwrap().to_string(),
+                role: asn,
+            })
         })
         .vec_result()?;
 
     Ok((
         Some(Definition(
             strct.ident.to_string(),
-            Type::Sequence(fields).untagged(),
+            Type::Sequence(fields).opt_tagged(asn.tag),
         )),
         Item::Struct(strct),
     ))
@@ -148,6 +148,8 @@ fn parse_sequence(
 
 fn parse_transparent(
     mut strct: syn::ItemStruct,
+    asn: &AsnAttribute<DefinitionHeader>,
+    _asn_span: proc_macro2::Span,
 ) -> Result<(Option<Definition<AsnModelType>>, Item), TokenStream> {
     if strct.fields.len() != 1 || strct.fields.iter().next().unwrap().ident.is_some() {
         compile_err_ts(
@@ -157,18 +159,26 @@ fn parse_transparent(
     }
 
     let field = strct.fields.iter_mut().next().unwrap();
-    parse_and_remove_first_asn_attribute_type(field.span(), &field.ty, &mut field.attrs).map(
-        |asn| {
-            (
-                Some(Definition(strct.ident.to_string(), asn)),
-                Item::Struct(strct),
-            )
-        },
+    parse_and_remove_first_asn_attribute_type::<Transparent>(
+        field.span(),
+        &field.ty,
+        &mut field.attrs,
     )
+    .map(|parsed| {
+        (
+            Some(Definition(
+                strct.ident.to_string(),
+                parsed.with_tag_opt(asn.tag),
+            )),
+            Item::Struct(strct),
+        )
+    })
 }
 
 fn parse_enumerated(
     mut enm: syn::ItemEnum,
+    asn: &AsnAttribute<DefinitionHeader>,
+    asn_span: proc_macro2::Span,
 ) -> Result<(Option<Definition<AsnModelType>>, Item), TokenStream> {
     enm.variants
         .iter()
@@ -186,15 +196,16 @@ fn parse_enumerated(
         .iter_mut()
         .map(|v| {
             let variant = EnumeratedVariant::from_name(v.ident.to_string());
-            let attributes = index_of_first_asn_attribute(&v.attrs)
-                .map(|_index| parse_and_remove_first_asn_attribute(v.span(), &mut v.attrs));
+            let attributes = index_of_first_asn_attribute(&v.attrs).map(|_index| {
+                parse_and_remove_first_asn_attribute::<EnumeratedVariant>(v.span(), &mut v.attrs)
+            });
             if let Some(attributes) = attributes {
                 attributes.and_then(|attr| {
                     if attr.tag.is_some() {
                         compile_err_ts(v.span(), "ENUMERATED Variants must not have a Tag")?;
                     }
 
-                    Ok(variant.with_number_opt(attr.number))
+                    Ok(variant.with_number_opt(attr.primary))
                 })
             } else {
                 Ok(variant)
@@ -202,14 +213,13 @@ fn parse_enumerated(
         })
         .vec_result()?;
 
-    // TODO extensible
-    // TODO tags
-    let enumerated = Enumerated::from_variants(variants);
+    let extension_after = find_extensible_index(asn, asn_span, variants.iter().map(|v| v.name()))?;
+    let enumerated = Enumerated::from_variants(variants).with_extension_after(extension_after);
 
     Ok((
         Some(Definition(
             enm.ident.to_string(),
-            Type::Enumerated(enumerated).untagged(),
+            Type::Enumerated(enumerated).opt_tagged(asn.tag),
         )),
         Item::Enum(enm),
     ))
@@ -217,6 +227,8 @@ fn parse_enumerated(
 
 fn parse_choice(
     mut enm: syn::ItemEnum,
+    asn: &AsnAttribute<DefinitionHeader>,
+    asn_span: proc_macro2::Span,
 ) -> Result<(Option<Definition<AsnModelType>>, Item), TokenStream> {
     enm.variants
         .iter()
@@ -240,7 +252,7 @@ fn parse_choice(
                 )?;
             }
 
-            parse_and_remove_first_asn_attribute_type(
+            parse_and_remove_first_asn_attribute_type::<ChoiceVariant>(
                 v.span(),
                 &v.fields.iter().next().unwrap().ty,
                 &mut v.attrs,
@@ -257,31 +269,61 @@ fn parse_choice(
         })
         .vec_result()?;
 
+    let extensible_after =
+        find_extensible_index(&asn, asn_span, variants.iter().map(|v| v.name()))?;
+
     Ok((
         Some(Definition(
             enm.ident.to_string(),
-            Type::Choice(Choice::from_variants(variants)).untagged(),
+            Type::Choice(
+                Choice::from_variants(variants.into_iter()).with_extension_after(extensible_after),
+            )
+            .opt_tagged(asn.tag),
         )),
         Item::Enum(enm),
     ))
 }
 
-fn parse_and_remove_first_asn_attribute_type(
+fn find_extensible_index(
+    asn: &AsnAttribute<DefinitionHeader>,
+    asn_span: proc_macro2::Span,
+    variants: impl Iterator<Item = impl AsRef<str>>,
+) -> Result<Option<usize>, TokenStream> {
+    asn.extensible_after
+        .as_ref()
+        .map(|name| {
+            variants
+                .enumerate()
+                .find_map(|(index, v)| {
+                    if v.as_ref().eq(name) {
+                        Some(index)
+                    } else {
+                        None
+                    }
+                })
+                .ok_or_else(|| {
+                    compile_error_ts(asn_span, "Cannot find variant for extensible attribute")
+                })
+        })
+        .transpose()
+}
+
+fn parse_and_remove_first_asn_attribute_type<C: Context<Primary = Type>>(
     span: proc_macro2::Span,
     ty: &syn::Type,
     attrs: &mut Vec<Attribute>,
 ) -> Result<AsnModelType, TokenStream> {
-    parse_and_remove_first_asn_attribute(span, attrs)
+    parse_and_remove_first_asn_attribute::<C>(span, attrs)
         .and_then(|asn| into_asn_or_err(span, &ty, asn))
 }
 
-fn parse_and_remove_first_asn_attribute(
+fn parse_and_remove_first_asn_attribute<C: Context>(
     span: proc_macro2::Span,
     attrs: &mut Vec<Attribute>,
-) -> Result<AsnAttribute, TokenStream> {
+) -> Result<AsnAttribute<C>, TokenStream> {
     find_and_remove_first_asn_attribute_or_err(span, attrs).and_then(|attribute| {
         attribute
-            .parse_args::<AsnAttribute>()
+            .parse_args::<AsnAttribute<C>>()
             .map_err(|e| e.to_compile_error())
     })
 }
@@ -289,23 +331,21 @@ fn parse_and_remove_first_asn_attribute(
 fn into_asn_or_err(
     span: proc_macro2::Span,
     ty: &syn::Type,
-    asn: AsnAttribute,
+    asn: AsnAttribute<impl Context<Primary = Type>>,
 ) -> Result<AsnModelType, TokenStream> {
     into_asn(ty, asn).ok_or_else(|| compile_error_ts(span, "Missing ASN-Type"))
 }
 
-fn into_asn(ty: &syn::Type, asn: AsnAttribute) -> Option<AsnModelType> {
+fn into_asn<C: Context<Primary = Type>>(
+    ty: &syn::Type,
+    asn: AsnAttribute<C>,
+) -> Option<AsnModelType> {
     Some(AsnModelType {
         tag: asn.tag,
-        r#type: match asn.r#type {
-            Some(some) => {
-                if let Type::TypeReference(_) = some {
-                    Type::TypeReference(quote! { #ty }.to_string())
-                } else {
-                    some
-                }
-            }
-            None => return None,
+        r#type: if let Type::TypeReference(_) = asn.primary {
+            Type::TypeReference(quote! { #ty }.to_string())
+        } else {
+            asn.primary
         },
     })
 }

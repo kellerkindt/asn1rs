@@ -641,6 +641,26 @@ impl Asn {
     pub const fn tagged(tag: Tag, r#type: Type) -> Self {
         Self::opt_tagged(Some(tag), r#type)
     }
+
+    pub fn extensible_after_index(&self) -> Option<usize> {
+        match &self.r#type {
+            Type::Choice(c) => c.extension_after_index(),
+            Type::Enumerated(e) => e.extension_after_index(),
+            _ => None,
+        }
+    }
+
+    pub fn extensible_after_variant(&self) -> Option<&str> {
+        match &self.r#type {
+            Type::Choice(c) => c
+                .extension_after_index()
+                .and_then(|index| c.variants().nth(index).map(ChoiceVariant::name)),
+            Type::Enumerated(e) => e
+                .extension_after_index()
+                .and_then(|index| e.variants().nth(index).map(EnumeratedVariant::name)),
+            _ => None,
+        }
+    }
 }
 
 impl From<Type> for Asn {
@@ -703,12 +723,26 @@ pub struct Choice {
     extension_after: Option<usize>,
 }
 
-impl Choice {
-    pub fn from_variants(variants: Vec<ChoiceVariant>) -> Self {
+impl From<Vec<ChoiceVariant>> for Choice {
+    fn from(variants: Vec<ChoiceVariant>) -> Self {
         Self {
             variants,
             extension_after: None,
         }
+    }
+}
+
+impl Choice {
+    pub fn from_variants(variants: impl Iterator<Item = ChoiceVariant>) -> Self {
+        Self {
+            variants: variants.collect(),
+            extension_after: None,
+        }
+    }
+
+    pub const fn with_extension_after(mut self, extension_after: Option<usize>) -> Self {
+        self.extension_after = extension_after;
+        self
     }
 
     pub fn len(&self) -> usize {
@@ -824,6 +858,15 @@ impl TagProperty for ChoiceVariant {
 pub struct Enumerated {
     variants: Vec<EnumeratedVariant>,
     extension_after: Option<usize>,
+}
+
+impl From<Vec<EnumeratedVariant>> for Enumerated {
+    fn from(variants: Vec<EnumeratedVariant>) -> Self {
+        Self {
+            variants,
+            extension_after: None,
+        }
+    }
 }
 
 impl Enumerated {
@@ -945,6 +988,10 @@ impl EnumeratedVariant {
             name: name.to_string(),
             number: Some(number),
         }
+    }
+
+    pub const fn with_number(self, number: usize) -> Self {
+        self.with_number_opt(Some(number))
     }
 
     pub const fn with_number_opt(mut self, number: Option<usize>) -> Self {
@@ -1184,7 +1231,7 @@ pub(crate) mod tests {
                 "Woah".into(),
                 Type::Sequence(vec![Field {
                     name: "decision".into(),
-                    role: Type::Choice(Choice::from_variants(vec![
+                    role: Type::Choice(Choice::from(vec![
                         ChoiceVariant::name_type("this", Type::TypeReference("This".into())),
                         ChoiceVariant::name_type("that", Type::TypeReference("That".into())),
                         ChoiceVariant::name_type("neither", Type::TypeReference("Neither".into())),

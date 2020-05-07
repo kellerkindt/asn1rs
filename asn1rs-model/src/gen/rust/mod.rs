@@ -21,7 +21,7 @@ use crate::model::Range;
 use crate::model::Rust;
 use crate::model::RustType;
 use crate::model::TagProperty;
-use crate::model::{Asn, Definition, Tag, Type as AsnType, Type};
+use crate::model::{Definition, Tag, Type as AsnType, Type};
 use codegen::Block;
 use codegen::Enum;
 use codegen::Function;
@@ -171,24 +171,41 @@ impl RustCodeGenerator {
 
     pub fn add_definition(&self, scope: &mut Scope, Definition(name, rust): &Definition<Rust>) {
         match rust {
-            Rust::Struct(fields) => Self::add_struct(
-                self.new_struct(scope, name, false),
-                name,
-                fields,
-                self.direct_field_access,
-            ),
-            Rust::Enum(variants) => {
-                Self::add_enum(self.new_enum(scope, name, true), name, variants)
+            Rust::Struct(fields) => {
+                scope.raw(&Self::asn_attribute("sequence", None, None));
+                Self::add_struct(
+                    self.new_struct(scope, name),
+                    name,
+                    fields,
+                    self.direct_field_access,
+                )
             }
-            Rust::DataEnum(enumeration) => {
-                Self::add_data_enum(self.new_enum(scope, name, false), name, enumeration)
+            Rust::Enum(plain) => {
+                scope.raw(&Self::asn_attribute(
+                    "enumerated",
+                    None,
+                    plain.extension_after_variant().map(|v| v.clone()),
+                ));
+                Self::add_enum(self.new_enum(scope, name, true), name, plain)
             }
-            Rust::TupleStruct(inner) => Self::add_tuple_struct(
-                self.new_struct(scope, name, true),
-                name,
-                inner,
-                self.direct_field_access,
-            ),
+            Rust::DataEnum(data) => {
+                scope.raw(&Self::asn_attribute(
+                    "choice",
+                    None,
+                    data.extension_after_variant().map(|v| v.name().to_string()),
+                ));
+                Self::add_data_enum(self.new_enum(scope, name, false), name, data)
+            }
+            Rust::TupleStruct(inner) => {
+                scope.raw(&Self::asn_attribute("transparent", None, None));
+                Self::add_tuple_struct(
+                    self.new_struct(scope, name),
+                    name,
+                    inner,
+                    self.direct_field_access,
+                    None,
+                )
+            }
         }
     }
 
@@ -202,7 +219,11 @@ impl RustCodeGenerator {
             str_ct.field(
                 &format!(
                     "{} {}{}",
-                    Self::asn_attribute(&field_type.clone().into_asn().untagged()),
+                    Self::asn_attribute(
+                        &Self::asn_attribute_type(&field_type.clone().into_asn()),
+                        None, // TODO missing tag
+                        None
+                    ),
                     if pub_access { "pub " } else { "" },
                     Self::rust_field_name(field_name, true),
                 ),
@@ -222,11 +243,9 @@ impl RustCodeGenerator {
             en_m.new_variant(&format!(
                 "{} {}({})",
                 Self::asn_attribute(
-                    &variant
-                        .r#type()
-                        .clone()
-                        .into_asn()
-                        .opt_tagged(variant.tag())
+                    Self::asn_attribute_type(&variant.r#type().clone().into_asn()),
+                    variant.tag(),
+                    None
                 ),
                 Self::rust_variant_name(variant.name()),
                 variant.r#type().to_string(),
@@ -234,26 +253,41 @@ impl RustCodeGenerator {
         }
     }
 
-    fn add_tuple_struct(str_ct: &mut Struct, _name: &str, inner: &RustType, pub_access: bool) {
-        // TODO assuming untagged
+    fn add_tuple_struct(
+        str_ct: &mut Struct,
+        _name: &str,
+        inner: &RustType,
+        pub_access: bool,
+        tag: Option<Tag>,
+    ) {
         str_ct.tuple_field(format!(
             "{} {}{}",
-            Self::asn_attribute(&inner.clone().into_asn().untagged()),
+            Self::asn_attribute(
+                Self::asn_attribute_type(&inner.clone().into_asn()),
+                tag,
+                None
+            ),
             if pub_access { "pub " } else { "" },
             inner.to_string(),
         ));
     }
 
-    fn asn_attribute(asn: &Asn) -> String {
+    fn asn_attribute<T: ToString>(
+        r#type: T,
+        tag: Option<Tag>,
+        extensible_after: Option<String>,
+    ) -> String {
         format!(
-            "#[asn({}{}{})]",
-            Self::asn_attribute_type(&asn.r#type),
-            if asn.tag.is_some() { ", " } else { "" },
-            if let Some(tag) = &asn.tag {
-                Self::asn_attribute_tag(tag)
-            } else {
-                String::default()
-            }
+            "#[asn({})]",
+            vec![
+                Some(r#type.to_string()),
+                tag.map(Self::asn_attribute_tag),
+                extensible_after.map(Self::asn_attribute_extensible_after)
+            ]
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>()
+            .join(", ")
         )
     }
 
@@ -275,13 +309,17 @@ impl RustCodeGenerator {
         }
     }
 
-    fn asn_attribute_tag(tag: &Tag) -> String {
+    fn asn_attribute_tag(tag: Tag) -> String {
         match tag {
             Tag::Universal(t) => format!("tag(UNIVERSAL({}))", t),
             Tag::Application(t) => format!("tag(APPLICATION({}))", t),
             Tag::Private(t) => format!("tag(PRIVATE({}))", t),
             Tag::ContextSpecific(t) => format!("tag({})", t),
         }
+    }
+
+    fn asn_attribute_extensible_after(variant: String) -> String {
+        format!("extensible_after({})", variant)
     }
 
     fn impl_definition(
@@ -656,20 +694,7 @@ impl RustCodeGenerator {
         out
     }
 
-    fn new_struct<'a>(
-        &self,
-        scope: &'a mut Scope,
-        name: &str,
-        asn_transparent: bool,
-    ) -> &'a mut Struct {
-        scope.raw(&format!(
-            "#[asn({})]",
-            if asn_transparent {
-                "transparent"
-            } else {
-                "sequence"
-            }
-        ));
+    fn new_struct<'a>(&self, scope: &'a mut Scope, name: &str) -> &'a mut Struct {
         let str_ct = scope
             .new_struct(name)
             .vis("pub")
@@ -685,10 +710,6 @@ impl RustCodeGenerator {
     }
 
     fn new_enum<'a>(&self, scope: &'a mut Scope, name: &str, c_enum: bool) -> &'a mut Enum {
-        scope.raw(&format!(
-            "#[asn({})]",
-            if c_enum { "enumerated" } else { "choice" }
-        ));
         let en_m = scope
             .new_enum(name)
             .vis("pub")

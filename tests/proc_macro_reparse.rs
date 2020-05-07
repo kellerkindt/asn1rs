@@ -36,6 +36,22 @@ END"#,
 }
 
 #[test]
+fn test_extensible_enum() {
+    parse_asn_map_to_rust_map_to_stringify_with_proc_macro_annotation_re_parse_check_equal(
+        r#"BasicSchema DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+  MyType ::= [UNIVERSAL 5] ENUMERATED {
+    implicit,
+    number(7),
+    ...,
+    wow
+  }
+  
+END"#,
+    )
+}
+
+#[test]
 fn test_standard_choice() {
     parse_asn_map_to_rust_map_to_stringify_with_proc_macro_annotation_re_parse_check_equal(
         r#"BasicSchema DEFINITIONS AUTOMATIC TAGS ::= BEGIN

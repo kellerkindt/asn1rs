@@ -15,7 +15,8 @@ const U16_MAX: u64 = u16::max_value() as u64;
 const U32_MAX: u64 = u32::max_value() as u64;
 //const U64_MAX: u64 = u64::max_value() as u64;
 
-pub type PlainEnum = Enumeration<String>;
+pub type PlainVariant = String;
+pub type PlainEnum = Enumeration<PlainVariant>;
 pub type DataEnum = Enumeration<DataVariant>;
 
 /// Integers are ordered where Ixx < Uxx so
@@ -296,7 +297,7 @@ pub struct Enumeration<T> {
     variants: Vec<T>,
     extended_after_index: Option<usize>,
 }
-#[cfg(test)]
+
 impl<T> From<Vec<T>> for Enumeration<T> {
     fn from(variants: Vec<T>) -> Self {
         Enumeration {
@@ -307,6 +308,11 @@ impl<T> From<Vec<T>> for Enumeration<T> {
 }
 
 impl<T> Enumeration<T> {
+    pub fn with_extension_after(mut self, extension_after: Option<usize>) -> Self {
+        self.extended_after_index = extension_after;
+        self
+    }
+
     pub fn len(&self) -> usize {
         self.variants.len()
     }
@@ -319,12 +325,23 @@ impl<T> Enumeration<T> {
         self.variants.iter()
     }
 
-    pub fn last_standard_index(&self) -> Option<usize> {
+    pub fn extension_after_index(&self) -> Option<usize> {
         self.extended_after_index
+    }
+
+    pub fn extension_after_variant(&self) -> Option<&T> {
+        self.extended_after_index
+            .and_then(|index| self.variants.iter().nth(index))
     }
 
     pub fn is_extensible(&self) -> bool {
         self.extended_after_index.is_some()
+    }
+}
+
+impl PlainEnum {
+    pub fn from_names(names: impl Iterator<Item = impl ToString>) -> Self {
+        Self::from(names.map(|n| n.to_string()).collect::<Vec<_>>())
     }
 }
 
@@ -821,7 +838,7 @@ mod tests {
         let mut model_asn = Model::default();
         model_asn.definitions.push(Definition(
             "SimpleChoiceTest".into(),
-            AsnType::Choice(Choice::from_variants(vec![
+            AsnType::Choice(Choice::from(vec![
                 ChoiceVariant::name_type("bernd-das-brot", AsnType::UTF8String),
                 ChoiceVariant::name_type("nochSoEinBrot", AsnType::OctetString),
             ]))
@@ -851,7 +868,7 @@ mod tests {
         let mut model_asn = Model::default();
         model_asn.definitions.push(Definition(
             "ListChoiceTestWithNestedList".into(),
-            AsnType::Choice(Choice::from_variants(vec![
+            AsnType::Choice(Choice::from(vec![
                 ChoiceVariant::name_type(
                     "normal-List",
                     AsnType::SequenceOf(Box::new(AsnType::UTF8String)),
@@ -1046,10 +1063,10 @@ mod tests {
         assert_eq!(
             &[Definition(
                 "Extensible".into(),
-                Rust::Enum(PlainEnum {
-                    variants: vec!["Abc".to_string(), "Def".to_string(), "Ghi".to_string()],
-                    extended_after_index: Some(2)
-                })
+                Rust::Enum(
+                    PlainEnum::from_names(["Abc", "Def", "Ghi"].iter())
+                        .with_extension_after(Some(2))
+                )
             )],
             &model_rust.definitions[..]
         );
@@ -1080,15 +1097,15 @@ mod tests {
         assert_eq!(
             &[Definition(
                 "Extensible".into(),
-                Rust::DataEnum(DataEnum {
-                    variants: vec![
+                Rust::DataEnum(
+                    DataEnum::from(vec![
                         DataVariant::from_name_type("Abc".to_string(), RustType::VecU8),
                         DataVariant::from_name_type("Def".to_string(), RustType::U64(None)),
                         DataVariant::from_name_type("Ghi".to_string(), RustType::Bool)
                             .with_tag(Tag::Universal(4)),
-                    ],
-                    extended_after_index: Some(2)
-                })
+                    ])
+                    .with_extension_after(Some(2))
+                )
             )],
             &model_rust.definitions[..]
         );

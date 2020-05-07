@@ -272,7 +272,7 @@ impl AsnDefWriter {
                 format!(
                     "const STD_VARIANT_COUNT: usize = {};",
                     enumerated
-                        .last_standard_index()
+                        .extension_after_index()
                         .unwrap_or_else(|| enumerated.len())
                 ),
                 format!("const EXTENSIBLE: bool = {};", enumerated.is_extensible()),
@@ -341,7 +341,9 @@ impl AsnDefWriter {
                 format!("const VARIANT_COUNT: usize = {};", choice.len()),
                 format!(
                     "const STD_VARIANT_COUNT: usize = {};",
-                    choice.last_standard_index().unwrap_or_else(|| choice.len())
+                    choice
+                        .extension_after_index()
+                        .unwrap_or_else(|| choice.len())
                 ),
                 format!("const EXTENSIBLE: bool = {};", choice.is_extensible()),
             ],
