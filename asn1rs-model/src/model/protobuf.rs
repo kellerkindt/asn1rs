@@ -123,10 +123,10 @@ impl Model<Protobuf> {
         match rust {
             Rust::Struct(fields) => {
                 let mut proto_fields = Vec::with_capacity(fields.len());
-                for (name, rust) in fields.iter() {
+                for field in fields.iter() {
                     proto_fields.push((
-                        proto_field_name(name),
-                        Self::definition_type_to_protobuf_type(rust),
+                        proto_field_name(field.name()),
+                        Self::definition_type_to_protobuf_type(field.r#type()),
                     ));
                 }
 
@@ -229,7 +229,10 @@ mod tests {
         test_model_definition_conversion(
             &[Definition(
                 "Mine".into(),
-                Rust::Struct(vec![("field".into(), RustType::U8(Range(0, 255)))]),
+                Rust::Struct(vec![Field::from_name_type(
+                    "field",
+                    RustType::U8(Range(0, 255)),
+                )]),
             )],
             &[Definition(
                 "Mine".into(),
@@ -274,8 +277,8 @@ mod tests {
         test_model_definition_conversion(
             &[Definition(
                 "SuchStruct".into(),
-                Rust::Struct(vec![(
-                    "very_optional".into(),
+                Rust::Struct(vec![Field::from_name_type(
+                    "very_optional",
                     RustType::Option(Box::new(RustType::String)),
                 )]),
             )],

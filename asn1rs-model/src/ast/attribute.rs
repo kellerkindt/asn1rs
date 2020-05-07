@@ -133,7 +133,6 @@ impl PrimaryContext for Type {
                 ident_or_literal_or_punct(*c)
                     .ok_or_else(|| c.error("Expected type, number or extension marker"))
             })?
-            .to_string()
             .to_lowercase();
 
         Ok(parse_type_pre_stepped(&lowercase_ident, input)?)
@@ -150,8 +149,7 @@ impl PrimaryContext for Option<usize> {
             .ok()
             .as_ref()
             .map(ToString::to_string)
-            .as_ref()
-            .map(String::as_str)
+            .as_deref()
             .map(str::to_lowercase)
             .map(|lowercase_ident| {
                 lowercase_ident

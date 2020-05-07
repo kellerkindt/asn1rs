@@ -1,8 +1,8 @@
 use crate::gen::rust::shared_psql::*;
 use crate::gen::rust::GeneratorSupplement;
 use crate::gen::RustCodeGenerator;
-use crate::model::rust::DataEnum;
 use crate::model::rust::PlainEnum;
+use crate::model::rust::{DataEnum, Field};
 use crate::model::sql::{Sql, SqlType, ToSql};
 use crate::model::{Definition, Model, Rust, RustType};
 use codegen::{Block, Function, Impl, Scope};
@@ -20,19 +20,20 @@ impl GeneratorSupplement<Rust> for AsyncPsqlInserter {
 
     fn impl_supplement(&self, _scope: &mut Scope, _definition: &Definition<Rust>) {}
 
-    fn extend_impl_of_struct(
-        &self,
-        name: &str,
-        impl_scope: &mut Impl,
-        fields: &[(String, RustType)],
-    ) {
+    fn extend_impl_of_struct<'a>(&self, name: &str, impl_scope: &mut Impl, fields: &[Field]) {
         AsyncPsqlInserter::append_retrieve_many_for_container_type(name, impl_scope);
         AsyncPsqlInserter::append_retrieve_for_container_type(name, impl_scope);
         AsyncPsqlInserter::append_load_struct(name, impl_scope, fields);
 
         let fn_insert = create_insert_fn(impl_scope, true);
         fn_insert.line(prepare_struct_insert_statement(name, fields));
-        impl_insert_fn_content(false, true, name, fields, fn_insert);
+        impl_insert_fn_content(
+            false,
+            true,
+            name,
+            || fields.iter().map(Field::fallback_representation),
+            fn_insert,
+        );
     }
 
     fn extend_impl_of_enum(&self, _name: &str, impl_scope: &mut Impl, _r_enum: &PlainEnum) {
@@ -87,7 +88,7 @@ impl GeneratorSupplement<Rust> for AsyncPsqlInserter {
                 RustType::Option(Box::new(variant.r#type().clone())),
             ));
         }
-        impl_insert_fn_content(false, false, name, &updated_variants[..], fn_insert);
+        impl_insert_fn_content(false, false, name, || updated_variants.iter(), fn_insert);
     }
 
     fn extend_impl_of_tuple(&self, name: &str, impl_scope: &mut Impl, definition: &RustType) {
@@ -104,20 +105,20 @@ impl GeneratorSupplement<Rust> for AsyncPsqlInserter {
             "let statement = context.prepared(\"{}\");",
             tuple_struct_insert_statement(name)
         ));
-        impl_insert_fn_content(true, true, name, &fields[..], fn_insert);
+        impl_insert_fn_content(true, true, name, || fields.iter(), fn_insert);
     }
 }
 
-fn impl_insert_fn_content(
+fn impl_insert_fn_content<'a, I: ExactSizeIterator<Item = &'a (String, RustType)>>(
     is_tuple_struct: bool,
     on_self: bool,
     name: &str,
-    fields: &[(String, RustType)],
+    fields: impl Fn() -> I,
     container: &mut impl Container,
 ) {
     let mut params = Vec::default();
     let mut to_await = Vec::default();
-    for insert in fields.iter().filter_map(|(field_name, r_type)| {
+    for insert in fields().filter_map(|(field_name, r_type)| {
         let field_name = RustCodeGenerator::rust_field_name(field_name, true);
         let field_name_as_variable = if field_name
             .chars()
@@ -178,7 +179,7 @@ fn impl_insert_fn_content(
             .join(", ")
     ));
     to_await.clear();
-    for insert in fields.iter().filter_map(|(field_name, r_type)| {
+    for insert in fields().filter_map(|(field_name, r_type)| {
         if r_type.is_vec() {
             Some(insert_field(
                 is_tuple_struct,
@@ -211,7 +212,7 @@ fn impl_insert_fn_content(
     container.line("Ok(id)");
 }
 
-fn prepare_struct_insert_statement(name: &str, fields: &[(String, RustType)]) -> String {
+fn prepare_struct_insert_statement(name: &str, fields: &[Field]) -> String {
     format!(
         "let statement = context.prepared(\"{}\");",
         struct_insert_statement(name, fields)
@@ -616,23 +617,30 @@ impl AsyncPsqlInserter {
         fn_retrieve.line(format!("Self::{}(context, &row).await", load_fn_name()));
     }
 
-    fn append_load_struct(name: &str, impl_scope: &mut Impl, fields: &[(String, RustType)]) {
+    fn append_load_struct(name: &str, impl_scope: &mut Impl, fields: &[Field]) {
         let fn_load = create_load_fn(
             impl_scope,
-            fields.iter().any(|(_name, f_type)| {
-                !Model::<Sql>::is_primitive(f_type)
-                    || Model::<Sql>::has_no_column_in_embedded_struct(f_type.as_no_option())
+            fields.iter().any(|field| {
+                !Model::<Sql>::is_primitive(field.r#type())
+                    || Model::<Sql>::has_no_column_in_embedded_struct(field.r#type().as_no_option())
             }),
         );
-        for (index, (field, f_type)) in fields.iter().enumerate() {
-            AsyncPsqlInserter::append_load_field(false, name, fn_load, index, field, f_type);
+        for (index, field) in fields.iter().enumerate() {
+            AsyncPsqlInserter::append_load_field(
+                false,
+                name,
+                fn_load,
+                index,
+                field.name(),
+                field.r#type(),
+            );
         }
 
         let mut result_block = Block::new("Ok(Self");
-        for (field, _type) in fields {
+        for field in fields {
             result_block.line(format!(
                 "{},",
-                RustCodeGenerator::rust_field_name(field, true)
+                RustCodeGenerator::rust_field_name(field.name(), true)
             ));
         }
         result_block.after(")");

@@ -80,8 +80,10 @@ pub fn parse_asn_definition(
     let item_span = item.span();
     let attr_span = attr.span();
 
-    println!("ATTRIBUTE: {}", attr.to_string());
-    println!("ITEM:      {}", item.to_string());
+    if cfg!(feature = "debug-proc-macro") {
+        println!("ATTRIBUTE: {}", attr.to_string());
+        println!("ITEM:      {}", item.to_string());
+    }
 
     let item = syn::parse2::<Item>(item)
         .map_err(|e| compile_error_ts(item_span, format!("Invalid Item: {}", e)))?;

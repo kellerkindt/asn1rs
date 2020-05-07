@@ -14,8 +14,8 @@ pub(crate) mod shared_psql;
 use self::protobuf::ProtobufSerializer;
 use self::uper::UperSerializer;
 use crate::gen::Generator;
-use crate::model::rust::DataEnum;
 use crate::model::rust::PlainEnum;
+use crate::model::rust::{DataEnum, Field};
 use crate::model::Model;
 use crate::model::Range;
 use crate::model::Rust;
@@ -42,13 +42,7 @@ const KEYWORDS: [&str; 9] = [
 pub trait GeneratorSupplement<T> {
     fn add_imports(&self, scope: &mut Scope);
     fn impl_supplement(&self, scope: &mut Scope, definition: &Definition<T>);
-    fn extend_impl_of_struct(
-        &self,
-        _name: &str,
-        _impl_scope: &mut Impl,
-        _fields: &[(String, RustType)],
-    ) {
-    }
+    fn extend_impl_of_struct(&self, _name: &str, _impl_scope: &mut Impl, _fields: &[Field]) {}
     fn extend_impl_of_enum(&self, _name: &str, _impl_scope: &mut Impl, _enumeration: &PlainEnum) {}
     fn extend_impl_of_data_enum(
         &self,
@@ -184,7 +178,7 @@ impl RustCodeGenerator {
                 scope.raw(&Self::asn_attribute(
                     "enumerated",
                     None,
-                    plain.extension_after_variant().map(|v| v.clone()),
+                    plain.extension_after_variant().cloned(),
                 ));
                 Self::add_enum(self.new_enum(scope, name, true), name, plain)
             }
@@ -209,25 +203,20 @@ impl RustCodeGenerator {
         }
     }
 
-    fn add_struct(
-        str_ct: &mut Struct,
-        _name: &str,
-        fields: &[(String, RustType)],
-        pub_access: bool,
-    ) {
-        for (field_name, field_type) in fields.iter() {
+    fn add_struct(str_ct: &mut Struct, _name: &str, fields: &[Field], pub_access: bool) {
+        for field in fields {
             str_ct.field(
                 &format!(
                     "{} {}{}",
                     Self::asn_attribute(
-                        &Self::asn_attribute_type(&field_type.clone().into_asn()),
-                        None, // TODO missing tag
+                        &Self::asn_attribute_type(&field.r#type().clone().into_asn()),
+                        field.tag(),
                         None
                     ),
                     if pub_access { "pub " } else { "" },
-                    Self::rust_field_name(field_name, true),
+                    Self::rust_field_name(field.name(), true),
                 ),
-                field_type.to_string(),
+                field.r#type().to_string(),
             );
         }
     }
@@ -390,19 +379,19 @@ impl RustCodeGenerator {
     fn impl_struct<'a>(
         scope: &'a mut Scope,
         name: &str,
-        fields: &[(String, RustType)],
+        fields: &[Field],
         getter_and_setter: bool,
     ) -> &'a mut Impl {
         let implementation = scope.new_impl(name);
 
-        for (field_name, field_type) in fields.iter() {
+        for field in fields {
             if getter_and_setter {
-                Self::impl_struct_field_get(implementation, field_name, field_type);
-                Self::impl_struct_field_get_mut(implementation, field_name, field_type);
-                Self::impl_struct_field_set(implementation, field_name, field_type);
+                Self::impl_struct_field_get(implementation, field.name(), field.r#type());
+                Self::impl_struct_field_get_mut(implementation, field.name(), field.r#type());
+                Self::impl_struct_field_set(implementation, field.name(), field.r#type());
             }
 
-            Self::add_min_max_fn_if_applicable(implementation, Some(field_name), field_type);
+            Self::add_min_max_fn_if_applicable(implementation, Some(field.name()), field.r#type());
         }
         implementation
     }

@@ -1,5 +1,5 @@
 use crate::gen::RustCodeGenerator;
-use crate::model::rust::{DataEnum, PlainEnum};
+use crate::model::rust::{DataEnum, Field, PlainEnum};
 use crate::model::{Definition, Model, Range, Rust, RustType};
 use codegen::{Block, Impl, Scope};
 use std::fmt::Display;
@@ -20,8 +20,8 @@ impl AsnDefWriter {
                     "type AsnDef{} = {}Sequence<{}>;",
                     name, CRATE_SYN_PREFIX, name
                 ));
-                for (field, r#type) in fields {
-                    self.write_type_declaration(scope, &name, &field, r#type);
+                for field in fields {
+                    self.write_type_declaration(scope, &name, field.name(), field.r#type());
                 }
             }
             Rust::Enum(_enm) => {
@@ -106,76 +106,71 @@ impl AsnDefWriter {
             }
             Rust::DataEnum(data) => self.write_choice_constraint(scope, &name, data),
             Rust::TupleStruct(field) => {
-                let fields = [(String::from("0"), field.clone())];
+                let fields = [Field::from_name_type("0", field.clone())];
                 self.write_field_constraints(scope, &name, &fields[..]);
                 self.write_sequence_constraint(scope, &name, &fields[..]);
             }
         }
     }
 
-    fn write_field_constraints(
-        &self,
-        scope: &mut Scope,
-        name: &str,
-        fields: &[(String, RustType)],
-    ) {
-        for (field, r#type) in fields {
-            match r#type {
+    fn write_field_constraints(&self, scope: &mut Scope, name: &str, fields: &[Field]) {
+        for field in fields {
+            match field.r#type() {
                 RustType::Bool => {}
                 RustType::I8(range) => Self::write_integer_constraint_type(
                     scope,
                     name,
-                    field,
-                    &r#type.to_string(),
+                    field.name(),
+                    &field.r#type().to_string(),
                     range,
                 ),
                 RustType::U8(range) => Self::write_integer_constraint_type(
                     scope,
                     name,
-                    field,
-                    &r#type.to_string(),
+                    field.name(),
+                    &field.r#type().to_string(),
                     range,
                 ),
                 RustType::I16(range) => Self::write_integer_constraint_type(
                     scope,
                     name,
-                    field,
-                    &r#type.to_string(),
+                    field.name(),
+                    &field.r#type().to_string(),
                     range,
                 ),
                 RustType::U16(range) => Self::write_integer_constraint_type(
                     scope,
                     name,
-                    field,
-                    &r#type.to_string(),
+                    field.name(),
+                    &field.r#type().to_string(),
                     range,
                 ),
                 RustType::I32(range) => Self::write_integer_constraint_type(
                     scope,
                     name,
-                    field,
-                    &r#type.to_string(),
+                    field.name(),
+                    &field.r#type().to_string(),
                     range,
                 ),
                 RustType::U32(range) => Self::write_integer_constraint_type(
                     scope,
                     name,
-                    field,
-                    &r#type.to_string(),
+                    field.name(),
+                    &field.r#type().to_string(),
                     range,
                 ),
                 RustType::I64(range) => Self::write_integer_constraint_type(
                     scope,
                     name,
-                    field,
-                    &r#type.to_string(),
+                    field.name(),
+                    &field.r#type().to_string(),
                     range,
                 ),
                 RustType::U64(Some(range)) => Self::write_integer_constraint_type(
                     scope,
                     name,
-                    field,
-                    &r#type.to_string(),
+                    field.name(),
+                    &field.r#type().to_string(),
                     range,
                 ),
                 RustType::U64(_) => {}
@@ -184,24 +179,19 @@ impl AsnDefWriter {
                 RustType::Vec(inner) => self.write_field_constraints(
                     scope,
                     name,
-                    &[(field.to_string(), *inner.clone())],
+                    &[Field::from_name_type(field.name(), *inner.clone())],
                 ),
                 RustType::Option(inner) => self.write_field_constraints(
                     scope,
                     name,
-                    &[(field.to_string(), *inner.clone())],
+                    &[Field::from_name_type(field.name(), *inner.clone())],
                 ),
                 RustType::Complex(_) => {}
             }
         }
     }
 
-    fn write_sequence_constraint(
-        &self,
-        scope: &mut Scope,
-        name: &str,
-        fields: &[(String, RustType)],
-    ) {
+    fn write_sequence_constraint(&self, scope: &mut Scope, name: &str, fields: &[Field]) {
         let mut imp = Impl::new(name);
         imp.impl_trait(format!("{}sequence::Constraint", CRATE_SYN_PREFIX));
 
@@ -373,7 +363,7 @@ impl AsnDefWriter {
     fn write_sequence_constraint_insert_consts(
         scope: &mut Scope,
         name: &str,
-        fields: &[(String, RustType)],
+        fields: &[Field],
         imp: Impl,
     ) {
         Self::insert_consts(
@@ -382,7 +372,7 @@ impl AsnDefWriter {
             &[
                 format!(
                     "const OPTIONAL_FIELDS: usize = {};",
-                    fields.iter().filter(|f| f.1.is_option()).count()
+                    fields.iter().filter(|f| f.r#type().is_option()).count()
                 ),
                 format!("const NAME: &'static str = \"{}\";", name),
             ],
@@ -404,12 +394,7 @@ impl AsnDefWriter {
         scope.raw(&lines.join("\n"));
     }
 
-    fn write_sequence_constraint_read_fn(
-        &self,
-        imp: &mut Impl,
-        name: &str,
-        fields: &[(String, RustType)],
-    ) {
+    fn write_sequence_constraint_read_fn(&self, imp: &mut Impl, name: &str, fields: &[Field]) {
         imp.new_fn("read_seq")
             .generic(&format!("R: {}Reader", CRATE_SYN_PREFIX))
             .arg("reader", "&mut R")
@@ -418,11 +403,11 @@ impl AsnDefWriter {
             .push_block({
                 let mut block = Block::new("Ok(Self");
 
-                for (field, _type) in fields {
+                for field in fields {
                     block.line(format!(
                         "{}: AsnDef{}::read_value(reader)?,",
-                        field,
-                        Self::combined_field_type_name(name, field)
+                        field.name(),
+                        Self::combined_field_type_name(name, field.name())
                     ));
                 }
 
@@ -431,12 +416,7 @@ impl AsnDefWriter {
             });
     }
 
-    fn write_sequence_constraint_write_fn(
-        &self,
-        imp: &mut Impl,
-        name: &str,
-        fields: &[(String, RustType)],
-    ) {
+    fn write_sequence_constraint_write_fn(&self, imp: &mut Impl, name: &str, fields: &[Field]) {
         let body = imp
             .new_fn("write_seq")
             .generic(&format!("W: {}Writer", CRATE_SYN_PREFIX))
@@ -444,11 +424,11 @@ impl AsnDefWriter {
             .arg("writer", "&mut W")
             .ret("Result<(), W::Error>");
 
-        for (field, _type) in fields {
+        for field in fields {
             body.line(format!(
                 "AsnDef{}::write_value(writer, &self.{})?;",
-                Self::combined_field_type_name(name, field),
-                field,
+                Self::combined_field_type_name(name, field.name()),
+                field.name(),
             ));
         }
 
@@ -473,6 +453,7 @@ impl AsnDefWriter {
 #[cfg(test)]
 pub mod tests {
     use crate::gen::rust::walker::AsnDefWriter;
+    use crate::model::rust::Field;
     use crate::model::{Definition, Rust, RustType};
     use codegen::Scope;
 
@@ -480,15 +461,9 @@ pub mod tests {
         Definition(
             String::from("Whatever"),
             Rust::Struct(vec![
-                (String::from("name"), RustType::String),
-                (
-                    String::from("opt"),
-                    RustType::Option(Box::new(RustType::String)),
-                ),
-                (
-                    String::from("some"),
-                    RustType::Option(Box::new(RustType::String)),
-                ),
+                Field::from_name_type("name", RustType::String),
+                Field::from_name_type("opt", RustType::Option(Box::new(RustType::String))),
+                Field::from_name_type("some", RustType::Option(Box::new(RustType::String))),
             ]),
         )
     }

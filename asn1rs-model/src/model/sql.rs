@@ -1,6 +1,6 @@
 use crate::gen::RustCodeGenerator;
-use crate::model::rust::PlainEnum;
 use crate::model::rust::{DataEnum, DataVariant};
+use crate::model::rust::{Field, PlainEnum};
 use crate::model::Definition;
 use crate::model::Model;
 use crate::model::Range;
@@ -153,7 +153,7 @@ impl Model<Sql> {
 
     pub fn rust_struct_to_sql_table(
         name: &str,
-        fields: &[(String, RustType)],
+        fields: &[Field],
         definitions: &mut Vec<Definition<Sql>>,
     ) {
         let mut deferred = Vec::default();
@@ -163,15 +163,15 @@ impl Model<Sql> {
             sql: SqlType::Serial,
             primary_key: true,
         });
-        for (column, rust) in fields {
-            if rust.is_vec() {
-                let list_entry_name = Self::struct_list_entry_table_name(name, column);
-                let value_sql_type = rust.clone().into_inner_type().to_sql();
+        for field in fields {
+            if field.r#type().is_vec() {
+                let list_entry_name = Self::struct_list_entry_table_name(name, field.name());
+                let value_sql_type = field.r#type().clone().into_inner_type().to_sql();
                 Self::add_list_table(name, &mut deferred, &list_entry_name, &value_sql_type);
             } else {
                 columns.push(Column {
-                    name: Self::sql_column_name(column),
-                    sql: rust.to_sql(),
+                    name: Self::sql_column_name(field.name()),
+                    sql: field.r#type().to_sql(),
                     primary_key: false,
                 });
             }
@@ -181,7 +181,11 @@ impl Model<Sql> {
             Sql::Table(columns, Default::default()),
         ));
 
-        Self::append_index_and_abandon_function(name, fields.iter(), definitions);
+        Self::append_index_and_abandon_function(
+            name,
+            fields.iter().map(Field::fallback_representation),
+            definitions,
+        );
         deferred.into_iter().for_each(|e| definitions.push(e));
     }
 
@@ -454,6 +458,7 @@ impl ToSql for RustType {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::model::rust::Field;
     use crate::model::Import;
     use crate::model::Model;
 
@@ -468,8 +473,8 @@ mod tests {
             definitions: vec![Definition(
                 "Person".into(),
                 Rust::Struct(vec![
-                    ("name".into(), RustType::String),
-                    ("birth".into(), RustType::Complex("City".into())),
+                    Field::from_name_type("name", RustType::String),
+                    Field::from_name_type("birth", RustType::Complex("City".into())),
                 ]),
             )],
         }
@@ -635,12 +640,12 @@ mod tests {
             definitions: vec![Definition(
                 "SomeStruct".into(),
                 Rust::Struct(vec![
-                    (
-                        "list_of_primitive".into(),
+                    Field::from_name_type(
+                        "list_of_primitive",
                         RustType::Vec(Box::new(RustType::String)),
                     ),
-                    (
-                        "list_of_reference".into(),
+                    Field::from_name_type(
+                        "list_of_reference",
                         RustType::Vec(Box::new(RustType::Complex("ComplexType".into()))),
                     ),
                 ]),
@@ -913,7 +918,7 @@ mod tests {
             }],
             definitions: vec![Definition(
                 "City".into(),
-                Rust::Struct(vec![("id".into(), RustType::String)]),
+                Rust::Struct(vec![Field::from_name_type("id", RustType::String)]),
             )],
         }
         .to_sql();

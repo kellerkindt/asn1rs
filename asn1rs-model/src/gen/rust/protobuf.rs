@@ -1,8 +1,8 @@
 use crate::gen::rust::GeneratorSupplement;
 use crate::gen::rust::RustCodeGenerator;
 use crate::model::protobuf::ToProtobufType;
-use crate::model::rust::DataEnum;
 use crate::model::rust::PlainEnum;
+use crate::model::rust::{DataEnum, Field};
 use crate::model::Definition;
 use crate::model::ProtobufType;
 use crate::model::Rust;
@@ -125,11 +125,11 @@ impl ProtobufSerializer {
         function.line("Ok(me)");
     }
 
-    fn impl_read_fn_for_struct(function: &mut Function, name: &str, fields: &[(String, RustType)]) {
-        for (field_name, _field_type) in fields.iter() {
+    fn impl_read_fn_for_struct(function: &mut Function, name: &str, fields: &[Field]) {
+        for field in fields.iter() {
             function.line(format!(
                 "let mut read_{} = None;",
-                RustCodeGenerator::rust_field_name(field_name, false),
+                RustCodeGenerator::rust_field_name(field.name(), false),
             ));
         }
 
@@ -137,14 +137,14 @@ impl ProtobufSerializer {
         let mut block_match_tag = Block::new("match tag.0");
         block_match_tag.line("0 => break,");
 
-        for (prev_tag, (field_name, field_type)) in fields.iter().enumerate() {
-            match &field_type.clone().into_inner_type() {
+        for (prev_tag, field) in fields.iter().enumerate() {
+            match &field.r#type().clone().into_inner_type() {
                 RustType::Complex(name) => {
                     let mut block_case = Block::new(&format!(
                         "{} => read_{}{}(",
                         prev_tag + 1,
-                        RustCodeGenerator::rust_field_name(field_name, false),
-                        if let RustType::Vec(_) = field_type.clone().no_option() {
+                        RustCodeGenerator::rust_field_name(field.name(), false),
+                        if let RustType::Vec(_) = field.r#type().clone().no_option() {
                             ".get_or_insert_with(Vec::default).push"
                         } else {
                             " = Some"
@@ -168,18 +168,18 @@ impl ProtobufSerializer {
                     block_match_tag.push_block(block_case);
                 }
                 role => {
-                    if let RustType::Vec(_) = field_type.clone().no_option() {
+                    if let RustType::Vec(_) = field.r#type().clone().no_option() {
                         block_match_tag.line(format!(
                             "{} => read_{}.get_or_insert_with(Vec::default).push({}),",
                             prev_tag + 1,
-                            RustCodeGenerator::rust_field_name(field_name, false),
+                            RustCodeGenerator::rust_field_name(field.name(), false),
                             format!("reader.read_{}()?", role.to_protobuf().to_string(),)
                         ));
                     } else {
                         block_match_tag.line(format!(
                             "{} => read_{} = Some({}),",
                             prev_tag + 1,
-                            RustCodeGenerator::rust_field_name(field_name, false),
+                            RustCodeGenerator::rust_field_name(field.name(), false),
                             format!("reader.read_{}()?", role.to_protobuf().to_string(),)
                         ));
                     }
@@ -194,16 +194,16 @@ impl ProtobufSerializer {
         block_reader_loop.push_block(block_match_tag);
         function.push_block(block_reader_loop);
         let mut return_block = Block::new(&format!("Ok({}", name));
-        for (field_name, field_type) in fields.iter() {
+        for field in fields.iter() {
             let as_rust_statement =
-                Self::get_as_rust_type_statement(&field_type.clone().into_inner_type());
+                Self::get_as_rust_type_statement(&field.r#type().clone().into_inner_type());
             return_block.line(&format!(
                 "{}: read_{}{}{},",
-                RustCodeGenerator::rust_field_name(field_name, true),
-                RustCodeGenerator::rust_field_name(field_name, false),
+                RustCodeGenerator::rust_field_name(field.name(), true),
+                RustCodeGenerator::rust_field_name(field.name(), false),
                 if as_rust_statement.is_empty() {
                     "".into()
-                } else if let RustType::Vec(_) = field_type.clone().no_option() {
+                } else if let RustType::Vec(_) = field.r#type().clone().no_option() {
                     format!(
                         ".map(|v| v.into_iter().map(|v| v{}).collect())",
                         as_rust_statement
@@ -211,7 +211,7 @@ impl ProtobufSerializer {
                 } else {
                     format!(".map(|v| v{})", as_rust_statement)
                 },
-                if let RustType::Option(_) = field_type {
+                if let RustType::Option(_) = field.r#type() {
                     ""
                 } else {
                     ".unwrap_or_default()"
@@ -366,11 +366,11 @@ impl ProtobufSerializer {
         function.push_block(block_writer);
     }
 
-    fn impl_write_fn_for_struct(function: &mut Function, fields: &[(String, RustType)]) {
-        for (prev_tag, (field_name, field_type)) in fields.iter().enumerate() {
+    fn impl_write_fn_for_struct(function: &mut Function, fields: &[Field]) {
+        for (prev_tag, field) in fields.iter().enumerate() {
             let block_: &mut Function = function;
-            let field_name = RustCodeGenerator::rust_field_name(field_name, true);
-            let mut block = if let RustType::Option(_) = field_type {
+            let field_name = RustCodeGenerator::rust_field_name(field.name(), true);
+            let mut block = if let RustType::Option(_) = field.r#type() {
                 Block::new(&format!(
                     "if let Some(ref {}) = self.{}",
                     &field_name, &field_name,
@@ -379,7 +379,7 @@ impl ProtobufSerializer {
                 Block::new("")
             };
 
-            Self::impl_write_field(prev_tag + 1, field_type, &field_name, &mut block, false);
+            Self::impl_write_field(prev_tag + 1, field.r#type(), &field_name, &mut block, false);
             block_.push_block(block);
         }
     }
@@ -551,11 +551,11 @@ impl ProtobufSerializer {
                 ));
             }
             Rust::Struct(fields) => {
-                for (num, (field_name, _field_type)) in fields.iter().enumerate() {
+                for (num, field) in fields.iter().enumerate() {
                     if num > 0 {
                         function.line("&&");
                     }
-                    let field_name = RustCodeGenerator::rust_field_name(field_name, true);
+                    let field_name = RustCodeGenerator::rust_field_name(field.name(), true);
                     function.line(&format!(
                         "self.{}.{}_eq(&other.{})",
                         field_name,

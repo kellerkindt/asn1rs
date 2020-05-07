@@ -1,3 +1,4 @@
+use crate::model::rust::Field as RustField;
 use crate::model::Model;
 use crate::model::Range;
 use crate::model::Type as AsnType;
@@ -262,7 +263,7 @@ impl RustType {
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum Rust {
-    Struct(Vec<(String, RustType)>),
+    Struct(Vec<Field>),
     Enum(PlainEnum),
     DataEnum(DataEnum),
 
@@ -289,6 +290,47 @@ impl ToString for RustType {
             RustType::Complex(name) => return name.clone(),
         }
         .into()
+    }
+}
+
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub struct Field {
+    name_type: (String, RustType),
+    tag: Option<Tag>,
+}
+
+impl Field {
+    pub fn from_name_type<T: ToString>(name: T, r#type: RustType) -> Self {
+        Self {
+            name_type: (name.to_string(), r#type),
+            tag: None,
+        }
+    }
+
+    pub fn fallback_representation(&self) -> &(String, RustType) {
+        &self.name_type
+    }
+
+    pub fn name(&self) -> &str {
+        &self.name_type.0
+    }
+
+    pub fn r#type(&self) -> &RustType {
+        &self.name_type.1
+    }
+}
+
+impl TagProperty for Field {
+    fn tag(&self) -> Option<Tag> {
+        self.tag
+    }
+
+    fn set_tag(&mut self, tag: Tag) {
+        self.tag = Some(tag);
+    }
+
+    fn reset_tag(&mut self) {
+        self.tag = None;
     }
 }
 
@@ -331,7 +373,7 @@ impl<T> Enumeration<T> {
 
     pub fn extension_after_variant(&self) -> Option<&T> {
         self.extended_after_index
-            .and_then(|index| self.variants.iter().nth(index))
+            .and_then(|index| self.variants.get(index))
     }
 
     pub fn is_extensible(&self) -> bool {
@@ -440,7 +482,7 @@ impl Model<Rust> {
                     let rust_role =
                         Self::definition_type_to_rust_type(&rust_name, &field.role.r#type, defs);
                     let rust_field_name = rust_field_name(&field.name);
-                    rust_fields.push((rust_field_name, rust_role));
+                    rust_fields.push(RustField::from_name_type(rust_field_name, rust_role));
                 }
 
                 defs.push(Definition(name.into(), Rust::Struct(rust_fields)));
@@ -613,11 +655,11 @@ mod tests {
             Definition(
                 "Simple".into(),
                 Rust::Struct(vec![
-                    ("small".into(), RustType::U8(Range(0, 255))),
-                    ("bigger".into(), RustType::U16(Range(0, 65535))),
-                    ("negative".into(), RustType::I16(Range(-1, 255))),
-                    (
-                        "unlimited".into(),
+                    RustField::from_name_type("small", RustType::U8(Range(0, 255))),
+                    RustField::from_name_type("bigger", RustType::U16(Range(0, 65535))),
+                    RustField::from_name_type("negative", RustType::I16(Range(-1, 255))),
+                    RustField::from_name_type(
+                        "unlimited",
                         RustType::Option(Box::new(RustType::U64(None)))
                     ),
                 ])
@@ -654,8 +696,8 @@ mod tests {
         assert_eq!(
             Definition(
                 "Woah".into(),
-                Rust::Struct(vec![(
-                    "decision".into(),
+                Rust::Struct(vec![RustField::from_name_type(
+                    "decision",
                     RustType::Option(Box::new(RustType::Complex("WoahDecision".into())))
                 )])
             ),
@@ -692,16 +734,16 @@ mod tests {
             Definition(
                 "Woah".into(),
                 Rust::Struct(vec![
-                    (
-                        "also_ones".into(),
+                    RustField::from_name_type(
+                        "also_ones",
                         RustType::Vec(Box::new(RustType::U8(Range(0, 1))))
                     ),
-                    (
-                        "nesteds".into(),
+                    RustField::from_name_type(
+                        "nesteds",
                         RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::U8(Range(0, 1))))))
                     ),
-                    (
-                        "optionals".into(),
+                    RustField::from_name_type(
+                        "optionals",
                         RustType::Option(Box::new(RustType::Vec(Box::new(RustType::Vec(
                             Box::new(RustType::U64(None))
                         )))))
@@ -761,8 +803,8 @@ mod tests {
         assert_eq!(
             Definition(
                 "Woah".into(),
-                Rust::Struct(vec![(
-                    "decision".into(),
+                Rust::Struct(vec![RustField::from_name_type(
+                    "decision",
                     RustType::Complex("WoahDecision".into())
                 )])
             ),
@@ -783,13 +825,13 @@ mod tests {
             Definition(
                 "WoahComplex".into(),
                 Rust::Struct(vec![
-                    ("ones".into(), RustType::U8(Range(0, 1))),
-                    (
-                        "list_ones".into(),
+                    RustField::from_name_type("ones", RustType::U8(Range(0, 1))),
+                    RustField::from_name_type(
+                        "list_ones",
                         RustType::Vec(Box::new(RustType::U8(Range(0, 1))))
                     ),
-                    (
-                        "optional_ones".into(),
+                    RustField::from_name_type(
+                        "optional_ones",
                         RustType::Option(Box::new(RustType::Vec(Box::new(RustType::U8(Range(
                             0, 1
                         ))))))
@@ -801,8 +843,8 @@ mod tests {
         assert_eq!(
             Definition(
                 "Woah".into(),
-                Rust::Struct(vec![(
-                    "complex".into(),
+                Rust::Struct(vec![RustField::from_name_type(
+                    "complex",
                     RustType::Option(Box::new(RustType::Complex("WoahComplex".into())))
                 )])
             ),
@@ -973,8 +1015,8 @@ mod tests {
         assert_eq!(
             Definition(
                 "OptionalStructListTest".into(),
-                Rust::Struct(vec![(
-                    "strings".into(),
+                Rust::Struct(vec![RustField::from_name_type(
+                    "strings",
                     RustType::Option(Box::new(RustType::Vec(Box::new(RustType::String))))
                 )])
             ),
@@ -1001,8 +1043,8 @@ mod tests {
         assert_eq!(
             Definition(
                 "StructListTest".into(),
-                Rust::Struct(vec![(
-                    "strings".into(),
+                Rust::Struct(vec![RustField::from_name_type(
+                    "strings",
                     RustType::Vec(Box::new(RustType::String))
                 )])
             ),
@@ -1032,8 +1074,8 @@ mod tests {
         assert_eq!(
             Definition(
                 "NestedStructListTest".into(),
-                Rust::Struct(vec![(
-                    "strings".into(),
+                Rust::Struct(vec![RustField::from_name_type(
+                    "strings",
                     RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::String))))
                 )])
             ),

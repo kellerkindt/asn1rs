@@ -1,8 +1,8 @@
 use crate::gen::rust::shared_psql::*;
 use crate::gen::rust::GeneratorSupplement;
 use crate::gen::rust::RustCodeGenerator;
-use crate::model::rust::DataEnum;
 use crate::model::rust::PlainEnum;
+use crate::model::rust::{DataEnum, Field};
 use crate::model::sql::Sql;
 use crate::model::sql::ToSql;
 use crate::model::Definition;
@@ -79,12 +79,12 @@ impl PsqlInserter {
                 Self::impl_struct_insert_statement(
                     Self::new_insert_statement_fn(implementation),
                     name,
-                    &fields[..],
+                    fields,
                 );
                 Self::impl_struct_insert_fn(
                     Self::new_insert_fn(implementation, true),
                     name,
-                    &fields[..],
+                    fields.iter().map(Field::fallback_representation),
                 );
             }
             Rust::DataEnum(enumeration) => {
@@ -146,11 +146,7 @@ impl PsqlInserter {
         function.line(&format!("\"{}\"", name));
     }
 
-    fn impl_struct_insert_statement(
-        function: &mut Function,
-        name: &str,
-        fields: &[(String, RustType)],
-    ) {
+    fn impl_struct_insert_statement(function: &mut Function, name: &str, fields: &[Field]) {
         if fields.is_empty() {
             Self::impl_tuple_insert_statement(function, name);
         } else {
@@ -181,10 +177,10 @@ impl PsqlInserter {
         function.line(&format!("\"{}\"", tuple_struct_insert_statement(name)));
     }
 
-    fn impl_struct_insert_fn(
+    fn impl_struct_insert_fn<'a>(
         function: &mut Function,
         struct_name: &str,
-        fields: &[(String, RustType)],
+        fields: impl ExactSizeIterator<Item = &'a (String, RustType)>,
     ) {
         let mut variables = Vec::with_capacity(fields.len());
         let mut vecs = Vec::new();
@@ -404,12 +400,12 @@ impl PsqlInserter {
                 Self::impl_struct_load_fn(
                     Self::new_load_fn(
                         implementation,
-                        fields
-                            .iter()
-                            .any(|(_, rust)| !Model::<Sql>::is_primitive(rust) || rust.is_vec()),
+                        fields.iter().any(|field| {
+                            !Model::<Sql>::is_primitive(field.r#type()) || field.r#type().is_vec()
+                        }),
                     ),
                     name,
-                    &fields[..],
+                    fields.iter().map(Field::fallback_representation),
                 );
             }
             Rust::DataEnum(enumeration) => {
@@ -462,15 +458,15 @@ impl PsqlInserter {
             name, ERROR_TYPE,
         ));
     }
-    fn impl_struct_load_fn(
+    fn impl_struct_load_fn<'a>(
         func: &mut Function,
         struct_name: &str,
-        variants: &[(String, RustType)],
+        variants: impl ExactSizeIterator<Item = &'a (String, RustType)>,
     ) {
         let mut block = Block::new(&format!("Ok({}", struct_name));
         let mut index_negative_offset = 0;
 
-        for (index, (name, rust)) in variants.iter().enumerate() {
+        for (index, (name, rust)) in variants.enumerate() {
             let index = index - index_negative_offset;
 
             // Lists do not have a entry in the `holding` table but

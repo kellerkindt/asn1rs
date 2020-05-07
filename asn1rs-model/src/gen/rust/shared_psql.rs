@@ -1,5 +1,5 @@
 use crate::gen::RustCodeGenerator;
-use crate::model::rust::DataEnum;
+use crate::model::rust::{DataEnum, Field};
 use crate::model::sql::Sql;
 use crate::model::{Model, RustType};
 
@@ -16,22 +16,26 @@ pub(crate) fn tuple_struct_insert_statement(name: &str) -> String {
     format!("INSERT INTO {} DEFAULT VALUES RETURNING id", name)
 }
 
-pub(crate) fn struct_insert_statement(name: &str, fields: &[(String, RustType)]) -> String {
+pub(crate) fn struct_insert_statement(name: &str, fields: &[Field]) -> String {
     format!(
         "INSERT INTO {}({}) VALUES({}) RETURNING id",
         name,
         fields
             .iter()
-            .filter_map(|(name, field)| if field.is_vec() {
+            .filter_map(|field| if field.r#type().is_vec() {
                 None
             } else {
-                Some(Model::sql_column_name(name))
+                Some(Model::sql_column_name(field.name()))
             })
             .collect::<Vec<String>>()
             .join(", "),
         fields
             .iter()
-            .filter_map(|(name, field)| if field.is_vec() { None } else { Some(name) })
+            .filter_map(|field| if field.r#type().is_vec() {
+                None
+            } else {
+                Some(field.name())
+            })
             .enumerate()
             .map(|(num, _)| format!("${}", num + 1))
             .collect::<Vec<String>>()

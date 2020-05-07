@@ -1,7 +1,7 @@
 use crate::gen::rust::GeneratorSupplement;
 use crate::gen::rust::RustCodeGenerator;
-use crate::model::rust::PlainEnum;
 use crate::model::rust::{DataEnum, Enumeration};
+use crate::model::rust::{Field, PlainEnum};
 use crate::model::Definition;
 use crate::model::Rust;
 use crate::model::RustType;
@@ -54,8 +54,8 @@ impl UperSerializer {
                 Self::impl_read_fn_for_tuple_struct(function, name, aliased);
             }
             Rust::Struct(fields) => {
-                for (field_name, field_type) in fields.iter() {
-                    Self::impl_read_fn_header_for_type(function, field_name, field_type);
+                for field in fields.iter() {
+                    Self::impl_read_fn_header_for_type(function, field.name(), field.r#type());
                 }
                 Self::impl_read_fn_for_struct(function, fields);
             }
@@ -196,18 +196,18 @@ impl UperSerializer {
         }
     }
 
-    fn impl_read_fn_for_struct(function: &mut Function, fields: &[(String, RustType)]) {
+    fn impl_read_fn_for_struct(function: &mut Function, fields: &[Field]) {
         function.line("let mut me = Self::default();");
-        for (field_name, field_type) in fields.iter() {
+        for field in fields {
             let mut block = Block::new(&format!(
                 "me.{} = ",
-                RustCodeGenerator::rust_field_name(field_name, true)
+                RustCodeGenerator::rust_field_name(field.name(), true)
             ));
             Self::impl_read_fn_for_type(
                 &mut block,
-                &field_type.to_inner_type_string(),
-                Some(Member::Instance(field_name.clone(), false, false)),
-                field_type,
+                &field.r#type().to_inner_type_string(),
+                Some(Member::Instance(field.name().to_string(), false, false)),
+                field.r#type(),
             );
             block.after(";");
             function.push_block(block);
@@ -308,8 +308,8 @@ impl UperSerializer {
                 Self::impl_write_fn_for_tuple_struct(function, inner);
             }
             Rust::Struct(fields) => {
-                for (field_name, field_type) in fields.iter() {
-                    Self::impl_write_fn_header_for_type(function, field_name, field_type);
+                for field in fields.iter() {
+                    Self::impl_write_fn_header_for_type(function, field.name(), field.r#type());
                 }
                 Self::impl_write_fn_for_struct(function, fields);
             }
@@ -473,17 +473,17 @@ impl UperSerializer {
             }
         }
     }
-    fn impl_write_fn_for_struct(function: &mut Function, fields: &[(String, RustType)]) {
+    fn impl_write_fn_for_struct(function: &mut Function, fields: &[Field]) {
         let mut block = Block::new("");
-        for (field_name, field_type) in fields.iter() {
+        for field in fields.iter() {
             Self::impl_write_fn_for_type(
                 &mut block,
                 Some(Member::Instance(
-                    field_name.clone(),
-                    !field_type.clone().no_option().is_primitive(),
+                    field.name().to_string(),
+                    !field.r#type().clone().no_option().is_primitive(),
                     false,
                 )),
-                field_type,
+                field.r#type(),
             );
         }
         function.push_block(block);
