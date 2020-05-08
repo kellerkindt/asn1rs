@@ -115,10 +115,19 @@ impl Writer for UperWriter {
     fn write_choice<C: choice::Constraint>(&mut self, choice: &C) -> Result<(), Self::Error> {
         self.scope_stashed(|w| {
             if C::EXTENSIBLE {
-                w.buffer.write_choice_index_extensible(
-                    choice.to_choice_index() as u64,
-                    C::STD_VARIANT_COUNT as u64,
-                )?;
+                let index = choice.to_choice_index();
+                w.buffer
+                    .write_choice_index_extensible(index as u64, C::STD_VARIANT_COUNT as u64)?;
+                if index >= C::STD_VARIANT_COUNT {
+                    // TODO performance
+                    let mut writer = UperWriter::default();
+                    choice.write_content(&mut writer)?;
+                    w.buffer
+                        .write_length_determinant(writer.byte_content().len())?;
+                    return w
+                        .buffer
+                        .write_bit_string_till_end(&writer.byte_content(), 0);
+                }
             } else {
                 w.buffer.write_choice_index(
                     choice.to_choice_index() as u64,
@@ -285,19 +294,30 @@ impl Reader for UperReader {
 
     #[inline]
     fn read_choice<C: choice::Constraint>(&mut self) -> Result<C, Self::Error> {
-        self.scope_stashed(|w| {
+        self.scope_stashed(|r| {
             if C::EXTENSIBLE {
-                w.buffer
+                let index = r
+                    .buffer
                     .read_choice_index_extensible(C::STD_VARIANT_COUNT as u64)
-                    .map(|v| v as usize)
+                    .map(|v| v as usize)?;
+                if index >= C::STD_VARIANT_COUNT {
+                    // TODO performance
+                    let byte_len = r.buffer.read_length_determinant()?;
+                    let mut bytes = vec![0u8; byte_len];
+                    r.buffer.read_bit_string_till_end(&mut bytes[..], 0)?;
+                    let mut reader = UperReader::from_bits(bytes, byte_len * 8);
+                    Ok((index, C::read_content(index, &mut reader)?))
+                } else {
+                    Ok((index, C::read_content(index, r)?))
+                }
             } else {
-                w.buffer
+                r.buffer
                     .read_choice_index(C::STD_VARIANT_COUNT as u64)
                     .map(|v| v as usize)
+                    .and_then(|index| Ok((index, C::read_content(index, r)?)))
             }
-            .and_then(|index| {
-                C::read_content(index, w)?
-                    .ok_or_else(|| UperError::InvalidChoiceIndex(index, C::VARIANT_COUNT))
+            .and_then(|(index, content)| {
+                content.ok_or_else(|| UperError::InvalidChoiceIndex(index, C::VARIANT_COUNT))
             })
         })
     }
