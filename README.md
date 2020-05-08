@@ -16,7 +16,7 @@ The generated Rust code has serializers and deserializers for ASN.1 UPER, protob
 
 Currently only UPER is supported for ASN.1. 
 
-## CLI usage
+#### CLI usage
 
 It is always helpful to check ```asn1rs --help``` in advance.
 The basic usage can be seen blow:
@@ -33,7 +33,7 @@ asn1rs -t proto directory/for/protobuf/files some.asn1 messages.asn1
 asn1rs -t sql directory/for/sql/schema/files some.asn1 messages.asn1
 ```
 
-## API usage
+#### API usage
 
 The following example generates Rust, Protobuf and SQL files for all ```.asn1```-files in the ```asn/``` directory of the project.
 While the generated Rust code is written to the ```src/``` directory, the Protobuf files are written to ```proto/``` and the SQL files are written to ```sql/ ```.
@@ -77,7 +77,7 @@ pub fn main() {
 }
 ```
 
-## Example Input / Output
+#### Example Input / Output
 
 Input ```input.asn1```
 
@@ -153,7 +153,7 @@ CREATE TABLE Header (
 );
 ```
 
-### Example usage of async postgres
+#### Example usage of async postgres
 NOTE: This requires the `async-psql` feature.
 
 Using async postgres allows the message - or the batched messages - to take advantage of [`pipelining`] automatically.
@@ -224,7 +224,7 @@ async fn main() {
 }
 ```
 
-## Good to know
+#### Good to know
 The module ```asn1rs::io``` exposes (de-)serializers and helpers for direct usage without ASN.1 definitons:
 ```rust
 use asn1rs::io::uper::*;
@@ -272,7 +272,7 @@ fn test_default_range() {
 }
 ```
 
-## What works
+#### What works
  - Generating Rust Code with serializtion support for
    - UPER
    - Protobuf
@@ -295,22 +295,36 @@ fn test_default_range() {
  - Line comments (```--- some comment```)
  - parsing and ignoring in UPER unused TAGs and ENUMERATED-Variant number assignments
 
-## What doesn't work
+#### What doesn't work
  - most of the (not mentioned) remaining ASN.1 data-types
  - probably most non-trivial ASN.1 declarations
  - let me know
 
-## TODO
+#### TODO
 Things to do at some point in time
   - support ```#![no_std]```
   - refactor / clean-up (rust) code-generators
 
 
-### LICENSE
+#### License
 
-MIT/Apache-2.0
+<sup>
+Licensed under either of <a href="LICENSE-APACHE">Apache License, Version
+2.0</a> or <a href="LICENSE-MIT">MIT license</a> at your option.
+</sup>
 
-### About
+<br>
+
+<sub>
+Unless you explicitly state otherwise, any contribution intentionally submitted
+for inclusion in this crate by you, as defined in the Apache-2.0 license, shall
+be dual licensed as above, without any additional terms or conditions.
+</sub>
+
+
+##### Origin
+<sub>
 This crate was initially developed during a research project at IT-Designers GmbH (http://www.it-designers.de).
+</sub
 
 [`pipelining`]: https://docs.rs/tokio-postgres/0.5.2/tokio_postgres/#pipelining
