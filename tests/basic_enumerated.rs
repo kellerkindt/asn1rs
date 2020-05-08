@@ -1,6 +1,6 @@
-use asn1rs::io::buffer::BitBuffer;
-use asn1rs::io::uper::Writer;
-use asn1rs::macros::asn_to_rust;
+use asn1rs::prelude::*;
+use asn1rs::syn::io::UperReader as NewUperReader;
+use asn1rs::syn::io::UperWriter as NewUperWriter;
 
 asn_to_rust!(
     r"BasicEnumerated DEFINITIONS AUTOMATIC TAGS ::=
@@ -24,19 +24,16 @@ asn_to_rust!(
     END"
 );
 
-fn serialize_uper(to_uper: impl Uper) -> (usize, Vec<u8>) {
-    let mut buffer = BitBuffer::default();
-    to_uper
-        .write_uper(&mut buffer as &mut dyn UperWriter)
-        .unwrap();
-    let bits = buffer.bit_len();
-    (bits, buffer.into())
+fn serialize_uper(to_uper: impl Writable) -> (usize, Vec<u8>) {
+    let mut writer = NewUperWriter::default();
+    writer.write(&to_uper).unwrap();
+    let bits = writer.bit_len();
+    (bits, writer.into_bytes_vec())
 }
 
-fn deserialize_uper<T: Uper>(data: &[u8], bits: usize) -> T {
-    let mut buffer = BitBuffer::default();
-    buffer.write_bit_string(data, 0, bits).unwrap();
-    T::read_uper(&mut buffer as &mut dyn UperReader).unwrap()
+fn deserialize_uper<T: Readable>(data: &[u8], bits: usize) -> T {
+    let mut reader = NewUperReader::from_bits(data, bits);
+    reader.read::<T>().unwrap()
 }
 
 #[test]
@@ -66,17 +63,17 @@ fn test_basic_variants_parsed() {
 
 #[test]
 pub fn test_basic_uper() {
-    let mut buffer = BitBuffer::default();
-    let writer = &mut buffer as &mut dyn UperWriter;
-    Basic::Abc.write_uper(writer).unwrap();
-    Basic::Def.write_uper(writer).unwrap();
-    Basic::Ghi.write_uper(writer).unwrap();
+    let mut writer = NewUperWriter::default();
+    writer.write(&Basic::Abc).unwrap();
+    writer.write(&Basic::Def).unwrap();
+    writer.write(&Basic::Ghi).unwrap();
+
     assert_eq!(
         &[
             0b00 << 6 // Abc 
                 | 0b01 << 4 // Def 
                 | 0b10 << 2 // Ghi
         ],
-        &buffer.content()
+        writer.byte_content()
     );
 }

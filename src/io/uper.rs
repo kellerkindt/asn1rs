@@ -67,6 +67,8 @@ impl std::error::Error for Error {
     }
 }
 
+#[deprecated(note = "Use the UperReader/-Writer with the Read-/Writable interface instead")]
+#[cfg(feature = "legacy-uper-codegen")]
 pub trait Uper {
     fn read_uper(reader: &mut dyn Reader) -> Result<Self, Error>
     where

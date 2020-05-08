@@ -55,9 +55,10 @@ proc-macro2 = "1.0.10"
 default = ["macros", "model"]
 psql = ["asn1rs-model/psql", "postgres"]
 async-psql = ["asn1rs-model/async-psql", "tokio", "tokio-postgres", "futures", "bytes"]
-legacy_bit_buffer = []
 macros = ["asn1rs-macros"]
 model = ["asn1rs-model"]
+legacy_bit_buffer = []
+legacy-uper-codegen = ["asn1rs-model/legacy-uper-codegen"]
 debug-proc-macro = ["asn1rs-macros/debug-proc-macro", "asn1rs-model/debug-proc-macro"]
 
 [[bench]]

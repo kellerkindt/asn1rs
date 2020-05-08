@@ -1,6 +1,6 @@
-use asn1rs::io::buffer::BitBuffer;
-use asn1rs::io::uper::Writer;
-use asn1rs::macros::asn_to_rust;
+use asn1rs::prelude::*;
+use asn1rs::syn::io::UperReader as NewUperReader;
+use asn1rs::syn::io::UperWriter as NewUperWriter;
 
 asn_to_rust!(
     r"BasicChoice DEFINITIONS AUTOMATIC TAGS ::=
@@ -24,22 +24,19 @@ asn_to_rust!(
     END"
 );
 
-fn serialize_uper(to_uper: &impl Uper) -> (usize, Vec<u8>) {
-    let mut buffer = BitBuffer::default();
-    to_uper
-        .write_uper(&mut buffer as &mut dyn UperWriter)
-        .unwrap();
-    let bits = buffer.bit_len();
-    (bits, buffer.into())
+fn serialize_uper(to_uper: &impl Writable) -> (usize, Vec<u8>) {
+    let mut writer = NewUperWriter::default();
+    writer.write(to_uper).unwrap();
+    let bits = writer.bit_len();
+    (bits, writer.into_bytes_vec())
 }
 
-fn deserialize_uper<T: Uper>(data: &[u8], bits: usize) -> T {
-    let mut buffer = BitBuffer::default();
-    buffer.write_bit_string(data, 0, bits).unwrap();
-    T::read_uper(&mut buffer as &mut dyn UperReader).unwrap()
+fn deserialize_uper<T: Readable>(data: &[u8], bits: usize) -> T {
+    let mut reader = NewUperReader::from_bits(data, bits);
+    reader.read::<T>().unwrap()
 }
 
-fn serialize_and_deserialize_uper<T: Uper + std::fmt::Debug + PartialEq>(
+fn serialize_and_deserialize_uper<T: Readable + Writable + std::fmt::Debug + PartialEq>(
     bits: usize,
     data: &[u8],
     uper: &T,
@@ -51,6 +48,8 @@ fn serialize_and_deserialize_uper<T: Uper + std::fmt::Debug + PartialEq>(
 
 #[test]
 fn test_extensible_uper() {
+    // https://asn1.io/asn1playground/
+    // value Extensible ::=  abc { "" }
     serialize_and_deserialize_uper(10, &[0x00, 0x00], &Extensible::Abc(String::default()));
     serialize_and_deserialize_uper(
         106,
@@ -61,7 +60,12 @@ fn test_extensible_uper() {
     );
     serialize_and_deserialize_uper(18, &[0x40, 0x40, 0x00], &Extensible::Def(0));
     serialize_and_deserialize_uper(26, &[0x40, 0x81, 0x4e, 0x40], &Extensible::Def(1337));
+
+    // value Extensible ::=  ghi:0
     serialize_and_deserialize_uper(32, &[0x80_u8, 0x02, 0x01, 0x00], &Extensible::Ghi(0));
+
+    // value Extensible ::=  ghi:27
+    serialize_and_deserialize_uper(32, &[0x80_u8, 0x02, 0x01, 0x1B], &Extensible::Ghi(27));
 
     serialize_and_deserialize_uper(
         40,

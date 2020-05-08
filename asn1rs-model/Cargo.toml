@@ -22,4 +22,5 @@ default = []
 # RustCodeGenerator -> GeneratorSupplement
 psql = []
 async-psql = []
+legacy-uper-codegen = []
 debug-proc-macro = []

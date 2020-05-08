@@ -1,5 +1,5 @@
-use asn1rs::io::buffer::BitBuffer;
-use asn1rs::macros::asn_to_rust;
+use asn1rs::prelude::*;
+use asn1rs::syn::io::UperWriter as NewUperWriter;
 
 asn_to_rust!(
     r"BasicInteger DEFINITIONS AUTOMATIC TAGS ::=
@@ -20,17 +20,18 @@ fn test_default_range() {
 }
 
 #[test]
-fn test_uper() {
-    let mut buffer = BitBuffer::default();
-    let writer = &mut buffer as &mut dyn UperWriter;
-    RangedMax(123).write_uper(writer).unwrap();
-    assert_eq!(&[0x01, 123_u8], buffer.content());
+fn test_uper_small() {
+    let mut writer = NewUperWriter::default();
+    writer.write(&RangedMax(123)).unwrap();
+    assert_eq!(&[0x01, 123_u8], writer.byte_content());
+}
 
-    let mut buffer = BitBuffer::default();
-    let writer = &mut buffer as &mut dyn UperWriter;
-    RangedMax(66_000).write_uper(writer).unwrap();
+#[test]
+fn test_uper_big() {
+    let mut writer = NewUperWriter::default();
+    writer.write(&RangedMax(66_000)).unwrap();
     let bytes = 66_000_u64.to_be_bytes();
-    assert_eq!(&[0x03, bytes[5], bytes[6], bytes[7]], buffer.content());
+    assert_eq!(&[0x03, bytes[5], bytes[6], bytes[7]], writer.byte_content());
 }
 
 #[test]

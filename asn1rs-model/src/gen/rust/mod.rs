@@ -1,6 +1,11 @@
 pub mod protobuf;
-pub mod uper;
 pub mod walker;
+
+#[deprecated(
+    note = "This generator is  the UperReader/-Writer with the Read-/Writable interface instead"
+)]
+#[cfg(feature = "legacy-uper-codegen")]
+pub mod uper;
 
 #[cfg(feature = "psql")]
 pub mod psql;
@@ -12,7 +17,6 @@ pub mod async_psql;
 pub(crate) mod shared_psql;
 
 use self::protobuf::ProtobufSerializer;
-use self::uper::UperSerializer;
 use crate::gen::Generator;
 use crate::model::rust::PlainEnum;
 use crate::model::rust::{DataEnum, Field};
@@ -95,7 +99,8 @@ impl Generator<Rust> for RustCodeGenerator {
             files.push(self.model_to_file(
                 model,
                 &[
-                    &UperSerializer,
+                    #[cfg(feature = "legacy-uper-codegen")]
+                    &uper::UperSerializer,
                     &ProtobufSerializer,
                     #[cfg(feature = "psql")]
                     &PsqlInserter,
