@@ -544,12 +544,39 @@ impl<T: TagProperty> TagProperty for Field<T> {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
+///ITU-T X.680 | ISO/IEC 8824-1, chapter 8
+///
+/// # Ordering
+/// According to ITU-T X.680 | ISO/IEC 8824-1, 8.6, the canonical order is
+/// a) Universal, Application, ContextSpecific and Private and
+/// b) within each class, the numbers shall be ordered ascending
+///
+/// ```rust
+/// use asn1rs_model::model::Tag;
+/// let mut tags = vec![
+///     Tag::Universal(1),
+///     Tag::Application(0),
+///     Tag::Private(7),
+///     Tag::ContextSpecific(107),
+///     Tag::ContextSpecific(32),
+///     Tag::Universal(0),
+/// ];
+/// tags.sort();
+/// assert_eq!(tags, vec![
+///     Tag::Universal(0),
+///     Tag::Universal(1),
+///     Tag::Application(0),
+///     Tag::ContextSpecific(32),
+///     Tag::ContextSpecific(107),
+///     Tag::Private(7),
+/// ]);
+/// ```
+#[derive(Debug, Clone, Copy, PartialOrd, PartialEq, Ord, Eq)]
 pub enum Tag {
     Universal(usize),
     Application(usize),
-    Private(usize),
     ContextSpecific(usize),
+    Private(usize),
 }
 
 impl TryFrom<&mut Peekable<IntoIter<Token>>> for Tag {
