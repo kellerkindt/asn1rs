@@ -230,6 +230,24 @@ impl UperReader {
         self.scope = scope;
         result
     }
+
+    #[inline]
+    pub fn read_whole_sub_slice<T, E, F: Fn(&mut Self) -> Result<T, E>>(
+        &mut self,
+        length_bytes: usize,
+        f: F,
+    ) -> Result<T, E> {
+        let write_position = self.buffer.read_position + (length_bytes * 8);
+        let write_original = core::mem::replace(&mut self.buffer.write_position, write_position);
+        let result = f(self);
+        // extend to original position
+        self.buffer.write_position = write_original;
+        if result.is_ok() {
+            // on successful read, skip the slice
+            self.buffer.read_position = write_position;
+        }
+        result
+    }
 }
 
 impl Reader for UperReader {
@@ -301,12 +319,8 @@ impl Reader for UperReader {
                     .read_choice_index_extensible(C::STD_VARIANT_COUNT as u64)
                     .map(|v| v as usize)?;
                 if index >= C::STD_VARIANT_COUNT {
-                    // TODO performance
                     let byte_len = r.buffer.read_length_determinant()?;
-                    let mut bytes = vec![0u8; byte_len];
-                    r.buffer.read_bit_string_till_end(&mut bytes[..], 0)?;
-                    let mut reader = UperReader::from_bits(bytes, byte_len * 8);
-                    Ok((index, C::read_content(index, &mut reader)?))
+                    r.read_whole_sub_slice(byte_len, |r| Ok((index, C::read_content(index, r)?)))
                 } else {
                     Ok((index, C::read_content(index, r)?))
                 }
