@@ -432,6 +432,7 @@ impl Model<Rust> {
     pub fn convert_asn_to_rust(asn_model: &Model<Asn>) -> Model<Rust> {
         let mut model = Model {
             name: rust_module_name(&asn_model.name),
+            oid: asn_model.oid.clone(),
             imports: asn_model
                 .imports
                 .iter()

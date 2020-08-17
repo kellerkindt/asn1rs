@@ -138,6 +138,7 @@ fn parse_asn_map_to_rust_map_to_stringify_with_proc_macro_annotation_re_parse_ch
 
         let re_parsed_model = Model {
             name: rust_model.name.clone(),
+            oid: None,
             imports: rust_model.imports.clone(),
             definitions: vec![re_parsed],
         };

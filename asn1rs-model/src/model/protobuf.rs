@@ -107,6 +107,7 @@ impl Model<Protobuf> {
     pub fn convert_rust_to_protobuf(rust_model: &Model<Rust>) -> Model<Protobuf> {
         let mut model = Model {
             name: rust_model.name.clone(),
+            oid: rust_model.oid.clone(),
             imports: rust_model.imports.clone(),
             definitions: Vec::with_capacity(rust_model.definitions.len()),
         };

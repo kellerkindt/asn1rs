@@ -42,6 +42,7 @@ pub enum ErrorKind {
     InvalidNumberForEnumVariant(Token),
     InvalidTag(Token),
     InvalidPositionForExtensionMarker(Token),
+    InvalidIntText(Token),
 }
 
 pub struct Error {
@@ -65,6 +66,10 @@ impl PartialEq for Error {
 }
 
 impl Error {
+    pub fn invalid_int_value(token: Token) -> Self {
+        ErrorKind::InvalidIntText(token).into()
+    }
+
     pub fn invalid_position_for_extension_marker(token: Token) -> Self {
         ErrorKind::InvalidPositionForExtensionMarker(token).into()
     }
@@ -126,6 +131,7 @@ impl Error {
             ErrorKind::InvalidNumberForEnumVariant(t) => Some(t),
             ErrorKind::InvalidTag(t) => Some(t),
             ErrorKind::InvalidPositionForExtensionMarker(t) => Some(t),
+            ErrorKind::InvalidIntText(t) => Some(t),
         }
     }
 }
@@ -143,14 +149,14 @@ impl Debug for Error {
 impl Display for Error {
     fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
         match &self.kind {
-            ErrorKind::ExpectedText( token) => write!(
+            ErrorKind::ExpectedText(token) => write!(
                 f,
                 "At line {}, column {} expected text, but instead got: {}",
                 token.location().line(),
                 token.location().column(),
                 token,
             ),
-            ErrorKind::ExpectedTextGot( text, token) => write!(
+            ErrorKind::ExpectedTextGot(text, token) => write!(
                 f,
                 "At line {}, column {} expected a text like \"{}\", but instead got: {}",
                 token.location().line(),
@@ -158,14 +164,14 @@ impl Display for Error {
                 text,
                 token,
             ),
-            ErrorKind::ExpectedSeparator( token) => write!(
+            ErrorKind::ExpectedSeparator(token) => write!(
                 f,
                 "At line {}, column {} expected separator, but instead got: {}",
                 token.location().line(),
                 token.location().column(),
                 token,
             ),
-            ErrorKind::ExpectedSeparatorGot( separator, token) => write!(
+            ErrorKind::ExpectedSeparatorGot(separator, token) => write!(
                 f,
                 "At line {}, column {} expected a separator like '{}', but instead got: {}",
                 token.location().line(),
@@ -173,7 +179,7 @@ impl Display for Error {
                 separator,
                 token,
             ),
-            ErrorKind::UnexpectedToken( token) => write!(
+            ErrorKind::UnexpectedToken(token) => write!(
                 f,
                 "At line {}, column {} an unexpected token was encountered: {}",
                 token.location().line(),
@@ -184,40 +190,70 @@ impl Display for Error {
                 writeln!(f, "The ASN definition is missing the module name")
             }
             ErrorKind::UnexpectedEndOfStream => write!(f, "Unexpected end of stream or file"),
-            ErrorKind::InvalidRangeValue( token) => write!(
+            ErrorKind::InvalidRangeValue(token) => write!(
                 f,
                 "At line {}, column {} an unexpected range value was encountered: {}",
                 token.location().line(),
                 token.location().column(),
                 token,
             ),
-            ErrorKind::InvalidNumberForEnumVariant( token) => write!(
+            ErrorKind::InvalidNumberForEnumVariant(token) => write!(
                 f,
                 "At line {}, column {} an invalid value for an enum variant was encountered: {}",
                 token.location().line(),
                 token.location().column(),
                 token,
             ),
-            ErrorKind::InvalidTag( token) => write!(
+            ErrorKind::InvalidTag(token) => write!(
                 f,
                 "At line {}, column {} an invalid value for a tag was encountered: {}",
                 token.location().line(),
                 token.location().column(),
                 token,
             ),
-            ErrorKind::InvalidPositionForExtensionMarker( token) => write!(
+            ErrorKind::InvalidPositionForExtensionMarker(token) => write!(
                 f,
                 "At line {}, column {} an extension marker is present, which this is not allowed at that position",
                 token.location().line(),
                 token.location().column(),
             ),
+            ErrorKind::InvalidIntText(token) => write!(
+                f,
+                "At line {}, column {} a number was expected but instead got: {}",
+                token.location().line(),
+                token.location().column(),
+                token
+            )
         }
     }
+}
+
+/// The object-identifier is described in ITU-T X.680 | ISO/IEC 8824-1:2015
+/// in chapter 32. The XML-related definitions as well as'DefinedValue' is
+/// ignored by this implementation.
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub struct ObjectIdentifier(Vec<ObjectIdentifierComponent>);
+
+impl ObjectIdentifier {
+    pub fn iter(&self) -> impl Iterator<Item = &ObjectIdentifierComponent> {
+        self.0.iter()
+    }
+}
+
+/// The object-identifier is described in ITU-T X.680 | ISO/IEC 8824-1:2015
+/// in chapter 32. The XML-related definitions as well as'DefinedValue' is
+/// ignored by this implementation.
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub enum ObjectIdentifierComponent {
+    NameForm(String),
+    NumberForm(u64),
+    NameAndNumberForm(String, u64),
 }
 
 #[derive(Debug, Clone)]
 pub struct Model<T> {
     pub name: String,
+    pub oid: Option<ObjectIdentifier>,
     pub imports: Vec<Import>,
     pub definitions: Vec<Definition<T>>,
 }
@@ -226,6 +262,7 @@ impl<T> Default for Model<T> {
     fn default() -> Self {
         Model {
             name: Default::default(),
+            oid: None,
             imports: Default::default(),
             definitions: Default::default(),
         }
@@ -238,6 +275,7 @@ impl Model<Asn> {
         let mut iter = value.into_iter().peekable();
 
         model.name = Self::read_name(&mut iter)?;
+        model.oid = Self::maybe_read_oid(&mut iter)?;
         Self::skip_until_after_text_ignore_ascii_case(&mut iter, "BEGIN")?;
 
         while let Some(token) = iter.next() {
@@ -262,6 +300,50 @@ impl Model<Asn> {
         iter.next()
             .and_then(|token| token.into_text())
             .ok_or_else(Error::missing_module_name)
+    }
+
+    fn maybe_read_oid(
+        iter: &mut Peekable<IntoIter<Token>>,
+    ) -> Result<Option<ObjectIdentifier>, Error> {
+        if iter.peek().map(|t| t.eq_separator('{')).unwrap_or(false) {
+            let _token_start = iter.next().ok_or_else(Error::unexpected_end_of_stream)?;
+            Ok(Some(Self::read_oid(iter)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn read_oid(iter: &mut Peekable<IntoIter<Token>>) -> Result<ObjectIdentifier, Error> {
+        let mut vec = Vec::default();
+        while let Some(token) = iter.next() {
+            if token.eq_separator('}') {
+                break;
+            } else if let Some(identifier) = token.text() {
+                if identifier.chars().all(char::is_numeric) {
+                    vec.push(ObjectIdentifierComponent::NumberForm(
+                        identifier
+                            .parse()
+                            .map_err(|_| Error::invalid_int_value(token))?,
+                    ));
+                } else if iter.peek().map(|t| t.eq_separator('(')).unwrap_or(false) {
+                    Self::next_separator_ignore_case(iter, '(')?;
+                    let number = match Self::next_text(iter)?.parse::<u64>() {
+                        Ok(number) => number,
+                        Err(_) => return Err(Error::invalid_int_value(token)),
+                    };
+                    Self::next_separator_ignore_case(iter, ')')?;
+                    vec.push(ObjectIdentifierComponent::NameAndNumberForm(
+                        identifier.to_string(),
+                        number,
+                    ));
+                } else {
+                    vec.push(ObjectIdentifierComponent::NameForm(identifier.to_string()));
+                }
+            } else {
+                return Err(Error::unexpected_token(token));
+            }
+        }
+        Ok(ObjectIdentifier(vec))
     }
 
     fn skip_until_after_text_ignore_ascii_case(
@@ -491,6 +573,7 @@ impl Model<Asn> {
         Model::convert_asn_to_rust(self)
     }
 }
+
 #[derive(Debug, Default, Clone, PartialOrd, PartialEq)]
 pub struct Import {
     pub what: Vec<String>,
@@ -1081,7 +1164,7 @@ pub(crate) mod tests {
                         role: Type::Integer(None).optional().untagged(),
                     }
                 ])
-                .untagged()
+                .untagged(),
             ),
             model.definitions[0]
         );
@@ -1154,7 +1237,7 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "Ones".into(),
-                Type::SequenceOf(Box::new(Type::Integer(Some(Range(0, 1))))).untagged()
+                Type::SequenceOf(Box::new(Type::Integer(Some(Range(0, 1))))).untagged(),
             ),
             model.definitions[0]
         );
@@ -1193,7 +1276,7 @@ pub(crate) mod tests {
                         .untagged(),
                     },
                 ])
-                .untagged()
+                .untagged(),
             ),
             model.definitions[2]
         );
@@ -1232,7 +1315,7 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "This".into(),
-                Type::SequenceOf(Box::new(Type::Integer(Some(Range(0, 1))))).untagged()
+                Type::SequenceOf(Box::new(Type::Integer(Some(Range(0, 1))))).untagged(),
             ),
             model.definitions[0]
         );
@@ -1242,14 +1325,14 @@ pub(crate) mod tests {
                 Type::SequenceOf(Box::new(Type::SequenceOf(Box::new(Type::Integer(Some(
                     Range(0, 1)
                 ))))))
-                .untagged()
+                .untagged(),
             ),
             model.definitions[1]
         );
         assert_eq!(
             Definition(
                 "Neither".into(),
-                Type::Enumerated(Enumerated::from_names(["ABC", "DEF"].iter())).untagged()
+                Type::Enumerated(Enumerated::from_names(["ABC", "DEF"].iter())).untagged(),
             ),
             model.definitions[2]
         );
@@ -1317,7 +1400,7 @@ pub(crate) mod tests {
                     .optional()
                     .untagged(),
                 }])
-                .untagged()
+                .untagged(),
             ),
             model.definitions[0]
         );
@@ -1362,7 +1445,7 @@ pub(crate) mod tests {
         assert_eq!(
             &[Definition(
                 "SimpleTypeWithRange".to_string(),
-                Type::Integer(Some(Range(0, 65_535))).untagged()
+                Type::Integer(Some(Range(0, 65_535))).untagged(),
             )][..],
             &model.definitions[..]
         )
@@ -1386,7 +1469,7 @@ pub(crate) mod tests {
         assert_eq!(
             &[Definition(
                 "SimpleStringType".to_string(),
-                Type::UTF8String.untagged()
+                Type::UTF8String.untagged(),
             )][..],
             &model.definitions[..]
         )
@@ -1509,22 +1592,22 @@ pub(crate) mod tests {
                 Definition(
                     "Universal".to_string(),
                     Type::Enumerated(Enumerated::from_names(["abc", "def"].iter()))
-                        .tagged(Tag::Universal(2))
+                        .tagged(Tag::Universal(2)),
                 ),
                 Definition(
                     "Application".to_string(),
                     Type::Enumerated(Enumerated::from_names(["abc", "def"].iter()))
-                        .tagged(Tag::Application(7))
+                        .tagged(Tag::Application(7)),
                 ),
                 Definition(
                     "Private".to_string(),
                     Type::Enumerated(Enumerated::from_names(["abc", "def"].iter()))
-                        .tagged(Tag::Private(11))
+                        .tagged(Tag::Private(11)),
                 ),
                 Definition(
                     "ContextSpecific".to_string(),
                     Type::Enumerated(Enumerated::from_names(["abc", "def"].iter()))
-                        .tagged(Tag::ContextSpecific(8))
+                        .tagged(Tag::ContextSpecific(8)),
                 ),
             ][..],
             &model.definitions[..]
@@ -1576,16 +1659,16 @@ pub(crate) mod tests {
                 ),
                 Definition(
                     "Application".to_string(),
-                    Type::SequenceOf(Box::new(Type::UTF8String)).tagged(Tag::Application(7))
+                    Type::SequenceOf(Box::new(Type::UTF8String)).tagged(Tag::Application(7)),
                 ),
                 Definition(
                     "Private".to_string(),
                     Type::Enumerated(Enumerated::from_names(["abc", "def"].iter()))
-                        .tagged(Tag::Private(11))
+                        .tagged(Tag::Private(11)),
                 ),
                 Definition(
                     "ContextSpecific".to_string(),
-                    Type::Integer(None).tagged(Tag::ContextSpecific(8))
+                    Type::Integer(None).tagged(Tag::ContextSpecific(8)),
                 ),
             ][..],
             &model.definitions[..]
@@ -1631,9 +1714,9 @@ pub(crate) mod tests {
                             ChoiceVariant::name_type("abc", Type::UTF8String),
                             ChoiceVariant::name_type("def", Type::UTF8String),
                         ],
-                        extension_after: None
+                        extension_after: None,
                     })
-                    .untagged()
+                    .untagged(),
                 ),
                 Definition::new(
                     "WithoutExtensionPresent",
@@ -1642,9 +1725,9 @@ pub(crate) mod tests {
                             ChoiceVariant::name_type("abc", Type::UTF8String),
                             ChoiceVariant::name_type("def", Type::UTF8String),
                         ],
-                        extension_after: Some(1)
+                        extension_after: Some(1),
                     })
-                    .untagged()
+                    .untagged(),
                 ),
                 Definition::new(
                     "WithExtensionPresent",
@@ -1654,9 +1737,9 @@ pub(crate) mod tests {
                             ChoiceVariant::name_type("def", Type::UTF8String),
                             ChoiceVariant::name_type("ghi", Type::UTF8String),
                         ],
-                        extension_after: Some(1)
+                        extension_after: Some(1),
                     })
-                    .untagged()
+                    .untagged(),
                 )
             ][..],
             &model.definitions[..]
@@ -1668,7 +1751,7 @@ pub(crate) mod tests {
         assert_eq!(
             Error::invalid_position_for_extension_marker(Token::Separator(
                 Location::at(4, 21),
-                '.'
+                '.',
             )),
             Model::try_from(Tokenizer::default().parse(
                 r"SimpleSchema DEFINITIONS AUTOMATIC TAGS ::= BEGIN
@@ -1685,7 +1768,7 @@ pub(crate) mod tests {
         assert_eq!(
             Error::invalid_position_for_extension_marker(Token::Separator(
                 Location::at(4, 21),
-                '.'
+                '.',
             )),
             Model::try_from(Tokenizer::default().parse(
                 r"SimpleSchema DEFINITIONS AUTOMATIC TAGS ::= BEGIN
@@ -1703,7 +1786,7 @@ pub(crate) mod tests {
         assert_eq!(
             Error::invalid_position_for_extension_marker(Token::Separator(
                 Location::at(4, 21),
-                '.'
+                '.',
             )),
             Model::try_from(Tokenizer::default().parse(
                 r"SimpleSchema DEFINITIONS AUTOMATIC TAGS ::= BEGIN
@@ -1720,7 +1803,7 @@ pub(crate) mod tests {
         assert_eq!(
             Error::invalid_position_for_extension_marker(Token::Separator(
                 Location::at(4, 21),
-                '.'
+                '.',
             )),
             Model::try_from(Tokenizer::default().parse(
                 r"SimpleSchema DEFINITIONS AUTOMATIC TAGS ::= BEGIN
@@ -1734,5 +1817,22 @@ pub(crate) mod tests {
             ))
             .expect_err("Parsed invalid definition")
         );
+    }
+
+    #[test]
+    pub fn test_parsing_module_definition_oid() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            "SomeName { very(1) clever oid(4) 1337 } DEFINITIONS AUTOMATIC TAGS ::= BEGIN END",
+        ))
+        .expect("Failed to load model");
+        assert_eq!(
+            ObjectIdentifier(vec![
+                ObjectIdentifierComponent::NameAndNumberForm("very".to_string(), 1),
+                ObjectIdentifierComponent::NameForm("clever".to_string()),
+                ObjectIdentifierComponent::NameAndNumberForm("oid".to_string(), 4),
+                ObjectIdentifierComponent::NumberForm(1337),
+            ]),
+            model.oid.expect("ObjectIdentifier is missing")
+        )
     }
 }

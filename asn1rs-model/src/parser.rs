@@ -72,6 +72,14 @@ impl Token {
         self.text().map(|t| t.eq(text)).unwrap_or(false)
     }
 
+    pub fn test_text<F: FnOnce(&str) -> bool>(&self, f: F) -> bool {
+        self.text().map(f).unwrap_or(false)
+    }
+
+    pub fn text_all_numeric(&self) -> bool {
+        self.test_text(|t| t.chars().all(char::is_numeric))
+    }
+
     pub fn eq_text_ignore_ascii_case(&self, text: &str) -> bool {
         self.text()
             .map(|t| t.eq_ignore_ascii_case(text))

@@ -129,6 +129,7 @@ impl Model<Sql> {
     pub fn convert_rust_to_sql(rust_model: &Model<Rust>) -> Model<Sql> {
         let mut model = Model {
             name: rust_model.name.clone(),
+            oid: rust_model.oid.clone(),
             imports: Default::default(), // ignored in SQL
             definitions: Vec::with_capacity(rust_model.definitions.len()),
         };
@@ -466,6 +467,7 @@ mod tests {
     fn test_conversion_struct() {
         let model = Model {
             name: "Manfred".into(),
+            oid: None,
             imports: vec![Import {
                 what: vec!["a".into(), "b".into()],
                 from: "to_be_ignored".into(),
@@ -534,6 +536,7 @@ mod tests {
     fn test_conversion_data_enum() {
         let model = Model {
             name: "Hurray".into(),
+            oid: None,
             imports: vec![Import {
                 what: vec!["a".into(), "b".into()],
                 from: "to_be_ignored".into(),
@@ -605,6 +608,7 @@ mod tests {
     fn test_conversion_enum() {
         let model = Model {
             name: "Alfred".into(),
+            oid: None,
             imports: vec![Import {
                 what: vec!["a".into(), "b".into()],
                 from: "to_be_ignored".into(),
@@ -636,6 +640,7 @@ mod tests {
     fn test_conversion_struct_with_vec() {
         let model = Model {
             name: "Bernhard".into(),
+            oid: None,
             imports: vec![],
             definitions: vec![Definition(
                 "SomeStruct".into(),
@@ -759,6 +764,7 @@ mod tests {
     fn test_conversion_tuple_struct() {
         let model = Model {
             name: "Hurray".into(),
+            oid: None,
             imports: vec![Import {
                 what: vec!["a".into(), "b".into()],
                 from: "to_be_ignored".into(),
@@ -912,6 +918,7 @@ mod tests {
     fn test_conversion_on_first_level_name_clash() {
         let model = Model {
             name: "Alfred".into(),
+            oid: None,
             imports: vec![Import {
                 what: vec!["a".into(), "b".into()],
                 from: "to_be_ignored".into(),
