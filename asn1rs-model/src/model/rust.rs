@@ -1,6 +1,7 @@
 use crate::model::rust::Field as RustField;
 use crate::model::Model;
 use crate::model::Range;
+use crate::model::Sequence;
 use crate::model::Type as AsnType;
 use crate::model::{Asn, ChoiceVariant};
 use crate::model::{Definition, Type};
@@ -476,7 +477,7 @@ impl Model<Rust> {
                 defs.push(Definition(name.into(), Rust::TupleStruct(inner)))
             }
 
-            AsnType::Sequence(fields) => {
+            AsnType::Sequence(Sequence { fields }) => {
                 let mut rust_fields = Vec::with_capacity(fields.len());
 
                 for field in fields.iter() {
@@ -1002,12 +1003,12 @@ mod tests {
         model_asn.name = "OptionalStructListTestModel".into();
         model_asn.definitions.push(Definition(
             "OptionalStructListTest".into(),
-            AsnType::Sequence(vec![Field {
+            AsnType::Sequence(Sequence::from(vec![Field {
                 name: "strings".into(),
                 role: AsnType::SequenceOf(Box::new(AsnType::UTF8String))
                     .optional()
                     .untagged(),
-            }])
+            }]))
             .untagged(),
         ));
         let model_rust = model_asn.to_rust();
@@ -1032,10 +1033,10 @@ mod tests {
         model_asn.name = "StructListTestModel".into();
         model_asn.definitions.push(Definition(
             "StructListTest".into(),
-            AsnType::Sequence(vec![Field {
+            AsnType::Sequence(Sequence::from(vec![Field {
                 name: "strings".into(),
                 role: AsnType::SequenceOf(Box::new(AsnType::UTF8String)).untagged(),
-            }])
+            }]))
             .untagged(),
         ));
         let model_rust = model_asn.to_rust();
@@ -1060,13 +1061,13 @@ mod tests {
         model_asn.name = "NestedStructListTestModel".into();
         model_asn.definitions.push(Definition(
             "NestedStructListTest".into(),
-            AsnType::Sequence(vec![Field {
+            AsnType::Sequence(Sequence::from(vec![Field {
                 name: "strings".into(),
                 role: AsnType::SequenceOf(Box::new(AsnType::SequenceOf(Box::new(
                     AsnType::UTF8String,
                 ))))
                 .untagged(),
-            }])
+            }]))
             .untagged(),
         ));
         let model_rust = model_asn.to_rust();

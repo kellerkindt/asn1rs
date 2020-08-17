@@ -3,7 +3,7 @@ mod range;
 mod tag;
 
 use crate::ast::attribute::{Context, DefinitionHeader, Transparent};
-use crate::model::{Asn as AsnModelType, EnumeratedVariant, TagProperty};
+use crate::model::{Asn as AsnModelType, EnumeratedVariant, Sequence, TagProperty};
 use crate::model::{Choice, ChoiceVariant, Definition, Enumerated, Field, Model, Type};
 use attribute::AsnAttribute;
 use quote::quote;
@@ -143,7 +143,7 @@ fn parse_sequence(
     Ok((
         Some(Definition(
             strct.ident.to_string(),
-            Type::Sequence(fields).opt_tagged(asn.tag),
+            Type::Sequence(Sequence::from(fields)).opt_tagged(asn.tag),
         )),
         Item::Struct(strct),
     ))

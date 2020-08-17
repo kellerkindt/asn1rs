@@ -486,24 +486,15 @@ impl Model<Asn> {
     }
 
     fn read_sequence_or_sequence_of(iter: &mut Peekable<IntoIter<Token>>) -> Result<Type, Error> {
-        let token = Self::next(iter)?;
+        let token = Self::peek(iter)?;
 
         if token.eq_text_ignore_ascii_case("OF") {
+            let _ = Self::next(iter)?;
             Ok(Type::SequenceOf(Box::new(Self::read_role(iter)?)))
         } else if token.eq_separator('{') {
-            let mut fields = Vec::new();
-
-            loop {
-                let (field, continues) = Self::read_field(iter)?;
-                fields.push(field);
-                if !continues {
-                    break;
-                }
-            }
-
-            Ok(Type::Sequence(fields))
+            Ok(Type::Sequence(Sequence::try_from(iter)?))
         } else {
-            Err(Error::unexpected_token(token))
+            Err(Error::unexpected_token(Self::next(iter)?))
         }
     }
 
@@ -534,6 +525,10 @@ impl Model<Asn> {
 
     fn next(iter: &mut Peekable<IntoIter<Token>>) -> Result<Token, Error> {
         iter.next().ok_or_else(Error::unexpected_end_of_stream)
+    }
+
+    fn peek(iter: &mut Peekable<IntoIter<Token>>) -> Result<&Token, Error> {
+        iter.peek().ok_or_else(Error::unexpected_end_of_stream)
     }
 
     fn next_text(iter: &mut Peekable<IntoIter<Token>>) -> Result<String, Error> {
@@ -804,8 +799,8 @@ pub enum Type {
 
     Optional(Box<Type>),
 
+    Sequence(Sequence),
     SequenceOf(Box<Type>),
-    Sequence(Vec<Field<Asn>>),
     Enumerated(Enumerated),
     Choice(Choice),
     TypeReference(String),
@@ -826,6 +821,36 @@ impl Type {
 
     pub const fn untagged(self) -> Asn {
         Asn::untagged(self)
+    }
+}
+
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub struct Sequence {
+    fields: Vec<Field<Asn>>,
+}
+
+impl From<Vec<Field<Asn>>> for Sequence {
+    fn from(fields: Vec<Field<Asn>>) -> Self {
+        Self { fields }
+    }
+}
+
+impl TryFrom<&mut Peekable<IntoIter<Token>>> for Sequence {
+    type Error = Error;
+
+    fn try_from(iter: &mut Peekable<IntoIter<Token>>) -> Result<Self, Self::Error> {
+        Model::<Asn>::next_separator_ignore_case(iter, '{')?;
+        let mut fields = Vec::new();
+
+        loop {
+            let (field, continues) = Model::<Asn>::read_field(iter)?;
+            fields.push(field);
+            if !continues {
+                break;
+            }
+        }
+
+        Ok(Self { fields })
     }
 }
 
@@ -1148,7 +1173,7 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "Simple".into(),
-                Type::Sequence(vec![
+                Type::Sequence(Sequence::from(vec![
                     Field {
                         name: "small".into(),
                         role: Type::Integer(Some(Range(0, 255))).untagged(),
@@ -1165,7 +1190,7 @@ pub(crate) mod tests {
                         name: "unlimited".into(),
                         role: Type::Integer(None).optional().untagged(),
                     }
-                ])
+                ]))
                 .untagged(),
             ),
             model.definitions[0]
@@ -1198,14 +1223,14 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "Woah".into(),
-                Type::Sequence(vec![Field {
+                Type::Sequence(Sequence::from(vec![Field {
                     name: "decision".into(),
                     role: Type::Enumerated(Enumerated::from_names(
                         ["ABORT", "RETURN", "CONFIRM", "MAYDAY", "THE_CAKE_IS_A_LIE",].iter()
                     ))
                     .optional()
                     .untagged(),
-                }])
+                }]))
                 .untagged(),
             ),
             model.definitions[0]
@@ -1256,7 +1281,7 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "Woah".into(),
-                Type::Sequence(vec![
+                Type::Sequence(Sequence::from(vec![
                     Field {
                         name: "also-ones".into(),
                         role: Type::SequenceOf(Box::new(Type::Integer(Some(Range(0, 1)))))
@@ -1277,7 +1302,7 @@ pub(crate) mod tests {
                         .optional()
                         .untagged(),
                     },
-                ])
+                ]))
                 .untagged(),
             ),
             model.definitions[2]
@@ -1341,7 +1366,7 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "Woah".into(),
-                Type::Sequence(vec![Field {
+                Type::Sequence(Sequence::from(vec![Field {
                     name: "decision".into(),
                     role: Type::Choice(Choice::from(vec![
                         ChoiceVariant::name_type("this", Type::TypeReference("This".into())),
@@ -1349,7 +1374,7 @@ pub(crate) mod tests {
                         ChoiceVariant::name_type("neither", Type::TypeReference("Neither".into())),
                     ]))
                     .untagged(),
-                }])
+                }]))
                 .untagged(),
             ),
             model.definitions[3]
@@ -1380,9 +1405,9 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "Woah".into(),
-                Type::Sequence(vec![Field {
+                Type::Sequence(Sequence::from(vec![Field {
                     name: "complex".into(),
-                    role: Type::Sequence(vec![
+                    role: Type::Sequence(Sequence::from(vec![
                         Field {
                             name: "ones".into(),
                             role: Type::Integer(Some(Range(0, 1))).untagged(),
@@ -1398,10 +1423,10 @@ pub(crate) mod tests {
                                 .optional()
                                 .untagged(),
                         },
-                    ])
+                    ]))
                     .optional()
                     .untagged(),
-                }])
+                }]))
                 .untagged(),
             ),
             model.definitions[0]
@@ -1646,7 +1671,7 @@ pub(crate) mod tests {
             &[
                 Definition(
                     "Universal".to_string(),
-                    Type::Sequence(vec![
+                    Type::Sequence(Sequence::from(vec![
                         Field {
                             name: "abc".to_string(),
                             role: Type::Integer(None).tagged(Tag::ContextSpecific(1)),
@@ -1656,7 +1681,7 @@ pub(crate) mod tests {
                             role: Type::Integer(Some(Range(0, 255)))
                                 .tagged(Tag::ContextSpecific(2)),
                         }
-                    ])
+                    ]))
                     .tagged(Tag::Universal(2)),
                 ),
                 Definition(
