@@ -72,7 +72,10 @@ impl ProtobufSerializer {
             Rust::TupleStruct(aliased) => {
                 Self::impl_read_fn_for_tuple_struct(function, aliased);
             }
-            Rust::Struct(fields) => {
+            Rust::Struct {
+                fields,
+                extension_after: _,
+            } => {
                 Self::impl_read_fn_for_struct(function, name, &fields[..]);
             }
             Rust::Enum(r_enum) => {
@@ -297,7 +300,10 @@ impl ProtobufSerializer {
             Rust::TupleStruct(aliased) => {
                 Self::impl_write_fn_for_tuple_struct(function, aliased);
             }
-            Rust::Struct(fields) => {
+            Rust::Struct {
+                fields,
+                extension_after: _,
+            } => {
                 Self::impl_write_fn_for_struct(function, &fields[..]);
             }
             Rust::Enum(r_enum) => {
@@ -507,7 +513,7 @@ impl ProtobufSerializer {
         #[allow(clippy::match_same_arms)] // to have the same order as the original enum
         let format = match rust {
             Rust::TupleStruct(_) => Some("LengthDelimited"),
-            Rust::Struct(_) => Some("LengthDelimited"),
+            Rust::Struct { .. } => Some("LengthDelimited"),
             Rust::Enum(_) => Some("VarInt"),
             Rust::DataEnum(enumeration) => {
                 let mut block_match = Block::new("match self");
@@ -550,7 +556,10 @@ impl ProtobufSerializer {
                     Self::CODEC.to_lowercase()
                 ));
             }
-            Rust::Struct(fields) => {
+            Rust::Struct {
+                fields,
+                extension_after: _,
+            } => {
                 for (num, field) in fields.iter().enumerate() {
                     if num > 0 {
                         function.line("&&");

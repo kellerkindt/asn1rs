@@ -264,12 +264,24 @@ impl RustType {
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum Rust {
-    Struct(Vec<Field>),
+    Struct {
+        fields: Vec<Field>,
+        extension_after: Option<usize>,
+    },
     Enum(PlainEnum),
     DataEnum(DataEnum),
 
     /// Used to represent a single, unnamed inner type
     TupleStruct(RustType),
+}
+
+impl Rust {
+    pub fn struct_from_fields(fields: Vec<Field>) -> Self {
+        Rust::Struct {
+            fields,
+            extension_after: None,
+        }
+    }
 }
 
 impl ToString for RustType {
@@ -477,7 +489,10 @@ impl Model<Rust> {
                 defs.push(Definition(name.into(), Rust::TupleStruct(inner)))
             }
 
-            AsnType::Sequence(Sequence { fields }) => {
+            AsnType::Sequence(Sequence {
+                fields,
+                extension_after,
+            }) => {
                 let mut rust_fields = Vec::with_capacity(fields.len());
 
                 for field in fields.iter() {
@@ -488,7 +503,13 @@ impl Model<Rust> {
                     rust_fields.push(RustField::from_name_type(rust_field_name, rust_role));
                 }
 
-                defs.push(Definition(name.into(), Rust::Struct(rust_fields)));
+                defs.push(Definition(
+                    name.into(),
+                    Rust::Struct {
+                        fields: rust_fields,
+                        extension_after: *extension_after,
+                    },
+                ));
             }
 
             AsnType::SequenceOf(asn) => {
@@ -657,15 +678,15 @@ mod tests {
         assert_eq!(
             Definition(
                 "Simple".into(),
-                Rust::Struct(vec![
+                Rust::struct_from_fields(vec![
                     RustField::from_name_type("small", RustType::U8(Range(0, 255))),
                     RustField::from_name_type("bigger", RustType::U16(Range(0, 65535))),
                     RustField::from_name_type("negative", RustType::I16(Range(-1, 255))),
                     RustField::from_name_type(
                         "unlimited",
-                        RustType::Option(Box::new(RustType::U64(None)))
+                        RustType::Option(Box::new(RustType::U64(None))),
                     ),
-                ])
+                ]),
             ),
             model_rust.definitions[0]
         );
@@ -692,16 +713,16 @@ mod tests {
                         "THE_CAKE_IS_A_LIE".into()
                     ]
                     .into()
-                )
+                ),
             ),
             modle_rust.definitions[0]
         );
         assert_eq!(
             Definition(
                 "Woah".into(),
-                Rust::Struct(vec![RustField::from_name_type(
+                Rust::struct_from_fields(vec![RustField::from_name_type(
                     "decision",
-                    RustType::Option(Box::new(RustType::Complex("WoahDecision".into())))
+                    RustType::Option(Box::new(RustType::Complex("WoahDecision".into()))),
                 )])
             ),
             modle_rust.definitions[1]
@@ -720,7 +741,7 @@ mod tests {
         assert_eq!(
             Definition(
                 "Ones".into(),
-                Rust::TupleStruct(RustType::Vec(Box::new(RustType::U8(Range(0, 1)))))
+                Rust::TupleStruct(RustType::Vec(Box::new(RustType::U8(Range(0, 1))))),
             ),
             model_rust.definitions[0]
         );
@@ -729,29 +750,29 @@ mod tests {
                 "NestedOnes".into(),
                 Rust::TupleStruct(RustType::Vec(Box::new(RustType::Vec(Box::new(
                     RustType::U8(Range(0, 1))
-                )))))
+                ))))),
             ),
             model_rust.definitions[1]
         );
         assert_eq!(
             Definition(
                 "Woah".into(),
-                Rust::Struct(vec![
+                Rust::struct_from_fields(vec![
                     RustField::from_name_type(
                         "also_ones",
-                        RustType::Vec(Box::new(RustType::U8(Range(0, 1))))
+                        RustType::Vec(Box::new(RustType::U8(Range(0, 1)))),
                     ),
                     RustField::from_name_type(
                         "nesteds",
-                        RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::U8(Range(0, 1))))))
+                        RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::U8(Range(0, 1)))))),
                     ),
                     RustField::from_name_type(
                         "optionals",
                         RustType::Option(Box::new(RustType::Vec(Box::new(RustType::Vec(
                             Box::new(RustType::U64(None))
-                        )))))
+                        ))))),
                     )
-                ])
+                ]),
             ),
             model_rust.definitions[2]
         );
@@ -769,7 +790,7 @@ mod tests {
         assert_eq!(
             Definition(
                 "This".into(),
-                Rust::TupleStruct(RustType::Vec(Box::new(RustType::U8(Range(0, 1)))))
+                Rust::TupleStruct(RustType::Vec(Box::new(RustType::U8(Range(0, 1))))),
             ),
             model_rust.definitions[0]
         );
@@ -778,14 +799,14 @@ mod tests {
                 "That".into(),
                 Rust::TupleStruct(RustType::Vec(Box::new(RustType::Vec(Box::new(
                     RustType::U8(Range(0, 1))
-                )))))
+                ))))),
             ),
             model_rust.definitions[1]
         );
         assert_eq!(
             Definition(
                 "Neither".into(),
-                Rust::Enum(vec!["ABC".into(), "DEF".into(),].into())
+                Rust::Enum(vec!["ABC".into(), "DEF".into(),].into()),
             ),
             model_rust.definitions[2]
         );
@@ -799,17 +820,17 @@ mod tests {
                         DataVariant::from_name_type("Neither", RustType::Complex("Neither".into())),
                     ]
                     .into()
-                )
+                ),
             ),
             model_rust.definitions[3]
         );
         assert_eq!(
             Definition(
                 "Woah".into(),
-                Rust::Struct(vec![RustField::from_name_type(
+                Rust::struct_from_fields(vec![RustField::from_name_type(
                     "decision",
-                    RustType::Complex("WoahDecision".into())
-                )])
+                    RustType::Complex("WoahDecision".into()),
+                )]),
             ),
             model_rust.definitions[4]
         );
@@ -827,29 +848,29 @@ mod tests {
         assert_eq!(
             Definition(
                 "WoahComplex".into(),
-                Rust::Struct(vec![
+                Rust::struct_from_fields(vec![
                     RustField::from_name_type("ones", RustType::U8(Range(0, 1))),
                     RustField::from_name_type(
                         "list_ones",
-                        RustType::Vec(Box::new(RustType::U8(Range(0, 1))))
+                        RustType::Vec(Box::new(RustType::U8(Range(0, 1)))),
                     ),
                     RustField::from_name_type(
                         "optional_ones",
                         RustType::Option(Box::new(RustType::Vec(Box::new(RustType::U8(Range(
-                            0, 1
-                        ))))))
+                            0, 1,
+                        )))))),
                     ),
-                ])
+                ]),
             ),
             model_rust.definitions[0]
         );
         assert_eq!(
             Definition(
                 "Woah".into(),
-                Rust::Struct(vec![RustField::from_name_type(
+                Rust::struct_from_fields(vec![RustField::from_name_type(
                     "complex",
-                    RustType::Option(Box::new(RustType::Complex("WoahComplex".into())))
-                )])
+                    RustType::Option(Box::new(RustType::Complex("WoahComplex".into()))),
+                )]),
             ),
             model_rust.definitions[1]
         );
@@ -872,7 +893,7 @@ mod tests {
         assert_eq!(
             Definition(
                 "SimpleEnumTest".into(),
-                Rust::Enum(vec!["Bernd".into(), "DasVerdammte".into(), "Brooot".into(),].into())
+                Rust::Enum(vec!["Bernd".into(), "DasVerdammte".into(), "Brooot".into(),].into()),
             ),
             model_rust.definitions[0]
         );
@@ -902,7 +923,7 @@ mod tests {
                         DataVariant::from_name_type("NochSoEinBrot", RustType::VecU8),
                     ]
                     .into()
-                )
+                ),
             ),
             model_rust.definitions[0]
         )
@@ -938,15 +959,15 @@ mod tests {
                     vec![
                         DataVariant::from_name_type(
                             "NormalList",
-                            RustType::Vec(Box::new(RustType::String))
+                            RustType::Vec(Box::new(RustType::String)),
                         ),
                         DataVariant::from_name_type(
                             "NESTEDList",
-                            RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::VecU8))))
+                            RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::VecU8)))),
                         ),
                     ]
                     .into()
-                )
+                ),
             ),
             model_rust.definitions[0]
         )
@@ -967,7 +988,7 @@ mod tests {
         assert_eq!(
             Definition(
                 "TupleTest".into(),
-                Rust::TupleStruct(RustType::Vec(Box::new(RustType::String)))
+                Rust::TupleStruct(RustType::Vec(Box::new(RustType::String))),
             ),
             model_rust.definitions[0]
         );
@@ -991,7 +1012,7 @@ mod tests {
                 "NestedTupleTest".into(),
                 Rust::TupleStruct(RustType::Vec(Box::new(RustType::Vec(Box::new(
                     RustType::String
-                )))))
+                ))))),
             ),
             model_rust.definitions[0]
         );
@@ -1018,10 +1039,10 @@ mod tests {
         assert_eq!(
             Definition(
                 "OptionalStructListTest".into(),
-                Rust::Struct(vec![RustField::from_name_type(
+                Rust::struct_from_fields(vec![RustField::from_name_type(
                     "strings",
-                    RustType::Option(Box::new(RustType::Vec(Box::new(RustType::String))))
-                )])
+                    RustType::Option(Box::new(RustType::Vec(Box::new(RustType::String)))),
+                )]),
             ),
             model_rust.definitions[0]
         );
@@ -1046,10 +1067,10 @@ mod tests {
         assert_eq!(
             Definition(
                 "StructListTest".into(),
-                Rust::Struct(vec![RustField::from_name_type(
+                Rust::struct_from_fields(vec![RustField::from_name_type(
                     "strings",
-                    RustType::Vec(Box::new(RustType::String))
-                )])
+                    RustType::Vec(Box::new(RustType::String)),
+                )]),
             ),
             model_rust.definitions[0]
         );
@@ -1077,10 +1098,10 @@ mod tests {
         assert_eq!(
             Definition(
                 "NestedStructListTest".into(),
-                Rust::Struct(vec![RustField::from_name_type(
+                Rust::struct_from_fields(vec![RustField::from_name_type(
                     "strings",
-                    RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::String))))
-                )])
+                    RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::String)))),
+                )]),
             ),
             model_rust.definitions[0]
         );
@@ -1111,11 +1132,12 @@ mod tests {
                 Rust::Enum(
                     PlainEnum::from_names(["Abc", "Def", "Ghi"].iter())
                         .with_extension_after(Some(2))
-                )
+                ),
             )],
             &model_rust.definitions[..]
         );
     }
+
     #[test]
     pub fn test_extensible_choice() {
         let mut model_asn = Model::default();
@@ -1150,7 +1172,7 @@ mod tests {
                             .with_tag(Tag::Universal(4)),
                     ])
                     .with_extension_after(Some(2))
-                )
+                ),
             )],
             &model_rust.definitions[..]
         );

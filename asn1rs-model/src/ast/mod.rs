@@ -3,7 +3,7 @@ mod range;
 mod tag;
 
 use crate::ast::attribute::{Context, DefinitionHeader, Transparent};
-use crate::model::{Asn as AsnModelType, EnumeratedVariant, TagProperty};
+use crate::model::{Asn as AsnModelType, EnumeratedVariant, Sequence, TagProperty};
 use crate::model::{Choice, ChoiceVariant, Definition, Enumerated, Field, Model, Type};
 use attribute::AsnAttribute;
 use quote::quote;
@@ -115,7 +115,7 @@ pub fn parse_asn_definition(
 fn parse_sequence(
     mut strct: syn::ItemStruct,
     asn: &AsnAttribute<DefinitionHeader>,
-    _asn_span: proc_macro2::Span,
+    asn_span: proc_macro2::Span,
 ) -> Result<(Option<Definition<AsnModelType>>, Item), TokenStream> {
     let fields = strct
         .fields
@@ -143,7 +143,15 @@ fn parse_sequence(
     Ok((
         Some(Definition(
             strct.ident.to_string(),
-            Type::sequence_from_fields(fields).opt_tagged(asn.tag),
+            Type::Sequence(Sequence {
+                extension_after: find_extensible_index(
+                    asn,
+                    asn_span,
+                    fields.iter().map(|v| &v.name),
+                )?,
+                fields,
+            })
+            .opt_tagged(asn.tag),
         )),
         Item::Struct(strct),
     ))

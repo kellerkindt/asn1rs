@@ -834,12 +834,16 @@ impl Type {
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct Sequence {
-    fields: Vec<Field<Asn>>,
+    pub fields: Vec<Field<Asn>>,
+    pub extension_after: Option<usize>,
 }
 
 impl From<Vec<Field<Asn>>> for Sequence {
     fn from(fields: Vec<Field<Asn>>) -> Self {
-        Self { fields }
+        Self {
+            fields,
+            extension_after: None,
+        }
     }
 }
 
@@ -848,17 +852,38 @@ impl TryFrom<&mut Peekable<IntoIter<Token>>> for Sequence {
 
     fn try_from(iter: &mut Peekable<IntoIter<Token>>) -> Result<Self, Self::Error> {
         Model::<Asn>::next_separator_ignore_case(iter, '{')?;
-        let mut fields = Vec::new();
+        let mut sequence = Self {
+            fields: Vec::default(),
+            extension_after: None,
+        };
 
         loop {
-            let (field, continues) = Model::<Asn>::read_field(iter)?;
-            fields.push(field);
+            let continues = if Model::<Asn>::peek(iter)?.eq_separator('.') {
+                let _ = Model::<Asn>::next_separator_ignore_case(iter, '.')?;
+                let _ = Model::<Asn>::next_separator_ignore_case(iter, '.')?;
+                let _ = Model::<Asn>::next_separator_ignore_case(iter, '.')?;
+                let field_len = sequence.fields.len();
+                sequence.extension_after = Some(field_len.saturating_sub(1));
+                let token = Model::<Asn>::next(iter)?;
+                if token.eq_separator(',') {
+                    true
+                } else if token.eq_separator('}') {
+                    false
+                } else {
+                    return Err(Error::unexpected_token(token));
+                }
+            } else {
+                let (field, continues) = Model::<Asn>::read_field(iter)?;
+                sequence.fields.push(field);
+                continues
+            };
+
             if !continues {
                 break;
             }
         }
 
-        Ok(Self { fields })
+        Ok(sequence)
     }
 }
 

@@ -141,7 +141,10 @@ impl Model<Sql> {
 
     fn definition_to_sql(name: &str, rust: &Rust, definitions: &mut Vec<Definition<Sql>>) {
         match rust {
-            Rust::Struct(fields) => Self::rust_struct_to_sql_table(name, fields, definitions),
+            Rust::Struct {
+                fields,
+                extension_after: _,
+            } => Self::rust_struct_to_sql_table(name, fields, definitions),
             Rust::Enum(rust_enum) => Self::rust_enum_to_sql_enum(name, rust_enum, definitions),
             Rust::DataEnum(enumeration) => {
                 Self::rust_data_enum_to_sql_table(name, enumeration, definitions)
@@ -475,7 +478,7 @@ mod tests {
             }],
             definitions: vec![Definition(
                 "Person".into(),
-                Rust::Struct(vec![
+                Rust::struct_from_fields(vec![
                     Field::from_name_type("name", RustType::String),
                     Field::from_name_type("birth", RustType::Complex("City".into())),
                 ]),
@@ -647,7 +650,7 @@ mod tests {
             imports: vec![],
             definitions: vec![Definition(
                 "SomeStruct".into(),
-                Rust::Struct(vec![
+                Rust::struct_from_fields(vec![
                     Field::from_name_type(
                         "list_of_primitive",
                         RustType::Vec(Box::new(RustType::String)),
@@ -930,7 +933,7 @@ mod tests {
             }],
             definitions: vec![Definition(
                 "City".into(),
-                Rust::Struct(vec![Field::from_name_type("id", RustType::String)]),
+                Rust::struct_from_fields(vec![Field::from_name_type("id", RustType::String)]),
             )],
         }
         .to_sql();

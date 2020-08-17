@@ -170,8 +170,15 @@ impl RustCodeGenerator {
 
     pub fn add_definition(&self, scope: &mut Scope, Definition(name, rust): &Definition<Rust>) {
         match rust {
-            Rust::Struct(fields) => {
-                scope.raw(&Self::asn_attribute("sequence", None, None));
+            Rust::Struct {
+                fields,
+                extension_after,
+            } => {
+                scope.raw(&Self::asn_attribute(
+                    "sequence",
+                    None,
+                    extension_after.map(|index| fields[index].name().to_string()),
+                ));
                 Self::add_struct(
                     self.new_struct(scope, name),
                     name,
@@ -323,7 +330,10 @@ impl RustCodeGenerator {
         getter_and_setter: bool,
     ) {
         match rust {
-            Rust::Struct(fields) => {
+            Rust::Struct {
+                fields,
+                extension_after: _,
+            } => {
                 let implementation = Self::impl_struct(scope, name, fields, getter_and_setter);
                 for g in generators {
                     g.extend_impl_of_struct(name, implementation, fields);

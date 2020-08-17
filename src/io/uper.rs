@@ -16,6 +16,7 @@ pub enum Error {
     InsufficientSpaceInDestinationBuffer,
     InsufficientDataInSourceBuffer,
     InvalidChoiceIndex(usize, usize),
+    InvalidExtensionConstellation(bool, bool),
     ValueNotInRange(i64, i64, i64),
     SizeNotInRange(usize, usize, usize),
     OptFlagsExhausted,
@@ -41,6 +42,11 @@ impl std::fmt::Display for Error {
                 f,
                 "Unexpected choice-index {} with variant count {}",
                 index, variant_count
+            ),
+            Error::InvalidExtensionConstellation(expects, has) => write!(
+                f,
+                "Unexpected extension constellation, expected: {}, read: {}",
+                expects, has
             ),
             Error::ValueNotInRange(value, min, max) => write!(
                 f,

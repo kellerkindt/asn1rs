@@ -75,7 +75,10 @@ impl PsqlInserter {
     fn impl_insertable(scope: &mut Scope, Definition(name, rust): &Definition<Rust>) {
         let implementation = Self::new_insertable_impl(scope, name);
         match rust {
-            Rust::Struct(fields) => {
+            Rust::Struct {
+                fields,
+                extension_after: _,
+            } => {
                 Self::impl_struct_insert_statement(
                     Self::new_insert_statement_fn(implementation),
                     name,
@@ -394,7 +397,10 @@ impl PsqlInserter {
     fn impl_queryable(scope: &mut Scope, Definition(name, rust): &Definition<Rust>) {
         let implementation = Self::new_queryable_impl(scope, name);
         match rust {
-            Rust::Struct(fields) => {
+            Rust::Struct {
+                fields,
+                extension_after: _,
+            } => {
                 Self::impl_query_statement(Self::new_query_statement_fn(implementation), name);
                 Self::impl_struct_query_fn(Self::new_query_fn(implementation, true), name);
                 Self::impl_struct_load_fn(

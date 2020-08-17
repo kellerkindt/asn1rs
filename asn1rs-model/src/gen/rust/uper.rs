@@ -53,7 +53,10 @@ impl UperSerializer {
             Rust::TupleStruct(aliased) => {
                 Self::impl_read_fn_for_tuple_struct(function, name, aliased);
             }
-            Rust::Struct(fields) => {
+            Rust::Struct {
+                fields,
+                extension_after: _,
+            } => {
                 for field in fields.iter() {
                     Self::impl_read_fn_header_for_type(function, field.name(), field.r#type());
                 }
@@ -307,7 +310,10 @@ impl UperSerializer {
             Rust::TupleStruct(inner) => {
                 Self::impl_write_fn_for_tuple_struct(function, inner);
             }
-            Rust::Struct(fields) => {
+            Rust::Struct {
+                fields,
+                extension_after: _,
+            } => {
                 for field in fields.iter() {
                     Self::impl_write_fn_header_for_type(function, field.name(), field.r#type());
                 }

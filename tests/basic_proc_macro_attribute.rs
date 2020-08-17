@@ -474,3 +474,130 @@ fn test_bool_container_uper() {
 #[asn(transparent)]
 #[derive(Debug, Default, PartialOrd, PartialEq)]
 pub struct NegativeRangeMin(#[asn(integer(- 12..12))] i8);
+
+#[test]
+fn test_extensible_struct() {
+    let mut uper = UperWriter::default();
+    let v = ExtensibleStruct {
+        range: 145,
+        value1: None,
+        value2: 146,
+        value3: 146,
+        value4: 146,
+        value5: 146,
+        value6: 146,
+        value7: 146,
+        value8: 146,
+        value9: 146,
+        value10: 146,
+        value11: 146,
+        value12: 146,
+        value13: 146,
+        value14: 146,
+        value15: 146,
+        value16: 146,
+    };
+    uper.write(&v).unwrap();
+    assert_eq!(
+        &[
+            0xC8, 0x8F, 0x7F, 0xFF, 0x01, 0x92, 0x01, 0x92, 0x01, 0x92, 0x01, 0x92, 0x01, 0x92,
+            0x01, 0x92, 0x01, 0x92, 0x01, 0x92, 0x01, 0x92, 0x01, 0x92, 0x01, 0x92, 0x01, 0x92,
+            0x01, 0x92, 0x01, 0x92, 0x01, 0x92
+        ][..],
+        uper.byte_content()
+    );
+    assert_eq!(34 * 8, uper.bit_len());
+
+    let mut uper = uper.into_reader();
+    assert_eq!(v, uper.read::<ExtensibleStruct>().unwrap());
+    assert_eq!(0, uper.bits_remaining());
+}
+
+#[asn(sequence, extensible_after(range))]
+#[derive(Debug, Default, PartialOrd, PartialEq)]
+pub struct ExtensibleStruct {
+    #[asn(integer(0..255))]
+    range: u8,
+    #[asn(option(integer(0..255)))]
+    value1: Option<u8>,
+    #[asn(integer(0..255))]
+    value2: u8,
+    #[asn(integer(0..255))]
+    value3: u8,
+    #[asn(integer(0..255))]
+    value4: u8,
+    #[asn(integer(0..255))]
+    value5: u8,
+    #[asn(integer(0..255))]
+    value6: u8,
+    #[asn(integer(0..255))]
+    value7: u8,
+    #[asn(integer(0..255))]
+    value8: u8,
+    #[asn(integer(0..255))]
+    value9: u8,
+    #[asn(integer(0..255))]
+    value10: u8,
+    #[asn(integer(0..255))]
+    value11: u8,
+    #[asn(integer(0..255))]
+    value12: u8,
+    #[asn(integer(0..255))]
+    value13: u8,
+    #[asn(integer(0..255))]
+    value14: u8,
+    #[asn(integer(0..255))]
+    value15: u8,
+    #[asn(integer(0..255))]
+    value16: u8,
+}
+
+#[test]
+fn test_nested_extensible_struct() {
+    let mut uper = UperWriter::default();
+    let v = NestedExtensibleStruct {
+        range: 123,
+        inner: ExtensibleStruct {
+            range: 145,
+            value1: None,
+            value2: 146,
+            value3: 146,
+            value4: 146,
+            value5: 146,
+            value6: 146,
+            value7: 146,
+            value8: 146,
+            value9: 146,
+            value10: 146,
+            value11: 146,
+            value12: 146,
+            value13: 146,
+            value14: 146,
+            value15: 146,
+            value16: 146,
+        },
+    };
+    uper.write(&v).unwrap();
+    assert_eq!(
+        &[
+            0xBD, 0x80, 0x91, 0x64, 0x47, 0xBF, 0xFF, 0x80, 0xC9, 0x00, 0xC9, 0x00, 0xC9, 0x00,
+            0xC9, 0x00, 0xC9, 0x00, 0xC9, 0x00, 0xC9, 0x00, 0xC9, 0x00, 0xC9, 0x00, 0xC9, 0x00,
+            0xC9, 0x00, 0xC9, 0x00, 0xC9, 0x00, 0xC9, 0x00, 0xC9, 0x00
+        ][..],
+        uper.byte_content()
+    );
+    assert_eq!(37 * 8 + 1, uper.bit_len());
+
+    let mut uper = uper.into_reader();
+    assert_eq!(v, uper.read::<NestedExtensibleStruct>().unwrap());
+    assert_eq!(0, uper.bits_remaining());
+}
+
+#[asn(sequence, extensible_after(range))]
+#[derive(Debug, Default, PartialOrd, PartialEq)]
+pub struct NestedExtensibleStruct {
+    #[asn(integer(0..255))]
+    range: u8,
+    #[asn(complex(ExtensibleStruct))]
+    inner: ExtensibleStruct,
+}

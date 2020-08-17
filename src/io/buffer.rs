@@ -221,6 +221,7 @@ impl From<Vec<u8>> for BitBuffer {
 }
 
 impl UperReader for BitBuffer {
+    #[inline]
     fn read_substring_with_length_determinant_prefix(&mut self) -> Result<BitBuffer, Error> {
         // let the new buffer have the same bit_alignment as this current instance
         // so that ```bit_string_copy_bulked``` can utilize the fast copy-path
@@ -238,6 +239,7 @@ impl UperReader for BitBuffer {
         })
     }
 
+    #[inline]
     fn read_bit_string(
         &mut self,
         buffer: &mut [u8],
@@ -247,6 +249,7 @@ impl UperReader for BitBuffer {
         (&self.buffer[..], &mut self.read_position).read_bit_string(buffer, bit_offset, bit_length)
     }
 
+    #[inline]
     fn read_bit(&mut self) -> Result<bool, UperError> {
         if self.read_position < self.write_position {
             (&self.buffer[..], &mut self.read_position).read_bit()
@@ -257,6 +260,7 @@ impl UperReader for BitBuffer {
 }
 
 impl UperWriter for BitBuffer {
+    #[inline]
     fn write_substring_with_length_determinant_prefix(
         &mut self,
         fun: &dyn Fn(&mut dyn Writer) -> Result<(), Error>,
@@ -273,6 +277,7 @@ impl UperWriter for BitBuffer {
         Ok(())
     }
 
+    #[inline]
     fn write_bit_string(
         &mut self,
         buffer: &[u8],
@@ -289,6 +294,7 @@ impl UperWriter for BitBuffer {
             .write_bit_string(buffer, bit_offset, bit_length)
     }
 
+    #[inline]
     fn write_bit(&mut self, bit: bool) -> Result<(), UperError> {
         while self.write_position + 1 > self.buffer.len() * BYTE_LEN {
             self.buffer.push(0x00);
@@ -336,6 +342,8 @@ impl<'a> UperWriter for (&'a mut [u8], &mut usize) {
         }
         if bit {
             self.0[*self.1 / BYTE_LEN] |= 0x80 >> (*self.1 % BYTE_LEN);
+        } else {
+            self.0[*self.1 / BYTE_LEN] &= !(0x80 >> (*self.1 % BYTE_LEN));
         }
         *self.1 += 1;
         Ok(())
