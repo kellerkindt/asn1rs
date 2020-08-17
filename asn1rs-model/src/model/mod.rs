@@ -372,6 +372,7 @@ impl Model<Asn> {
                     // ignore separator
                 } else if token.eq_text_ignore_ascii_case("FROM") {
                     import.from = Self::next(iter)?.into_text_or_else(Error::unexpected_token)?;
+                    import.from_oid = Self::maybe_read_oid(iter)?;
                     imports.push(import);
                     import = Import::default();
                 }
@@ -578,6 +579,7 @@ impl Model<Asn> {
 pub struct Import {
     pub what: Vec<String>,
     pub from: String,
+    pub from_oid: Option<ObjectIdentifier>,
 }
 
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
@@ -1833,6 +1835,30 @@ pub(crate) mod tests {
                 ObjectIdentifierComponent::NumberForm(1337),
             ]),
             model.oid.expect("ObjectIdentifier is missing")
+        )
+    }
+
+    #[test]
+    pub fn test_parsing_module_definition_oid_in_import_from() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r"SomeName DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+                IMPORTS
+                    SomeData, OtherDef, Wowz
+                FROM TheOtherModule { very(1) official(2) oid 42 };
+                END",
+        ))
+        .expect("Failed to load model");
+        assert_eq!(
+            &ObjectIdentifier(vec![
+                ObjectIdentifierComponent::NameAndNumberForm("very".to_string(), 1),
+                ObjectIdentifierComponent::NameAndNumberForm("official".to_string(), 2),
+                ObjectIdentifierComponent::NameForm("oid".to_string()),
+                ObjectIdentifierComponent::NumberForm(42),
+            ]),
+            model.imports[0]
+                .from_oid
+                .as_ref()
+                .expect("ObjectIdentifier is missing")
         )
     }
 }

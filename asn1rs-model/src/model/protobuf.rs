@@ -218,6 +218,7 @@ mod tests {
         model_rust.imports = vec![Import {
             what: vec!["a".into(), "b".into()],
             from: "some_very_specific_module".into(),
+            from_oid: None,
         }];
         let model_proto = model_rust.to_protobuf();
         assert_eq!(model_rust.name, model_proto.name);

@@ -471,6 +471,7 @@ mod tests {
             imports: vec![Import {
                 what: vec!["a".into(), "b".into()],
                 from: "to_be_ignored".into(),
+                from_oid: None,
             }],
             definitions: vec![Definition(
                 "Person".into(),
@@ -540,6 +541,7 @@ mod tests {
             imports: vec![Import {
                 what: vec!["a".into(), "b".into()],
                 from: "to_be_ignored".into(),
+                from_oid: None,
             }],
             definitions: vec![Definition(
                 "PersonState".into(),
@@ -612,6 +614,7 @@ mod tests {
             imports: vec![Import {
                 what: vec!["a".into(), "b".into()],
                 from: "to_be_ignored".into(),
+                from_oid: None,
             }],
             definitions: vec![Definition(
                 "City".into(),
@@ -768,6 +771,7 @@ mod tests {
             imports: vec![Import {
                 what: vec!["a".into(), "b".into()],
                 from: "to_be_ignored".into(),
+                from_oid: None,
             }],
             definitions: vec![
                 Definition("Whatever".into(), Rust::TupleStruct(RustType::String)),
@@ -922,6 +926,7 @@ mod tests {
             imports: vec![Import {
                 what: vec!["a".into(), "b".into()],
                 from: "to_be_ignored".into(),
+                from_oid: None,
             }],
             definitions: vec![Definition(
                 "City".into(),

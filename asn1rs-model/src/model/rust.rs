@@ -439,6 +439,7 @@ impl Model<Rust> {
                 .map(|i| Import {
                     what: i.what.iter().map(|w| rust_struct_or_enum_name(w)).collect(),
                     from: rust_module_name(&i.from),
+                    from_oid: i.from_oid.clone(),
                 })
                 .collect(),
             definitions: Vec::with_capacity(asn_model.definitions.len()),
