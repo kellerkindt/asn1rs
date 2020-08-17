@@ -883,10 +883,10 @@ mod tests {
         let mut model_asn = Model::default();
         model_asn.definitions.push(Definition(
             "SimpleChoiceTest".into(),
-            AsnType::Choice(Choice::from(vec![
+            AsnType::choice_from_variants(vec![
                 ChoiceVariant::name_type("bernd-das-brot", AsnType::UTF8String),
                 ChoiceVariant::name_type("nochSoEinBrot", AsnType::OctetString),
-            ]))
+            ])
             .untagged(),
         ));
 
@@ -913,7 +913,7 @@ mod tests {
         let mut model_asn = Model::default();
         model_asn.definitions.push(Definition(
             "ListChoiceTestWithNestedList".into(),
-            AsnType::Choice(Choice::from(vec![
+            AsnType::choice_from_variants(vec![
                 ChoiceVariant::name_type(
                     "normal-List",
                     AsnType::SequenceOf(Box::new(AsnType::UTF8String)),
@@ -924,7 +924,7 @@ mod tests {
                         AsnType::OctetString,
                     )))),
                 ),
-            ]))
+            ])
             .untagged(),
         ));
 
@@ -1003,12 +1003,12 @@ mod tests {
         model_asn.name = "OptionalStructListTestModel".into();
         model_asn.definitions.push(Definition(
             "OptionalStructListTest".into(),
-            AsnType::Sequence(Sequence::from(vec![Field {
+            AsnType::sequence_from_fields(vec![Field {
                 name: "strings".into(),
                 role: AsnType::SequenceOf(Box::new(AsnType::UTF8String))
                     .optional()
                     .untagged(),
-            }]))
+            }])
             .untagged(),
         ));
         let model_rust = model_asn.to_rust();
@@ -1033,10 +1033,10 @@ mod tests {
         model_asn.name = "StructListTestModel".into();
         model_asn.definitions.push(Definition(
             "StructListTest".into(),
-            AsnType::Sequence(Sequence::from(vec![Field {
+            AsnType::sequence_from_fields(vec![Field {
                 name: "strings".into(),
                 role: AsnType::SequenceOf(Box::new(AsnType::UTF8String)).untagged(),
-            }]))
+            }])
             .untagged(),
         ));
         let model_rust = model_asn.to_rust();
@@ -1061,13 +1061,13 @@ mod tests {
         model_asn.name = "NestedStructListTestModel".into();
         model_asn.definitions.push(Definition(
             "NestedStructListTest".into(),
-            AsnType::Sequence(Sequence::from(vec![Field {
+            AsnType::sequence_from_fields(vec![Field {
                 name: "strings".into(),
                 role: AsnType::SequenceOf(Box::new(AsnType::SequenceOf(Box::new(
                     AsnType::UTF8String,
                 ))))
                 .untagged(),
-            }]))
+            }])
             .untagged(),
         ));
         let model_rust = model_asn.to_rust();

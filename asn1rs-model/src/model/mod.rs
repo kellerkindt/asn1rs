@@ -807,6 +807,14 @@ pub enum Type {
 }
 
 impl Type {
+    pub fn sequence_from_fields(fields: Vec<Field<Asn>>) -> Self {
+        Self::Sequence(Sequence::from(fields))
+    }
+
+    pub fn choice_from_variants(variants: Vec<ChoiceVariant>) -> Self {
+        Self::Choice(Choice::from(variants))
+    }
+
     pub fn optional(self) -> Self {
         Self::Optional(Box::new(self))
     }
@@ -1173,7 +1181,7 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "Simple".into(),
-                Type::Sequence(Sequence::from(vec![
+                Type::sequence_from_fields(vec![
                     Field {
                         name: "small".into(),
                         role: Type::Integer(Some(Range(0, 255))).untagged(),
@@ -1190,7 +1198,7 @@ pub(crate) mod tests {
                         name: "unlimited".into(),
                         role: Type::Integer(None).optional().untagged(),
                     }
-                ]))
+                ])
                 .untagged(),
             ),
             model.definitions[0]
@@ -1223,14 +1231,14 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "Woah".into(),
-                Type::Sequence(Sequence::from(vec![Field {
+                Type::sequence_from_fields(vec![Field {
                     name: "decision".into(),
                     role: Type::Enumerated(Enumerated::from_names(
                         ["ABORT", "RETURN", "CONFIRM", "MAYDAY", "THE_CAKE_IS_A_LIE",].iter()
                     ))
                     .optional()
                     .untagged(),
-                }]))
+                }])
                 .untagged(),
             ),
             model.definitions[0]
@@ -1281,7 +1289,7 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "Woah".into(),
-                Type::Sequence(Sequence::from(vec![
+                Type::sequence_from_fields(vec![
                     Field {
                         name: "also-ones".into(),
                         role: Type::SequenceOf(Box::new(Type::Integer(Some(Range(0, 1)))))
@@ -1302,7 +1310,7 @@ pub(crate) mod tests {
                         .optional()
                         .untagged(),
                     },
-                ]))
+                ])
                 .untagged(),
             ),
             model.definitions[2]
@@ -1366,15 +1374,15 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "Woah".into(),
-                Type::Sequence(Sequence::from(vec![Field {
+                Type::sequence_from_fields(vec![Field {
                     name: "decision".into(),
-                    role: Type::Choice(Choice::from(vec![
+                    role: Type::choice_from_variants(vec![
                         ChoiceVariant::name_type("this", Type::TypeReference("This".into())),
                         ChoiceVariant::name_type("that", Type::TypeReference("That".into())),
                         ChoiceVariant::name_type("neither", Type::TypeReference("Neither".into())),
-                    ]))
+                    ])
                     .untagged(),
-                }]))
+                }])
                 .untagged(),
             ),
             model.definitions[3]
@@ -1405,9 +1413,9 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "Woah".into(),
-                Type::Sequence(Sequence::from(vec![Field {
+                Type::sequence_from_fields(vec![Field {
                     name: "complex".into(),
-                    role: Type::Sequence(Sequence::from(vec![
+                    role: Type::sequence_from_fields(vec![
                         Field {
                             name: "ones".into(),
                             role: Type::Integer(Some(Range(0, 1))).untagged(),
@@ -1423,10 +1431,10 @@ pub(crate) mod tests {
                                 .optional()
                                 .untagged(),
                         },
-                    ]))
+                    ])
                     .optional()
                     .untagged(),
-                }]))
+                }])
                 .untagged(),
             ),
             model.definitions[0]
@@ -1671,7 +1679,7 @@ pub(crate) mod tests {
             &[
                 Definition(
                     "Universal".to_string(),
-                    Type::Sequence(Sequence::from(vec![
+                    Type::sequence_from_fields(vec![
                         Field {
                             name: "abc".to_string(),
                             role: Type::Integer(None).tagged(Tag::ContextSpecific(1)),
@@ -1681,7 +1689,7 @@ pub(crate) mod tests {
                             role: Type::Integer(Some(Range(0, 255)))
                                 .tagged(Tag::ContextSpecific(2)),
                         }
-                    ]))
+                    ])
                     .tagged(Tag::Universal(2)),
                 ),
                 Definition(
