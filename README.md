@@ -285,8 +285,10 @@ fn test_default_range() {
    - extensible variation of ```CHOICE```, ```ENUMERATED``` and ```SEQUENCE```
    - inline ```SEQUENCE OF``` and ```CHOICE``` 
    - ```OPTIONAL```
-   - ```INTEGER``` with range (numbers or ```MIN```/```MAX```)
-   - ```INTEGER``` without range (treated as ```INTEGER(0..MAX)```)
+   - ```INTEGER```
+     - with range (numbers or ```MIN```/```MAX```)
+     - without range (treated as ```INTEGER(0..MAX)```)
+     - constants are parsed and accepted 
    - ```UTF8String```
    - ```OCTET STRING``` 
    - ```BOOLEAN```
