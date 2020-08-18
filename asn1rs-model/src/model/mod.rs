@@ -40,6 +40,7 @@ pub enum ErrorKind {
     UnexpectedEndOfStream,
     InvalidRangeValue(Token),
     InvalidNumberForEnumVariant(Token),
+    InvalidValueForConstant(Token),
     InvalidTag(Token),
     InvalidPositionForExtensionMarker(Token),
     InvalidIntText(Token),
@@ -76,6 +77,10 @@ impl Error {
 
     pub fn invalid_tag(token: Token) -> Self {
         ErrorKind::InvalidTag(token).into()
+    }
+
+    pub fn invalid_value_for_constant(token: Token) -> Self {
+        ErrorKind::InvalidValueForConstant(token).into()
     }
 
     pub fn invalid_number_for_enum_variant(token: Token) -> Self {
@@ -129,6 +134,7 @@ impl Error {
             ErrorKind::UnexpectedEndOfStream => None,
             ErrorKind::InvalidRangeValue(t) => Some(t),
             ErrorKind::InvalidNumberForEnumVariant(t) => Some(t),
+            ErrorKind::InvalidValueForConstant(t) => Some(t),
             ErrorKind::InvalidTag(t) => Some(t),
             ErrorKind::InvalidPositionForExtensionMarker(t) => Some(t),
             ErrorKind::InvalidIntText(t) => Some(t),
@@ -200,6 +206,13 @@ impl Display for Error {
             ErrorKind::InvalidNumberForEnumVariant(token) => write!(
                 f,
                 "At line {}, column {} an invalid value for an enum variant was encountered: {}",
+                token.location().line(),
+                token.location().column(),
+                token,
+            ),
+            ErrorKind::InvalidValueForConstant(token) => write!(
+                f,
+                "At line {}, column {} an invalid value for an constant value was encountered: {}",
                 token.location().line(),
                 token.location().column(),
                 token,
@@ -439,30 +452,7 @@ impl Model<Asn> {
         text: String,
     ) -> Result<Type, Error> {
         if text.eq_ignore_ascii_case("INTEGER") {
-            match iter.peek() {
-                Some(peeked) if peeked.eq_separator('(') => {
-                    Self::next_separator_ignore_case(iter, '(')?;
-                    let start = Self::next(iter)?;
-                    Self::next_separator_ignore_case(iter, '.')?;
-                    Self::next_separator_ignore_case(iter, '.')?;
-                    let end = Self::next(iter)?;
-                    Self::next_separator_ignore_case(iter, ')')?;
-                    if start.eq_text("0") && end.eq_text_ignore_ascii_case("MAX") {
-                        Ok(Type::Integer(None))
-                    } else {
-                        Ok(Type::Integer(Some(Range(
-                            start
-                                .text()
-                                .and_then(|t| t.parse::<i64>().ok())
-                                .ok_or_else(|| Error::invalid_range_value(start))?,
-                            end.text()
-                                .and_then(|t| t.parse::<i64>().ok())
-                                .ok_or_else(|| Error::invalid_range_value(end))?,
-                        ))))
-                    }
-                }
-                _ => Ok(Type::Integer(None)),
-            }
+            Ok(Type::Integer(Integer::try_from(iter)?))
         } else if text.eq_ignore_ascii_case("BOOLEAN") {
             Ok(Type::Boolean)
         } else if text.eq_ignore_ascii_case("UTF8String") {
@@ -483,6 +473,70 @@ impl Model<Asn> {
         } else {
             Ok(Type::TypeReference(text))
         }
+    }
+
+    fn read_number_range(
+        iter: &mut Peekable<IntoIter<Token>>,
+    ) -> Result<Option<Range<i64>>, Error> {
+        if Self::peek(iter)?.eq_separator('(') {
+            Self::next_separator_ignore_case(iter, '(')?;
+            let start = Self::next(iter)?;
+            Self::next_separator_ignore_case(iter, '.')?;
+            Self::next_separator_ignore_case(iter, '.')?;
+            let end = Self::next(iter)?;
+            Self::next_separator_ignore_case(iter, ')')?;
+            if start.eq_text("0") && end.eq_text_ignore_ascii_case("MAX") {
+                Ok(None)
+            } else {
+                Ok(Some(Range(
+                    start
+                        .text()
+                        .and_then(|t| t.parse::<i64>().ok())
+                        .ok_or_else(|| Error::invalid_range_value(start))?,
+                    end.text()
+                        .and_then(|t| t.parse::<i64>().ok())
+                        .ok_or_else(|| Error::invalid_range_value(end))?,
+                )))
+            }
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn constant_i64_parser(token: Token) -> Result<i64, Error> {
+        let parsed = token.text().and_then(|s| s.parse().ok());
+        parsed.ok_or_else(|| Error::invalid_value_for_constant(token))
+    }
+
+    fn maybe_read_constants<T, F: Fn(Token) -> Result<T, Error>>(
+        iter: &mut Peekable<IntoIter<Token>>,
+        parser: F,
+    ) -> Result<Vec<(String, T)>, Error> {
+        let mut constants = Vec::default();
+        if Self::peek(iter)?.eq_separator('{') {
+            Self::next_separator_ignore_case(iter, '{')?;
+            loop {
+                constants.push(Self::read_constant(iter, |token| parser(token))?);
+                if !Self::peek(iter)?.eq_separator(',') {
+                    break;
+                } else {
+                    let _ = Self::next(iter)?;
+                }
+            }
+            Self::next_separator_ignore_case(iter, '}')?;
+        }
+        Ok(constants)
+    }
+
+    fn read_constant<T, F: Fn(Token) -> Result<T, Error>>(
+        iter: &mut Peekable<IntoIter<Token>>,
+        parser: F,
+    ) -> Result<(String, T), Error> {
+        let name = Self::next_text(iter)?;
+        Self::next_separator_ignore_case(iter, '(')?;
+        let value = Self::next(iter)?;
+        Self::next_separator_ignore_case(iter, ')')?;
+        Ok((name, parser(value)?))
     }
 
     fn read_sequence_or_sequence_of(iter: &mut Peekable<IntoIter<Token>>) -> Result<Type, Error> {
@@ -793,7 +847,7 @@ impl TagProperty for Asn {
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum Type {
     Boolean,
-    Integer(Option<Range<i64>>),
+    Integer(Integer),
     UTF8String,
     OctetString,
 
@@ -807,8 +861,29 @@ pub enum Type {
 }
 
 impl Type {
-    pub fn sequence_from_fields(fields: Vec<Field<Asn>>) -> Self {
-        Self::Sequence(Sequence::from(fields))
+    pub const fn any_integer() -> Self {
+        Self::integer_with_range_opt(None)
+    }
+
+    pub const fn integer_with_range(range: Range<i64>) -> Self {
+        Self::Integer(Integer {
+            range: Some(range),
+            constants: Vec::new(),
+        })
+    }
+
+    pub const fn integer_with_range_opt(range: Option<Range<i64>>) -> Self {
+        Self::Integer(Integer {
+            range,
+            constants: Vec::new(),
+        })
+    }
+
+    pub const fn sequence_from_fields(fields: Vec<Field<Asn>>) -> Self {
+        Self::Sequence(Sequence {
+            fields,
+            extension_after: None,
+        })
     }
 
     pub fn choice_from_variants(variants: Vec<ChoiceVariant>) -> Self {
@@ -833,18 +908,26 @@ impl Type {
 }
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub struct Integer {
+    pub range: Option<Range<i64>>,
+    pub constants: Vec<(String, i64)>,
+}
+
+impl TryFrom<&mut Peekable<IntoIter<Token>>> for Integer {
+    type Error = Error;
+
+    fn try_from(iter: &mut Peekable<IntoIter<Token>>) -> Result<Self, Self::Error> {
+        let constants =
+            Model::<Asn>::maybe_read_constants(iter, Model::<Asn>::constant_i64_parser)?;
+        let range = Model::<Asn>::read_number_range(iter)?;
+        Ok(Self { range, constants })
+    }
+}
+
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct Sequence {
     pub fields: Vec<Field<Asn>>,
     pub extension_after: Option<usize>,
-}
-
-impl From<Vec<Field<Asn>>> for Sequence {
-    fn from(fields: Vec<Field<Asn>>) -> Self {
-        Self {
-            fields,
-            extension_after: None,
-        }
-    }
 }
 
 impl TryFrom<&mut Peekable<IntoIter<Token>>> for Sequence {
@@ -1209,19 +1292,19 @@ pub(crate) mod tests {
                 Type::sequence_from_fields(vec![
                     Field {
                         name: "small".into(),
-                        role: Type::Integer(Some(Range(0, 255))).untagged(),
+                        role: Type::integer_with_range(Range(0, 255)).untagged(),
                     },
                     Field {
                         name: "bigger".into(),
-                        role: Type::Integer(Some(Range(0, 65535))).untagged(),
+                        role: Type::integer_with_range(Range(0, 65535)).untagged(),
                     },
                     Field {
                         name: "negative".into(),
-                        role: Type::Integer(Some(Range(-1, 255))).untagged(),
+                        role: Type::integer_with_range(Range(-1, 255)).untagged(),
                     },
                     Field {
                         name: "unlimited".into(),
-                        role: Type::Integer(None).optional().untagged(),
+                        role: Type::any_integer().optional().untagged(),
                     }
                 ])
                 .untagged(),
@@ -1297,16 +1380,16 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "Ones".into(),
-                Type::SequenceOf(Box::new(Type::Integer(Some(Range(0, 1))))).untagged(),
+                Type::SequenceOf(Box::new(Type::integer_with_range(Range(0, 1)))).untagged(),
             ),
             model.definitions[0]
         );
         assert_eq!(
             Definition(
                 "NestedOnes".into(),
-                Type::SequenceOf(Box::new(Type::SequenceOf(Box::new(Type::Integer(Some(
-                    Range(0, 1)
-                ))))))
+                Type::SequenceOf(Box::new(Type::SequenceOf(Box::new(
+                    Type::integer_with_range(Range(0, 1))
+                ))))
                 .untagged(),
             ),
             model.definitions[1]
@@ -1317,20 +1400,20 @@ pub(crate) mod tests {
                 Type::sequence_from_fields(vec![
                     Field {
                         name: "also-ones".into(),
-                        role: Type::SequenceOf(Box::new(Type::Integer(Some(Range(0, 1)))))
+                        role: Type::SequenceOf(Box::new(Type::integer_with_range(Range(0, 1))))
                             .untagged(),
                     },
                     Field {
                         name: "nesteds".into(),
                         role: Type::SequenceOf(Box::new(Type::SequenceOf(Box::new(
-                            Type::Integer(Some(Range(0, 1)))
+                            Type::integer_with_range(Range(0, 1))
                         ))))
                         .untagged(),
                     },
                     Field {
                         name: "optionals".into(),
                         role: Type::SequenceOf(Box::new(Type::SequenceOf(Box::new(
-                            Type::Integer(None)
+                            Type::any_integer()
                         ))))
                         .optional()
                         .untagged(),
@@ -1375,16 +1458,16 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "This".into(),
-                Type::SequenceOf(Box::new(Type::Integer(Some(Range(0, 1))))).untagged(),
+                Type::SequenceOf(Box::new(Type::integer_with_range(Range(0, 1)))).untagged(),
             ),
             model.definitions[0]
         );
         assert_eq!(
             Definition(
                 "That".into(),
-                Type::SequenceOf(Box::new(Type::SequenceOf(Box::new(Type::Integer(Some(
-                    Range(0, 1)
-                ))))))
+                Type::SequenceOf(Box::new(Type::SequenceOf(Box::new(
+                    Type::integer_with_range(Range(0, 1))
+                ))))
                 .untagged(),
             ),
             model.definitions[1]
@@ -1443,16 +1526,16 @@ pub(crate) mod tests {
                     role: Type::sequence_from_fields(vec![
                         Field {
                             name: "ones".into(),
-                            role: Type::Integer(Some(Range(0, 1))).untagged(),
+                            role: Type::integer_with_range(Range(0, 1)).untagged(),
                         },
                         Field {
                             name: "list-ones".into(),
-                            role: Type::SequenceOf(Box::new(Type::Integer(Some(Range(0, 1)))))
+                            role: Type::SequenceOf(Box::new(Type::integer_with_range(Range(0, 1))))
                                 .untagged(),
                         },
                         Field {
                             name: "optional-ones".into(),
-                            role: Type::SequenceOf(Box::new(Type::Integer(Some(Range(0, 1)))))
+                            role: Type::SequenceOf(Box::new(Type::integer_with_range(Range(0, 1))))
                                 .optional()
                                 .untagged(),
                         },
@@ -1505,7 +1588,7 @@ pub(crate) mod tests {
         assert_eq!(
             &[Definition(
                 "SimpleTypeWithRange".to_string(),
-                Type::Integer(Some(Range(0, 65_535))).untagged(),
+                Type::integer_with_range(Range(0, 65_535)).untagged(),
             )][..],
             &model.definitions[..]
         )
@@ -1707,11 +1790,11 @@ pub(crate) mod tests {
                     Type::sequence_from_fields(vec![
                         Field {
                             name: "abc".to_string(),
-                            role: Type::Integer(None).tagged(Tag::ContextSpecific(1)),
+                            role: Type::any_integer().tagged(Tag::ContextSpecific(1)),
                         },
                         Field {
                             name: "def".to_string(),
-                            role: Type::Integer(Some(Range(0, 255)))
+                            role: Type::integer_with_range(Range(0, 255))
                                 .tagged(Tag::ContextSpecific(2)),
                         }
                     ])
@@ -1728,7 +1811,7 @@ pub(crate) mod tests {
                 ),
                 Definition(
                     "ContextSpecific".to_string(),
-                    Type::Integer(None).tagged(Tag::ContextSpecific(8)),
+                    Type::any_integer().tagged(Tag::ContextSpecific(8)),
                 ),
             ][..],
             &model.definitions[..]
@@ -1917,6 +2000,90 @@ pub(crate) mod tests {
                 .from_oid
                 .as_ref()
                 .expect("ObjectIdentifier is missing")
+        )
+    }
+    #[test]
+    pub fn test_parsing_module_definition_with_integer_constant() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r"SomeName DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+                TheGreatStruct ::= SEQUENCE {
+                    inline     INTEGER { ab(1), cd(2), ef(3) },
+                    eff-u8     INTEGER { gh(1), ij(4), kl(9) } (0..255),
+                    tagged [7] INTEGER { mn(5), op(4), qr(9) } (0..255) 
+                }
+                
+                SeAlias ::= INTEGER { wow(1), much(2), great(3) }
+                
+                OhAlias ::= [APPLICATION 9] INTEGER { oh(1), lul(2) } (0..255)
+                END",
+        ))
+        .expect("Failed to load model");
+        assert_eq!(
+            vec![
+                Definition(
+                    "TheGreatStruct".to_string(),
+                    Type::sequence_from_fields(vec![
+                        Field {
+                            name: "inline".to_string(),
+                            role: Type::Integer(Integer {
+                                range: None,
+                                constants: vec![
+                                    ("ab".to_string(), 1),
+                                    ("cd".to_string(), 2),
+                                    ("ef".to_string(), 3)
+                                ]
+                            })
+                            .untagged(),
+                        },
+                        Field {
+                            name: "eff-u8".to_string(),
+                            role: Type::Integer(Integer {
+                                range: Some(Range(0, 255)),
+                                constants: vec![
+                                    ("gh".to_string(), 1),
+                                    ("ij".to_string(), 4),
+                                    ("kl".to_string(), 9)
+                                ]
+                            })
+                            .untagged(),
+                        },
+                        Field {
+                            name: "tagged".to_string(),
+                            role: Type::Integer(Integer {
+                                range: Some(Range(0, 255)),
+                                constants: vec![
+                                    ("mn".to_string(), 5),
+                                    ("op".to_string(), 4),
+                                    ("qr".to_string(), 9)
+                                ]
+                            })
+                            .tagged(Tag::ContextSpecific(7)),
+                        },
+                    ])
+                    .untagged()
+                ),
+                Definition(
+                    "SeAlias".to_string(),
+                    Type::Integer(Integer {
+                        range: None,
+                        constants: vec![
+                            ("wow".to_string(), 1),
+                            ("much".to_string(), 2),
+                            ("great".to_string(), 3),
+                        ]
+                    })
+                    .untagged()
+                ),
+                Definition(
+                    "OhAlias".to_string(),
+                    Type::Integer(Integer {
+                        range: Some(Range(0, 255)),
+                        constants: vec![("oh".to_string(), 1), ("lul".to_string(), 2),]
+                    })
+                    .tagged(Tag::Application(9))
+                )
+            ],
+            model.definitions
         )
     }
 }

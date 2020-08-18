@@ -82,7 +82,9 @@ fn parse_type_pre_stepped<'a>(
         "octet_string" => Ok(Type::OctetString),
         "integer" => {
             let range = MaybeRanged::parse(input)?;
-            Ok(Type::Integer(range.0.map(|(min, max)| Range(min, max))))
+            Ok(Type::integer_with_range_opt(
+                range.0.map(|(min, max)| Range(min, max)),
+            ))
         }
         "complex" => {
             let content;

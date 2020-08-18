@@ -159,28 +159,28 @@ impl RustType {
         match self {
             RustType::Bool => AsnType::Boolean,
             RustType::I8(Range(min, max)) => {
-                AsnType::Integer(Some(Range(i64::from(min), i64::from(max))))
+                AsnType::integer_with_range(Range(i64::from(min), i64::from(max)))
             }
             RustType::U8(Range(min, max)) => {
-                AsnType::Integer(Some(Range(i64::from(min), i64::from(max))))
+                AsnType::integer_with_range(Range(i64::from(min), i64::from(max)))
             }
             RustType::I16(Range(min, max)) => {
-                AsnType::Integer(Some(Range(i64::from(min), i64::from(max))))
+                AsnType::integer_with_range(Range(i64::from(min), i64::from(max)))
             }
             RustType::U16(Range(min, max)) => {
-                AsnType::Integer(Some(Range(i64::from(min), i64::from(max))))
+                AsnType::integer_with_range(Range(i64::from(min), i64::from(max)))
             }
             RustType::I32(Range(min, max)) => {
-                AsnType::Integer(Some(Range(i64::from(min), i64::from(max))))
+                AsnType::integer_with_range(Range(i64::from(min), i64::from(max)))
             }
             RustType::U32(Range(min, max)) => {
-                AsnType::Integer(Some(Range(i64::from(min), i64::from(max))))
+                AsnType::integer_with_range(Range(i64::from(min), i64::from(max)))
             }
-            RustType::I64(Range(min, max)) => AsnType::Integer(Some(Range(min, max))),
+            RustType::I64(Range(min, max)) => AsnType::integer_with_range(Range(min, max)),
             RustType::U64(Some(Range(min, max))) => {
-                AsnType::Integer(Some(Range(min as i64, max as i64)))
+                AsnType::integer_with_range(Range(min as i64, max as i64))
             }
-            RustType::U64(None) => AsnType::Integer(None),
+            RustType::U64(None) => AsnType::any_integer(),
             RustType::String => AsnType::UTF8String,
             RustType::VecU8 => AsnType::OctetString,
             RustType::Vec(inner) => AsnType::SequenceOf(Box::new(inner.into_asn())),
@@ -559,29 +559,29 @@ impl Model<Rust> {
     ) -> RustType {
         match asn {
             AsnType::Boolean => RustType::Bool,
-            AsnType::Integer(Some(Range(min, max))) => {
-                let min = *min;
-                let max = *max;
-                if min >= 0 {
-                    match max as u64 {
-                        m if m <= U8_MAX => RustType::U8(Range(min as u8, max as u8)),
-                        m if m <= U16_MAX => RustType::U16(Range(min as u16, max as u16)),
-                        m if m <= U32_MAX => RustType::U32(Range(min as u32, max as u32)),
-                        _/*m if m <= U64_MAX*/ => RustType::U64(Some(Range(min as u64, max as u64))),
-                        //_ => panic!("This should never happen, since max (as u64 frm i64) cannot be greater than U64_MAX")
-                    }
-                } else {
-                    let max_amplitude = (min - 1).abs().max(max);
-                    match max_amplitude {
-                        _ if max_amplitude <= I8_MAX => RustType::I8(Range(min as i8, max as i8)),
-                        _ if max_amplitude <= I16_MAX => RustType::I16(Range(min as i16, max as i16)),
-                        _ if max_amplitude <= I32_MAX => RustType::I32(Range(min as i32, max as i32)),
-                        _/*if max_amplitude <= I64_MAX*/ => RustType::I64(Range(min as i64, max as i64)),
-                        //_ => panic!("This should never happen, since max (being i64) cannot be greater than I64_MAX")
+            AsnType::Integer(integer) => match integer.range {
+                Some(Range(min, max)) => {
+                    if min >= 0 {
+                        match max as u64 {
+                                m if m <= U8_MAX => RustType::U8(Range(min as u8, max as u8)),
+                                m if m <= U16_MAX => RustType::U16(Range(min as u16, max as u16)),
+                                m if m <= U32_MAX => RustType::U32(Range(min as u32, max as u32)),
+                                _/*m if m <= U64_MAX*/ => RustType::U64(Some(Range(min as u64, max as u64))),
+                                //_ => panic!("This should never happen, since max (as u64 frm i64) cannot be greater than U64_MAX")
+                            }
+                    } else {
+                        let max_amplitude = (min - 1).abs().max(max);
+                        match max_amplitude {
+                                _ if max_amplitude <= I8_MAX => RustType::I8(Range(min as i8, max as i8)),
+                                _ if max_amplitude <= I16_MAX => RustType::I16(Range(min as i16, max as i16)),
+                                _ if max_amplitude <= I32_MAX => RustType::I32(Range(min as i32, max as i32)),
+                                _/*if max_amplitude <= I64_MAX*/ => RustType::I64(Range(min as i64, max as i64)),
+                                //_ => panic!("This should never happen, since max (being i64) cannot be greater than I64_MAX")
+                            }
                     }
                 }
-            }
-            AsnType::Integer(None) => RustType::U64(None),
+                None => RustType::U64(None),
+            },
             AsnType::UTF8String => RustType::String,
             AsnType::OctetString => RustType::VecU8,
             Type::Optional(inner) => RustType::Option(Box::new(
@@ -1147,7 +1147,7 @@ mod tests {
             AsnType::Choice(Choice {
                 variants: vec![
                     ChoiceVariant::name_type("abc", Type::OctetString),
-                    ChoiceVariant::name_type("def", Type::Integer(None)),
+                    ChoiceVariant::name_type("def", Type::any_integer()),
                     ChoiceVariant {
                         name: "ghi".to_string(),
                         tag: Some(Tag::Universal(4)),
