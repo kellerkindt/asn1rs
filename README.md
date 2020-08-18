@@ -294,6 +294,7 @@ fn test_default_range() {
    - ```BOOLEAN```
    - using previously declared message types
    - ```IMPORTS .. FROM ..;```
+   - ```ObjectIdentifier```s are parsed and accepted in imports and module definitions
  - Line comments (```--- some comment```)
  - parsing and ignoring in UPER unused TAGs and ENUMERATED-Variant number assignments
 
