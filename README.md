@@ -282,7 +282,7 @@ fn test_default_range() {
  - Generating PostgreSQL Schema files
  - Support for the following ASN.1 datatypes:
    - ```SEQUENCE```, ```SEQUENCE OF```, ```CHOICE``` and ```ENUMERATED```
-   - extensible variation of ```CHOICE``` and ```ENUMERATED```
+   - extensible variation of ```CHOICE```, ```ENUMERATED``` and ```SEQUENCE```
    - inline ```SEQUENCE OF``` and ```CHOICE``` 
    - ```OPTIONAL```
    - ```INTEGER``` with range (numbers or ```MIN```/```MAX```)
