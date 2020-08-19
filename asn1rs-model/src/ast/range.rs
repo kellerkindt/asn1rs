@@ -1,61 +1,51 @@
-use proc_macro2::Delimiter;
 use syn::buffer::Cursor;
-use syn::parse::{Parse, ParseBuffer, StepCursor};
+use syn::parse::{Parse, ParseStream};
+use syn::Ident;
+use syn::Lit;
+use syn::Token;
 
-pub struct MaybeRanged(pub Option<(i64, i64)>);
+enum MMV {
+    MinMax,
+    Value(i64),
+}
 
-impl Parse for MaybeRanged {
-    fn parse<'a>(input: &'a ParseBuffer<'a>) -> syn::Result<Self> {
-        if input.peek(syn::token::Paren) {
-            input.step(|stepper| {
-                let (a, _span, outer) = stepper
-                    .group(Delimiter::Parenthesis)
-                    .ok_or_else(|| stepper.error("Expected range"))?;
-
-                let (min, c) = number_potentially_negative(&stepper, a, "Expected min value")?;
-
-                let (_, c) = c.punct().ok_or_else(|| stepper.error("Expected dot"))?;
-                let (_, c) = c.punct().ok_or_else(|| stepper.error("Expected dot"))?;
-
-                let (max, _c) = number_potentially_negative(&stepper, c, "Expected max value")?;
-
-                let min = min.to_lowercase();
-                let max = max.to_lowercase();
-
-                if min == "min" && max == "max" {
-                    Ok((MaybeRanged(None), outer))
-                } else {
-                    let min = min.parse::<i64>().map_err(|_| stepper.error("Not i64"))?;
-                    let max = max.parse::<i64>().map_err(|_| stepper.error("Not i64"))?;
-                    Ok((MaybeRanged(Some((min, max))), outer))
-                }
-            })
+impl MMV {
+    pub fn try_parse(input: ParseStream) -> syn::Result<Option<Self>> {
+        if let Ok(Lit::Int(int)) = input.parse::<Lit>() {
+            Ok(Some(MMV::Value(
+                int.base10_digits()
+                    .parse::<i64>()
+                    .map_err(|_| input.error("Expected int literal for from value of range"))?,
+            )))
+        } else if let Ok(ident) = input.parse::<Ident>() {
+            let lc = ident.to_string().to_lowercase();
+            if lc == "min" || lc == "max" {
+                Ok(Some(MMV::MinMax))
+            } else {
+                Err(input.error("Invalid identifier, accepted identifiers are: min, max"))
+            }
         } else {
-            Ok(MaybeRanged(None))
+            Err(input.error("Cannot parse token"))
         }
     }
 }
 
-fn number_potentially_negative<'a>(
-    stepper: &'a StepCursor<'_, 'a>,
-    a: Cursor<'a>,
-    err: &str,
-) -> Result<(String, Cursor<'a>), syn::Error> {
-    let (min, c) = ident_or_literal_or_punct_or_err(&stepper, a, err)?;
-    if min == "-" {
-        let (min, c) = ident_or_literal_or_punct_or_err(&stepper, c, err)?;
-        Ok((format!("-{}", min), c))
-    } else {
-        Ok((min, c))
-    }
-}
+#[derive(Debug)]
+pub struct MaybeRanged(pub Option<(i64, i64)>);
 
-pub fn ident_or_literal_or_punct_or_err<'a>(
-    stepper: &'a StepCursor<'_, 'a>,
-    a: Cursor<'a>,
-    err: &str,
-) -> Result<(String, Cursor<'a>), syn::Error> {
-    ident_or_literal_or_punct(a).ok_or_else(|| stepper.error(err))
+impl Parse for MaybeRanged {
+    fn parse<'a>(input: ParseStream) -> syn::Result<Self> {
+        let min = MMV::try_parse(input)?.ok_or_else(|| input.error("invalid min"))?;
+        let _ = input.parse::<Token![.]>()?;
+        let _ = input.parse::<Token![.]>()?;
+        let max = MMV::try_parse(input)?.ok_or_else(|| input.error("invalid maxn"))?;
+
+        match (min, max) {
+            (MMV::MinMax, MMV::MinMax) => Ok(MaybeRanged(None)),
+            (MMV::Value(min), MMV::Value(max)) => Ok(MaybeRanged(Some((min, max)))),
+            _ => Err(input.error("invalid min max combination")),
+        }
+    }
 }
 
 pub fn ident_or_literal_or_punct(a: Cursor<'_>) -> Option<(String, Cursor<'_>)> {

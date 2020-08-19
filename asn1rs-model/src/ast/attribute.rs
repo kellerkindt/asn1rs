@@ -81,10 +81,21 @@ fn parse_type_pre_stepped<'a>(
         "utf8string" => Ok(Type::UTF8String),
         "octet_string" => Ok(Type::OctetString),
         "integer" => {
-            let range = MaybeRanged::parse(input)?;
-            Ok(Type::integer_with_range_opt(
-                range.0.map(|(min, max)| Range(min, max)),
-            ))
+            if input.is_empty() {
+                Ok(Type::any_integer())
+            } else {
+                let content;
+                parenthesized!(content in input);
+                if content.is_empty() {
+                    Ok(Type::any_integer())
+                } else {
+                    Ok(Type::integer_with_range_opt(
+                        MaybeRanged::parse(&content)?
+                            .0
+                            .map(|(min, max)| Range(min, max)),
+                    ))
+                }
+            }
         }
         "complex" => {
             let content;
