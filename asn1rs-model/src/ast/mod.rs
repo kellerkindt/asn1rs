@@ -1,8 +1,10 @@
 mod attribute;
+mod constants;
 mod range;
 mod tag;
 
 use crate::ast::attribute::{Context, DefinitionHeader, Transparent};
+use crate::ast::constants::ConstLit;
 use crate::model::{Asn as AsnModelType, EnumeratedVariant, Sequence, TagProperty};
 use crate::model::{Choice, ChoiceVariant, Definition, Enumerated, Field, Model, Type};
 use attribute::AsnAttribute;
@@ -349,13 +351,21 @@ fn into_asn_or_err(
 
 fn into_asn<C: Context<Primary = Type>>(
     ty: &syn::Type,
-    asn: AsnAttribute<C>,
+    mut asn: AsnAttribute<C>,
 ) -> Option<AsnModelType> {
     Some(AsnModelType {
         tag: asn.tag,
         r#type: if let Type::TypeReference(_) = asn.primary {
             Type::TypeReference(quote! { #ty }.to_string())
         } else {
+            if let Type::Integer(int) = &mut asn.primary {
+                asn.consts
+                    .into_iter()
+                    .map(|c| match c {
+                        ConstLit::I64(name, value) => (name, value),
+                    })
+                    .for_each(|v| int.constants.push(v));
+            }
             asn.primary
         },
     })

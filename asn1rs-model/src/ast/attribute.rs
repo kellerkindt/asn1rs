@@ -1,17 +1,20 @@
 use super::range::ident_or_literal_or_punct;
 use super::range::MaybeRanged;
 use super::tag::AttrTag;
+use crate::ast::constants::ConstLit;
 use crate::model::{Choice, ChoiceVariant, Enumerated, EnumeratedVariant, Range, Tag, Type};
 use std::fmt::Display;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use syn::parenthesized;
 use syn::parse::{Parse, ParseBuffer};
+use syn::token;
 
 #[derive(Debug)]
 pub(crate) struct AsnAttribute<C: Context> {
     pub(crate) primary: C::Primary,
     pub(crate) tag: Option<Tag>,
+    pub(crate) consts: Vec<ConstLit>,
     pub(crate) extensible_after: Option<String>,
     _c: PhantomData<C>,
 }
@@ -21,6 +24,7 @@ impl<C: Context> AsnAttribute<C> {
         Self {
             primary,
             tag: None,
+            consts: Vec::default(),
             extensible_after: None,
             _c: Default::default(),
         }
@@ -51,6 +55,17 @@ impl<C: Context> Parse for AsnAttribute<C> {
                     let ident = content
                         .step(|s| s.ident().ok_or_else(|| content.error("Not a valid ident")))?;
                     asn.extensible_after = Some(ident.to_string());
+                }
+                "const" if C::CONSTS => {
+                    let content;
+                    parenthesized!(content in input);
+                    loop {
+                        asn.consts.push(content.parse::<ConstLit>()?);
+                        if content.is_empty() {
+                            break;
+                        }
+                        let _ = content.parse::<token::Comma>()?;
+                    }
                 }
                 attribute => {
                     return Err(
@@ -177,30 +192,35 @@ pub trait Context {
     type Primary: PrimaryContext;
     const EXTENSIBLE: bool;
     const TAGGABLE: bool;
+    const CONSTS: bool;
 }
 
 impl Context for Choice {
     type Primary = Type;
     const EXTENSIBLE: bool = true;
     const TAGGABLE: bool = true;
+    const CONSTS: bool = false;
 }
 
 impl Context for ChoiceVariant {
     type Primary = Type;
     const EXTENSIBLE: bool = false;
     const TAGGABLE: bool = true;
+    const CONSTS: bool = false;
 }
 
 impl Context for Enumerated {
     type Primary = Type;
     const EXTENSIBLE: bool = true;
     const TAGGABLE: bool = true;
+    const CONSTS: bool = false;
 }
 
 impl Context for EnumeratedVariant {
     type Primary = Option<usize>;
     const EXTENSIBLE: bool = false;
     const TAGGABLE: bool = false;
+    const CONSTS: bool = false;
 }
 
 pub struct Transparent;
@@ -208,6 +228,7 @@ impl Context for Transparent {
     type Primary = Type;
     const EXTENSIBLE: bool = false;
     const TAGGABLE: bool = true;
+    const CONSTS: bool = true;
 }
 
 pub struct DefinitionHeader(String);
@@ -224,6 +245,7 @@ impl Context for DefinitionHeader {
     type Primary = Self;
     const EXTENSIBLE: bool = true;
     const TAGGABLE: bool = true;
+    const CONSTS: bool = false;
 }
 
 impl PrimaryContext for DefinitionHeader {
