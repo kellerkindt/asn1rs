@@ -13,6 +13,7 @@ impl<T: Copy, C: Constraint<T>> Default for Integer<T, C> {
 pub trait Constraint<T: Copy> {
     const MIN: Option<T> = None;
     const MAX: Option<T> = None;
+    const EXTENSIBLE: bool = false;
 }
 
 #[derive(Default)]
@@ -32,11 +33,12 @@ macro_rules! read_write {
                 value: &Self::Type,
             ) -> Result<(), <W as Writer>::Error> {
                 let value = *value;
+                let value = i64::from(value);
                 if C::MIN.is_none() && C::MAX.is_none() {
-                    writer.write_int_max(value as u64)
+                    writer.write_int_max(value)
                 } else {
                     writer.write_int(
-                        i64::from(value),
+                        value,
                         (
                             C::MIN.map(i64::from).unwrap_or(0),
                             C::MAX.map(i64::from).unwrap_or_else(i64::max_value),
@@ -79,10 +81,10 @@ impl<C: Constraint<u64>> WritableType for Integer<u64, C> {
         value: &Self::Type,
     ) -> Result<(), <W as Writer>::Error> {
         let value = *value;
+        let value = i64::try_from(value).unwrap();
         if C::MIN.is_none() && C::MAX.is_none() {
             writer.write_int_max(value)
         } else {
-            let value = i64::try_from(value).unwrap();
             writer.write_int(
                 value,
                 (
@@ -102,7 +104,7 @@ impl<C: Constraint<u64>> ReadableType for Integer<u64, C> {
     #[inline]
     fn read_value<R: Reader>(reader: &mut R) -> Result<Self::Type, <R as Reader>::Error> {
         if C::MIN.is_none() && C::MAX.is_none() {
-            Ok(reader.read_int_max()?)
+            Ok(u64::try_from(reader.read_int_max()?).unwrap())
         } else {
             Ok(reader.read_int((
                 C::MIN.map(|v| i64::try_from(v).unwrap()).unwrap_or(0),

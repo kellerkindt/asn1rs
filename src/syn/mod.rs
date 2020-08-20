@@ -54,7 +54,7 @@ pub trait Reader {
 
     fn read_int(&mut self, range: (i64, i64)) -> Result<i64, Self::Error>;
 
-    fn read_int_max(&mut self) -> Result<u64, Self::Error>;
+    fn read_int_max(&mut self) -> Result<i64, Self::Error>;
 
     fn read_utf8string<C: utf8string::Constraint>(&mut self) -> Result<String, Self::Error>;
 
@@ -119,7 +119,7 @@ pub trait Writer {
 
     fn write_int(&mut self, value: i64, range: (i64, i64)) -> Result<(), Self::Error>;
 
-    fn write_int_max(&mut self, value: u64) -> Result<(), Self::Error>;
+    fn write_int_max(&mut self, value: i64) -> Result<(), Self::Error>;
 
     fn write_utf8string<C: utf8string::Constraint>(
         &mut self,

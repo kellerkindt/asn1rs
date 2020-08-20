@@ -723,7 +723,7 @@ mod tests {
         Ok(())
     }
 
-    fn check_int_max(buffer: &mut BitBuffer, int: u64) -> Result<(), UperError> {
+    fn check_int_max(buffer: &mut BitBuffer, int: i64) -> Result<(), UperError> {
         {
             let mut buffer2 = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
             assert_eq!(int, buffer2.read_int_max()?);
@@ -734,8 +734,22 @@ mod tests {
     }
 
     #[test]
+    fn bit_buffer_int_max_neg_12() -> Result<(), UperError> {
+        const INT: i64 = 12;
+        let mut buffer = BitBuffer::default();
+        buffer.write_int_max(INT)?;
+        // Can be represented in 1 byte,
+        // therefore the first byte is written
+        // with 0x00 (header) | 1 (byte len).
+        // The second byte is then the actual value
+        assert_eq!(buffer.content(), &[0x00 | 1, INT as u8]);
+        check_int_max(&mut buffer, INT)?;
+        Ok(())
+    }
+
+    #[test]
     fn bit_buffer_int_max_0() -> Result<(), UperError> {
-        const INT: u64 = 0;
+        const INT: i64 = 0;
         let mut buffer = BitBuffer::default();
         buffer.write_int_max(INT)?;
         // Can be represented in 1 byte,
@@ -749,7 +763,7 @@ mod tests {
 
     #[test]
     fn bit_buffer_int_max_127() -> Result<(), UperError> {
-        const INT: u64 = 127; // u4::max_value() as u64
+        const INT: i64 = 127; // u4::max_value() as u64
         let mut buffer = BitBuffer::default();
         buffer.write_int_max(INT)?;
         // Can be represented in 1 byte,
@@ -763,7 +777,7 @@ mod tests {
 
     #[test]
     fn bit_buffer_int_max_128() -> Result<(), UperError> {
-        const INT: u64 = 128; // u4::max_value() as u64 + 1
+        const INT: i64 = 128; // u4::max_value() as u64 + 1
         let mut buffer = BitBuffer::default();
         buffer.write_int_max(INT)?;
         // Can be represented in 1 byte,
@@ -777,7 +791,7 @@ mod tests {
 
     #[test]
     fn bit_buffer_int_max_255() -> Result<(), UperError> {
-        const INT: u64 = 255; // u8::max_value() as u64
+        const INT: i64 = 255; // u8::max_value() as u64
         let mut buffer = BitBuffer::default();
         buffer.write_int_max(INT)?;
         // Can be represented in 1 byte,
@@ -791,7 +805,7 @@ mod tests {
 
     #[test]
     fn bit_buffer_int_max_256() -> Result<(), UperError> {
-        const INT: u64 = 256; // u8::max_value() as u64 + 1
+        const INT: i64 = 256; // u8::max_value() as u64 + 1
         let mut buffer = BitBuffer::default();
         buffer.write_int_max(INT)?;
         // Can be represented in 2 bytes,
@@ -812,7 +826,7 @@ mod tests {
 
     #[test]
     fn bit_buffer_int_max_65535() -> Result<(), UperError> {
-        const INT: u64 = 65_535; // u16::max_value() as u64
+        const INT: i64 = 65_535; // u16::max_value() as u64
         let mut buffer = BitBuffer::default();
         buffer.write_int_max(INT)?;
         // Can be represented in 2 bytes,
@@ -833,7 +847,7 @@ mod tests {
 
     #[test]
     fn bit_buffer_int_max_65536() -> Result<(), UperError> {
-        const INT: u64 = 65_536; // u16::max_value() as u64 + 1
+        const INT: i64 = 65_536; // u16::max_value() as u64 + 1
         let mut buffer = BitBuffer::default();
         buffer.write_int_max(INT)?;
         // Can be represented in 3 bytes,
@@ -855,7 +869,7 @@ mod tests {
 
     #[test]
     fn bit_buffer_int_max_16777215() -> Result<(), UperError> {
-        const INT: u64 = 16_777_215; // u24::max_value() as u64
+        const INT: i64 = 16_777_215; // u24::max_value() as u64
         let mut buffer = BitBuffer::default();
         buffer.write_int_max(INT)?;
         // Can be represented in 3 bytes,
@@ -877,7 +891,7 @@ mod tests {
 
     #[test]
     fn bit_buffer_int_max_16777216() -> Result<(), UperError> {
-        const INT: u64 = 16_777_216; // u24::max_value() as u64 + 1
+        const INT: i64 = 16_777_216; // u24::max_value() as u64 + 1
         let mut buffer = BitBuffer::default();
         buffer.write_int_max(INT)?;
         // Can be represented in 4 bytes,
@@ -900,7 +914,7 @@ mod tests {
 
     #[test]
     fn bit_buffer_int_max_4294967295() -> Result<(), UperError> {
-        const INT: u64 = 4_294_967_295; // u32::max_value() as u64
+        const INT: i64 = 4_294_967_295; // u32::max_value() as u64
         let mut buffer = BitBuffer::default();
         buffer.write_int_max(INT)?;
         // Can be represented in 4 bytes,
@@ -923,7 +937,7 @@ mod tests {
 
     #[test]
     fn bit_buffer_int_max_4294967296() -> Result<(), UperError> {
-        const INT: u64 = 4_294_967_296; // u32::max_value() as u64 + 1
+        const INT: i64 = 4_294_967_296; // u32::max_value() as u64 + 1
         let mut buffer = BitBuffer::default();
         buffer.write_int_max(INT)?;
         // Can be represented in 5 bytes,
@@ -947,8 +961,7 @@ mod tests {
 
     #[test]
     fn bit_buffer_int_max_i64_max() -> Result<(), UperError> {
-        const INT: u64 = 0x7F_FF_FF_FF_FF_FF_FF_FF_u64;
-        assert_eq!(INT, i64::max_value() as u64);
+        const INT: i64 = i64::max_value();
         let mut buffer = BitBuffer::default();
         buffer.write_int_max(INT)?;
         // Can be represented in 8 bytes,
@@ -959,14 +972,14 @@ mod tests {
             buffer.content(),
             &[
                 0x00 | 8,
-                ((INT & 0xFF_00_00_00_00_00_00_00) >> 56) as u8,
-                ((INT & 0x00_FF_00_00_00_00_00_00) >> 48) as u8,
-                ((INT & 0x00_00_FF_00_00_00_00_00) >> 40) as u8,
-                ((INT & 0x00_00_00_FF_00_00_00_00) >> 32) as u8,
-                ((INT & 0x00_00_00_00_FF_00_00_00) >> 24) as u8,
-                ((INT & 0x00_00_00_00_00_FF_00_00) >> 16) as u8,
-                ((INT & 0x00_00_00_00_00_00_FF_00) >> 8) as u8,
-                ((INT & 0x00_00_00_00_00_00_00_FF) >> 0) as u8,
+                ((INT as u64 & 0xFF_00_00_00_00_00_00_00_u64) >> 56) as u8,
+                ((INT as u64 & 0x00_FF_00_00_00_00_00_00_u64) >> 48) as u8,
+                ((INT as u64 & 0x00_00_FF_00_00_00_00_00_u64) >> 40) as u8,
+                ((INT as u64 & 0x00_00_00_FF_00_00_00_00_u64) >> 32) as u8,
+                ((INT as u64 & 0x00_00_00_00_FF_00_00_00_u64) >> 24) as u8,
+                ((INT as u64 & 0x00_00_00_00_00_FF_00_00_u64) >> 16) as u8,
+                ((INT as u64 & 0x00_00_00_00_00_00_FF_00_u64) >> 8) as u8,
+                ((INT as u64 & 0x00_00_00_00_00_00_00_FF_u64) >> 0) as u8,
             ]
         );
         check_int_max(&mut buffer, INT)?;

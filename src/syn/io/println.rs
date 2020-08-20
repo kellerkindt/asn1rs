@@ -109,7 +109,7 @@ impl Writer for PrintlnWriter {
         Ok(())
     }
 
-    fn write_int_max(&mut self, value: u64) -> Result<(), Self::Error> {
+    fn write_int_max(&mut self, value: i64) -> Result<(), Self::Error> {
         self.indented_println(&format!("WRITING Integer {}", value));
         Ok(())
     }

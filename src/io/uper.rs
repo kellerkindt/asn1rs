@@ -1,6 +1,7 @@
 use crate::io::buffer::BitBuffer;
 use byteorder::ByteOrder;
 use byteorder::NetworkEndian;
+use std::convert::TryFrom;
 
 pub const BYTE_LEN: usize = 8;
 
@@ -18,6 +19,8 @@ pub enum Error {
     InvalidChoiceIndex(usize, usize),
     InvalidExtensionConstellation(bool, bool),
     ValueNotInRange(i64, i64, i64),
+    ValueExceedsMaxInt,
+    ValueIsNegativeButExpectedUnsigned(i64),
     SizeNotInRange(usize, usize, usize),
     OptFlagsExhausted,
     EndOfStream,
@@ -52,6 +55,14 @@ impl std::fmt::Display for Error {
                 f,
                 "The value {} is not within the inclusive range of {} and {}",
                 value, min, max
+            ),
+            Error::ValueExceedsMaxInt => {
+                write!(f, "The value exceeds the maximum supported integer size",)
+            }
+            Error::ValueIsNegativeButExpectedUnsigned(value) => write!(
+                f,
+                "The value {} is negative, but expected an unsigned/positive value",
+                value
             ),
             Error::SizeNotInRange(size, min, max) => write!(
                 f,
@@ -134,26 +145,28 @@ pub trait Reader {
         let is_small = !self.read_bit()?;
         if is_small {
             // 11.6.1: 6 bit of the number
-            let mut buffer = [0u8; 8];
+            let mut buffer = [0u8; std::mem::size_of::<u64>()];
             self.read_bit_string(&mut buffer[7..8], 2, 6)?;
             Ok(u64::from_be_bytes(buffer))
         } else {
             // 11.6.2: (length-determinant + number)
-            self.read_int_max()
+            // this cannot be negative... logically
+            let value = self.read_int_max()?;
+            u64::try_from(value).map_err(|_| Error::ValueIsNegativeButExpectedUnsigned(value))
         }
     }
 
-    fn read_int_max(&mut self) -> Result<u64, Error> {
+    fn read_int_max(&mut self) -> Result<i64, Error> {
         let len_in_bytes = self.read_length_determinant()?;
         if len_in_bytes > 8 {
             Err(Error::UnsupportedOperation(
                 "Reading bigger data types than 64bit is not supported".into(),
             ))
         } else {
-            let mut buffer = vec![0_u8; 8];
+            let mut buffer = [0_u8; 8];
             let offset = (8 * BYTE_LEN) - (len_in_bytes * BYTE_LEN);
             self.read_bit_string_till_end(&mut buffer[..], offset)?;
-            Ok(NetworkEndian::read_u64(&buffer[..]))
+            Ok(i64::from_be_bytes(buffer))
         }
     }
 
@@ -287,23 +300,23 @@ pub trait Writer {
             let buffer = value.to_be_bytes();
             self.write_bit_string(&buffer[7..8], 2, 6)?; // last 6 bits
             Ok(())
-        } else {
+        } else if value <= i64::max_value() as u64 {
             // 11.6.2: '1'bit + (length-determinant + number)
             self.write_bit(true)?;
-            self.write_int_max(value)?;
+            self.write_int_max(value as i64)?;
             Ok(())
+        } else {
+            Err(Error::ValueExceedsMaxInt)
         }
     }
 
     /// ??? X.691-201508 11.9
-    fn write_int_max(&mut self, value: u64) -> Result<(), Error> {
-        if value > i64::max_value() as u64 {
-            return Err(Error::ValueNotInRange(value as i64, 0, i64::max_value()));
-        }
+    fn write_int_max(&mut self, value: i64) -> Result<(), Error> {
         let buffer = value.to_be_bytes();
+        let mask = if value.is_negative() { 0xFF } else { 0x00 };
         let byte_len = {
             let mut len = buffer.len();
-            while len > 0 && buffer[buffer.len() - len] == 0x00 {
+            while len > 0 && buffer[buffer.len() - len] == mask {
                 len -= 1;
             }
             len

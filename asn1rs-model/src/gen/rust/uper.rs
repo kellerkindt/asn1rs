@@ -132,7 +132,7 @@ impl UperSerializer {
                 ));
             }
             RustType::U64(None) => {
-                block.line("reader.read_int_max()?");
+                block.line("reader.read_int_max()? as u64");
             }
             RustType::String => {
                 block.line("reader.read_utf8_string()?");
@@ -393,7 +393,7 @@ impl UperSerializer {
             }
             RustType::U64(None) => {
                 block.line(&format!(
-                    "writer.write_int_max({})?;",
+                    "writer.write_int_max({} as i64)?;",
                     field_name.map_or_else(|| "value".into(), |f| f.to_string()),
                 ));
             }
