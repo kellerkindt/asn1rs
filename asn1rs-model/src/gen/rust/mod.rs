@@ -100,6 +100,7 @@ impl Generator<Rust> for RustCodeGenerator {
                 model,
                 &[
                     #[cfg(feature = "legacy-uper-codegen")]
+                    #[cfg_attr(feature = "legacy-uper-codegen", allow(deprecated))]
                     &uper::UperSerializer,
                     &ProtobufSerializer,
                     #[cfg(feature = "psql")]
