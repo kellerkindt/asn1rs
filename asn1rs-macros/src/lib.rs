@@ -19,15 +19,21 @@ pub fn asn_to_rust(item: TokenStream) -> TokenStream {
     let mut generator = RustGenerator::default();
     generator.add_model(model.to_rust());
 
-    generator
+    let output = generator
         .to_string()
         .unwrap()
         .into_iter()
         .map(|(_file, content)| content)
         .collect::<Vec<_>>()
-        .join("\n")
-        .parse()
-        .unwrap()
+        .join("\n");
+
+    if cfg!(feature = "debug-proc-macro") {
+        println!("-------- output start");
+        println!("{}", output);
+        println!("-------- output end");
+    }
+
+    output.parse().unwrap()
 }
 
 #[proc_macro_attribute]
