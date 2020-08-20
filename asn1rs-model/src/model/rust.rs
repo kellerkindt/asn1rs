@@ -272,14 +272,24 @@ pub enum Rust {
     DataEnum(DataEnum),
 
     /// Used to represent a single, unnamed inner type
-    TupleStruct(RustType),
+    TupleStruct {
+        r#type: RustType,
+        constants: Vec<(String, String)>,
+    },
 }
 
 impl Rust {
     pub fn struct_from_fields(fields: Vec<Field>) -> Self {
-        Rust::Struct {
+        Self::Struct {
             fields,
             extension_after: None,
+        }
+    }
+
+    pub fn tuple_struct_from_type(r#type: RustType) -> Self {
+        Self::TupleStruct {
+            r#type,
+            constants: Vec::default(),
         }
     }
 }
@@ -310,6 +320,7 @@ impl ToString for RustType {
 pub struct Field {
     name_type: (String, RustType),
     tag: Option<Tag>,
+    constants: Vec<(String, String)>,
 }
 
 impl Field {
@@ -317,6 +328,7 @@ impl Field {
         Self {
             name_type: (name.to_string(), r#type),
             tag: None,
+            constants: Vec::default(),
         }
     }
 
@@ -330,6 +342,15 @@ impl Field {
 
     pub fn r#type(&self) -> &RustType {
         &self.name_type.1
+    }
+
+    pub fn constants(&self) -> &[(String, String)] {
+        &self.constants[..]
+    }
+
+    pub fn with_constants(mut self, constants: Vec<(String, String)>) -> Self {
+        self.constants = constants;
+        self
     }
 }
 
@@ -474,19 +495,33 @@ impl Model<Rust> {
     pub fn definition_to_rust(name: &str, asn: &AsnType, defs: &mut Vec<Definition<Rust>>) {
         match asn {
             AsnType::Boolean
-            | AsnType::Integer(_)
             | AsnType::UTF8String
             | AsnType::OctetString
             | AsnType::TypeReference(_) => {
                 let rust_type = Self::definition_type_to_rust_type(name, asn, defs);
-                defs.push(Definition(name.into(), Rust::TupleStruct(rust_type)));
+                defs.push(Definition(
+                    name.into(),
+                    Rust::tuple_struct_from_type(rust_type),
+                ));
+            }
+
+            me @ AsnType::Integer(_) => {
+                let rust_type = Self::definition_type_to_rust_type(name, asn, defs);
+                let constants = Self::asn_constants_to_rust_constants(me);
+                defs.push(Definition(
+                    name.into(),
+                    Rust::TupleStruct {
+                        r#type: rust_type,
+                        constants,
+                    },
+                ));
             }
 
             AsnType::Optional(inner) => {
                 let inner = RustType::Option(Box::new(Self::definition_type_to_rust_type(
                     name, inner, defs,
                 )));
-                defs.push(Definition(name.into(), Rust::TupleStruct(inner)))
+                defs.push(Definition(name.into(), Rust::tuple_struct_from_type(inner)))
             }
 
             AsnType::Sequence(Sequence {
@@ -500,7 +535,11 @@ impl Model<Rust> {
                     let rust_role =
                         Self::definition_type_to_rust_type(&rust_name, &field.role.r#type, defs);
                     let rust_field_name = rust_field_name(&field.name);
-                    rust_fields.push(RustField::from_name_type(rust_field_name, rust_role));
+                    let constants = Self::asn_constants_to_rust_constants(&field.role.r#type);
+                    rust_fields.push(
+                        RustField::from_name_type(rust_field_name, rust_role)
+                            .with_constants(constants),
+                    );
                 }
 
                 defs.push(Definition(
@@ -516,7 +555,7 @@ impl Model<Rust> {
                 let inner = RustType::Vec(Box::new(Self::definition_type_to_rust_type(
                     name, asn, defs,
                 )));
-                defs.push(Definition(name.into(), Rust::TupleStruct(inner)));
+                defs.push(Definition(name.into(), Rust::tuple_struct_from_type(inner)));
             }
 
             AsnType::Choice(choice) => {
@@ -549,6 +588,18 @@ impl Model<Rust> {
 
                 defs.push(Definition(name.into(), Rust::Enum(rust_enum)));
             }
+        }
+    }
+
+    pub fn asn_constants_to_rust_constants(asn: &AsnType) -> Vec<(String, String)> {
+        if let AsnType::Integer(integer) = asn {
+            integer
+                .constants
+                .iter()
+                .map(|(name, value)| (rust_module_name(name).to_uppercase(), format!("{}", value)))
+                .collect()
+        } else {
+            Vec::default()
         }
     }
 
@@ -741,14 +792,14 @@ mod tests {
         assert_eq!(
             Definition(
                 "Ones".into(),
-                Rust::TupleStruct(RustType::Vec(Box::new(RustType::U8(Range(0, 1))))),
+                Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::U8(Range(0, 1))))),
             ),
             model_rust.definitions[0]
         );
         assert_eq!(
             Definition(
                 "NestedOnes".into(),
-                Rust::TupleStruct(RustType::Vec(Box::new(RustType::Vec(Box::new(
+                Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::Vec(Box::new(
                     RustType::U8(Range(0, 1))
                 ))))),
             ),
@@ -790,14 +841,14 @@ mod tests {
         assert_eq!(
             Definition(
                 "This".into(),
-                Rust::TupleStruct(RustType::Vec(Box::new(RustType::U8(Range(0, 1))))),
+                Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::U8(Range(0, 1))))),
             ),
             model_rust.definitions[0]
         );
         assert_eq!(
             Definition(
                 "That".into(),
-                Rust::TupleStruct(RustType::Vec(Box::new(RustType::Vec(Box::new(
+                Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::Vec(Box::new(
                     RustType::U8(Range(0, 1))
                 ))))),
             ),
@@ -988,7 +1039,7 @@ mod tests {
         assert_eq!(
             Definition(
                 "TupleTest".into(),
-                Rust::TupleStruct(RustType::Vec(Box::new(RustType::String))),
+                Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::String))),
             ),
             model_rust.definitions[0]
         );
@@ -1010,7 +1061,7 @@ mod tests {
         assert_eq!(
             Definition(
                 "NestedTupleTest".into(),
-                Rust::TupleStruct(RustType::Vec(Box::new(RustType::Vec(Box::new(
+                Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::Vec(Box::new(
                     RustType::String
                 ))))),
             ),

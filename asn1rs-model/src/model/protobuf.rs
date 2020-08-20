@@ -152,7 +152,7 @@ impl Model<Protobuf> {
                     ProtobufType::OneOf(proto_enum),
                 )])
             }
-            Rust::TupleStruct(inner) => Protobuf::Message(vec![(
+            Rust::TupleStruct { r#type: inner, .. } => Protobuf::Message(vec![(
                 TUPLE_VARIABLE_NAME_REPLACEMENT.into(),
                 Self::definition_type_to_protobuf_type(inner),
             )]),
@@ -251,7 +251,7 @@ mod tests {
         test_model_definition_conversion(
             &[Definition(
                 "SuchTuple".into(),
-                Rust::TupleStruct(RustType::Complex("VeryWow".into())),
+                Rust::tuple_struct_from_type(RustType::Complex("VeryWow".into())),
             )],
             &[Definition(
                 "SuchTuple".into(),
@@ -321,7 +321,10 @@ mod tests {
                     "First".into(),
                     Rust::Enum(vec!["A".into(), "B".into()].into()),
                 ),
-                Definition("Second".into(), Rust::TupleStruct(RustType::VecU8)),
+                Definition(
+                    "Second".into(),
+                    Rust::tuple_struct_from_type(RustType::VecU8),
+                ),
             ],
             &[
                 Definition("First".into(), Protobuf::Enum(vec!["A".into(), "B".into()])),

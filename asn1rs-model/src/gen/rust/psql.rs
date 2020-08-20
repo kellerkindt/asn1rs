@@ -106,7 +106,7 @@ impl PsqlInserter {
                 Self::impl_enum_insert_statement(Self::new_insert_statement_fn(implementation));
                 Self::impl_enum_insert_fn(Self::new_insert_fn(implementation, false));
             }
-            Rust::TupleStruct(rust) => {
+            Rust::TupleStruct { r#type: rust, .. } => {
                 Self::impl_tuple_insert_statement(
                     Self::new_insert_statement_fn(implementation),
                     name,
@@ -428,7 +428,7 @@ impl PsqlInserter {
                 Self::impl_enum_query_fn(Self::new_query_fn(implementation, false), name, r_enum);
                 Self::impl_enum_load_fn(Self::new_load_fn(implementation, true), name);
             }
-            Rust::TupleStruct(rust) => {
+            Rust::TupleStruct { r#type: rust, .. } => {
                 Self::impl_tupl_query_statement(
                     Self::new_query_statement_fn(implementation),
                     name,

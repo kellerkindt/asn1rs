@@ -1,5 +1,5 @@
 use crate::gen::RustCodeGenerator;
-use crate::model::rust::{DataEnum, Field, PlainEnum};
+use crate::model::rust::{rust_module_name, DataEnum, Field, PlainEnum};
 use crate::model::{Definition, Model, Range, Rust, RustType};
 use codegen::{Block, Impl, Scope};
 use std::fmt::Display;
@@ -42,7 +42,7 @@ impl AsnDefWriter {
                     self.write_type_declaration(scope, &name, variant.name(), variant.r#type());
                 }
             }
-            Rust::TupleStruct(field) => {
+            Rust::TupleStruct { r#type: field, .. } => {
                 scope.raw(&format!(
                     "type AsnDef{} = {}Sequence<{}>;",
                     name, CRATE_SYN_PREFIX, name
@@ -98,6 +98,66 @@ impl AsnDefWriter {
         )
     }
 
+    fn write_impl(&self, scope: &mut Scope, Definition(name, r#type): &Definition<Rust>) {
+        match r#type {
+            Rust::Struct {
+                fields,
+                extension_after: _,
+            } => {
+                let constants = fields
+                    .iter()
+                    .map(|field| {
+                        field.constants().iter().map(move |(name, value)| {
+                            let field_name = rust_module_name(field.name()).to_uppercase();
+                            (
+                                field.r#type().clone(),
+                                format!("{}_{}", field_name, name),
+                                value.clone(),
+                            )
+                        })
+                    })
+                    .flatten()
+                    .collect::<Vec<_>>();
+                if !constants.is_empty() {
+                    AsnDefWriter::write_impl_consts(scope, &name, constants);
+                }
+            }
+            Rust::Enum(_) => {}
+            Rust::DataEnum(_) => {}
+            Rust::TupleStruct { r#type, constants } => {
+                let constants = constants
+                    .iter()
+                    .map(|(name, value)| (r#type.clone(), name.clone(), value.clone()))
+                    .collect::<Vec<_>>();
+                if !constants.is_empty() {
+                    AsnDefWriter::write_impl_consts(scope, &name, constants);
+                }
+            }
+        }
+    }
+
+    fn write_impl_consts(
+        scope: &mut Scope,
+        name: &str,
+        constants: Vec<(RustType, String, String)>,
+    ) {
+        scope.raw(&format!("impl {} {{", name));
+        for (r#type, name, value) in constants {
+            scope.raw(&format!(
+                "    const {}: {} = {};",
+                name,
+                r#type.to_string(),
+                // TODO this does only support a small variety of constant types
+                if RustType::String == r#type {
+                    format!("\"{}\"", value)
+                } else {
+                    value
+                }
+            ));
+        }
+        scope.raw("}");
+    }
+
     fn write_constraints(&self, scope: &mut Scope, Definition(name, r#type): &Definition<Rust>) {
         match r#type {
             Rust::Struct {
@@ -111,7 +171,7 @@ impl AsnDefWriter {
                 self.write_enumerated_constraint(scope, &name, plain);
             }
             Rust::DataEnum(data) => self.write_choice_constraint(scope, &name, data),
-            Rust::TupleStruct(field) => {
+            Rust::TupleStruct { r#type: field, .. } => {
                 let fields = [Field::from_name_type("0", field.clone())];
                 self.write_field_constraints(scope, &name, &fields[..]);
                 self.write_sequence_constraint(scope, &name, &fields[..], None);
@@ -474,6 +534,7 @@ impl AsnDefWriter {
 
         for definition in &model.definitions {
             myself.write_type_definitions(&mut scope, definition);
+            myself.write_impl(&mut scope, definition);
             myself.write_constraints(&mut scope, definition);
             myself.impl_readable(&mut scope, &definition.0);
             myself.impl_writable(&mut scope, &definition.0);
@@ -487,7 +548,8 @@ impl AsnDefWriter {
 pub mod tests {
     use crate::gen::rust::walker::AsnDefWriter;
     use crate::model::rust::Field;
-    use crate::model::{Definition, Rust, RustType};
+    use crate::model::{Definition, Model, Rust, RustType};
+    use crate::parser::Tokenizer;
     use codegen::Scope;
 
     fn simple_whatever_sequence() -> Definition<Rust> {
@@ -642,6 +704,70 @@ pub mod tests {
                 }
             }
                 
+        "#,
+            &string,
+        );
+    }
+
+    #[test]
+    pub fn test_integer_struct_constants() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r#"BasicInteger DEFINITIONS AUTOMATIC TAGS ::=
+            BEGIN
+    
+            MyStruct ::= SEQUENCE {
+                item INTEGER { apple(8), banana(9) } (0..255)
+            }
+            
+            END
+        "#,
+        ))
+        .unwrap()
+        .to_rust();
+
+        let mut scope = Scope::new();
+        AsnDefWriter.write_impl(&mut scope, &model.definitions[0]);
+        let string = scope.to_string();
+        println!("{}", string);
+
+        assert_lines(
+            r#"
+            impl MyStruct {
+                const ITEM_APPLE: u8 = 8;
+                const ITEM_BANANA: u8 = 9;
+            }
+            
+        "#,
+            &string,
+        );
+    }
+
+    #[test]
+    pub fn test_integer_tuple_constants() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r#"BasicInteger DEFINITIONS AUTOMATIC TAGS ::=
+            BEGIN
+            
+            MyTuple ::= INTEGER { abc(8), bernd(9) } (0..255)
+            
+            END
+        "#,
+        ))
+        .unwrap()
+        .to_rust();
+
+        let mut scope = Scope::new();
+        AsnDefWriter.write_impl(&mut scope, &model.definitions[0]);
+        let string = scope.to_string();
+        println!("{}", string);
+
+        assert_lines(
+            r#"
+            impl MyTuple {
+                const ABC: u8 = 8;
+                const BERND: u8 = 9;
+            }
+            
         "#,
             &string,
         );

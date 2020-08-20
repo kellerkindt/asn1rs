@@ -122,6 +122,27 @@ END"#,
     )
 }
 
+#[test]
+fn test_integer_constants() {
+    parse_asn_map_to_rust_map_to_stringify_with_proc_macro_annotation_re_parse_check_equal(
+        r#"BasicSchema DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+  MyType ::= [5] SEQUENCE {
+    great INTEGER { abc(3), def(68) } (0..255),
+    wower INTEGER { ghi(3), jkl(99) },
+    def [APPLICATION 7] INTEGER,
+    ghi Utf8String
+  }
+  
+  OtherType ::= [APPLICATION 99] INTEGER {
+    my-type(5),
+    other-type(7)
+  }
+  
+END"#,
+    )
+}
+
 fn parse_asn_map_to_rust_map_to_stringify_with_proc_macro_annotation_re_parse_check_equal(
     asn: &str,
 ) {

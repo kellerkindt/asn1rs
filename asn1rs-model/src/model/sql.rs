@@ -149,7 +149,7 @@ impl Model<Sql> {
             Rust::DataEnum(enumeration) => {
                 Self::rust_data_enum_to_sql_table(name, enumeration, definitions)
             }
-            Rust::TupleStruct(rust) => {
+            Rust::TupleStruct { r#type: rust, .. } => {
                 Self::rust_tuple_struct_to_sql_table(name, rust, definitions)
             }
         }
@@ -777,10 +777,13 @@ mod tests {
                 from_oid: None,
             }],
             definitions: vec![
-                Definition("Whatever".into(), Rust::TupleStruct(RustType::String)),
+                Definition(
+                    "Whatever".into(),
+                    Rust::tuple_struct_from_type(RustType::String),
+                ),
                 Definition(
                     "Whatelse".into(),
-                    Rust::TupleStruct(RustType::Complex("Whatever".into())),
+                    Rust::tuple_struct_from_type(RustType::Complex("Whatever".into())),
                 ),
             ],
         }

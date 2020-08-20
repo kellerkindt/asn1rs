@@ -232,6 +232,12 @@ impl Context for Transparent {
 }
 
 pub struct DefinitionHeader(String);
+impl Context for DefinitionHeader {
+    type Primary = Self;
+    const EXTENSIBLE: bool = true;
+    const TAGGABLE: bool = true;
+    const CONSTS: bool = false;
+}
 
 impl Deref for DefinitionHeader {
     type Target = str;
@@ -240,14 +246,6 @@ impl Deref for DefinitionHeader {
         &self.0
     }
 }
-
-impl Context for DefinitionHeader {
-    type Primary = Self;
-    const EXTENSIBLE: bool = true;
-    const TAGGABLE: bool = true;
-    const CONSTS: bool = false;
-}
-
 impl PrimaryContext for DefinitionHeader {
     fn parse(input: &ParseBuffer<'_>) -> syn::Result<Self> {
         input

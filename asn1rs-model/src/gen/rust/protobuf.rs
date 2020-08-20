@@ -69,8 +69,8 @@ impl ProtobufSerializer {
 
     fn impl_read_fn(function: &mut Function, Definition(name, rust): &Definition<Rust>) {
         match rust {
-            Rust::TupleStruct(aliased) => {
-                Self::impl_read_fn_for_tuple_struct(function, aliased);
+            Rust::TupleStruct { r#type, .. } => {
+                Self::impl_read_fn_for_tuple_struct(function, r#type);
             }
             Rust::Struct {
                 fields,
@@ -297,7 +297,9 @@ impl ProtobufSerializer {
 
     fn impl_write_fn(function: &mut Function, Definition(name, rust): &Definition<Rust>) {
         match rust {
-            Rust::TupleStruct(aliased) => {
+            Rust::TupleStruct {
+                r#type: aliased, ..
+            } => {
                 Self::impl_write_fn_for_tuple_struct(function, aliased);
             }
             Rust::Struct {
@@ -512,7 +514,7 @@ impl ProtobufSerializer {
     fn impl_format_fn(function: &mut Function, Definition(name, rust): &Definition<Rust>) {
         #[allow(clippy::match_same_arms)] // to have the same order as the original enum
         let format = match rust {
-            Rust::TupleStruct(_) => Some("LengthDelimited"),
+            Rust::TupleStruct { .. } => Some("LengthDelimited"),
             Rust::Struct { .. } => Some("LengthDelimited"),
             Rust::Enum(_) => Some("VarInt"),
             Rust::DataEnum(enumeration) => {
@@ -550,7 +552,7 @@ impl ProtobufSerializer {
 
     fn impl_eq_fn(function: &mut Function, Definition(name, rust): &Definition<Rust>) {
         match rust {
-            Rust::TupleStruct(_) => {
+            Rust::TupleStruct { .. } => {
                 function.line(format!(
                     "self.0.{}_eq(&other.0)",
                     Self::CODEC.to_lowercase()

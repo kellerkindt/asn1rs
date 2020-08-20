@@ -50,7 +50,9 @@ impl UperSerializer {
 
     fn impl_read_fn(function: &mut Function, Definition(name, rust): &Definition<Rust>) {
         match rust {
-            Rust::TupleStruct(aliased) => {
+            Rust::TupleStruct {
+                r#type: aliased, ..
+            } => {
                 Self::impl_read_fn_for_tuple_struct(function, name, aliased);
             }
             Rust::Struct {
@@ -307,7 +309,7 @@ impl UperSerializer {
 
     fn impl_write_fn(function: &mut Function, Definition(name, rust): &Definition<Rust>) {
         match rust {
-            Rust::TupleStruct(inner) => {
+            Rust::TupleStruct { r#type: inner, .. } => {
                 Self::impl_write_fn_for_tuple_struct(function, inner);
             }
             Rust::Struct {

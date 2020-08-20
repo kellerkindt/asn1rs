@@ -518,9 +518,9 @@ fn test_extensible_struct() {
 pub struct ExtensibleStruct {
     #[asn(integer(0..255))]
     range: u8,
-    #[asn(option(integer(0..255)))]
+    #[asn(option(integer(0..255)), const(abc(2)))]
     value1: Option<u8>,
-    #[asn(integer(0..255))]
+    #[asn(integer(0..255), const(abc(3), def(4)))]
     value2: u8,
     #[asn(integer(0..255))]
     value3: u8,

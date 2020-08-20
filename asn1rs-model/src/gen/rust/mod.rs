@@ -178,6 +178,7 @@ impl RustCodeGenerator {
                     "sequence",
                     None,
                     extension_after.map(|index| fields[index].name().to_string()),
+                    &[],
                 ));
                 Self::add_struct(
                     self.new_struct(scope, name),
@@ -191,6 +192,7 @@ impl RustCodeGenerator {
                     "enumerated",
                     None,
                     plain.extension_after_variant().cloned(),
+                    &[],
                 ));
                 Self::add_enum(self.new_enum(scope, name, true), name, plain)
             }
@@ -199,17 +201,19 @@ impl RustCodeGenerator {
                     "choice",
                     None,
                     data.extension_after_variant().map(|v| v.name().to_string()),
+                    &[],
                 ));
                 Self::add_data_enum(self.new_enum(scope, name, false), name, data)
             }
-            Rust::TupleStruct(inner) => {
-                scope.raw(&Self::asn_attribute("transparent", None, None));
+            Rust::TupleStruct { r#type, constants } => {
+                scope.raw(&Self::asn_attribute("transparent", None, None, &[]));
                 Self::add_tuple_struct(
                     self.new_struct(scope, name),
                     name,
-                    inner,
+                    r#type,
                     self.direct_field_access,
                     None,
+                    &constants[..],
                 )
             }
         }
@@ -223,7 +227,8 @@ impl RustCodeGenerator {
                     Self::asn_attribute(
                         &Self::asn_attribute_type(&field.r#type().clone().into_asn()),
                         field.tag(),
-                        None
+                        None,
+                        field.constants(),
                     ),
                     if pub_access { "pub " } else { "" },
                     Self::rust_field_name(field.name(), true),
@@ -246,7 +251,8 @@ impl RustCodeGenerator {
                 Self::asn_attribute(
                     Self::asn_attribute_type(&variant.r#type().clone().into_asn()),
                     variant.tag(),
-                    None
+                    None,
+                    &[]
                 ),
                 Self::rust_variant_name(variant.name()),
                 variant.r#type().to_string(),
@@ -260,13 +266,15 @@ impl RustCodeGenerator {
         inner: &RustType,
         pub_access: bool,
         tag: Option<Tag>,
+        constants: &[(String, String)],
     ) {
         str_ct.tuple_field(format!(
             "{} {}{}",
             Self::asn_attribute(
                 Self::asn_attribute_type(&inner.clone().into_asn()),
                 tag,
-                None
+                None,
+                constants
             ),
             if pub_access { "pub " } else { "" },
             inner.to_string(),
@@ -277,13 +285,26 @@ impl RustCodeGenerator {
         r#type: T,
         tag: Option<Tag>,
         extensible_after: Option<String>,
+        constants: &[(String, String)],
     ) -> String {
         format!(
             "#[asn({})]",
             vec![
                 Some(r#type.to_string()),
                 tag.map(Self::asn_attribute_tag),
-                extensible_after.map(Self::asn_attribute_extensible_after)
+                extensible_after.map(Self::asn_attribute_extensible_after),
+                if constants.is_empty() {
+                    None
+                } else {
+                    Some(format!(
+                        "const({})",
+                        constants
+                            .iter()
+                            .map(|(name, value)| format!("{}({})", name, value))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ))
+                }
             ]
             .into_iter()
             .flatten()
@@ -355,7 +376,7 @@ impl RustCodeGenerator {
                 }
                 Self::impl_data_enum_default(scope, name, enumeration);
             }
-            Rust::TupleStruct(inner) => {
+            Rust::TupleStruct { r#type: inner, .. } => {
                 let implementation = Self::impl_tuple_struct(scope, name, inner);
                 for g in generators {
                     g.extend_impl_of_tuple(name, implementation, inner);
