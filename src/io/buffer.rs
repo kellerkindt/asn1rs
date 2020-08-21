@@ -13,6 +13,13 @@ pub struct BitBuffer {
 }
 
 impl BitBuffer {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            buffer: Vec::with_capacity(capacity),
+            ..Default::default()
+        }
+    }
+
     pub fn from_bytes(buffer: Vec<u8>) -> BitBuffer {
         let bits = buffer.len() * BYTE_LEN;
         Self::from_bits(buffer, bits)
