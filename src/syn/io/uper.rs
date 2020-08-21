@@ -170,6 +170,13 @@ pub struct UperWriter {
 }
 
 impl UperWriter {
+    pub fn with_capacity(capacity: usize) -> Self {
+        Self {
+            buffer: BitBuffer::with_capacity(capacity),
+            ..Default::default()
+        }
+    }
+
     pub fn byte_content(&self) -> &[u8] {
         self.buffer.content()
     }
