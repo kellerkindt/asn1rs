@@ -1,4 +1,4 @@
-#![recursion_limit = "256"]
+#![recursion_limit = "512"]
 
 use asn1rs::prelude::*;
 use asn1rs::syn::io::UperReader as NewUperReader;
@@ -167,7 +167,172 @@ asn_to_rust!(
         e126 INTEGER,
         e127 INTEGER,
         e128 INTEGER,
-        e129 INTEGER
+        e129 INTEGER,
+        
+        e130 INTEGER,
+        e131 INTEGER,
+        e132 INTEGER,
+        e133 INTEGER,
+        e134 INTEGER,
+        e135 INTEGER,
+        e136 INTEGER,
+        e137 INTEGER,
+        e138 INTEGER,
+        e139 INTEGER,
+        
+        e140 INTEGER,
+        e141 INTEGER,
+        e142 INTEGER,
+        e143 INTEGER,
+        e144 INTEGER,
+        e145 INTEGER,
+        e146 INTEGER,
+        e147 INTEGER,
+        e148 INTEGER,
+        e149 INTEGER,
+        
+        e150 INTEGER,
+        e151 INTEGER,
+        e152 INTEGER,
+        e153 INTEGER,
+        e154 INTEGER,
+        e155 INTEGER,
+        e156 INTEGER,
+        e157 INTEGER,
+        e158 INTEGER,
+        e159 INTEGER,
+        
+        e160 INTEGER,
+        e161 INTEGER,
+        e162 INTEGER,
+        e163 INTEGER,
+        e164 INTEGER,
+        e165 INTEGER,
+        e166 INTEGER,
+        e167 INTEGER,
+        e168 INTEGER,
+        e169 INTEGER,
+        
+        e170 INTEGER,
+        e171 INTEGER,
+        e172 INTEGER,
+        e173 INTEGER,
+        e174 INTEGER,
+        e175 INTEGER,
+        e176 INTEGER,
+        e177 INTEGER,
+        e178 INTEGER,
+        e179 INTEGER,
+        
+        e180 INTEGER,
+        e181 INTEGER,
+        e182 INTEGER,
+        e183 INTEGER,
+        e184 INTEGER,
+        e185 INTEGER,
+        e186 INTEGER,
+        e187 INTEGER,
+        e188 INTEGER,
+        e189 INTEGER,
+        
+        e190 INTEGER,
+        e191 INTEGER,
+        e192 INTEGER,
+        e193 INTEGER,
+        e194 INTEGER,
+        e195 INTEGER,
+        e196 INTEGER,
+        e197 INTEGER,
+        e198 INTEGER,
+        e199 INTEGER,
+        
+        e200 INTEGER,
+        e201 INTEGER,
+        e202 INTEGER,
+        e203 INTEGER,
+        e204 INTEGER,
+        e205 INTEGER,
+        e206 INTEGER,
+        e207 INTEGER,
+        e208 INTEGER,
+        e209 INTEGER,
+        
+        e210 INTEGER,
+        e211 INTEGER,
+        e212 INTEGER,
+        e213 INTEGER,
+        e214 INTEGER,
+        e215 INTEGER,
+        e216 INTEGER,
+        e217 INTEGER,
+        e218 INTEGER,
+        e219 INTEGER,
+        
+        e220 INTEGER,
+        e221 INTEGER,
+        e222 INTEGER,
+        e223 INTEGER,
+        e224 INTEGER,
+        e225 INTEGER,
+        e226 INTEGER,
+        e227 INTEGER,
+        e228 INTEGER,
+        e229 INTEGER,
+        
+        e230 INTEGER,
+        e231 INTEGER,
+        e232 INTEGER,
+        e233 INTEGER,
+        e234 INTEGER,
+        e235 INTEGER,
+        e236 INTEGER,
+        e237 INTEGER,
+        e238 INTEGER,
+        e239 INTEGER,
+        
+        e240 INTEGER,
+        e241 INTEGER,
+        e242 INTEGER,
+        e243 INTEGER,
+        e244 INTEGER,
+        e245 INTEGER,
+        e246 INTEGER,
+        e247 INTEGER,
+        e248 INTEGER,
+        e249 INTEGER,
+        
+        e250 INTEGER,
+        e251 INTEGER,
+        e252 INTEGER,
+        e253 INTEGER,
+        e254 INTEGER,
+        e255 INTEGER,
+        e256 INTEGER,
+        e257 INTEGER,
+        e258 INTEGER,
+        e259 INTEGER,
+        
+        e260 INTEGER,
+        e261 INTEGER,
+        e262 INTEGER,
+        e263 INTEGER,
+        e264 INTEGER,
+        e265 INTEGER,
+        e266 INTEGER,
+        e267 INTEGER,
+        e268 INTEGER,
+        e269 INTEGER,
+        
+        e270 INTEGER,
+        e271 INTEGER,
+        e272 INTEGER,
+        e273 INTEGER,
+        e274 INTEGER,
+        e275 INTEGER,
+        e276 INTEGER,
+        e277 INTEGER,
+        e278 INTEGER,
+        e279 INTEGER
     }
     
     END"
@@ -219,6 +384,15 @@ fn test_extensible_more_than_63_extensions_uper() {
 }
 
 #[test]
+fn test_extensible_more_than_63_extensions_uper_e126() {
+    serialize_and_deserialize_uper(
+        5 * 8 + 2,
+        &[0xC0, 0x5F, 0x80, 0x80, 0x5F, 0x80],
+        &MoreThan63Extensions::E126(126),
+    );
+}
+
+#[test]
 fn test_extensible_more_than_63_extensions_uper_e127() {
     serialize_and_deserialize_uper(
         5 * 8 + 2,
@@ -242,6 +416,42 @@ fn test_extensible_more_than_63_extensions_uper_e129() {
         6 * 8 + 2,
         &[0xC0, 0x60, 0x40, 0xC0, 0x80, 0x20, 0x40],
         &MoreThan63Extensions::E129(129),
+    );
+}
+
+#[test]
+fn test_extensible_more_than_63_extensions_uper_e254() {
+    serialize_and_deserialize_uper(
+        6 * 8 + 2,
+        &[0xC0, 0x7F, 0x80, 0xC0, 0x80, 0x3F, 0x80],
+        &MoreThan63Extensions::E254(254),
+    );
+}
+
+#[test]
+fn test_extensible_more_than_63_extensions_uper_e255() {
+    serialize_and_deserialize_uper(
+        6 * 8 + 2,
+        &[0xC0, 0x7F, 0xC0, 0xC0, 0x80, 0x3F, 0xC0],
+        &MoreThan63Extensions::E255(255),
+    );
+}
+
+#[test]
+fn test_extensible_more_than_63_extensions_uper_e256() {
+    serialize_and_deserialize_uper(
+        7 * 8 + 2,
+        &[0xC0, 0x80, 0x40, 0x00, 0xC0, 0x80, 0x40, 0x00],
+        &MoreThan63Extensions::E256(256),
+    );
+}
+
+#[test]
+fn test_extensible_more_than_63_extensions_uper_e257() {
+    serialize_and_deserialize_uper(
+        7 * 8 + 2,
+        &[0xC0, 0x80, 0x40, 0x40, 0xC0, 0x80, 0x40, 0x40],
+        &MoreThan63Extensions::E257(257),
     );
 }
 
