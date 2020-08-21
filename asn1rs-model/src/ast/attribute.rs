@@ -1,5 +1,5 @@
 use super::range::ident_or_literal_or_punct;
-use super::range::MaybeRanged;
+use super::range::IntegerRange;
 use super::tag::AttrTag;
 use crate::ast::constants::ConstLit;
 use crate::model::{Choice, ChoiceVariant, Enumerated, EnumeratedVariant, Range, Tag, Type};
@@ -105,7 +105,7 @@ fn parse_type_pre_stepped<'a>(
                     Ok(Type::any_integer())
                 } else {
                     Ok(Type::integer_with_range_opt(
-                        MaybeRanged::parse(&content)?
+                        IntegerRange::parse(&content)?
                             .0
                             .map(|(min, max)| Range(min, max)),
                     ))

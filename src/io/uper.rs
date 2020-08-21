@@ -1,7 +1,6 @@
 use crate::io::buffer::BitBuffer;
 use byteorder::ByteOrder;
 use byteorder::NetworkEndian;
-use std::convert::TryFrom;
 
 pub const BYTE_LEN: usize = 8;
 
@@ -151,22 +150,43 @@ pub trait Reader {
         } else {
             // 11.6.2: (length-determinant + number)
             // this cannot be negative... logically
-            let value = self.read_int_max()?;
-            u64::try_from(value).map_err(|_| Error::ValueIsNegativeButExpectedUnsigned(value))
+            let value = self.read_int_max_unsigned()?;
+            // u64::try_from(value).map_err(|_| Error::ValueIsNegativeButExpectedUnsigned(value))
+            Ok(value)
         }
     }
 
-    fn read_int_max(&mut self) -> Result<i64, Error> {
+    fn read_int_max_signed(&mut self) -> Result<i64, Error> {
         let len_in_bytes = self.read_length_determinant()?;
-        if len_in_bytes > 8 {
+        if len_in_bytes > std::mem::size_of::<i64>() {
             Err(Error::UnsupportedOperation(
                 "Reading bigger data types than 64bit is not supported".into(),
             ))
         } else {
-            let mut buffer = [0_u8; 8];
-            let offset = (8 * BYTE_LEN) - (len_in_bytes * BYTE_LEN);
+            let mut buffer = [0_u8; std::mem::size_of::<i64>()];
+            let offset = (buffer.len() - len_in_bytes) * BYTE_LEN;
             self.read_bit_string_till_end(&mut buffer[..], offset)?;
+            let sign_position = buffer.len() - len_in_bytes;
+            if buffer[sign_position] & 0x80 != 0 {
+                for value in buffer.iter_mut().take(sign_position) {
+                    *value = 0xFF;
+                }
+            }
             Ok(i64::from_be_bytes(buffer))
+        }
+    }
+
+    fn read_int_max_unsigned(&mut self) -> Result<u64, Error> {
+        let len_in_bytes = self.read_length_determinant()?;
+        if len_in_bytes > std::mem::size_of::<u64>() {
+            Err(Error::UnsupportedOperation(
+                "Reading bigger data types than 64bit is not supported".into(),
+            ))
+        } else {
+            let mut buffer = [0_u8; std::mem::size_of::<u64>()];
+            let offset = (buffer.len() - len_in_bytes) * BYTE_LEN;
+            self.read_bit_string_till_end(&mut buffer[..], offset)?;
+            Ok(u64::from_be_bytes(buffer))
         }
     }
 
@@ -303,7 +323,7 @@ pub trait Writer {
         } else if value <= i64::max_value() as u64 {
             // 11.6.2: '1'bit + (length-determinant + number)
             self.write_bit(true)?;
-            self.write_int_max(value as i64)?;
+            self.write_int_max_unsigned(value as _)?;
             Ok(())
         } else {
             Err(Error::ValueExceedsMaxInt)
@@ -311,12 +331,34 @@ pub trait Writer {
     }
 
     /// ??? X.691-201508 11.9
-    fn write_int_max(&mut self, value: i64) -> Result<(), Error> {
+    fn write_int_max_signed(&mut self, value: i64) -> Result<(), Error> {
         let buffer = value.to_be_bytes();
         let mask = if value.is_negative() { 0xFF } else { 0x00 };
         let byte_len = {
             let mut len = buffer.len();
             while len > 0 && buffer[buffer.len() - len] == mask {
+                len -= 1;
+            }
+            // otherwise one could not distinguish this positive value
+            // from it being a totally different negative value
+            if value.is_positive() && value.leading_zeros() % 8 == 0 {
+                len += 1;
+            }
+            len
+        }
+        .max(1);
+        self.write_length_determinant(byte_len)?;
+        let bit_offset = (buffer.len() - byte_len) * BYTE_LEN;
+        self.write_bit_string_till_end(&buffer, bit_offset)?;
+        Ok(())
+    }
+
+    /// ??? X.691-201508 11.9
+    fn write_int_max_unsigned(&mut self, value: u64) -> Result<(), Error> {
+        let buffer = value.to_be_bytes();
+        let byte_len = {
+            let mut len = buffer.len();
+            while len > 0 && buffer[buffer.len() - len] == 0x00 {
                 len -= 1;
             }
             len

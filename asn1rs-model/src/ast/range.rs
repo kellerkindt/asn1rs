@@ -31,9 +31,9 @@ impl MMV {
 }
 
 #[derive(Debug)]
-pub struct MaybeRanged(pub Option<(i64, i64)>);
+pub struct IntegerRange(pub Option<(i64, i64)>);
 
-impl Parse for MaybeRanged {
+impl Parse for IntegerRange {
     fn parse<'a>(input: ParseStream) -> syn::Result<Self> {
         let min = MMV::try_parse(input)?.ok_or_else(|| input.error("invalid min"))?;
         let _ = input.parse::<Token![.]>()?;
@@ -41,8 +41,8 @@ impl Parse for MaybeRanged {
         let max = MMV::try_parse(input)?.ok_or_else(|| input.error("invalid maxn"))?;
 
         match (min, max) {
-            (MMV::MinMax, MMV::MinMax) => Ok(MaybeRanged(None)),
-            (MMV::Value(min), MMV::Value(max)) => Ok(MaybeRanged(Some((min, max)))),
+            (MMV::MinMax, MMV::MinMax) => Ok(IntegerRange(None)),
+            (MMV::Value(min), MMV::Value(max)) => Ok(IntegerRange(Some((min, max)))),
             _ => Err(input.error("invalid min max combination")),
         }
     }

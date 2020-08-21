@@ -726,18 +726,18 @@ mod tests {
     fn check_int_max(buffer: &mut BitBuffer, int: i64) -> Result<(), UperError> {
         {
             let mut buffer2 = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
-            assert_eq!(int, buffer2.read_int_max()?);
+            assert_eq!(int, buffer2.read_int_max_signed()?);
         }
 
-        assert_eq!(int, buffer.read_int_max()?);
+        assert_eq!(int, buffer.read_int_max_signed()?);
         Ok(())
     }
 
     #[test]
     fn bit_buffer_int_max_neg_12() -> Result<(), UperError> {
-        const INT: i64 = 12;
+        const INT: i64 = -12;
         let mut buffer = BitBuffer::default();
-        buffer.write_int_max(INT)?;
+        buffer.write_int_max_signed(INT)?;
         // Can be represented in 1 byte,
         // therefore the first byte is written
         // with 0x00 (header) | 1 (byte len).
@@ -751,7 +751,7 @@ mod tests {
     fn bit_buffer_int_max_0() -> Result<(), UperError> {
         const INT: i64 = 0;
         let mut buffer = BitBuffer::default();
-        buffer.write_int_max(INT)?;
+        buffer.write_int_max_signed(INT)?;
         // Can be represented in 1 byte,
         // therefore the first byte is written
         // with 0x00 (header) | 1 (byte len).
@@ -765,7 +765,7 @@ mod tests {
     fn bit_buffer_int_max_127() -> Result<(), UperError> {
         const INT: i64 = 127; // u4::max_value() as u64
         let mut buffer = BitBuffer::default();
-        buffer.write_int_max(INT)?;
+        buffer.write_int_max_signed(INT)?;
         // Can be represented in 1 byte,
         // therefore the first byte is written
         // with 0x00 (header) | 1 (byte len).
@@ -779,12 +779,8 @@ mod tests {
     fn bit_buffer_int_max_128() -> Result<(), UperError> {
         const INT: i64 = 128; // u4::max_value() as u64 + 1
         let mut buffer = BitBuffer::default();
-        buffer.write_int_max(INT)?;
-        // Can be represented in 1 byte,
-        // therefore the first byte is written
-        // with 0x00 (header) | 1 (byte len).
-        // The second byte is then the actual value
-        assert_eq!(buffer.content(), &[0x00 | 1, INT as u8]);
+        buffer.write_int_max_signed(INT)?;
+        assert_eq!(buffer.content(), &[0x02, 0x00, 0x80]);
         check_int_max(&mut buffer, INT)?;
         Ok(())
     }
@@ -793,12 +789,8 @@ mod tests {
     fn bit_buffer_int_max_255() -> Result<(), UperError> {
         const INT: i64 = 255; // u8::max_value() as u64
         let mut buffer = BitBuffer::default();
-        buffer.write_int_max(INT)?;
-        // Can be represented in 1 byte,
-        // therefore the first byte is written
-        // with 0x00 (header) | 1 (byte len).
-        // The second byte is then the actual value
-        assert_eq!(buffer.content(), &[0x00 | 1, INT as u8]);
+        buffer.write_int_max_signed(INT)?;
+        assert_eq!(buffer.content(), &[0x02, 0x00, 0xFF]);
         check_int_max(&mut buffer, INT)?;
         Ok(())
     }
@@ -807,7 +799,7 @@ mod tests {
     fn bit_buffer_int_max_256() -> Result<(), UperError> {
         const INT: i64 = 256; // u8::max_value() as u64 + 1
         let mut buffer = BitBuffer::default();
-        buffer.write_int_max(INT)?;
+        buffer.write_int_max_signed(INT)?;
         // Can be represented in 2 bytes,
         // therefore the first byte is written
         // with 0x00 (header) | 2 (byte len).
@@ -828,19 +820,8 @@ mod tests {
     fn bit_buffer_int_max_65535() -> Result<(), UperError> {
         const INT: i64 = 65_535; // u16::max_value() as u64
         let mut buffer = BitBuffer::default();
-        buffer.write_int_max(INT)?;
-        // Can be represented in 2 bytes,
-        // therefore the first byte is written
-        // with 0x00 (header) | 2 (byte len).
-        // The second byte is then the actual value
-        assert_eq!(
-            buffer.content(),
-            &[
-                0x00 | 2,
-                ((INT & 0xFF_00) >> 8) as u8,
-                ((INT & 0x00_FF) >> 0) as u8
-            ]
-        );
+        buffer.write_int_max_signed(INT)?;
+        assert_eq!(buffer.content(), &[0x03, 0x00, 0xFF, 0xFF]);
         check_int_max(&mut buffer, INT)?;
         Ok(())
     }
@@ -849,20 +830,8 @@ mod tests {
     fn bit_buffer_int_max_65536() -> Result<(), UperError> {
         const INT: i64 = 65_536; // u16::max_value() as u64 + 1
         let mut buffer = BitBuffer::default();
-        buffer.write_int_max(INT)?;
-        // Can be represented in 3 bytes,
-        // therefore the first byte is written
-        // with 0x00 (header) | 3 (byte len).
-        // The second byte is then the actual value
-        assert_eq!(
-            buffer.content(),
-            &[
-                0x00 | 3,
-                ((INT & 0xFF_00_00) >> 16) as u8,
-                ((INT & 0x00_FF_00) >> 8) as u8,
-                ((INT & 0x00_00_FF) >> 0) as u8,
-            ]
-        );
+        buffer.write_int_max_signed(INT)?;
+        assert_eq!(buffer.content(), &[0x03, 0x01, 0x00, 0x00]);
         check_int_max(&mut buffer, INT)?;
         Ok(())
     }
@@ -871,20 +840,8 @@ mod tests {
     fn bit_buffer_int_max_16777215() -> Result<(), UperError> {
         const INT: i64 = 16_777_215; // u24::max_value() as u64
         let mut buffer = BitBuffer::default();
-        buffer.write_int_max(INT)?;
-        // Can be represented in 3 bytes,
-        // therefore the first byte is written
-        // with 0x00 (header) | 3 (byte len).
-        // The second byte is then the actual value
-        assert_eq!(
-            buffer.content(),
-            &[
-                0x00 | 3,
-                ((INT & 0xFF_00_00) >> 16) as u8,
-                ((INT & 0x00_FF_00) >> 8) as u8,
-                ((INT & 0x00_00_FF) >> 0) as u8,
-            ]
-        );
+        buffer.write_int_max_signed(INT)?;
+        assert_eq!(buffer.content(), &[0x04, 0x00, 0xFF, 0xFF, 0xFF]);
         check_int_max(&mut buffer, INT)?;
         Ok(())
     }
@@ -893,7 +850,7 @@ mod tests {
     fn bit_buffer_int_max_16777216() -> Result<(), UperError> {
         const INT: i64 = 16_777_216; // u24::max_value() as u64 + 1
         let mut buffer = BitBuffer::default();
-        buffer.write_int_max(INT)?;
+        buffer.write_int_max_signed(INT)?;
         // Can be represented in 4 bytes,
         // therefore the first byte is written
         // with 0x00 (header) | 4 (byte len).
@@ -916,21 +873,8 @@ mod tests {
     fn bit_buffer_int_max_4294967295() -> Result<(), UperError> {
         const INT: i64 = 4_294_967_295; // u32::max_value() as u64
         let mut buffer = BitBuffer::default();
-        buffer.write_int_max(INT)?;
-        // Can be represented in 4 bytes,
-        // therefore the first byte is written
-        // with 0x00 (header) | 4 (byte len).
-        // The second byte is then the actual value
-        assert_eq!(
-            buffer.content(),
-            &[
-                0x00 | 4,
-                ((INT & 0xFF_00_00_00) >> 24) as u8,
-                ((INT & 0x00_FF_00_00) >> 16) as u8,
-                ((INT & 0x00_00_FF_00) >> 8) as u8,
-                ((INT & 0x00_00_00_FF) >> 0) as u8,
-            ]
-        );
+        buffer.write_int_max_signed(INT)?;
+        assert_eq!(buffer.content(), &[0x05, 0x00, 0xFF, 0xFF, 0xFF, 0xFF]);
         check_int_max(&mut buffer, INT)?;
         Ok(())
     }
@@ -939,22 +883,8 @@ mod tests {
     fn bit_buffer_int_max_4294967296() -> Result<(), UperError> {
         const INT: i64 = 4_294_967_296; // u32::max_value() as u64 + 1
         let mut buffer = BitBuffer::default();
-        buffer.write_int_max(INT)?;
-        // Can be represented in 5 bytes,
-        // therefore the first byte is written
-        // with 0x00 (header) | 5 (byte len).
-        // The second byte is then the actual value
-        assert_eq!(
-            buffer.content(),
-            &[
-                0x00 | 5,
-                ((INT & 0xFF_00_00_00_00) >> 32) as u8,
-                ((INT & 0x00_FF_00_00_00) >> 24) as u8,
-                ((INT & 0x00_00_FF_00_00) >> 16) as u8,
-                ((INT & 0x00_00_00_FF_00) >> 8) as u8,
-                ((INT & 0x00_00_00_00_FF) >> 0) as u8,
-            ]
-        );
+        buffer.write_int_max_signed(INT)?;
+        assert_eq!(buffer.content(), &[0x05, 0x01, 0x00, 0x00, 0x00, 0x00]);
         check_int_max(&mut buffer, INT)?;
         Ok(())
     }
@@ -963,7 +893,7 @@ mod tests {
     fn bit_buffer_int_max_i64_max() -> Result<(), UperError> {
         const INT: i64 = i64::max_value();
         let mut buffer = BitBuffer::default();
-        buffer.write_int_max(INT)?;
+        buffer.write_int_max_signed(INT)?;
         // Can be represented in 8 bytes,
         // therefore the first byte is written
         // with 0x00 (header) | 8 (byte len).
@@ -1154,8 +1084,12 @@ mod tests {
         let mut buffer = BitBuffer::default();
         buffer.write_int_normally_small(254)?;
         // first 17 bits are relevant
+        // assert_eq!(&[0x1, 0b0000_0001, 0b1111_1110], &buffer.content());
         assert_eq!(
-            &[0b1000_0000_, 0b1111_1111, 0b0_000_0000],
+            //  Bit for greater 63
+            //  |
+            //  V |-len 1 byte-| |-value 254-| |-rest-|
+            &[0b1_000_0000, 0b1__111_1111, 0b0_000_0000],
             &buffer.content()
         );
         Ok(())
@@ -1197,13 +1131,15 @@ mod tests {
     fn test_sub_string_with_length_delimiter_prefix() {
         let mut buffer = BitBuffer::default();
         buffer
-            .write_substring_with_length_determinant_prefix(&|writer| writer.write_int_max(1337))
+            .write_substring_with_length_determinant_prefix(&|writer| {
+                writer.write_int_max_signed(1337)
+            })
             .unwrap();
         assert_eq!(&[0x03, 0x02, 0x05, 0x39], buffer.content());
         let mut inner = buffer
             .read_substring_with_length_determinant_prefix()
             .unwrap();
-        assert_eq!(1337, inner.read_int_max().unwrap());
+        assert_eq!(1337, inner.read_int_max_signed().unwrap());
     }
 
     #[test]
@@ -1214,7 +1150,9 @@ mod tests {
         buffer.write_bit(false).unwrap();
         buffer.write_bit(false).unwrap();
         buffer
-            .write_substring_with_length_determinant_prefix(&|writer| writer.write_int_max(1337))
+            .write_substring_with_length_determinant_prefix(&|writer| {
+                writer.write_int_max_signed(1337)
+            })
             .unwrap();
         assert_eq!(&[0x00, 0x30, 0x20, 0x53, 0x90], buffer.content());
         assert_eq!(false, buffer.read_bit().unwrap());
@@ -1224,7 +1162,7 @@ mod tests {
         let mut inner = buffer
             .read_substring_with_length_determinant_prefix()
             .unwrap();
-        assert_eq!(1337, inner.read_int_max().unwrap());
+        assert_eq!(1337, inner.read_int_max_signed().unwrap());
     }
     #[test]
     fn test_sub_string_with_length_delimiter_prefix_raw_not_aligned() {
@@ -1235,7 +1173,9 @@ mod tests {
         writer.write_bit(false).unwrap();
         writer.write_bit(false).unwrap();
         writer
-            .write_substring_with_length_determinant_prefix(&|writer| writer.write_int_max(1337))
+            .write_substring_with_length_determinant_prefix(&|writer| {
+                writer.write_int_max_signed(1337)
+            })
             .unwrap();
         assert_eq!(&[0x00, 0x30, 0x20, 0x53, 0x90], &buffer.0[..5]);
         buffer.1 = 0;
@@ -1247,6 +1187,6 @@ mod tests {
         let mut inner = reader
             .read_substring_with_length_determinant_prefix()
             .unwrap();
-        assert_eq!(1337, inner.read_int_max().unwrap());
+        assert_eq!(1337, inner.read_int_max_signed().unwrap());
     }
 }

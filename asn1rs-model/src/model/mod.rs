@@ -485,7 +485,9 @@ impl Model<Asn> {
             Self::next_separator_ignore_case(iter, '.')?;
             let end = Self::next(iter)?;
             Self::next_separator_ignore_case(iter, ')')?;
-            if start.eq_text("0") && end.eq_text_ignore_ascii_case("MAX") {
+            if (start.eq_text("0") || start.eq_text_ignore_ascii_case("MIN"))
+                && end.eq_text_ignore_ascii_case("MAX")
+            {
                 Ok(None)
             } else {
                 Ok(Some(Range(

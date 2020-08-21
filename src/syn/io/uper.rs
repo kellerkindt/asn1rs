@@ -379,9 +379,15 @@ impl Writer for UperWriter {
     }
 
     #[inline]
-    fn write_int_max(&mut self, value: i64) -> Result<(), Self::Error> {
+    fn write_int_max_signed(&mut self, value: i64) -> Result<(), Self::Error> {
         self.write_bit_field_entry(false, true)?;
-        self.with_buffer(|w| w.buffer.write_int_max(value))
+        self.with_buffer(|w| w.buffer.write_int_max_signed(value))
+    }
+
+    #[inline]
+    fn write_int_max_unsigned(&mut self, value: u64) -> Result<(), Self::Error> {
+        self.write_bit_field_entry(false, true)?;
+        self.with_buffer(|w| w.buffer.write_int_max_unsigned(value))
     }
 
     #[inline]
@@ -633,9 +639,15 @@ impl Reader for UperReader {
     }
 
     #[inline]
-    fn read_int_max(&mut self) -> Result<i64, Self::Error> {
+    fn read_int_max_signed(&mut self) -> Result<i64, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|w| w.buffer.read_int_max())
+        self.with_buffer(|w| w.buffer.read_int_max_signed())
+    }
+
+    #[inline]
+    fn read_int_max_unsigned(&mut self) -> Result<u64, Self::Error> {
+        let _ = self.read_bit_field_entry(false)?;
+        self.with_buffer(|w| w.buffer.read_int_max_unsigned())
     }
 
     #[inline]
