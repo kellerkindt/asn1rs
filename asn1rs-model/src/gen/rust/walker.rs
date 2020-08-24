@@ -1,6 +1,6 @@
 use crate::gen::RustCodeGenerator;
 use crate::model::rust::{rust_module_name, DataEnum, Field, PlainEnum};
-use crate::model::{Definition, Model, Range, Rust, RustType};
+use crate::model::{Definition, Model, Range, Rust, RustType, TagProperty};
 use codegen::{Block, Impl, Scope};
 use std::fmt::Display;
 
@@ -86,7 +86,7 @@ impl AsnDefWriter {
     }
 
     fn constraint_impl_name(combined: &str) -> String {
-        format!("___ans1rs_{}", combined)
+        format!("___asn1rs_{}", combined)
     }
 
     #[must_use]
@@ -124,7 +124,11 @@ impl AsnDefWriter {
             }
             Rust::Enum(_) => {}
             Rust::DataEnum(_) => {}
-            Rust::TupleStruct { r#type, constants } => {
+            Rust::TupleStruct {
+                r#type,
+                constants,
+                extensible: _,
+            } => {
                 let constants = constants
                     .iter()
                     .map(|(name, value)| (r#type.clone(), name.clone(), value.clone()))
@@ -171,8 +175,14 @@ impl AsnDefWriter {
                 self.write_enumerated_constraint(scope, &name, plain);
             }
             Rust::DataEnum(data) => self.write_choice_constraint(scope, &name, data),
-            Rust::TupleStruct { r#type: field, .. } => {
-                let fields = [Field::from_name_type("0", field.clone())];
+            Rust::TupleStruct {
+                r#type,
+                constants,
+                extensible,
+            } => {
+                let fields = [Field::from_name_type("0", r#type.clone())
+                    .with_constants(constants.clone())
+                    .with_extensible(*extensible)];
                 self.write_field_constraints(scope, &name, &fields[..]);
                 self.write_sequence_constraint(scope, &name, &fields[..], None);
             }
@@ -188,69 +198,76 @@ impl AsnDefWriter {
                     name,
                     field.name(),
                     &field.r#type().to_string(),
-                    range,
+                    Some(range),
+                    field.extensible(),
                 ),
                 RustType::U8(range) => Self::write_integer_constraint_type(
                     scope,
                     name,
                     field.name(),
                     &field.r#type().to_string(),
-                    range,
+                    Some(range),
+                    field.extensible(),
                 ),
                 RustType::I16(range) => Self::write_integer_constraint_type(
                     scope,
                     name,
                     field.name(),
                     &field.r#type().to_string(),
-                    range,
+                    Some(range),
+                    field.extensible(),
                 ),
                 RustType::U16(range) => Self::write_integer_constraint_type(
                     scope,
                     name,
                     field.name(),
                     &field.r#type().to_string(),
-                    range,
+                    Some(range),
+                    field.extensible(),
                 ),
                 RustType::I32(range) => Self::write_integer_constraint_type(
                     scope,
                     name,
                     field.name(),
                     &field.r#type().to_string(),
-                    range,
+                    Some(range),
+                    field.extensible(),
                 ),
                 RustType::U32(range) => Self::write_integer_constraint_type(
                     scope,
                     name,
                     field.name(),
                     &field.r#type().to_string(),
-                    range,
+                    Some(range),
+                    field.extensible(),
                 ),
                 RustType::I64(range) => Self::write_integer_constraint_type(
                     scope,
                     name,
                     field.name(),
                     &field.r#type().to_string(),
-                    range,
+                    Some(range),
+                    field.extensible(),
                 ),
-                RustType::U64(Some(range)) => Self::write_integer_constraint_type(
+                RustType::U64(range) => Self::write_integer_constraint_type(
                     scope,
                     name,
                     field.name(),
                     &field.r#type().to_string(),
-                    range,
+                    range.as_ref(),
+                    field.extensible(),
                 ),
-                RustType::U64(_) => {}
                 RustType::String => {}
                 RustType::VecU8 => {}
-                RustType::Vec(inner) => self.write_field_constraints(
+                RustType::Vec(inner) | RustType::Option(inner) => self.write_field_constraints(
                     scope,
                     name,
-                    &[Field::from_name_type(field.name(), *inner.clone())],
-                ),
-                RustType::Option(inner) => self.write_field_constraints(
-                    scope,
-                    name,
-                    &[Field::from_name_type(field.name(), *inner.clone())],
+                    &[Field {
+                        name_type: (field.name().to_string(), *inner.clone()),
+                        tag: field.tag(),
+                        constants: field.constants().to_vec(),
+                        extensible: field.extensible(),
+                    }],
                 ),
                 RustType::Complex(_) => {}
             }
@@ -425,7 +442,8 @@ impl AsnDefWriter {
         name: &str,
         field: &str,
         r#type: &str,
-        Range(min, max): &Range<T>,
+        range: Option<&Range<T>>,
+        extensible: bool,
     ) {
         let combined = Self::combined_field_type_name(name, field) + "Constraint";
         let combined = Self::constraint_impl_name(&combined);
@@ -435,8 +453,11 @@ impl AsnDefWriter {
             "impl {}numbers::Constraint<{}> for {} {{",
             CRATE_SYN_PREFIX, r#type, combined
         ));
-        scope.raw(&format!("const MIN: Option<{}> = Some({});", r#type, min));
-        scope.raw(&format!("const MAX: Option<{}> = Some({});", r#type, max));
+        if let Some(Range(min, max)) = range {
+            scope.raw(&format!("const MIN: Option<{}> = Some({});", r#type, min));
+            scope.raw(&format!("const MAX: Option<{}> = Some({});", r#type, max));
+        }
+        scope.raw(&format!("const EXTENSIBLE: bool = {};", extensible));
         scope.raw("}");
     }
 

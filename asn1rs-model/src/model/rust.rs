@@ -275,6 +275,7 @@ pub enum Rust {
     TupleStruct {
         r#type: RustType,
         constants: Vec<(String, String)>,
+        extensible: bool,
     },
 }
 
@@ -290,6 +291,7 @@ impl Rust {
         Self::TupleStruct {
             r#type,
             constants: Vec::default(),
+            extensible: false,
         }
     }
 }
@@ -318,9 +320,10 @@ impl ToString for RustType {
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct Field {
-    name_type: (String, RustType),
-    tag: Option<Tag>,
-    constants: Vec<(String, String)>,
+    pub(crate) name_type: (String, RustType),
+    pub(crate) tag: Option<Tag>,
+    pub(crate) constants: Vec<(String, String)>,
+    pub(crate) extensible: bool,
 }
 
 impl Field {
@@ -329,6 +332,7 @@ impl Field {
             name_type: (name.to_string(), r#type),
             tag: None,
             constants: Vec::default(),
+            extensible: false,
         }
     }
 
@@ -348,8 +352,17 @@ impl Field {
         &self.constants[..]
     }
 
+    pub fn extensible(&self) -> bool {
+        self.extensible
+    }
+
     pub fn with_constants(mut self, constants: Vec<(String, String)>) -> Self {
         self.constants = constants;
+        self
+    }
+
+    pub fn with_extensible(mut self, extensible: bool) -> Self {
+        self.extensible = extensible;
         self
     }
 }
@@ -513,6 +526,11 @@ impl Model<Rust> {
                     Rust::TupleStruct {
                         r#type: rust_type,
                         constants,
+                        extensible: if let AsnType::Integer(int) = me {
+                            int.extensible
+                        } else {
+                            unreachable!()
+                        },
                     },
                 ));
             }
@@ -538,7 +556,8 @@ impl Model<Rust> {
                     let constants = Self::asn_constants_to_rust_constants(&field.role.r#type);
                     rust_fields.push(
                         RustField::from_name_type(rust_field_name, rust_role)
-                            .with_constants(constants),
+                            .with_constants(constants)
+                            .with_extensible(field.role.extensible_range()),
                     );
                 }
 
@@ -610,6 +629,13 @@ impl Model<Rust> {
     ) -> RustType {
         match asn {
             AsnType::Boolean => RustType::Bool,
+            AsnType::Integer(integer) if integer.extensible => match integer.range {
+                None => RustType::U64(None),
+                Some(Range(min, max)) if min >= 0 => {
+                    RustType::U64(Some(Range(min as u64, max as u64)))
+                }
+                Some(Range(_min, _max)) => RustType::I64(Range(i64::min_value(), i64::max_value())),
+            },
             AsnType::Integer(integer) => match integer.range {
                 Some(Range(min, max)) => {
                     if min >= 0 {

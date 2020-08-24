@@ -358,13 +358,14 @@ fn into_asn<C: Context<Primary = Type>>(
         r#type: if let Type::TypeReference(_) = asn.primary {
             Type::TypeReference(quote! { #ty }.to_string())
         } else {
-            if let Type::Integer(int) = &mut asn.primary {
+            if let Type::Integer(int) = asn.primary.no_optional_mut() {
                 asn.consts
                     .into_iter()
                     .map(|c| match c {
                         ConstLit::I64(name, value) => (name, value),
                     })
                     .for_each(|v| int.constants.push(v));
+                int.extensible = asn.extensible;
             }
             asn.primary
         },

@@ -21,7 +21,7 @@ pub struct NoConstraint;
 impl<T: Copy> Constraint<T> for NoConstraint {}
 
 macro_rules! read_write {
-    ( $read_int_max_fn:ident, $write_int_max_fn:ident, $($T:ident),+ ) => {$(
+    ( $($T:ident),+ ) => {$(
 
         impl<C: Constraint<$T>> WritableType for Integer<$T, C> {
             type Type = $T;
@@ -31,18 +31,7 @@ macro_rules! read_write {
                 writer: &mut W,
                 value: &Self::Type,
             ) -> Result<(), <W as Writer>::Error> {
-                let value = *value;
-                if C::MIN.is_none() && C::MAX.is_none() {
-                    writer.$write_int_max_fn(value as _)
-                } else {
-                    writer.write_int(
-                        value as _,
-                        (
-                            C::MIN.map(|m| m as _).unwrap_or(0),
-                            C::MAX.map(|m| m as _).unwrap_or_else(i64::max_value),
-                        ),
-                    )
-                }
+                paste! { writer.[<write_int_ $T>]::<C>(*value) }
             }
         }
 
@@ -51,31 +40,12 @@ macro_rules! read_write {
 
             #[inline]
             fn read_value<R: Reader>(reader: &mut R) -> Result<Self::Type, <R as Reader>::Error> {
-                if C::MIN.is_none() && C::MAX.is_none() {
-                    Ok(reader.$read_int_max_fn()? as $T)
-                } else {
-                    Ok(reader
-                        .read_int((
-                            C::MIN.map(|m| m as _).unwrap_or(0),
-                            C::MAX.map(|m| m as _).unwrap_or_else(i64::max_value),
-                        ))? as $T
-                    )
-                }
+                paste! { reader.[<read_int_ $T>]::<C>() }
             }
         }
      )*
     }
 }
 
-// don't ask me why u64 is in the signed section... but otherwise tests (with sample code provided
-// by the asn playground) will fail
-read_write!(
-    read_int_max_signed,
-    write_int_max_signed,
-    i8,
-    i16,
-    i32,
-    i64,
-    u64
-);
-read_write!(read_int_max_unsigned, write_int_max_unsigned, u8, u16, u32);
+read_write!(i8, i16, i32, i64);
+read_write!(u8, u16, u32, u64);

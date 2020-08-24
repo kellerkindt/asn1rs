@@ -1,8 +1,8 @@
 #![recursion_limit = "512"]
 
-use asn1rs::prelude::*;
-use asn1rs::syn::io::UperReader as NewUperReader;
-use asn1rs::syn::io::UperWriter as NewUperWriter;
+mod test_utils;
+
+use test_utils::*;
 
 asn_to_rust!(
     r"BasicChoice DEFINITIONS AUTOMATIC TAGS ::=
@@ -337,28 +337,6 @@ asn_to_rust!(
     
     END"
 );
-
-fn serialize_uper(to_uper: &impl Writable) -> (usize, Vec<u8>) {
-    let mut writer = NewUperWriter::default();
-    writer.write(to_uper).unwrap();
-    let bits = writer.bit_len();
-    (bits, writer.into_bytes_vec())
-}
-
-fn deserialize_uper<T: Readable>(data: &[u8], bits: usize) -> T {
-    let mut reader = NewUperReader::from_bits(data, bits);
-    reader.read::<T>().unwrap()
-}
-
-fn serialize_and_deserialize_uper<T: Readable + Writable + std::fmt::Debug + PartialEq>(
-    bits: usize,
-    data: &[u8],
-    uper: &T,
-) {
-    let serialized = serialize_uper(uper);
-    assert_eq!((bits, data), (serialized.0, &serialized.1[..]));
-    assert_eq!(uper, &deserialize_uper::<T>(data, bits));
-}
 
 #[test]
 fn test_extensible_more_than_63_extensions_uper() {

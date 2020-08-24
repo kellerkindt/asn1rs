@@ -178,6 +178,7 @@ impl RustCodeGenerator {
                 scope.raw(&Self::asn_attribute(
                     "sequence",
                     None,
+                    false,
                     extension_after.map(|index| fields[index].name().to_string()),
                     &[],
                 ));
@@ -192,6 +193,7 @@ impl RustCodeGenerator {
                 scope.raw(&Self::asn_attribute(
                     "enumerated",
                     None,
+                    false,
                     plain.extension_after_variant().cloned(),
                     &[],
                 ));
@@ -201,19 +203,25 @@ impl RustCodeGenerator {
                 scope.raw(&Self::asn_attribute(
                     "choice",
                     None,
+                    false,
                     data.extension_after_variant().map(|v| v.name().to_string()),
                     &[],
                 ));
                 Self::add_data_enum(self.new_enum(scope, name, false), name, data)
             }
-            Rust::TupleStruct { r#type, constants } => {
-                scope.raw(&Self::asn_attribute("transparent", None, None, &[]));
+            Rust::TupleStruct {
+                r#type,
+                constants,
+                extensible,
+            } => {
+                scope.raw(&Self::asn_attribute("transparent", None, false, None, &[]));
                 Self::add_tuple_struct(
                     self.new_struct(scope, name),
                     name,
                     r#type,
                     self.direct_field_access,
                     None,
+                    *extensible,
                     &constants[..],
                 )
             }
@@ -228,6 +236,7 @@ impl RustCodeGenerator {
                     Self::asn_attribute(
                         &Self::asn_attribute_type(&field.r#type().clone().into_asn()),
                         field.tag(),
+                        field.extensible(),
                         None,
                         field.constants(),
                     ),
@@ -252,6 +261,7 @@ impl RustCodeGenerator {
                 Self::asn_attribute(
                     Self::asn_attribute_type(&variant.r#type().clone().into_asn()),
                     variant.tag(),
+                    false,
                     None,
                     &[]
                 ),
@@ -267,6 +277,7 @@ impl RustCodeGenerator {
         inner: &RustType,
         pub_access: bool,
         tag: Option<Tag>,
+        extensible: bool,
         constants: &[(String, String)],
     ) {
         str_ct.tuple_field(format!(
@@ -274,6 +285,7 @@ impl RustCodeGenerator {
             Self::asn_attribute(
                 Self::asn_attribute_type(&inner.clone().into_asn()),
                 tag,
+                extensible,
                 None,
                 constants
             ),
@@ -285,6 +297,7 @@ impl RustCodeGenerator {
     fn asn_attribute<T: ToString>(
         r#type: T,
         tag: Option<Tag>,
+        extensible: bool,
         extensible_after: Option<String>,
         constants: &[(String, String)],
     ) -> String {
@@ -293,6 +306,11 @@ impl RustCodeGenerator {
             vec![
                 Some(r#type.to_string()),
                 tag.map(Self::asn_attribute_tag),
+                if extensible {
+                    Some("extensible".to_string())
+                } else {
+                    None
+                },
                 extensible_after.map(Self::asn_attribute_extensible_after),
                 if constants.is_empty() {
                     None

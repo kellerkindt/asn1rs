@@ -477,27 +477,39 @@ impl Model<Asn> {
 
     fn read_number_range(
         iter: &mut Peekable<IntoIter<Token>>,
-    ) -> Result<Option<Range<i64>>, Error> {
+    ) -> Result<Option<(Range<i64>, bool)>, Error> {
         if Self::peek(iter)?.eq_separator('(') {
             Self::next_separator_ignore_case(iter, '(')?;
             let start = Self::next(iter)?;
             Self::next_separator_ignore_case(iter, '.')?;
             Self::next_separator_ignore_case(iter, '.')?;
             let end = Self::next(iter)?;
+            let extensible = if Self::peek(iter)?.eq_separator(',') {
+                let _ = Self::next_separator_ignore_case(iter, ',')?;
+                Self::next_separator_ignore_case(iter, '.')?;
+                Self::next_separator_ignore_case(iter, '.')?;
+                Self::next_separator_ignore_case(iter, '.')?;
+                true
+            } else {
+                false
+            };
             Self::next_separator_ignore_case(iter, ')')?;
             if (start.eq_text("0") || start.eq_text_ignore_ascii_case("MIN"))
                 && end.eq_text_ignore_ascii_case("MAX")
             {
                 Ok(None)
             } else {
-                Ok(Some(Range(
-                    start
-                        .text()
-                        .and_then(|t| t.parse::<i64>().ok())
-                        .ok_or_else(|| Error::invalid_range_value(start))?,
-                    end.text()
-                        .and_then(|t| t.parse::<i64>().ok())
-                        .ok_or_else(|| Error::invalid_range_value(end))?,
+                Ok(Some((
+                    Range(
+                        start
+                            .text()
+                            .and_then(|t| t.parse::<i64>().ok())
+                            .ok_or_else(|| Error::invalid_range_value(start))?,
+                        end.text()
+                            .and_then(|t| t.parse::<i64>().ok())
+                            .ok_or_else(|| Error::invalid_range_value(end))?,
+                    ),
+                    extensible,
                 )))
             }
         } else {
@@ -805,6 +817,24 @@ impl Asn {
         Self::opt_tagged(Some(tag), r#type)
     }
 
+    pub fn extensible_range(&self) -> bool {
+        fn is_extensible(r#type: &Type) -> bool {
+            match r#type {
+                Type::Boolean => false,
+                Type::Integer(int) => int.extensible,
+                Type::UTF8String => false,
+                Type::OctetString => false,
+                Type::Optional(inner) => is_extensible(&*inner),
+                Type::Sequence(_) => false,
+                Type::SequenceOf(_) => false,
+                Type::Enumerated(_) => false,
+                Type::Choice(_) => false,
+                Type::TypeReference(_) => false,
+            }
+        }
+        is_extensible(&self.r#type)
+    }
+
     pub fn extensible_after_index(&self) -> Option<usize> {
         match &self.r#type {
             Type::Choice(c) => c.extension_after_index(),
@@ -870,6 +900,7 @@ impl Type {
     pub const fn integer_with_range(range: Range<i64>) -> Self {
         Self::Integer(Integer {
             range: Some(range),
+            extensible: false,
             constants: Vec::new(),
         })
     }
@@ -877,6 +908,7 @@ impl Type {
     pub const fn integer_with_range_opt(range: Option<Range<i64>>) -> Self {
         Self::Integer(Integer {
             range,
+            extensible: false,
             constants: Vec::new(),
         })
     }
@@ -907,11 +939,20 @@ impl Type {
     pub const fn untagged(self) -> Asn {
         Asn::untagged(self)
     }
+
+    pub fn no_optional_mut(&mut self) -> &mut Self {
+        if let Self::Optional(inner) = self {
+            inner.no_optional_mut()
+        } else {
+            self
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct Integer {
     pub range: Option<Range<i64>>,
+    pub extensible: bool,
     pub constants: Vec<(String, i64)>,
 }
 
@@ -921,8 +962,15 @@ impl TryFrom<&mut Peekable<IntoIter<Token>>> for Integer {
     fn try_from(iter: &mut Peekable<IntoIter<Token>>) -> Result<Self, Self::Error> {
         let constants =
             Model::<Asn>::maybe_read_constants(iter, Model::<Asn>::constant_i64_parser)?;
-        let range = Model::<Asn>::read_number_range(iter)?;
-        Ok(Self { range, constants })
+        let (range, extensible) = match Model::<Asn>::read_number_range(iter)? {
+            Some((range, extensible)) => (Some(range), extensible),
+            None => (None, false),
+        };
+        Ok(Self {
+            range,
+            extensible,
+            constants,
+        })
     }
 }
 
@@ -2029,6 +2077,7 @@ pub(crate) mod tests {
                             name: "inline".to_string(),
                             role: Type::Integer(Integer {
                                 range: None,
+                                extensible: false,
                                 constants: vec![
                                     ("ab".to_string(), 1),
                                     ("cd".to_string(), 2),
@@ -2041,6 +2090,7 @@ pub(crate) mod tests {
                             name: "eff-u8".to_string(),
                             role: Type::Integer(Integer {
                                 range: Some(Range(0, 255)),
+                                extensible: false,
                                 constants: vec![
                                     ("gh".to_string(), 1),
                                     ("ij".to_string(), 4),
@@ -2053,6 +2103,7 @@ pub(crate) mod tests {
                             name: "tagged".to_string(),
                             role: Type::Integer(Integer {
                                 range: Some(Range(0, 255)),
+                                extensible: false,
                                 constants: vec![
                                     ("mn".to_string(), 5),
                                     ("op".to_string(), 4),
@@ -2068,6 +2119,7 @@ pub(crate) mod tests {
                     "SeAlias".to_string(),
                     Type::Integer(Integer {
                         range: None,
+                        extensible: false,
                         constants: vec![
                             ("wow".to_string(), 1),
                             ("much".to_string(), 2),
@@ -2080,11 +2132,46 @@ pub(crate) mod tests {
                     "OhAlias".to_string(),
                     Type::Integer(Integer {
                         range: Some(Range(0, 255)),
+                        extensible: false,
                         constants: vec![("oh".to_string(), 1), ("lul".to_string(), 2),]
                     })
                     .tagged(Tag::Application(9))
                 )
             ],
+            model.definitions
+        )
+    }
+
+    #[test]
+    pub fn test_parsing_module_definition_with_extensible_integer() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r"SomeName DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+                RangedOptional ::= SEQUENCE {
+                    value     INTEGER { gh(1), ij(4), kl(9) } (0..255,...) OPTIONAL
+                }
+                
+                END",
+        ))
+        .expect("Failed to load model");
+        assert_eq!(
+            vec![Definition(
+                "RangedOptional".to_string(),
+                Type::sequence_from_fields(vec![Field {
+                    name: "value".to_string(),
+                    role: Type::Integer(Integer {
+                        range: Some(Range(0, 255)),
+                        extensible: true,
+                        constants: vec![
+                            ("gh".to_string(), 1),
+                            ("ij".to_string(), 4),
+                            ("kl".to_string(), 9)
+                        ]
+                    })
+                    .optional()
+                    .untagged()
+                }])
+                .untagged()
+            )],
             model.definitions
         )
     }

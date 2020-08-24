@@ -169,6 +169,34 @@ pub struct UperWriter {
     scope: Option<Scope>,
 }
 
+macro_rules! uper_read_int_fn {
+    ($read_int_max_fn:ident, $($ty:ty),+) => {
+        paste! {
+            $(
+                fn [<read_int_ $ty>]<C: numbers::Constraint<$ty>>(
+                    &mut self,
+                ) -> Result<$ty, Self::Error> {
+                    let max_fn = if C::EXTENSIBLE {
+                        self.with_buffer(|w| w.buffer.read_bit())?
+                    } else {
+                        C::MIN.is_none() && C::MAX.is_none()
+                    };
+                    if max_fn {
+                        Ok(self.$read_int_max_fn()? as $ty)
+                    } else {
+                        Ok(self
+                            .read_int((
+                                C::MIN.map(|m| m as _).unwrap_or(0),
+                                C::MAX.map(|m| m as _).unwrap_or_else(i64::max_value),
+                            ))? as $ty
+                        )
+                    }
+                }
+            )*
+        }
+     }
+}
+
 impl UperWriter {
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
@@ -250,6 +278,38 @@ impl UperWriter {
             f(self)
         }
     }
+}
+
+macro_rules! uper_write_int_fn {
+    ($write_int_max_fn:ident, $($ty:ty),+) => {
+        paste! {
+            $(
+                fn [<write_int_ $ty>]<C: numbers::Constraint<$ty>>(
+                    &mut self,
+                    value: $ty,
+                ) -> Result<(), Self::Error> {
+                    let max_fn = if C::EXTENSIBLE {
+                        let in_range = value >= C::MIN.unwrap_or_default() && value <= C::MAX.unwrap_or($ty::MAX);
+                        self.with_buffer(|w| w.buffer.write_bit(!in_range))?;
+                        !in_range
+                    } else {
+                        C::MIN.is_none() && C::MAX.is_none()
+                    };
+                    if max_fn {
+                        self.$write_int_max_fn(value as _)
+                    } else {
+                        self.write_int(
+                            value as _,
+                            (
+                                C::MIN.map(|m| m as _).unwrap_or(0),
+                                C::MAX.map(|m| m as _).unwrap_or_else(i64::max_value),
+                            ),
+                        )
+                    }
+                }
+            )*
+        }
+     }
 }
 
 impl Writer for UperWriter {
@@ -378,6 +438,11 @@ impl Writer for UperWriter {
             Ok(())
         }
     }
+
+    // don't ask me why u64 is in the signed section... but otherwise tests (with sample code provided
+    // by the asn playground) will fail
+    uper_write_int_fn!(write_int_max_signed, i8, i16, i32, i64, u64);
+    uper_write_int_fn!(write_int_max_unsigned, u8, u16, u32);
 
     #[inline]
     fn write_int(&mut self, value: i64, range: (i64, i64)) -> Result<(), Self::Error> {
@@ -638,6 +703,11 @@ impl Reader for UperReader {
             Ok(None)
         }
     }
+
+    // don't ask me why u64 is in the signed section... but otherwise tests (with sample code provided
+    // by the asn playground) will fail
+    uper_read_int_fn!(read_int_max_signed, i8, i16, i32, i64, u64);
+    uper_read_int_fn!(read_int_max_unsigned, u8, u16, u32);
 
     #[inline]
     fn read_int(&mut self, range: (i64, i64)) -> Result<i64, Self::Error> {
