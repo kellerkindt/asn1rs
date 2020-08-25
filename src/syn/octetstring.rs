@@ -12,6 +12,7 @@ impl<C: Constraint> Default for OctetString<C> {
 pub trait Constraint {
     const MIN: Option<usize> = None;
     const MAX: Option<usize> = None;
+    const EXTENSIBLE: bool = false;
 }
 
 #[derive(Default)]

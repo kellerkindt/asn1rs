@@ -1,11 +1,11 @@
 use crate::gen::RustCodeGenerator;
 use crate::model::rust::{DataEnum, DataVariant};
 use crate::model::rust::{Field, PlainEnum};
-use crate::model::Definition;
 use crate::model::Model;
 use crate::model::Range;
 use crate::model::Rust;
 use crate::model::RustType;
+use crate::model::{Definition, Size};
 
 const FOREIGN_KEY_DEFAULT_COLUMN: &str = "id";
 const TUPLE_LIST_ENTRY_PARENT_COLUMN: &str = "list";
@@ -65,7 +65,7 @@ impl SqlType {
             SqlType::Text => RustType::String,
             SqlType::Array(inner) => RustType::Vec(Box::new(inner.to_rust())),
             SqlType::NotNull(inner) => return inner.to_rust().no_option(),
-            SqlType::ByteArray => RustType::VecU8,
+            SqlType::ByteArray => RustType::VecU8(Size::Any),
             SqlType::References(name, _, _, _) => RustType::Complex(name.clone()),
         }))
     }
@@ -404,7 +404,7 @@ impl Model<Sql> {
         #[allow(clippy::match_same_arms)] // to have the same order as the original enum
         match rust.clone().into_inner_type() {
             RustType::String => true,
-            RustType::VecU8 => true,
+            RustType::VecU8(_) => true,
             r => r.is_primitive(),
         }
     }
@@ -448,7 +448,7 @@ impl ToSql for RustType {
             RustType::U16(_) | RustType::I32(_) => SqlType::Integer,
             RustType::U32(_) | RustType::U64(_) | RustType::I64(_) => SqlType::BigInt,
             RustType::String => SqlType::Text,
-            RustType::VecU8 => SqlType::ByteArray,
+            RustType::VecU8(_) => SqlType::ByteArray,
             RustType::Vec(inner) => SqlType::Array(inner.to_sql().into()),
             RustType::Option(inner) => return inner.to_sql().nullable(),
             RustType::Complex(name) => SqlType::References(
@@ -465,8 +465,8 @@ impl ToSql for RustType {
 mod tests {
     use super::*;
     use crate::model::rust::Field;
-    use crate::model::Import;
     use crate::model::Model;
+    use crate::model::{Import, Size};
 
     #[test]
     fn test_conversion_struct() {
@@ -1036,16 +1036,19 @@ mod tests {
         );
 
         assert_eq!(RustType::String.to_sql().to_rust(), RustType::String,);
-        assert_eq!(RustType::VecU8.to_sql().to_rust(), RustType::VecU8,);
+        assert_eq!(
+            RustType::VecU8(Size::Any).to_sql().to_rust(),
+            RustType::VecU8(Size::Any)
+        );
         assert_eq!(
             RustType::Vec(Box::new(RustType::String)).to_sql().to_rust(),
             RustType::Vec(Box::new(RustType::String)),
         );
         assert_eq!(
-            RustType::Option(Box::new(RustType::VecU8))
+            RustType::Option(Box::new(RustType::VecU8(Size::Any)))
                 .to_sql()
                 .to_rust(),
-            RustType::Option(Box::new(RustType::VecU8)),
+            RustType::Option(Box::new(RustType::VecU8(Size::Any))),
         );
         assert_eq!(
             RustType::Complex("MuchComplex".into()).to_sql().to_rust(),

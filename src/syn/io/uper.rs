@@ -432,7 +432,24 @@ impl Writer for UperWriter {
         value: &[u8],
     ) -> Result<(), Self::Error> {
         self.write_bit_field_entry(false, true)?;
-        self.with_buffer(|w| w.buffer.write_octet_string(value, bit_buffer_range::<C>()))
+        self.with_buffer(|w| {
+            if C::EXTENSIBLE {
+                let min = C::MIN.unwrap_or_default();
+                let max = C::MAX.unwrap_or_else(|| i64::MAX as usize);
+                let out_of_range = value.len() < min || value.len() > max;
+                w.buffer.write_bit(out_of_range)?;
+                w.buffer.write_octet_string(
+                    value,
+                    if out_of_range {
+                        None
+                    } else {
+                        bit_buffer_range::<C>()
+                    },
+                )
+            } else {
+                w.buffer.write_octet_string(value, bit_buffer_range::<C>())
+            }
+        })
     }
 
     #[inline]
@@ -693,7 +710,18 @@ impl Reader for UperReader {
     #[inline]
     fn read_octet_string<C: octetstring::Constraint>(&mut self) -> Result<Vec<u8>, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|w| w.buffer.read_octet_string(bit_buffer_range::<C>()))
+        self.with_buffer(|w| {
+            if C::EXTENSIBLE {
+                let out_of_range = w.buffer.read_bit()?;
+                w.buffer.read_octet_string(if out_of_range {
+                    None
+                } else {
+                    bit_buffer_range::<C>()
+                })
+            } else {
+                w.buffer.read_octet_string(bit_buffer_range::<C>())
+            }
+        })
     }
 
     #[inline]

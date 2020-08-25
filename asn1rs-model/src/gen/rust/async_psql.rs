@@ -401,7 +401,7 @@ fn insert_optional_field_maybe_async(
         ));
         let mut block_some_inner = Block::new("Ok(Some(");
         if Model::<Sql>::is_primitive(inner) {
-            if inner.is_primitive() && inner.as_no_option().to_sql().to_rust().ne(inner) {
+            if inner.is_primitive() && !inner.as_no_option().to_sql().to_rust().similar(inner) {
                 let conversion = inner.as_no_option().to_sql().to_rust();
                 block_some_inner.line(&format!(
                     "{} as {}",
@@ -485,7 +485,7 @@ fn insert_vec_field(
             MODULE_NAME
         ));
     }
-    let conversion = r_type.to_sql().to_rust().ne(r_type);
+    let conversion = !r_type.to_sql().to_rust().similar(r_type);
     many_insert.line("let prepared = &prepared;");
     many_insert.line(&format!(
         "{}::try_join_all(inserted.iter().map(|i| async move {{ context.query(prepared, &[&id, {}]).await }} )).await",
@@ -505,7 +505,7 @@ fn insert_sql_primitive_field(
     field_name_as_variable: Option<&str>,
 ) -> FieldInsert {
     let rerust = r_type.to_sql().to_rust();
-    let conversion = if rerust.ne(r_type) {
+    let conversion = if !rerust.similar(r_type) {
         Some(rerust)
     } else {
         None
@@ -707,7 +707,7 @@ impl AsyncPsqlInserter {
             RustCodeGenerator::rust_field_name(field, true),
             sql.to_rust().to_inner_type_string(),
             index + 1,
-            if sql.to_rust().ne(f_type) {
+            if !sql.to_rust().similar(f_type) {
                 format!(" as {}", f_type.to_inner_type_string())
             } else {
                 String::default()
@@ -744,7 +744,7 @@ impl AsyncPsqlInserter {
                 "for row in rows {{ {}.push(row.try_get::<usize, {}>(0)?{}); }}",
                 RustCodeGenerator::rust_field_name(field, true),
                 inner.to_sql().to_rust().to_inner_type_string(),
-                if sql.to_rust().ne(f_type) {
+                if !sql.to_rust().similar(f_type) {
                     format!(" as {}", f_type.to_inner_type_string())
                 } else {
                     String::default()
@@ -805,7 +805,7 @@ impl AsyncPsqlInserter {
                 RustCodeGenerator::rust_field_name(field, true),
                 sql.to_rust().as_no_option().to_inner_type_string(),
                 index + 1,
-                if sql.to_rust().ne(f_type) {
+                if !sql.to_rust().similar(f_type) {
                     format!(".map(|v| v as {})", inner.to_inner_type_string())
                 } else {
                     String::default()

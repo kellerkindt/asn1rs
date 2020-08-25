@@ -1,11 +1,11 @@
 use crate::model::rust::Field as RustField;
-use crate::model::Model;
 use crate::model::Range;
 use crate::model::Sequence;
 use crate::model::Type as AsnType;
 use crate::model::{Asn, ChoiceVariant};
 use crate::model::{Definition, Type};
 use crate::model::{Import, Tag, TagProperty};
+use crate::model::{Model, Size};
 
 const I8_MAX: i64 = i8::max_value() as i64;
 const I16_MAX: i64 = i16::max_value() as i64;
@@ -38,7 +38,7 @@ pub enum RustType {
     I64(Range<i64>),
     U64(Range<Option<u64>>),
     String,
-    VecU8,
+    VecU8(Size),
     Vec(Box<RustType>),
     Option(Box<RustType>),
 
@@ -165,7 +165,7 @@ impl RustType {
                 Some(Range(min.to_string(), max.to_string(), *extensible))
             }
             RustType::String => None,
-            RustType::VecU8 => None,
+            RustType::VecU8(_) => None,
             RustType::Vec(inner) => inner.integer_range_str(),
             RustType::Option(inner) => inner.integer_range_str(),
             RustType::Complex(_) => None,
@@ -214,7 +214,7 @@ impl RustType {
                 range.extensible(),
             )),
             RustType::String => AsnType::UTF8String,
-            RustType::VecU8 => AsnType::OctetString,
+            RustType::VecU8(size) => AsnType::OctetString(size),
             RustType::Vec(inner) => AsnType::SequenceOf(Box::new(inner.into_asn())),
             RustType::Option(value) => AsnType::Optional(Box::new(value.into_asn())),
             RustType::Complex(name) => AsnType::TypeReference(name),
@@ -269,8 +269,8 @@ impl RustType {
                     return true;
                 }
             }
-            RustType::VecU8 => {
-                if let RustType::VecU8 = other {
+            RustType::VecU8(_) => {
+                if let RustType::VecU8(_) = other {
                     return true;
                 }
             }
@@ -339,7 +339,7 @@ impl ToString for RustType {
             RustType::U64(_) => "u64",
             RustType::I64(_) => "i64",
             RustType::String => "String",
-            RustType::VecU8 => "Vec<u8>",
+            RustType::VecU8(_) => "Vec<u8>",
             RustType::Vec(inner) => return format!("Vec<{}>", inner.to_string()),
             RustType::Option(inner) => return format!("Option<{}>", inner.to_string()),
             RustType::Complex(name) => return name.clone(),
@@ -528,7 +528,7 @@ impl Model<Rust> {
         match asn {
             AsnType::Boolean
             | AsnType::UTF8String
-            | AsnType::OctetString
+            | AsnType::OctetString(_)
             | AsnType::TypeReference(_) => {
                 let rust_type = Self::definition_type_to_rust_type(name, asn, defs);
                 defs.push(Definition(
@@ -690,7 +690,7 @@ impl Model<Rust> {
             }
 
             AsnType::UTF8String => RustType::String,
-            AsnType::OctetString => RustType::VecU8,
+            AsnType::OctetString(size) => RustType::VecU8(*size),
             Type::Optional(inner) => RustType::Option(Box::new(
                 Self::definition_type_to_rust_type(name, inner, defs),
             )),
@@ -1019,7 +1019,7 @@ mod tests {
             "SimpleChoiceTest".into(),
             AsnType::choice_from_variants(vec![
                 ChoiceVariant::name_type("bernd-das-brot", AsnType::UTF8String),
-                ChoiceVariant::name_type("nochSoEinBrot", AsnType::OctetString),
+                ChoiceVariant::name_type("nochSoEinBrot", AsnType::OctetString(Size::Any)),
             ])
             .untagged(),
         ));
@@ -1033,7 +1033,7 @@ mod tests {
                 Rust::DataEnum(
                     vec![
                         DataVariant::from_name_type("BerndDasBrot", RustType::String),
-                        DataVariant::from_name_type("NochSoEinBrot", RustType::VecU8),
+                        DataVariant::from_name_type("NochSoEinBrot", RustType::VecU8(Size::Any)),
                     ]
                     .into()
                 ),
@@ -1055,7 +1055,7 @@ mod tests {
                 ChoiceVariant::name_type(
                     "NESTEDList",
                     AsnType::SequenceOf(Box::new(AsnType::SequenceOf(Box::new(
-                        AsnType::OctetString,
+                        AsnType::OctetString(Size::Any),
                     )))),
                 ),
             ])
@@ -1076,7 +1076,9 @@ mod tests {
                         ),
                         DataVariant::from_name_type(
                             "NESTEDList",
-                            RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::VecU8)))),
+                            RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::VecU8(
+                                Size::Any
+                            ))))),
                         ),
                     ]
                     .into()
@@ -1259,7 +1261,7 @@ mod tests {
             "Extensible".to_string(),
             AsnType::Choice(Choice {
                 variants: vec![
-                    ChoiceVariant::name_type("abc", Type::OctetString),
+                    ChoiceVariant::name_type("abc", Type::OctetString(Size::Any)),
                     ChoiceVariant::name_type("def", Type::any_integer()),
                     ChoiceVariant {
                         name: "ghi".to_string(),
@@ -1279,7 +1281,7 @@ mod tests {
                 "Extensible".into(),
                 Rust::DataEnum(
                     DataEnum::from(vec![
-                        DataVariant::from_name_type("Abc".to_string(), RustType::VecU8),
+                        DataVariant::from_name_type("Abc".to_string(), RustType::VecU8(Size::Any)),
                         DataVariant::from_name_type(
                             "Def".to_string(),
                             RustType::U64(Range::none())

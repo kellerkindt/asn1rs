@@ -1,6 +1,6 @@
 use crate::gen::RustCodeGenerator;
 use crate::model::rust::{rust_module_name, DataEnum, Field, PlainEnum};
-use crate::model::{Definition, Model, Range, Rust, RustType, TagProperty};
+use crate::model::{Definition, Model, Range, Rust, RustType, Size, TagProperty};
 use codegen::{Block, Impl, Scope};
 use std::fmt::Display;
 
@@ -74,7 +74,8 @@ impl AsnDefWriter {
                 }
             }
             RustType::String => format!("{}Utf8String", CRATE_SYN_PREFIX),
-            RustType::VecU8 => format!("{}OctetString", CRATE_SYN_PREFIX),
+            RustType::VecU8(Size::Any) => format!("{}OctetString", CRATE_SYN_PREFIX),
+            RustType::VecU8(_) => format!("{}OctetString<{}Constraint>", CRATE_SYN_PREFIX, name),
             RustType::Vec(inner) => format!(
                 "{}SequenceOf<{}>",
                 CRATE_SYN_PREFIX,
@@ -250,7 +251,9 @@ impl AsnDefWriter {
                     range,
                 ),
                 RustType::String => {}
-                RustType::VecU8 => {}
+                RustType::VecU8(size) => {
+                    Self::write_size_constraint_type("octetstring", scope, name, field.name(), size)
+                }
                 RustType::Vec(inner) | RustType::Option(inner) => self.write_field_constraints(
                     scope,
                     name,
@@ -450,6 +453,31 @@ impl AsnDefWriter {
             scope.raw(&format!("const MAX: Option<{}> = Some({});", r#type, max));
         }
         scope.raw(&format!("const EXTENSIBLE: bool = {};", range.extensible()));
+        scope.raw("}");
+    }
+
+    fn write_size_constraint_type(
+        module: &str,
+        scope: &mut Scope,
+        name: &str,
+        field: &str,
+        size: &Size,
+    ) {
+        let combined = Self::combined_field_type_name(name, field) + "Constraint";
+        let combined = Self::constraint_impl_name(&combined);
+
+        scope.new_struct(&combined).derive("Default");
+        scope.raw(&format!(
+            "impl {}{}::Constraint for {} {{",
+            CRATE_SYN_PREFIX, module, combined
+        ));
+        if let Some(min) = size.min() {
+            scope.raw(&format!("const MIN: Option<usize> = Some({});", min));
+        }
+        if let Some(max) = size.max() {
+            scope.raw(&format!("const MAX: Option<usize> = Some({});", max));
+        }
+        scope.raw(&format!("const EXTENSIBLE: bool = {};", size.extensible()));
         scope.raw("}");
     }
 

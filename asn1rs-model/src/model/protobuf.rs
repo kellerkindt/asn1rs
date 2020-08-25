@@ -41,7 +41,7 @@ impl ProtobufType {
             ProtobufType::SInt32 => RustType::I32(Range::inclusive(0, i32::max_value())),
             ProtobufType::SInt64 => RustType::I64(Range::inclusive(0, i64::max_value())),
             ProtobufType::String => RustType::String,
-            ProtobufType::Bytes => RustType::VecU8,
+            ProtobufType::Bytes => RustType::VecU8(Size::Any),
             ProtobufType::Repeated(inner) => RustType::Vec(Box::new(inner.to_rust())),
             ProtobufType::OneOf(_) => panic!("ProtobufType::OneOf cannot be mapped to a RustType"),
             ProtobufType::Complex(name) => RustType::Complex(name.clone()),
@@ -172,7 +172,7 @@ impl Model<Protobuf> {
             RustType::U64(_) => ProtobufType::UInt64,
             RustType::I64(_) => ProtobufType::SInt64,
             RustType::String => ProtobufType::String,
-            RustType::VecU8 => ProtobufType::Bytes,
+            RustType::VecU8(_) => ProtobufType::Bytes,
 
             RustType::Complex(complex) => ProtobufType::Complex(complex.clone()),
 
@@ -323,7 +323,7 @@ mod tests {
                 ),
                 Definition(
                     "Second".into(),
-                    Rust::tuple_struct_from_type(RustType::VecU8),
+                    Rust::tuple_struct_from_type(RustType::VecU8(Size::Any)),
                 ),
             ],
             &[

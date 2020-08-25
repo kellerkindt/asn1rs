@@ -141,7 +141,7 @@ impl UperSerializer {
             RustType::String => {
                 block.line("reader.read_utf8_string()?");
             }
-            RustType::VecU8 => {
+            RustType::VecU8(_) => {
                 block.line("reader.read_octet_string(None)?");
             }
             RustType::Vec(inner) => {
@@ -411,7 +411,7 @@ impl UperSerializer {
                     field_name.map_or_else(|| "value".into(), |f| f.to_string()),
                 ));
             }
-            RustType::VecU8 => {
+            RustType::VecU8(_) => {
                 block.line(format!(
                     "writer.write_octet_string({}[..], None)?;",
                     field_name.map_or_else(|| "value".into(), |f| f.with_ref().to_string()),

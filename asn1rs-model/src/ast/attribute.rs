@@ -2,7 +2,7 @@ use super::range::ident_or_literal_or_punct;
 use super::range::IntegerRange;
 use super::tag::AttrTag;
 use crate::ast::constants::ConstLit;
-use crate::model::{Choice, ChoiceVariant, Enumerated, EnumeratedVariant, Range, Tag, Type};
+use crate::model::{Choice, ChoiceVariant, Enumerated, EnumeratedVariant, Range, Size, Tag, Type};
 use std::fmt::Display;
 use std::marker::PhantomData;
 use std::ops::Deref;
@@ -94,7 +94,20 @@ fn parse_type_pre_stepped<'a>(
 ) -> syn::Result<Type> {
     match lowercase_ident {
         "utf8string" => Ok(Type::UTF8String),
-        "octet_string" => Ok(Type::OctetString),
+        "octet_string" => {
+            if input.is_empty() {
+                Ok(Type::OctetString(Size::Any))
+            } else {
+                let content;
+                parenthesized!(content in input);
+                if content.is_empty() {
+                    Ok(Type::OctetString(Size::Any))
+                } else {
+                    let size = Size::parse(&content)?;
+                    Ok(Type::OctetString(size))
+                }
+            }
+        }
         "integer" => {
             if input.is_empty() {
                 Ok(Type::any_integer())

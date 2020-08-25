@@ -1,6 +1,7 @@
 mod attribute;
 mod constants;
 mod range;
+mod size;
 mod tag;
 
 use crate::ast::attribute::{Context, DefinitionHeader, Transparent};

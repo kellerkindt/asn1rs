@@ -291,7 +291,8 @@ fn test_default_range() {
      - constants
      - simple extensible ranges ```INTEGER(0..255,...)```
    - ```UTF8String```
-   - ```OCTET STRING``` 
+   - ```OCTET STRING```
+     - with extensible size
    - ```BOOLEAN```
    - using previously declared message types
    - ```IMPORTS .. FROM ..;```
@@ -329,6 +330,6 @@ be dual licensed as above, without any additional terms or conditions.
 ##### Origin
 <sub>
 This crate was initially developed during a research project at IT-Designers GmbH (http://www.it-designers.de).
-</sub
+</sub>
 
 [`pipelining`]: https://docs.rs/tokio-postgres/0.5.2/tokio_postgres/#pipelining

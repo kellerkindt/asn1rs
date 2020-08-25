@@ -456,7 +456,7 @@ impl ProtobufSerializer {
                         format!(
                             "{}{}",
                             if ProtobufType::String == r.to_protobuf()
-                                || RustType::VecU8 == r.to_protobuf().to_rust()
+                                || matches!(r.to_protobuf().to_rust(), RustType::VecU8(_))
                             {
                                 if deny_self || field_type.is_option() {
                                     ""
@@ -639,7 +639,7 @@ impl ProtobufSerializer {
     fn get_as_rust_type_statement(role_rust: &RustType) -> String {
         let proto_rust = role_rust.to_protobuf().to_rust();
 
-        if role_rust.ne(&proto_rust) {
+        if !role_rust.similar(&proto_rust) {
             format!(" as {}", role_rust.to_string())
         } else {
             "".into()

@@ -460,7 +460,14 @@ impl Model<Asn> {
         } else if text.eq_ignore_ascii_case("OCTET") {
             let token = Self::next(iter)?;
             if token.text().map_or(false, |t| t.eq("STRING")) {
-                Ok(Type::OctetString)
+                if Self::peek(iter)?.eq_separator('(') {
+                    Self::next_separator_ignore_case(iter, '(')?;
+                    let result = Type::OctetString(Model::<Asn>::read_size(iter)?);
+                    Self::next_separator_ignore_case(iter, ')')?;
+                    Ok(result)
+                } else {
+                    Ok(Type::OctetString(Size::Any))
+                }
             } else {
                 Err(Error::unexpected_token(token))
             }
@@ -514,6 +521,74 @@ impl Model<Asn> {
             }
         } else {
             Ok(Range(None, None, false))
+        }
+    }
+
+    fn read_size(iter: &mut Peekable<IntoIter<Token>>) -> Result<Size, Error> {
+        let size_token = Self::next(iter)?;
+        if size_token.eq_text_ignore_ascii_case("SIZE") {
+            Self::next_separator_ignore_case(iter, '(')?;
+            let start = Self::next(iter)?;
+            let start = start
+                .text()
+                .filter(|txt| !txt.eq_ignore_ascii_case("MIN"))
+                .map(|t| t.parse::<usize>())
+                .transpose()
+                .map_err(|_| Error::invalid_range_value(start))?;
+
+            if !Self::peek(iter)?.eq_separator('.') {
+                match Self::next(iter)? {
+                    t if t.eq_separator(')') => Ok(Size::Fix(start.unwrap_or_default(), false)),
+                    t if t.eq_separator(',') => {
+                        Self::next_separator_ignore_case(iter, '.')?;
+                        Self::next_separator_ignore_case(iter, '.')?;
+                        Self::next_separator_ignore_case(iter, '.')?;
+                        Ok(Size::Fix(start.unwrap_or_default(), true))
+                    }
+                    t => Err(Error::unexpected_token(t)),
+                }
+            } else {
+                Self::next_separator_ignore_case(iter, '.')?;
+                Self::next_separator_ignore_case(iter, '.')?;
+                let end = Self::next(iter)?;
+                let end = end
+                    .text()
+                    .filter(|txt| !txt.eq_ignore_ascii_case("MAX"))
+                    .map(|t| t.parse::<usize>())
+                    .transpose()
+                    .map_err(|_| Error::invalid_range_value(end))?;
+
+                const MAX: usize = i64::MAX as usize;
+                let any = matches!(
+                    (start, end),
+                    (None, None) | (Some(0), None) | (None, Some(MAX))
+                );
+
+                if any {
+                    Self::next_separator_ignore_case(iter, ')')?;
+                    Ok(Size::Any)
+                } else {
+                    let start = start.unwrap_or_default();
+                    let end = end.unwrap_or_else(|| i64::MAX as usize);
+                    let extensible = if Self::peek(iter)?.eq_separator(',') {
+                        let _ = Self::next_separator_ignore_case(iter, ',')?;
+                        Self::next_separator_ignore_case(iter, '.')?;
+                        Self::next_separator_ignore_case(iter, '.')?;
+                        Self::next_separator_ignore_case(iter, '.')?;
+                        true
+                    } else {
+                        false
+                    };
+                    Self::next_separator_ignore_case(iter, ')')?;
+                    if start == end {
+                        Ok(Size::Fix(start, extensible))
+                    } else {
+                        Ok(Size::Range(start, end, extensible))
+                    }
+                }
+            }
+        } else {
+            Err(Error::unexpected_token(size_token))
         }
     }
 
@@ -643,6 +718,39 @@ pub struct Import {
     pub what: Vec<String>,
     pub from: String,
     pub from_oid: Option<ObjectIdentifier>,
+}
+
+#[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
+pub enum Size {
+    Any,
+    Fix(usize, bool),
+    Range(usize, usize, bool),
+}
+
+impl Size {
+    pub fn min(&self) -> Option<usize> {
+        match self {
+            Size::Any => None,
+            Size::Fix(min, _) => Some(*min),
+            Size::Range(min, _, _) => Some(*min),
+        }
+    }
+
+    pub fn max(&self) -> Option<usize> {
+        match self {
+            Size::Any => None,
+            Size::Fix(max, _) => Some(*max),
+            Size::Range(_, max, _) => Some(*max),
+        }
+    }
+
+    pub fn extensible(&self) -> bool {
+        match self {
+            Size::Any => false,
+            Size::Fix(_, extensible) => *extensible,
+            Size::Range(_, _, extensible) => *extensible,
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialOrd, PartialEq)]
@@ -866,7 +974,7 @@ impl Asn {
                 Type::Boolean => false,
                 Type::Integer(int) => int.range.extensible(),
                 Type::UTF8String => false,
-                Type::OctetString => false,
+                Type::OctetString(_) => false,
                 Type::Optional(inner) => is_extensible(&*inner),
                 Type::Sequence(_) => false,
                 Type::SequenceOf(_) => false,
@@ -924,7 +1032,7 @@ pub enum Type {
     Boolean,
     Integer(Integer),
     UTF8String,
-    OctetString,
+    OctetString(Size),
 
     Optional(Box<Type>),
 
