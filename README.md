@@ -288,7 +288,8 @@ fn test_default_range() {
    - ```INTEGER```
      - with range (numbers or ```MIN```/```MAX```)
      - without range (treated as ```INTEGER(0..MAX)```)
-     - constants are parsed and accepted 
+     - constants
+     - simple extensible ranges ```INTEGER(0..255,...)```
    - ```UTF8String```
    - ```OCTET STRING``` 
    - ```BOOLEAN```
