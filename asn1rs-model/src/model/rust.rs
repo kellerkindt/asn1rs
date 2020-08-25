@@ -644,7 +644,10 @@ impl Model<Rust> {
             AsnType::Boolean => RustType::Bool,
             AsnType::Integer(int) if int.range.extensible() => {
                 match (int.range.min(), int.range.max()) {
-                    (None, None) => RustType::U64(Range(None, None, true)),
+                    (None, None)
+                    | (Some(0), None)
+                    | (Some(0), Some(i64::MAX))
+                    | (None, Some(i64::MAX)) => RustType::U64(Range(None, None, true)),
                     (min, max) if min.unwrap_or_default() >= 0 && max.unwrap_or_default() >= 0 => {
                         RustType::U64(Range(min.map(|v| v as u64), max.map(|v| v as u64), true))
                     }
@@ -657,7 +660,10 @@ impl Model<Rust> {
             }
             AsnType::Integer(int) => {
                 match (int.range.min(), int.range.max()) {
-                    (None, None) => RustType::U64(Range(None, None, false)),
+                    (None, None)
+                    | (Some(0), None)
+                    | (Some(0), Some(i64::MAX))
+                    | (None, Some(i64::MAX)) => RustType::U64(Range(None, None, false)),
                     (min, max) => {
                         let min = min.unwrap_or_default();
                         let max = max.unwrap_or(i64::MAX);
