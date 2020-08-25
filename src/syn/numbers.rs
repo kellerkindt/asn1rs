@@ -1,15 +1,24 @@
 use crate::syn::{ReadableType, Reader, WritableType, Writer};
 use core::marker::PhantomData;
 
-pub struct Integer<T: Copy = u64, C: Constraint<T> = NoConstraint>(PhantomData<T>, PhantomData<C>);
+pub struct Integer<T: Number = u64, C: Constraint<T> = NoConstraint>(
+    PhantomData<T>,
+    PhantomData<C>,
+);
 
-impl<T: Copy, C: Constraint<T>> Default for Integer<T, C> {
+impl<T: Number, C: Constraint<T>> Default for Integer<T, C> {
     fn default() -> Self {
         Integer(Default::default(), Default::default())
     }
 }
 
-pub trait Constraint<T: Copy> {
+pub trait Number: Copy {
+    fn to_i64(self) -> i64;
+
+    fn from_i64(value: i64) -> Self;
+}
+
+pub trait Constraint<T: Number> {
     // TODO MIN-MAX into RANGE: Option<(T, T)>
     const MIN: Option<T> = None;
     const MAX: Option<T> = None;
@@ -19,8 +28,49 @@ pub trait Constraint<T: Copy> {
 #[derive(Default)]
 pub struct NoConstraint;
 
-impl<T: Copy> Constraint<T> for NoConstraint {}
+impl<T: Number> Constraint<T> for NoConstraint {}
 
+impl<T: Number, C: Constraint<T>> WritableType for Integer<T, C> {
+    type Type = T;
+
+    #[inline]
+    fn write_value<W: Writer>(
+        writer: &mut W,
+        value: &Self::Type,
+    ) -> Result<(), <W as Writer>::Error> {
+        writer.write_number::<T, C>(*value)
+    }
+}
+
+impl<T: Number, C: Constraint<T>> ReadableType for Integer<T, C> {
+    type Type = T;
+
+    #[inline]
+    fn read_value<R: Reader>(reader: &mut R) -> Result<Self::Type, <R as Reader>::Error> {
+        reader.read_number::<T, C>()
+    }
+}
+
+macro_rules! impl_number {
+    ( $($T:ident),+ ) => {$(
+        impl Number for $T {
+            #[inline]
+            fn to_i64(self) -> i64 {
+                self as i64
+            }
+
+            #[inline]
+            fn from_i64(value: i64) -> Self {
+                value as $T
+            }
+        }
+    )*}
+}
+
+impl_number!(u8, u16, u32, u64);
+impl_number!(i8, i16, i32, i64);
+
+/*
 macro_rules! read_write {
     ( $($T:ident),+ ) => {$(
 
@@ -50,3 +100,4 @@ macro_rules! read_write {
 
 read_write!(i8, i16, i32, i64);
 read_write!(u8, u16, u32, u64);
+*/

@@ -22,18 +22,6 @@ pub use sequence::Sequence;
 pub use sequenceof::SequenceOf;
 pub use utf8string::Utf8String;
 
-macro_rules! read_int_fn {
-    ($($ty:ty),+) => {
-        paste! {
-            $(
-                fn [<read_int_ $ty>]<C: numbers::Constraint<$ty>>(
-                    &mut self,
-                ) -> Result<$ty, Self::Error>;
-            )*
-        }
-     }
-}
-
 pub trait Reader {
     type Error;
 
@@ -64,14 +52,9 @@ pub trait Reader {
 
     fn read_opt<T: ReadableType>(&mut self) -> Result<Option<T::Type>, Self::Error>;
 
-    read_int_fn!(u8, u16, u32, u64);
-    read_int_fn!(i8, i16, i32, i64);
-
-    fn read_int(&mut self, range: (i64, i64)) -> Result<i64, Self::Error>;
-
-    fn read_int_max_signed(&mut self) -> Result<i64, Self::Error>;
-
-    fn read_int_max_unsigned(&mut self) -> Result<u64, Self::Error>;
+    fn read_number<T: numbers::Number, C: numbers::Constraint<T>>(
+        &mut self,
+    ) -> Result<T, Self::Error>;
 
     fn read_utf8string<C: utf8string::Constraint>(&mut self) -> Result<String, Self::Error>;
 
@@ -104,19 +87,6 @@ impl<T: Readable> ReadableType for T {
     }
 }
 
-macro_rules! write_int_fn {
-    ($($ty:ty),+) => {
-        paste! {
-            $(
-                fn [<write_int_ $ty>]<C: numbers::Constraint<$ty>>(
-                    &mut self,
-                    value: $ty,
-                ) -> Result<(), Self::Error>;
-            )*
-        }
-     }
-}
-
 pub trait Writer {
     type Error;
 
@@ -147,14 +117,10 @@ pub trait Writer {
 
     fn write_opt<T: WritableType>(&mut self, value: Option<&T::Type>) -> Result<(), Self::Error>;
 
-    write_int_fn!(u8, u16, u32, u64);
-    write_int_fn!(i8, i16, i32, i64);
-
-    fn write_int(&mut self, value: i64, range: (i64, i64)) -> Result<(), Self::Error>;
-
-    fn write_int_max_signed(&mut self, value: i64) -> Result<(), Self::Error>;
-
-    fn write_int_max_unsigned(&mut self, value: u64) -> Result<(), Self::Error>;
+    fn write_number<T: numbers::Number, C: numbers::Constraint<T>>(
+        &mut self,
+        value: T,
+    ) -> Result<(), Self::Error>;
 
     fn write_utf8string<C: utf8string::Constraint>(
         &mut self,

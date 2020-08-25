@@ -16,30 +16,6 @@ impl PrintlnWriter {
     }
 }
 
-macro_rules! println_write_int_fn {
-    ($($ty:ty),+) => {
-        paste! {
-            $(
-                fn [<write_int_ $ty>]<C: numbers::Constraint<$ty>>(
-                    &mut self,
-                    value: $ty,
-                ) -> Result<(), Self::Error> {
-                    self.indented_println(
-                        &format!(
-                            "WRITING $ty({:?}..{:?}{}) {}",
-                            C::MIN,
-                            C::MAX,
-                            if C::EXTENSIBLE { ",..." } else { "" },
-                            value
-                        )
-                    );
-                    Ok(())
-                }
-            )*
-        }
-     }
-}
-
 impl Writer for PrintlnWriter {
     type Error = ();
 
@@ -128,21 +104,23 @@ impl Writer for PrintlnWriter {
         })
     }
 
-    println_write_int_fn!(u8, u16, u32, u64);
-    println_write_int_fn!(i8, i16, i32, i64);
-
-    fn write_int(&mut self, value: i64, (min, max): (i64, i64)) -> Result<(), Self::Error> {
-        self.indented_println(&format!("WRITING Integer({}..{}) {}", min, max, value));
-        Ok(())
-    }
-
-    fn write_int_max_signed(&mut self, value: i64) -> Result<(), Self::Error> {
-        self.indented_println(&format!("WRITING signed Integer {}", value));
-        Ok(())
-    }
-
-    fn write_int_max_unsigned(&mut self, value: u64) -> Result<(), Self::Error> {
-        self.indented_println(&format!("WRITING unsigned Integer {}", value));
+    fn write_number<T: numbers::Number, C: numbers::Constraint<T>>(
+        &mut self,
+        value: T,
+    ) -> Result<(), Self::Error> {
+        self.indented_println(&format!(
+            "WRITING Integer({}..{}{}) {}",
+            C::MIN
+                .map(T::to_i64)
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "MIN".to_string()),
+            C::MAX
+                .map(T::to_i64)
+                .map(|v| v.to_string())
+                .unwrap_or_else(|| "MAX".to_string()),
+            if C::EXTENSIBLE { ",..." } else { "" },
+            value.to_i64()
+        ));
         Ok(())
     }
 

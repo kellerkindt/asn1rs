@@ -1,9 +1,6 @@
 #![deny(intra_doc_link_resolution_failure)]
 #![warn(unused_extern_crates)]
 
-#[macro_use]
-extern crate paste;
-
 #[cfg(feature = "psql")]
 extern crate postgres;
 
