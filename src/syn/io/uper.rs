@@ -379,6 +379,7 @@ impl Writer for UperWriter {
         }
     }
 
+    #[inline]
     fn write_number<T: numbers::Number, C: numbers::Constraint<T>>(
         &mut self,
         value: T,
@@ -658,6 +659,7 @@ impl Reader for UperReader {
         }
     }
 
+    #[inline]
     fn read_number<T: numbers::Number, C: numbers::Constraint<T>>(
         &mut self,
     ) -> Result<T, Self::Error> {
