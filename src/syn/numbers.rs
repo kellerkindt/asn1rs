@@ -10,6 +10,7 @@ impl<T: Copy, C: Constraint<T>> Default for Integer<T, C> {
 }
 
 pub trait Constraint<T: Copy> {
+    // TODO MIN-MAX into RANGE: Option<(T, T)>
     const MIN: Option<T> = None;
     const MAX: Option<T> = None;
     const EXTENSIBLE: bool = false;

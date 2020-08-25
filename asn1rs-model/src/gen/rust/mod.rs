@@ -21,7 +21,6 @@ use crate::gen::Generator;
 use crate::model::rust::PlainEnum;
 use crate::model::rust::{DataEnum, Field};
 use crate::model::Model;
-use crate::model::Range;
 use crate::model::Rust;
 use crate::model::RustType;
 use crate::model::TagProperty;
@@ -178,7 +177,6 @@ impl RustCodeGenerator {
                 scope.raw(&Self::asn_attribute(
                     "sequence",
                     None,
-                    false,
                     extension_after.map(|index| fields[index].name().to_string()),
                     &[],
                 ));
@@ -193,7 +191,6 @@ impl RustCodeGenerator {
                 scope.raw(&Self::asn_attribute(
                     "enumerated",
                     None,
-                    false,
                     plain.extension_after_variant().cloned(),
                     &[],
                 ));
@@ -203,25 +200,19 @@ impl RustCodeGenerator {
                 scope.raw(&Self::asn_attribute(
                     "choice",
                     None,
-                    false,
                     data.extension_after_variant().map(|v| v.name().to_string()),
                     &[],
                 ));
                 Self::add_data_enum(self.new_enum(scope, name, false), name, data)
             }
-            Rust::TupleStruct {
-                r#type,
-                constants,
-                extensible,
-            } => {
-                scope.raw(&Self::asn_attribute("transparent", None, false, None, &[]));
+            Rust::TupleStruct { r#type, constants } => {
+                scope.raw(&Self::asn_attribute("transparent", None, None, &[]));
                 Self::add_tuple_struct(
                     self.new_struct(scope, name),
                     name,
                     r#type,
                     self.direct_field_access,
                     None,
-                    *extensible,
                     &constants[..],
                 )
             }
@@ -236,7 +227,6 @@ impl RustCodeGenerator {
                     Self::asn_attribute(
                         &Self::asn_attribute_type(&field.r#type().clone().into_asn()),
                         field.tag(),
-                        field.extensible(),
                         None,
                         field.constants(),
                     ),
@@ -261,7 +251,6 @@ impl RustCodeGenerator {
                 Self::asn_attribute(
                     Self::asn_attribute_type(&variant.r#type().clone().into_asn()),
                     variant.tag(),
-                    false,
                     None,
                     &[]
                 ),
@@ -277,7 +266,6 @@ impl RustCodeGenerator {
         inner: &RustType,
         pub_access: bool,
         tag: Option<Tag>,
-        extensible: bool,
         constants: &[(String, String)],
     ) {
         str_ct.tuple_field(format!(
@@ -285,7 +273,6 @@ impl RustCodeGenerator {
             Self::asn_attribute(
                 Self::asn_attribute_type(&inner.clone().into_asn()),
                 tag,
-                extensible,
                 None,
                 constants
             ),
@@ -297,7 +284,6 @@ impl RustCodeGenerator {
     fn asn_attribute<T: ToString>(
         r#type: T,
         tag: Option<Tag>,
-        extensible: bool,
         extensible_after: Option<String>,
         constants: &[(String, String)],
     ) -> String {
@@ -306,11 +292,6 @@ impl RustCodeGenerator {
             vec![
                 Some(r#type.to_string()),
                 tag.map(Self::asn_attribute_tag),
-                if extensible {
-                    Some("extensible".to_string())
-                } else {
-                    None
-                },
                 extensible_after.map(Self::asn_attribute_extensible_after),
                 if constants.is_empty() {
                     None
@@ -335,10 +316,26 @@ impl RustCodeGenerator {
     fn asn_attribute_type(r#type: &AsnType) -> String {
         match r#type {
             Type::Boolean => String::from("boolean"),
-            Type::Integer(integer) => match integer.range {
-                Some(Range(min, max)) => format!("integer({}..{})", min, max),
-                None => String::from("integer(min..max)"),
-            },
+            Type::Integer(integer) => format!(
+                "integer({}..{}{})",
+                integer
+                    .range
+                    .min()
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .unwrap_or_else(|| "min".to_string()),
+                integer
+                    .range
+                    .max()
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .unwrap_or_else(|| "max".to_string()),
+                if integer.range.extensible() {
+                    ",..."
+                } else {
+                    ""
+                }
+            ),
             Type::UTF8String => String::from("utf8string"),
             Type::OctetString => String::from("octet_string"),
             Type::Optional(inner) => format!("option({})", Self::asn_attribute_type(&*inner)),
@@ -654,17 +651,17 @@ impl RustCodeGenerator {
         } else {
             "value_".to_string()
         };
-        if let Some(Range(min, max)) = field_type.integer_range_str() {
+        if let Some(range) = field_type.integer_range_str() {
             implementation
                 .new_fn(&format!("{}min", prefix))
                 .vis("pub const")
                 .ret(&field_type.to_inner_type_string())
-                .line(&Self::format_number_nicely(&min));
+                .line(&Self::format_number_nicely(&range.min()));
             implementation
                 .new_fn(&format!("{}max", prefix))
                 .vis("pub const")
                 .ret(&field_type.to_inner_type_string())
-                .line(&Self::format_number_nicely(&max));
+                .line(&Self::format_number_nicely(&range.max()));
         }
     }
 

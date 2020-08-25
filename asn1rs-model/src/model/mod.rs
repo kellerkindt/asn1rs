@@ -477,7 +477,7 @@ impl Model<Asn> {
 
     fn read_number_range(
         iter: &mut Peekable<IntoIter<Token>>,
-    ) -> Result<Option<(Range<i64>, bool)>, Error> {
+    ) -> Result<Range<Option<i64>>, Error> {
         if Self::peek(iter)?.eq_separator('(') {
             Self::next_separator_ignore_case(iter, '(')?;
             let start = Self::next(iter)?;
@@ -494,26 +494,26 @@ impl Model<Asn> {
                 false
             };
             Self::next_separator_ignore_case(iter, ')')?;
-            if (start.eq_text("0") || start.eq_text_ignore_ascii_case("MIN"))
-                && end.eq_text_ignore_ascii_case("MAX")
-            {
-                Ok(None)
-            } else {
-                Ok(Some((
-                    Range(
-                        start
-                            .text()
-                            .and_then(|t| t.parse::<i64>().ok())
-                            .ok_or_else(|| Error::invalid_range_value(start))?,
-                        end.text()
-                            .and_then(|t| t.parse::<i64>().ok())
-                            .ok_or_else(|| Error::invalid_range_value(end))?,
-                    ),
-                    extensible,
-                )))
+            let start = start
+                .text()
+                .filter(|txt| !txt.eq_ignore_ascii_case("MIN"))
+                .map(|t| t.parse::<i64>())
+                .transpose()
+                .map_err(|_| Error::invalid_range_value(start))?;
+
+            let end = end
+                .text()
+                .filter(|txt| !txt.eq_ignore_ascii_case("MAX"))
+                .map(|t| t.parse::<i64>())
+                .transpose()
+                .map_err(|_| Error::invalid_range_value(end))?;
+
+            match (start, end) {
+                (Some(0), None) => Ok(Range(None, None, extensible)),
+                (start, end) => Ok(Range(start, end, extensible)),
             }
         } else {
-            Ok(None)
+            Ok(Range(None, None, false))
         }
     }
 
@@ -645,8 +645,51 @@ pub struct Import {
     pub from_oid: Option<ObjectIdentifier>,
 }
 
-#[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
-pub struct Range<T>(pub T, pub T);
+#[derive(Debug, Default, Clone, Copy, PartialOrd, PartialEq)]
+pub struct Range<T>(pub T, pub T, bool);
+
+impl<T> Range<T> {
+    pub const fn inclusive(min: T, max: T) -> Self {
+        Self(min, max, false)
+    }
+
+    pub fn with_extensible(self, extensible: bool) -> Self {
+        let Range(min, max, _) = self;
+        Range(min, max, extensible)
+    }
+
+    pub const fn min(&self) -> &T {
+        &self.0
+    }
+
+    pub const fn max(&self) -> &T {
+        &self.1
+    }
+
+    pub const fn extensible(&self) -> bool {
+        self.2
+    }
+
+    pub fn wrap_opt(self) -> Range<Option<T>> {
+        let Range(min, max, extensible) = self;
+        Range(Some(min), Some(max), extensible)
+    }
+}
+
+impl<T: Copy> Range<Option<T>> {
+    pub fn none() -> Self {
+        Range(None, None, false)
+    }
+
+    pub fn min_max(&self, min_fn: impl Fn() -> T, max_fn: impl Fn() -> T) -> Option<(T, T)> {
+        match (self.0, self.1) {
+            (Some(min), Some(max)) => Some((min, max)),
+            (Some(min), None) => Some((min, max_fn())),
+            (None, Some(max)) => Some((min_fn(), max)),
+            (None, None) => None,
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct Definition<T>(pub String, pub T);
@@ -821,7 +864,7 @@ impl Asn {
         fn is_extensible(r#type: &Type) -> bool {
             match r#type {
                 Type::Boolean => false,
-                Type::Integer(int) => int.extensible,
+                Type::Integer(int) => int.range.extensible(),
                 Type::UTF8String => false,
                 Type::OctetString => false,
                 Type::Optional(inner) => is_extensible(&*inner),
@@ -893,22 +936,20 @@ pub enum Type {
 }
 
 impl Type {
-    pub const fn any_integer() -> Self {
-        Self::integer_with_range_opt(None)
+    pub fn any_integer() -> Self {
+        Self::integer_with_range_opt(Range::none())
     }
 
-    pub const fn integer_with_range(range: Range<i64>) -> Self {
+    pub const fn integer_with_range(range: Range<Option<i64>>) -> Self {
         Self::Integer(Integer {
-            range: Some(range),
-            extensible: false,
+            range,
             constants: Vec::new(),
         })
     }
 
-    pub const fn integer_with_range_opt(range: Option<Range<i64>>) -> Self {
+    pub const fn integer_with_range_opt(range: Range<Option<i64>>) -> Self {
         Self::Integer(Integer {
             range,
-            extensible: false,
             constants: Vec::new(),
         })
     }
@@ -951,8 +992,7 @@ impl Type {
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct Integer {
-    pub range: Option<Range<i64>>,
-    pub extensible: bool,
+    pub range: Range<Option<i64>>,
     pub constants: Vec<(String, i64)>,
 }
 
@@ -962,15 +1002,8 @@ impl TryFrom<&mut Peekable<IntoIter<Token>>> for Integer {
     fn try_from(iter: &mut Peekable<IntoIter<Token>>) -> Result<Self, Self::Error> {
         let constants =
             Model::<Asn>::maybe_read_constants(iter, Model::<Asn>::constant_i64_parser)?;
-        let (range, extensible) = match Model::<Asn>::read_number_range(iter)? {
-            Some((range, extensible)) => (Some(range), extensible),
-            None => (None, false),
-        };
-        Ok(Self {
-            range,
-            extensible,
-            constants,
-        })
+        let range = Model::<Asn>::read_number_range(iter)?;
+        Ok(Self { range, constants })
     }
 }
 
@@ -1342,15 +1375,18 @@ pub(crate) mod tests {
                 Type::sequence_from_fields(vec![
                     Field {
                         name: "small".into(),
-                        role: Type::integer_with_range(Range(0, 255)).untagged(),
+                        role: Type::integer_with_range(Range::inclusive(Some(0), Some(255)))
+                            .untagged(),
                     },
                     Field {
                         name: "bigger".into(),
-                        role: Type::integer_with_range(Range(0, 65535)).untagged(),
+                        role: Type::integer_with_range(Range::inclusive(Some(0), Some(65535)))
+                            .untagged(),
                     },
                     Field {
                         name: "negative".into(),
-                        role: Type::integer_with_range(Range(-1, 255)).untagged(),
+                        role: Type::integer_with_range(Range::inclusive(Some(-1), Some(255)))
+                            .untagged(),
                     },
                     Field {
                         name: "unlimited".into(),
@@ -1430,7 +1466,11 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "Ones".into(),
-                Type::SequenceOf(Box::new(Type::integer_with_range(Range(0, 1)))).untagged(),
+                Type::SequenceOf(Box::new(Type::integer_with_range(Range::inclusive(
+                    Some(0),
+                    Some(1)
+                ))))
+                .untagged(),
             ),
             model.definitions[0]
         );
@@ -1438,7 +1478,7 @@ pub(crate) mod tests {
             Definition(
                 "NestedOnes".into(),
                 Type::SequenceOf(Box::new(Type::SequenceOf(Box::new(
-                    Type::integer_with_range(Range(0, 1))
+                    Type::integer_with_range(Range::inclusive(Some(0), Some(1)))
                 ))))
                 .untagged(),
             ),
@@ -1450,13 +1490,15 @@ pub(crate) mod tests {
                 Type::sequence_from_fields(vec![
                     Field {
                         name: "also-ones".into(),
-                        role: Type::SequenceOf(Box::new(Type::integer_with_range(Range(0, 1))))
-                            .untagged(),
+                        role: Type::SequenceOf(Box::new(Type::integer_with_range(
+                            Range::inclusive(Some(0), Some(1))
+                        )))
+                        .untagged(),
                     },
                     Field {
                         name: "nesteds".into(),
                         role: Type::SequenceOf(Box::new(Type::SequenceOf(Box::new(
-                            Type::integer_with_range(Range(0, 1))
+                            Type::integer_with_range(Range::inclusive(Some(0), Some(1)))
                         ))))
                         .untagged(),
                     },
@@ -1508,7 +1550,11 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "This".into(),
-                Type::SequenceOf(Box::new(Type::integer_with_range(Range(0, 1)))).untagged(),
+                Type::SequenceOf(Box::new(Type::integer_with_range(Range::inclusive(
+                    Some(0),
+                    Some(1)
+                ))))
+                .untagged(),
             ),
             model.definitions[0]
         );
@@ -1516,7 +1562,7 @@ pub(crate) mod tests {
             Definition(
                 "That".into(),
                 Type::SequenceOf(Box::new(Type::SequenceOf(Box::new(
-                    Type::integer_with_range(Range(0, 1))
+                    Type::integer_with_range(Range::inclusive(Some(0), Some(1)))
                 ))))
                 .untagged(),
             ),
@@ -1576,18 +1622,23 @@ pub(crate) mod tests {
                     role: Type::sequence_from_fields(vec![
                         Field {
                             name: "ones".into(),
-                            role: Type::integer_with_range(Range(0, 1)).untagged(),
+                            role: Type::integer_with_range(Range::inclusive(Some(0), Some(1)))
+                                .untagged(),
                         },
                         Field {
                             name: "list-ones".into(),
-                            role: Type::SequenceOf(Box::new(Type::integer_with_range(Range(0, 1))))
-                                .untagged(),
+                            role: Type::SequenceOf(Box::new(Type::integer_with_range(
+                                Range::inclusive(Some(0), Some(1))
+                            )))
+                            .untagged(),
                         },
                         Field {
                             name: "optional-ones".into(),
-                            role: Type::SequenceOf(Box::new(Type::integer_with_range(Range(0, 1))))
-                                .optional()
-                                .untagged(),
+                            role: Type::SequenceOf(Box::new(Type::integer_with_range(
+                                Range::inclusive(Some(0), Some(1))
+                            )))
+                            .optional()
+                            .untagged(),
                         },
                     ])
                     .optional()
@@ -1638,7 +1689,7 @@ pub(crate) mod tests {
         assert_eq!(
             &[Definition(
                 "SimpleTypeWithRange".to_string(),
-                Type::integer_with_range(Range(0, 65_535)).untagged(),
+                Type::integer_with_range(Range::inclusive(Some(0), Some(65_535))).untagged(),
             )][..],
             &model.definitions[..]
         )
@@ -1844,7 +1895,7 @@ pub(crate) mod tests {
                         },
                         Field {
                             name: "def".to_string(),
-                            role: Type::integer_with_range(Range(0, 255))
+                            role: Type::integer_with_range(Range::inclusive(Some(0), Some(255)))
                                 .tagged(Tag::ContextSpecific(2)),
                         }
                     ])
@@ -2052,6 +2103,7 @@ pub(crate) mod tests {
                 .expect("ObjectIdentifier is missing")
         )
     }
+
     #[test]
     pub fn test_parsing_module_definition_with_integer_constant() {
         let model = Model::try_from(Tokenizer::default().parse(
@@ -2076,66 +2128,61 @@ pub(crate) mod tests {
                         Field {
                             name: "inline".to_string(),
                             role: Type::Integer(Integer {
-                                range: None,
-                                extensible: false,
+                                range: Range::none(),
                                 constants: vec![
                                     ("ab".to_string(), 1),
                                     ("cd".to_string(), 2),
                                     ("ef".to_string(), 3)
-                                ]
+                                ],
                             })
                             .untagged(),
                         },
                         Field {
                             name: "eff-u8".to_string(),
                             role: Type::Integer(Integer {
-                                range: Some(Range(0, 255)),
-                                extensible: false,
+                                range: Range::inclusive(Some(0), Some(255)),
                                 constants: vec![
                                     ("gh".to_string(), 1),
                                     ("ij".to_string(), 4),
                                     ("kl".to_string(), 9)
-                                ]
+                                ],
                             })
                             .untagged(),
                         },
                         Field {
                             name: "tagged".to_string(),
                             role: Type::Integer(Integer {
-                                range: Some(Range(0, 255)),
-                                extensible: false,
+                                range: Range::inclusive(Some(0), Some(255)),
                                 constants: vec![
                                     ("mn".to_string(), 5),
                                     ("op".to_string(), 4),
                                     ("qr".to_string(), 9)
-                                ]
+                                ],
                             })
                             .tagged(Tag::ContextSpecific(7)),
                         },
                     ])
-                    .untagged()
+                    .untagged(),
                 ),
                 Definition(
                     "SeAlias".to_string(),
                     Type::Integer(Integer {
-                        range: None,
-                        extensible: false,
+                        range: Range::none(),
                         constants: vec![
                             ("wow".to_string(), 1),
                             ("much".to_string(), 2),
                             ("great".to_string(), 3),
-                        ]
+                        ],
                     })
-                    .untagged()
+                    .untagged(),
                 ),
                 Definition(
                     "OhAlias".to_string(),
                     Type::Integer(Integer {
-                        range: Some(Range(0, 255)),
-                        extensible: false,
-                        constants: vec![("oh".to_string(), 1), ("lul".to_string(), 2),]
+                        range: Range::inclusive(Some(0), Some(255)),
+                        constants: vec![("oh".to_string(), 1), ("lul".to_string(), 2),],
                     })
-                    .tagged(Tag::Application(9))
+                    .tagged(Tag::Application(9)),
                 )
             ],
             model.definitions
@@ -2159,18 +2206,17 @@ pub(crate) mod tests {
                 Type::sequence_from_fields(vec![Field {
                     name: "value".to_string(),
                     role: Type::Integer(Integer {
-                        range: Some(Range(0, 255)),
-                        extensible: true,
+                        range: Range::inclusive(Some(0), Some(255)).with_extensible(true),
                         constants: vec![
                             ("gh".to_string(), 1),
                             ("ij".to_string(), 4),
                             ("kl".to_string(), 9)
-                        ]
+                        ],
                     })
                     .optional()
-                    .untagged()
+                    .untagged(),
                 }])
-                .untagged()
+                .untagged(),
             )],
             model.definitions
         )

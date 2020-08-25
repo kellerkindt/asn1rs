@@ -19,7 +19,7 @@ asn_to_rust!(
 
 #[asn(transparent)]
 #[derive(Default, Debug, Clone, PartialEq, Hash)]
-pub struct RangedAndExtensiblePureRust(#[asn(integer(0..255), extensible)] pub u64);
+pub struct RangedAndExtensiblePureRust(#[asn(integer(0..255,...))] pub u64);
 
 #[test]
 fn test_extensible_range() {

@@ -36,7 +36,7 @@ pub enum RustType {
     I32(Range<i32>),
     U32(Range<u32>),
     I64(Range<i64>),
-    U64(Option<Range<u64>>),
+    U64(Range<Option<u64>>),
     String,
     VecU8,
     Vec(Box<RustType>),
@@ -138,15 +138,32 @@ impl RustType {
         #[allow(clippy::match_same_arms)] // to have the same order as the original enum
         match self {
             RustType::Bool => None,
-            RustType::U8(Range(min, max)) => Some(Range(min.to_string(), max.to_string())),
-            RustType::I8(Range(min, max)) => Some(Range(min.to_string(), max.to_string())),
-            RustType::U16(Range(min, max)) => Some(Range(min.to_string(), max.to_string())),
-            RustType::I16(Range(min, max)) => Some(Range(min.to_string(), max.to_string())),
-            RustType::U32(Range(min, max)) => Some(Range(min.to_string(), max.to_string())),
-            RustType::I32(Range(min, max)) => Some(Range(min.to_string(), max.to_string())),
-            RustType::U64(None) => Some(Range("0".into(), i64::max_value().to_string())), // i64 max!
-            RustType::U64(Some(Range(min, max))) => Some(Range(min.to_string(), max.to_string())),
-            RustType::I64(Range(min, max)) => Some(Range(min.to_string(), max.to_string())),
+            RustType::U8(Range(min, max, extensible)) => {
+                Some(Range(min.to_string(), max.to_string(), *extensible))
+            }
+            RustType::I8(Range(min, max, extensible)) => {
+                Some(Range(min.to_string(), max.to_string(), *extensible))
+            }
+            RustType::U16(Range(min, max, extensible)) => {
+                Some(Range(min.to_string(), max.to_string(), *extensible))
+            }
+            RustType::I16(Range(min, max, extensible)) => {
+                Some(Range(min.to_string(), max.to_string(), *extensible))
+            }
+            RustType::U32(Range(min, max, extensible)) => {
+                Some(Range(min.to_string(), max.to_string(), *extensible))
+            }
+            RustType::I32(Range(min, max, extensible)) => {
+                Some(Range(min.to_string(), max.to_string(), *extensible))
+            }
+            RustType::U64(Range(min, max, extensible)) => Some(Range(
+                min.unwrap_or_default().to_string(),
+                max.unwrap_or_else(|| i64::max_value() as u64).to_string(),
+                *extensible,
+            )),
+            RustType::I64(Range(min, max, extensible)) => {
+                Some(Range(min.to_string(), max.to_string(), *extensible))
+            }
             RustType::String => None,
             RustType::VecU8 => None,
             RustType::Vec(inner) => inner.integer_range_str(),
@@ -158,29 +175,44 @@ impl RustType {
     pub fn into_asn(self) -> AsnType {
         match self {
             RustType::Bool => AsnType::Boolean,
-            RustType::I8(Range(min, max)) => {
-                AsnType::integer_with_range(Range(i64::from(min), i64::from(max)))
+            RustType::I8(Range(min, max, extensible)) => AsnType::integer_with_range(Range(
+                Some(i64::from(min)),
+                Some(i64::from(max)),
+                extensible,
+            )),
+            RustType::U8(Range(min, max, extensible)) => AsnType::integer_with_range(Range(
+                Some(i64::from(min)),
+                Some(i64::from(max)),
+                extensible,
+            )),
+            RustType::I16(Range(min, max, extensible)) => AsnType::integer_with_range(Range(
+                Some(i64::from(min)),
+                Some(i64::from(max)),
+                extensible,
+            )),
+            RustType::U16(Range(min, max, extensible)) => AsnType::integer_with_range(Range(
+                Some(i64::from(min)),
+                Some(i64::from(max)),
+                extensible,
+            )),
+            RustType::I32(Range(min, max, extensible)) => AsnType::integer_with_range(Range(
+                Some(i64::from(min)),
+                Some(i64::from(max)),
+                extensible,
+            )),
+            RustType::U32(Range(min, max, extensible)) => AsnType::integer_with_range(Range(
+                Some(i64::from(min)),
+                Some(i64::from(max)),
+                extensible,
+            )),
+            RustType::I64(Range(min, max, extensible)) => {
+                AsnType::integer_with_range(Range(Some(min), Some(max), extensible))
             }
-            RustType::U8(Range(min, max)) => {
-                AsnType::integer_with_range(Range(i64::from(min), i64::from(max)))
-            }
-            RustType::I16(Range(min, max)) => {
-                AsnType::integer_with_range(Range(i64::from(min), i64::from(max)))
-            }
-            RustType::U16(Range(min, max)) => {
-                AsnType::integer_with_range(Range(i64::from(min), i64::from(max)))
-            }
-            RustType::I32(Range(min, max)) => {
-                AsnType::integer_with_range(Range(i64::from(min), i64::from(max)))
-            }
-            RustType::U32(Range(min, max)) => {
-                AsnType::integer_with_range(Range(i64::from(min), i64::from(max)))
-            }
-            RustType::I64(Range(min, max)) => AsnType::integer_with_range(Range(min, max)),
-            RustType::U64(Some(Range(min, max))) => {
-                AsnType::integer_with_range(Range(min as i64, max as i64))
-            }
-            RustType::U64(None) => AsnType::any_integer(),
+            RustType::U64(range) => AsnType::integer_with_range(Range(
+                range.min().map(|v| v as i64),
+                range.max().map(|v| v as i64),
+                range.extensible(),
+            )),
             RustType::String => AsnType::UTF8String,
             RustType::VecU8 => AsnType::OctetString,
             RustType::Vec(inner) => AsnType::SequenceOf(Box::new(inner.into_asn())),
@@ -275,7 +307,6 @@ pub enum Rust {
     TupleStruct {
         r#type: RustType,
         constants: Vec<(String, String)>,
-        extensible: bool,
     },
 }
 
@@ -291,7 +322,6 @@ impl Rust {
         Self::TupleStruct {
             r#type,
             constants: Vec::default(),
-            extensible: false,
         }
     }
 }
@@ -323,7 +353,6 @@ pub struct Field {
     pub(crate) name_type: (String, RustType),
     pub(crate) tag: Option<Tag>,
     pub(crate) constants: Vec<(String, String)>,
-    pub(crate) extensible: bool,
 }
 
 impl Field {
@@ -332,7 +361,6 @@ impl Field {
             name_type: (name.to_string(), r#type),
             tag: None,
             constants: Vec::default(),
-            extensible: false,
         }
     }
 
@@ -352,17 +380,8 @@ impl Field {
         &self.constants[..]
     }
 
-    pub fn extensible(&self) -> bool {
-        self.extensible
-    }
-
     pub fn with_constants(mut self, constants: Vec<(String, String)>) -> Self {
         self.constants = constants;
-        self
-    }
-
-    pub fn with_extensible(mut self, extensible: bool) -> Self {
-        self.extensible = extensible;
         self
     }
 }
@@ -526,11 +545,6 @@ impl Model<Rust> {
                     Rust::TupleStruct {
                         r#type: rust_type,
                         constants,
-                        extensible: if let AsnType::Integer(int) = me {
-                            int.extensible
-                        } else {
-                            unreachable!()
-                        },
                     },
                 ));
             }
@@ -556,8 +570,7 @@ impl Model<Rust> {
                     let constants = Self::asn_constants_to_rust_constants(&field.role.r#type);
                     rust_fields.push(
                         RustField::from_name_type(rust_field_name, rust_role)
-                            .with_constants(constants)
-                            .with_extensible(field.role.extensible_range()),
+                            .with_constants(constants),
                     );
                 }
 
@@ -629,36 +642,47 @@ impl Model<Rust> {
     ) -> RustType {
         match asn {
             AsnType::Boolean => RustType::Bool,
-            AsnType::Integer(integer) if integer.extensible => match integer.range {
-                None => RustType::U64(None),
-                Some(Range(min, max)) if min >= 0 => {
-                    RustType::U64(Some(Range(min as u64, max as u64)))
+            AsnType::Integer(int) if int.range.extensible() => {
+                match (int.range.min(), int.range.max()) {
+                    (None, None) => RustType::U64(Range(None, None, true)),
+                    (min, max) if min.unwrap_or_default() >= 0 && max.unwrap_or_default() >= 0 => {
+                        RustType::U64(Range(min.map(|v| v as u64), max.map(|v| v as u64), true))
+                    }
+                    (min, max) => RustType::I64(Range(
+                        min.unwrap_or_else(i64::min_value),
+                        max.unwrap_or_else(i64::max_value),
+                        true,
+                    )),
                 }
-                Some(Range(_min, _max)) => RustType::I64(Range(i64::min_value(), i64::max_value())),
-            },
-            AsnType::Integer(integer) => match integer.range {
-                Some(Range(min, max)) => {
-                    if min >= 0 {
-                        match max as u64 {
-                                m if m <= U8_MAX => RustType::U8(Range(min as u8, max as u8)),
-                                m if m <= U16_MAX => RustType::U16(Range(min as u16, max as u16)),
-                                m if m <= U32_MAX => RustType::U32(Range(min as u32, max as u32)),
-                                _/*m if m <= U64_MAX*/ => RustType::U64(Some(Range(min as u64, max as u64))),
+            }
+            AsnType::Integer(int) => {
+                match (int.range.min(), int.range.max()) {
+                    (None, None) => RustType::U64(Range(None, None, false)),
+                    (min, max) => {
+                        let min = min.unwrap_or_default();
+                        let max = max.unwrap_or(i64::MAX);
+                        if min >= 0 {
+                            match max as u64 {
+                                m if m <= U8_MAX => RustType::U8(Range::inclusive(min as u8, max as u8)),
+                                m if m <= U16_MAX => RustType::U16(Range::inclusive(min as u16, max as u16)),
+                                m if m <= U32_MAX => RustType::U32(Range::inclusive(min as u32, max as u32)),
+                                _/*m if m <= U64_MAX*/ => RustType::U64(Range::inclusive(Some(min as u64), Some(max as u64))),
                                 //_ => panic!("This should never happen, since max (as u64 frm i64) cannot be greater than U64_MAX")
                             }
-                    } else {
-                        let max_amplitude = (min - 1).abs().max(max);
-                        match max_amplitude {
-                                _ if max_amplitude <= I8_MAX => RustType::I8(Range(min as i8, max as i8)),
-                                _ if max_amplitude <= I16_MAX => RustType::I16(Range(min as i16, max as i16)),
-                                _ if max_amplitude <= I32_MAX => RustType::I32(Range(min as i32, max as i32)),
-                                _/*if max_amplitude <= I64_MAX*/ => RustType::I64(Range(min as i64, max as i64)),
+                        } else {
+                            let max_amplitude = (min - 1).abs().max(max);
+                            match max_amplitude {
+                                _ if max_amplitude <= I8_MAX => RustType::I8(Range::inclusive(min as i8, max as i8)),
+                                _ if max_amplitude <= I16_MAX => RustType::I16(Range::inclusive(min as i16, max as i16)),
+                                _ if max_amplitude <= I32_MAX => RustType::I32(Range::inclusive(min as i32, max as i32)),
+                                _/*if max_amplitude <= I64_MAX*/ => RustType::I64(Range::inclusive(min as i64, max as i64)),
                                 //_ => panic!("This should never happen, since max (being i64) cannot be greater than I64_MAX")
                             }
+                        }
                     }
                 }
-                None => RustType::U64(None),
-            },
+            }
+
             AsnType::UTF8String => RustType::String,
             AsnType::OctetString => RustType::VecU8,
             Type::Optional(inner) => RustType::Option(Box::new(
@@ -756,12 +780,12 @@ mod tests {
             Definition(
                 "Simple".into(),
                 Rust::struct_from_fields(vec![
-                    RustField::from_name_type("small", RustType::U8(Range(0, 255))),
-                    RustField::from_name_type("bigger", RustType::U16(Range(0, 65535))),
-                    RustField::from_name_type("negative", RustType::I16(Range(-1, 255))),
+                    RustField::from_name_type("small", RustType::U8(Range::inclusive(0, 255))),
+                    RustField::from_name_type("bigger", RustType::U16(Range::inclusive(0, 65535))),
+                    RustField::from_name_type("negative", RustType::I16(Range::inclusive(-1, 255))),
                     RustField::from_name_type(
                         "unlimited",
-                        RustType::Option(Box::new(RustType::U64(None))),
+                        RustType::Option(Box::new(RustType::U64(Range::none()))),
                     ),
                 ]),
             ),
@@ -818,7 +842,9 @@ mod tests {
         assert_eq!(
             Definition(
                 "Ones".into(),
-                Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::U8(Range(0, 1))))),
+                Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::U8(
+                    Range::inclusive(0, 1)
+                )))),
             ),
             model_rust.definitions[0]
         );
@@ -826,7 +852,7 @@ mod tests {
             Definition(
                 "NestedOnes".into(),
                 Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::Vec(Box::new(
-                    RustType::U8(Range(0, 1))
+                    RustType::U8(Range::inclusive(0, 1))
                 ))))),
             ),
             model_rust.definitions[1]
@@ -837,16 +863,18 @@ mod tests {
                 Rust::struct_from_fields(vec![
                     RustField::from_name_type(
                         "also_ones",
-                        RustType::Vec(Box::new(RustType::U8(Range(0, 1)))),
+                        RustType::Vec(Box::new(RustType::U8(Range::inclusive(0, 1)))),
                     ),
                     RustField::from_name_type(
                         "nesteds",
-                        RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::U8(Range(0, 1)))))),
+                        RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::U8(
+                            Range::inclusive(0, 1)
+                        ))))),
                     ),
                     RustField::from_name_type(
                         "optionals",
                         RustType::Option(Box::new(RustType::Vec(Box::new(RustType::Vec(
-                            Box::new(RustType::U64(None))
+                            Box::new(RustType::U64(Range::none()))
                         ))))),
                     )
                 ]),
@@ -867,7 +895,9 @@ mod tests {
         assert_eq!(
             Definition(
                 "This".into(),
-                Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::U8(Range(0, 1))))),
+                Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::U8(
+                    Range::inclusive(0, 1)
+                )))),
             ),
             model_rust.definitions[0]
         );
@@ -875,7 +905,7 @@ mod tests {
             Definition(
                 "That".into(),
                 Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::Vec(Box::new(
-                    RustType::U8(Range(0, 1))
+                    RustType::U8(Range::inclusive(0, 1))
                 ))))),
             ),
             model_rust.definitions[1]
@@ -926,16 +956,16 @@ mod tests {
             Definition(
                 "WoahComplex".into(),
                 Rust::struct_from_fields(vec![
-                    RustField::from_name_type("ones", RustType::U8(Range(0, 1))),
+                    RustField::from_name_type("ones", RustType::U8(Range::inclusive(0, 1))),
                     RustField::from_name_type(
                         "list_ones",
-                        RustType::Vec(Box::new(RustType::U8(Range(0, 1)))),
+                        RustType::Vec(Box::new(RustType::U8(Range::inclusive(0, 1)))),
                     ),
                     RustField::from_name_type(
                         "optional_ones",
-                        RustType::Option(Box::new(RustType::Vec(Box::new(RustType::U8(Range(
-                            0, 1,
-                        )))))),
+                        RustType::Option(Box::new(RustType::Vec(Box::new(RustType::U8(
+                            Range::inclusive(0, 1,)
+                        ))))),
                     ),
                 ]),
             ),
@@ -1244,7 +1274,10 @@ mod tests {
                 Rust::DataEnum(
                     DataEnum::from(vec![
                         DataVariant::from_name_type("Abc".to_string(), RustType::VecU8),
-                        DataVariant::from_name_type("Def".to_string(), RustType::U64(None)),
+                        DataVariant::from_name_type(
+                            "Def".to_string(),
+                            RustType::U64(Range::none())
+                        ),
                         DataVariant::from_name_type("Ghi".to_string(), RustType::Bool)
                             .with_tag(Tag::Universal(4)),
                     ])

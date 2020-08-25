@@ -122,17 +122,21 @@ impl UperSerializer {
                     rust.to_string(),
                 ));
             }
-            RustType::U64(Some(_)) => {
-                let prefix = Self::min_max_prefix(&field_name);
-                block.line(format!(
-                    "reader.read_int((Self::{}min() as i64, Self::{}max() as i64))? as {}",
-                    prefix,
-                    prefix,
-                    rust.to_string(),
-                ));
-            }
-            RustType::U64(None) => {
-                block.line("reader.read_int_max_signed()? as _");
+            RustType::U64(range) => {
+                if range
+                    .min_max(u64::min_value, || i64::max_value() as u64)
+                    .is_some()
+                {
+                    let prefix = Self::min_max_prefix(&field_name);
+                    block.line(format!(
+                        "reader.read_int((Self::{}min() as i64, Self::{}max() as i64))? as {}",
+                        prefix,
+                        prefix,
+                        rust.to_string(),
+                    ));
+                } else {
+                    block.line("reader.read_int_max_signed()? as _");
+                }
             }
             RustType::String => {
                 block.line("reader.read_utf8_string()?");
@@ -380,22 +384,26 @@ impl UperSerializer {
                     prefix,
                 ));
             }
-            RustType::U64(Some(_)) => {
-                let prefix = Self::min_max_prefix(&field_name);
-                block.line(format!(
-                    "writer.write_int({} as i64, (Self::{}min() as i64, Self::{}max() as i64))?;",
-                    field_name
-                        .as_ref()
-                        .map_or_else(|| "value".into(), |f| f.to_string()),
-                    prefix,
-                    prefix,
-                ));
-            }
-            RustType::U64(None) => {
-                block.line(&format!(
-                    "writer.write_int_max_signed({} as _)?;",
-                    field_name.map_or_else(|| "value".into(), |f| f.to_string()),
-                ));
+            RustType::U64(range) => {
+                if range
+                    .min_max(u64::min_value, || i64::max_value() as u64)
+                    .is_some()
+                {
+                    let prefix = Self::min_max_prefix(&field_name);
+                    block.line(format!(
+                        "writer.write_int({} as i64, (Self::{}min() as i64, Self::{}max() as i64))?;",
+                        field_name
+                            .as_ref()
+                            .map_or_else(|| "value".into(), |f| f.to_string()),
+                        prefix,
+                        prefix,
+                    ));
+                } else {
+                    block.line(&format!(
+                        "writer.write_int_max_signed({} as _)?;",
+                        field_name.map_or_else(|| "value".into(), |f| f.to_string()),
+                    ));
+                }
             }
             RustType::String => {
                 block.line(&format!(

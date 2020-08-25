@@ -4,6 +4,7 @@ use syn::Ident;
 use syn::Lit;
 use syn::Token;
 
+#[derive(Debug)]
 enum MMV {
     MinMax,
     Value(i64),
@@ -31,19 +32,43 @@ impl MMV {
 }
 
 #[derive(Debug)]
-pub struct IntegerRange(pub Option<(i64, i64)>);
+pub struct IntegerRange(pub Option<(i64, i64)>, pub bool);
 
 impl Parse for IntegerRange {
     fn parse<'a>(input: ParseStream) -> syn::Result<Self> {
         let min = MMV::try_parse(input)?.ok_or_else(|| input.error("invalid min"))?;
         let _ = input.parse::<Token![.]>()?;
         let _ = input.parse::<Token![.]>()?;
-        let max = MMV::try_parse(input)?.ok_or_else(|| input.error("invalid maxn"))?;
+        let max = MMV::try_parse(input)?.ok_or_else(|| input.error("invalid max"))?;
+        let extensible = if input.peek(Token![,]) {
+            let _ = input.parse::<Token![,]>()?;
+            let _ = input.parse::<Token![.]>()?;
+            let _ = input.parse::<Token![.]>()?;
+            let _ = input.parse::<Token![.]>()?;
+            true
+        } else {
+            false
+        };
 
         match (min, max) {
-            (MMV::MinMax, MMV::MinMax) => Ok(IntegerRange(None)),
-            (MMV::Value(min), MMV::Value(max)) => Ok(IntegerRange(Some((min, max)))),
-            _ => Err(input.error("invalid min max combination")),
+            (MMV::MinMax, MMV::MinMax) | (MMV::Value(0), MMV::MinMax) => {
+                Ok(IntegerRange(None, extensible))
+            }
+            (MMV::Value(min), MMV::Value(max)) => Ok(IntegerRange(Some((min, max)), extensible)),
+            (MMV::MinMax, MMV::Value(max)) => Ok(IntegerRange(
+                Some((
+                    if max.is_positive() {
+                        0
+                    } else {
+                        i64::max_value().wrapping_add(1)
+                    },
+                    max,
+                )),
+                extensible,
+            )),
+            (MMV::Value(min), MMV::MinMax) => {
+                Ok(IntegerRange(Some((min, i64::max_value())), extensible))
+            }
         }
     }
 }

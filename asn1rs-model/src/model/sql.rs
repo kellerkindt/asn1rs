@@ -57,10 +57,10 @@ impl SqlType {
     pub fn to_rust(&self) -> RustType {
         #[allow(clippy::match_same_arms)] // to have the same order as the original enum
         RustType::Option(Box::new(match self {
-            SqlType::SmallInt => RustType::I16(Range(0, i16::max_value())),
-            SqlType::Integer => RustType::I32(Range(0, i32::max_value())),
-            SqlType::BigInt => RustType::I64(Range(0, i64::max_value())),
-            SqlType::Serial => RustType::I32(Range(0, i32::max_value())),
+            SqlType::SmallInt => RustType::I16(Range::inclusive(0, i16::max_value())),
+            SqlType::Integer => RustType::I32(Range::inclusive(0, i32::max_value())),
+            SqlType::BigInt => RustType::I64(Range::inclusive(0, i64::max_value())),
+            SqlType::Serial => RustType::I32(Range::inclusive(0, i32::max_value())),
             SqlType::Boolean => RustType::Bool,
             SqlType::Text => RustType::String,
             SqlType::Array(inner) => RustType::Vec(Box::new(inner.to_rust())),
@@ -438,11 +438,13 @@ impl ToSql for RustType {
         SqlType::NotNull(Box::new(match self {
             RustType::Bool => SqlType::Boolean,
             RustType::U8(_) | RustType::I8(_) => SqlType::SmallInt,
-            RustType::U16(Range(_, upper)) if *upper <= i16::max_value() as u16 => {
+            RustType::U16(Range(_, upper, _)) if *upper <= i16::max_value() as u16 => {
                 SqlType::SmallInt
             }
             RustType::I16(_) => SqlType::SmallInt,
-            RustType::U32(Range(_, upper)) if *upper <= i32::max_value() as u32 => SqlType::Integer,
+            RustType::U32(Range(_, upper, _)) if *upper <= i32::max_value() as u32 => {
+                SqlType::Integer
+            }
             RustType::U16(_) | RustType::I32(_) => SqlType::Integer,
             RustType::U32(_) | RustType::U64(_) | RustType::I64(_) => SqlType::BigInt,
             RustType::String => SqlType::Text,
@@ -969,54 +971,68 @@ mod tests {
     fn test_rust_to_sql_to_rust() {
         assert_eq!(RustType::Bool.to_sql().to_rust(), RustType::Bool);
         assert_eq!(
-            RustType::I8(Range(0, i8::max_value())).to_sql().to_rust(),
-            RustType::I16(Range(0, i16::max_value()))
-        );
-        assert_eq!(
-            RustType::U8(Range(0, u8::max_value())).to_sql().to_rust(),
-            RustType::I16(Range(0, i16::max_value()))
-        );
-        assert_eq!(
-            RustType::I16(Range(0, i16::max_value())).to_sql().to_rust(),
-            RustType::I16(Range(0, i16::max_value()))
-        );
-        assert_eq!(
-            RustType::U16(Range(0, i16::max_value() as u16))
+            RustType::I8(Range::inclusive(0, i8::max_value()))
                 .to_sql()
                 .to_rust(),
-            RustType::I16(Range(0, i16::max_value()))
+            RustType::I16(Range::inclusive(0, i16::max_value()))
         );
         assert_eq!(
-            RustType::U16(Range(0, u16::max_value())).to_sql().to_rust(),
-            RustType::I32(Range(0, i32::max_value()))
-        );
-        assert_eq!(
-            RustType::I32(Range(0, i32::max_value())).to_sql().to_rust(),
-            RustType::I32(Range(0, i32::max_value()))
-        );
-        assert_eq!(
-            RustType::U32(Range(0, i32::max_value() as u32))
+            RustType::U8(Range::inclusive(0, u8::max_value()))
                 .to_sql()
                 .to_rust(),
-            RustType::I32(Range(0, i32::max_value()))
+            RustType::I16(Range::inclusive(0, i16::max_value()))
         );
         assert_eq!(
-            RustType::U32(Range(0, u32::max_value())).to_sql().to_rust(),
-            RustType::I64(Range(0, i64::max_value()))
-        );
-        assert_eq!(
-            RustType::I64(Range(0, i64::max_value())).to_sql().to_rust(),
-            RustType::I64(Range(0, i64::max_value()))
-        );
-        assert_eq!(
-            RustType::U64(None).to_sql().to_rust(),
-            RustType::I64(Range(0, i64::max_value()))
-        );
-        assert_eq!(
-            RustType::U64(Some(Range(0, u64::max_value())))
+            RustType::I16(Range::inclusive(0, i16::max_value()))
                 .to_sql()
                 .to_rust(),
-            RustType::I64(Range(0, i64::max_value()))
+            RustType::I16(Range::inclusive(0, i16::max_value()))
+        );
+        assert_eq!(
+            RustType::U16(Range::inclusive(0, i16::max_value() as u16))
+                .to_sql()
+                .to_rust(),
+            RustType::I16(Range::inclusive(0, i16::max_value()))
+        );
+        assert_eq!(
+            RustType::U16(Range::inclusive(0, u16::max_value()))
+                .to_sql()
+                .to_rust(),
+            RustType::I32(Range::inclusive(0, i32::max_value()))
+        );
+        assert_eq!(
+            RustType::I32(Range::inclusive(0, i32::max_value()))
+                .to_sql()
+                .to_rust(),
+            RustType::I32(Range::inclusive(0, i32::max_value()))
+        );
+        assert_eq!(
+            RustType::U32(Range::inclusive(0, i32::max_value() as u32))
+                .to_sql()
+                .to_rust(),
+            RustType::I32(Range::inclusive(0, i32::max_value()))
+        );
+        assert_eq!(
+            RustType::U32(Range::inclusive(0, u32::max_value()))
+                .to_sql()
+                .to_rust(),
+            RustType::I64(Range::inclusive(0, i64::max_value()))
+        );
+        assert_eq!(
+            RustType::I64(Range::inclusive(0, i64::max_value()))
+                .to_sql()
+                .to_rust(),
+            RustType::I64(Range::inclusive(0, i64::max_value()))
+        );
+        assert_eq!(
+            RustType::U64(Range::none()).to_sql().to_rust(),
+            RustType::I64(Range::inclusive(0, i64::max_value()))
+        );
+        assert_eq!(
+            RustType::U64(Range::inclusive(Some(0), Some(u64::max_value())))
+                .to_sql()
+                .to_rust(),
+            RustType::I64(Range::inclusive(0, i64::max_value()))
         );
 
         assert_eq!(RustType::String.to_sql().to_rust(), RustType::String,);
@@ -1042,7 +1058,7 @@ mod tests {
         // only cases that are not already tested by above
         assert_eq!(
             SqlType::NotNull(SqlType::Serial.into()).to_rust(),
-            RustType::I32(Range(0, i32::max_value()))
+            RustType::I32(Range::inclusive(0, i32::max_value()))
         );
     }
 

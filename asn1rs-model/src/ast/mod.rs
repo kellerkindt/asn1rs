@@ -365,7 +365,6 @@ fn into_asn<C: Context<Primary = Type>>(
                         ConstLit::I64(name, value) => (name, value),
                     })
                     .for_each(|v| int.constants.push(v));
-                int.extensible = asn.extensible;
             }
             asn.primary
         },
