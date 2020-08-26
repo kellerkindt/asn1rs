@@ -130,7 +130,8 @@ pub trait Reader {
     }
 
     /// Range is inclusive
-    fn read_int(&mut self, range: (i64, i64)) -> Result<i64, Error> {
+    fn read_int(&mut self, range: (i64, i64)) -> Result<i64, Error>;
+    /* {
         let (lower, upper) = range;
         let leading_zeros = ((upper - lower) as u64).leading_zeros();
 
@@ -140,9 +141,10 @@ pub trait Reader {
         self.read_bit_string_till_end(&mut buffer[..], leading_zeros as usize)?;
         let value = NetworkEndian::read_u64(&buffer[..]) as i64;
         Ok(value + lower)
-    }
+    }*/
 
-    fn read_int_normally_small(&mut self) -> Result<u64, Error> {
+    fn read_int_normally_small(&mut self) -> Result<u64, Error>;
+    /*{
         // X.691-201508 11.6
         let is_small = !self.read_bit()?;
         if is_small {
@@ -157,9 +159,10 @@ pub trait Reader {
             // u64::try_from(value).map_err(|_| Error::ValueIsNegativeButExpectedUnsigned(value))
             Ok(value)
         }
-    }
+    }*/
 
-    fn read_int_max_signed(&mut self) -> Result<i64, Error> {
+    fn read_int_max_signed(&mut self) -> Result<i64, Error>;
+    /*{
         let len_in_bytes = self.read_length_determinant()?;
         if len_in_bytes > std::mem::size_of::<i64>() {
             Err(Error::UnsupportedOperation(
@@ -177,9 +180,10 @@ pub trait Reader {
             }
             Ok(i64::from_be_bytes(buffer))
         }
-    }
+    }*/
 
-    fn read_int_max_unsigned(&mut self) -> Result<u64, Error> {
+    fn read_int_max_unsigned(&mut self) -> Result<u64, Error>;
+    /* {
         let len_in_bytes = self.read_length_determinant()?;
         if len_in_bytes > std::mem::size_of::<u64>() {
             Err(Error::UnsupportedOperation(
@@ -191,14 +195,15 @@ pub trait Reader {
             self.read_bit_string_till_end(&mut buffer[..], offset)?;
             Ok(u64::from_be_bytes(buffer))
         }
-    }
+    }*/
 
     fn read_bit_string(
         &mut self,
         buffer: &mut [u8],
         bit_offset: usize,
         bit_length: usize,
-    ) -> Result<(), Error> {
+    ) -> Result<(), Error>;
+    /* {
         if buffer.len() * BYTE_LEN < bit_offset || buffer.len() * BYTE_LEN < bit_offset + bit_length
         {
             return Err(Error::InsufficientSpaceInDestinationBuffer);
@@ -217,7 +222,7 @@ pub trait Reader {
             }
         }
         Ok(())
-    }
+    }*/
 
     fn read_octet_string(&mut self, length_range: Option<(i64, i64)>) -> Result<Vec<u8>, Error> {
         let len = if let Some((min, max)) = length_range {
@@ -234,13 +239,15 @@ pub trait Reader {
         &mut self,
         buffer: &mut [u8],
         bit_offset: usize,
-    ) -> Result<(), Error> {
+    ) -> Result<(), Error>;
+    /* {
         let len = (buffer.len() * BYTE_LEN) - bit_offset;
         self.read_bit_string(buffer, bit_offset, len)
-    }
+    }*/
 
     #[allow(clippy::if_not_else)]
-    fn read_length_determinant(&mut self) -> Result<usize, Error> {
+    fn read_length_determinant(&mut self) -> Result<usize, Error>;
+    /*{
         if !self.read_bit()? {
             // length <= UPER_LENGTH_DET_L1
             Ok(self.read_int((0, UPER_LENGTH_DET_L1))? as usize)
@@ -252,7 +259,7 @@ pub trait Reader {
                 "Cannot read length determinant for other than i8 and i16".into(),
             ))
         }
-    }
+    }*/
 
     fn read_bit(&mut self) -> Result<bool, Error>;
 }

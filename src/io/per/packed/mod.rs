@@ -1,5 +1,4 @@
 use crate::io::per::PackedRead;
-use std::num::NonZeroU64;
 
 pub mod buffer;
 pub mod slice;
@@ -76,7 +75,7 @@ impl<T: BitRead> PackedRead for T {
                 *byte = 0xFF;
             }
             for i in 0..bit_offset {
-                bytes[byte_offset] |= (0x80 >> i);
+                bytes[byte_offset] |= 0x80 >> i;
             }
         }
         Ok(i64::from_be_bytes(bytes))

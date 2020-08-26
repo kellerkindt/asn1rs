@@ -303,9 +303,11 @@ impl<'a> UperWriter for (&'a mut [u8], &mut usize) {
 #[allow(clippy::module_name_repetitions)]
 pub mod legacy {
     use super::*;
-    use crate::io::uper::Error as UperError;
     use crate::io::uper::Reader as UperReader;
     use crate::io::uper::Writer as UperWriter;
+    use crate::io::uper::{Error as UperError, UPER_LENGTH_DET_L1, UPER_LENGTH_DET_L2};
+    use byteorder::ByteOrder;
+    use byteorder::NetworkEndian;
 
     pub const SIZE_BITS: usize = 100 * BYTE_LEN;
 
@@ -313,6 +315,119 @@ pub mod legacy {
 
     // the legacy BitBuffer relies solely on read_bit(), no performance optimisation
     impl UperReader for LegacyBitBuffer<'_> {
+        fn read_int(&mut self, range: (i64, i64)) -> Result<i64, Error> {
+            let (lower, upper) = range;
+            let leading_zeros = ((upper - lower) as u64).leading_zeros();
+
+            let mut buffer = [0_u8; 8];
+            let buffer_bits = buffer.len() * BYTE_LEN as usize;
+            debug_assert!(buffer_bits == 64);
+            self.read_bit_string_till_end(&mut buffer[..], leading_zeros as usize)?;
+            let value = NetworkEndian::read_u64(&buffer[..]) as i64;
+            Ok(value + lower)
+        }
+
+        fn read_int_normally_small(&mut self) -> Result<u64, Error> {
+            // X.691-201508 11.6
+            let is_small = !self.read_bit()?;
+            if is_small {
+                // 11.6.1: 6 bit of the number
+                let mut buffer = [0u8; std::mem::size_of::<u64>()];
+                self.read_bit_string(&mut buffer[7..8], 2, 6)?;
+                Ok(u64::from_be_bytes(buffer))
+            } else {
+                // 11.6.2: (length-determinant + number)
+                // this cannot be negative... logically
+                let value = self.read_int_max_unsigned()?;
+                // u64::try_from(value).map_err(|_| Error::ValueIsNegativeButExpectedUnsigned(value))
+                Ok(value)
+            }
+        }
+
+        fn read_int_max_signed(&mut self) -> Result<i64, Error> {
+            let len_in_bytes = self.read_length_determinant()?;
+            if len_in_bytes > std::mem::size_of::<i64>() {
+                Err(Error::UnsupportedOperation(
+                    "Reading bigger data types than 64bit is not supported".into(),
+                ))
+            } else {
+                let mut buffer = [0_u8; std::mem::size_of::<i64>()];
+                let offset = (buffer.len() - len_in_bytes) * BYTE_LEN;
+                self.read_bit_string_till_end(&mut buffer[..], offset)?;
+                let sign_position = buffer.len() - len_in_bytes;
+                if buffer[sign_position] & 0x80 != 0 {
+                    for value in buffer.iter_mut().take(sign_position) {
+                        *value = 0xFF;
+                    }
+                }
+                Ok(i64::from_be_bytes(buffer))
+            }
+        }
+
+        fn read_int_max_unsigned(&mut self) -> Result<u64, Error> {
+            let len_in_bytes = self.read_length_determinant()?;
+            if len_in_bytes > std::mem::size_of::<u64>() {
+                Err(Error::UnsupportedOperation(
+                    "Reading bigger data types than 64bit is not supported".into(),
+                ))
+            } else {
+                let mut buffer = [0_u8; std::mem::size_of::<u64>()];
+                let offset = (buffer.len() - len_in_bytes) * BYTE_LEN;
+                self.read_bit_string_till_end(&mut buffer[..], offset)?;
+                Ok(u64::from_be_bytes(buffer))
+            }
+        }
+
+        fn read_bit_string(
+            &mut self,
+            buffer: &mut [u8],
+            bit_offset: usize,
+            bit_length: usize,
+        ) -> Result<(), Error> {
+            if buffer.len() * BYTE_LEN < bit_offset
+                || buffer.len() * BYTE_LEN < bit_offset + bit_length
+            {
+                return Err(Error::InsufficientSpaceInDestinationBuffer);
+            }
+            for bit in bit_offset..bit_offset + bit_length {
+                let byte_pos = bit / BYTE_LEN;
+                let bit_pos = bit % BYTE_LEN;
+                let bit_pos = BYTE_LEN - bit_pos - 1; // flip
+
+                if self.read_bit()? {
+                    // set bit
+                    buffer[byte_pos] |= 0x01 << bit_pos;
+                } else {
+                    // reset bit
+                    buffer[byte_pos] &= !(0x01 << bit_pos);
+                }
+            }
+            Ok(())
+        }
+
+        fn read_bit_string_till_end(
+            &mut self,
+            buffer: &mut [u8],
+            bit_offset: usize,
+        ) -> Result<(), Error> {
+            let len = (buffer.len() * BYTE_LEN) - bit_offset;
+            self.read_bit_string(buffer, bit_offset, len)
+        }
+
+        fn read_length_determinant(&mut self) -> Result<usize, Error> {
+            if !self.read_bit()? {
+                // length <= UPER_LENGTH_DET_L1
+                Ok(self.read_int((0, UPER_LENGTH_DET_L1))? as usize)
+            } else if !self.read_bit()? {
+                // length <= UPER_LENGTH_DET_L2
+                Ok(self.read_int((0, UPER_LENGTH_DET_L2))? as usize)
+            } else {
+                Err(Error::UnsupportedOperation(
+                    "Cannot read length determinant for other than i8 and i16".into(),
+                ))
+            }
+        }
+
         fn read_bit(&mut self) -> Result<bool, UperError> {
             self.0.read_bit()
         }
