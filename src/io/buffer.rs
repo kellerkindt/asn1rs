@@ -1,13 +1,13 @@
 use crate::io::uper::Writer as UperWriter;
+use crate::io::uper::Writer;
 use crate::io::uper::BYTE_LEN;
 use crate::io::uper::{Error as UperError, Error};
-use crate::io::uper::{Reader as UperReader, Writer};
 use std::iter;
 
 #[allow(clippy::module_name_repetitions)]
 #[derive(Debug, Default)]
 pub struct BitBuffer {
-    buffer: Vec<u8>,
+    pub(crate) buffer: Vec<u8>,
     pub(crate) write_position: usize,
     pub(crate) read_position: usize,
 }
@@ -136,7 +136,7 @@ fn bit_string_copy(
     Ok(())
 }
 
-fn bit_string_copy_bulked(
+pub(crate) fn bit_string_copy_bulked(
     src: &[u8],
     src_bit_position: usize,
     dst: &mut [u8],
@@ -227,45 +227,6 @@ impl From<Vec<u8>> for BitBuffer {
     }
 }
 
-impl UperReader for BitBuffer {
-    #[inline]
-    fn read_substring_with_length_determinant_prefix(&mut self) -> Result<BitBuffer, Error> {
-        // let the new buffer have the same bit_alignment as this current instance
-        // so that ```bit_string_copy_bulked``` can utilize the fast copy-path
-        let byte_len = self.read_length_determinant()?;
-        let bit_len = byte_len * BYTE_LEN;
-        let bit_offset = self.read_position % BYTE_LEN;
-
-        let mut bytes = vec![0x00_u8; byte_len + if bit_offset > 0 { 1 } else { 0 }];
-        self.read_bit_string(&mut bytes[..], bit_offset, bit_len)?;
-
-        Ok(BitBuffer {
-            buffer: bytes,
-            write_position: bit_len + bit_offset,
-            read_position: bit_offset,
-        })
-    }
-
-    #[inline]
-    fn read_bit_string(
-        &mut self,
-        buffer: &mut [u8],
-        bit_offset: usize,
-        bit_length: usize,
-    ) -> Result<(), UperError> {
-        (&self.buffer[..], &mut self.read_position).read_bit_string(buffer, bit_offset, bit_length)
-    }
-
-    #[inline]
-    fn read_bit(&mut self) -> Result<bool, UperError> {
-        if self.read_position < self.write_position {
-            (&self.buffer[..], &mut self.read_position).read_bit()
-        } else {
-            Err(UperError::EndOfStream)
-        }
-    }
-}
-
 impl UperWriter for BitBuffer {
     #[inline]
     fn write_substring_with_length_determinant_prefix(
@@ -309,29 +270,9 @@ impl UperWriter for BitBuffer {
         (&mut self.buffer[..], &mut self.write_position).write_bit(bit)
     }
 }
-impl<'a> UperReader for (&'a [u8], &mut usize) {
-    fn read_bit_string(
-        &mut self,
-        buffer: &mut [u8],
-        bit_offset: usize,
-        bit_length: usize,
-    ) -> Result<(), Error> {
-        bit_string_copy_bulked(&self.0[..], *self.1, buffer, bit_offset, bit_length)?;
-        *self.1 += bit_length;
-        Ok(())
-    }
-
-    fn read_bit(&mut self) -> Result<bool, Error> {
-        if *self.1 > self.0.len() * BYTE_LEN {
-            return Err(Error::EndOfStream);
-        }
-        let bit = self.0[*self.1 / BYTE_LEN] & (0x80 >> (*self.1 % BYTE_LEN)) != 0;
-        *self.1 += 1;
-        Ok(bit)
-    }
-}
 
 impl<'a> UperWriter for (&'a mut [u8], &mut usize) {
+    #[inline]
     fn write_bit_string(
         &mut self,
         buffer: &[u8],
@@ -343,6 +284,7 @@ impl<'a> UperWriter for (&'a mut [u8], &mut usize) {
         Ok(())
     }
 
+    #[inline]
     fn write_bit(&mut self, bit: bool) -> Result<(), UperError> {
         if *self.1 + 1 > self.0.len() * BYTE_LEN {
             return Err(Error::EndOfStream);
@@ -469,6 +411,7 @@ pub mod legacy {
 mod tests {
     use super::legacy::*;
     use super::*;
+    use crate::io::uper::Reader as UperReader;
 
     #[test]
     fn test_legacy_bit_string_offset_0_to_7_pos_0_to_7() {

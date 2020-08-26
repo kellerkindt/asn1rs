@@ -1,4 +1,6 @@
 use crate::io::buffer::BitBuffer;
+use crate::io::per::packed::BitRead;
+use crate::io::per::PackedRead;
 use byteorder::ByteOrder;
 use byteorder::NetworkEndian;
 
@@ -93,6 +95,7 @@ pub trait Uper {
     fn write_uper(&self, writer: &mut dyn Writer) -> Result<(), Error>;
 }
 
+#[deprecated(note = "Use the UperReader/-Writer with the Read-/Writable interface instead")]
 pub trait Reader {
     /// Sub-strings larger than 16k are not supported
     fn read_substring_with_length_determinant_prefix(&mut self) -> Result<BitBuffer, Error> {
@@ -254,6 +257,58 @@ pub trait Reader {
     fn read_bit(&mut self) -> Result<bool, Error>;
 }
 
+impl<T: BitRead<Error = Error> + PackedRead<Error = Error>> Reader for T {
+    #[inline]
+    fn read_int(&mut self, (lower_bound, upper_bound): (i64, i64)) -> Result<i64, Error> {
+        <T as PackedRead>::read_constrained_whole_number(self, lower_bound, upper_bound)
+    }
+
+    #[inline]
+    fn read_int_normally_small(&mut self) -> Result<u64, Error> {
+        <T as PackedRead>::read_normally_small_length(self)
+    }
+
+    #[inline]
+    fn read_int_max_signed(&mut self) -> Result<i64, Error> {
+        <T as PackedRead>::read_unconstrained_whole_number(self)
+    }
+
+    #[inline]
+    fn read_int_max_unsigned(&mut self) -> Result<u64, Error> {
+        <T as PackedRead>::read_non_negative_binary_integer(self, None, None)
+    }
+
+    #[inline]
+    fn read_bit_string(
+        &mut self,
+        buffer: &mut [u8],
+        bit_offset: usize,
+        bit_length: usize,
+    ) -> Result<(), Error> {
+        <T as BitRead>::read_bits_with_offset_len(self, buffer, bit_offset, bit_length)
+    }
+
+    #[inline]
+    fn read_bit_string_till_end(
+        &mut self,
+        buffer: &mut [u8],
+        bit_offset: usize,
+    ) -> Result<(), Error> {
+        <T as BitRead>::read_bits_with_offset(self, buffer, bit_offset)
+    }
+
+    #[inline]
+    fn read_length_determinant(&mut self) -> Result<usize, Error> {
+        <T as PackedRead>::read_length_determinant(self, None, None).map(|v| v as usize)
+    }
+
+    #[inline]
+    fn read_bit(&mut self) -> Result<bool, Error> {
+        <T as BitRead>::read_bit(self)
+    }
+}
+
+#[deprecated(note = "Use the UperReader/-Writer with the Read-/Writable interface instead")]
 pub trait Writer {
     /// Sub-strings larger than 16k are not supported
     fn write_substring_with_length_determinant_prefix(

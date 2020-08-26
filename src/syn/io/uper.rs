@@ -682,21 +682,32 @@ impl Reader for UperReader {
     ) -> Result<T, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
         self.with_buffer(|w| {
-            let max_fn = if C::EXTENSIBLE {
-                w.buffer.read_bit()?
+            let unconstrained = if C::EXTENSIBLE {
+                // w.buffer.read_bit()?
+                crate::io::per::PackedRead::read_boolean(&mut w.buffer)?
             } else {
                 C::MIN.is_none() && C::MAX.is_none()
             };
 
-            if max_fn {
-                w.buffer.read_int_max_signed().map(T::from_i64)
+            if unconstrained {
+                // w.buffer.read_int_max_signed().map(T::from_i64)
+                crate::io::per::PackedRead::read_unconstrained_whole_number(&mut w.buffer)
+                    .map(T::from_i64)
             } else {
+                crate::io::per::PackedRead::read_constrained_whole_number(
+                    &mut w.buffer,
+                    C::MIN.map(T::to_i64).unwrap_or(0),
+                    C::MAX.map(T::to_i64).unwrap_or(i64::MAX),
+                )
+                .map(T::from_i64)
+                /*
                 w.buffer
                     .read_int((
                         C::MIN.map(T::to_i64).unwrap_or(0),
                         C::MAX.map(T::to_i64).unwrap_or(i64::MAX),
                     ))
                     .map(T::from_i64)
+                     */
             }
         })
     }
@@ -727,7 +738,7 @@ impl Reader for UperReader {
     #[inline]
     fn read_boolean<C: boolean::Constraint>(&mut self) -> Result<bool, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|w| w.buffer.read_bit())
+        self.with_buffer(|w| crate::io::per::PackedRead::read_boolean(&mut w.buffer))
     }
 }
 
