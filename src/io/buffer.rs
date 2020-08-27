@@ -97,6 +97,16 @@ impl BitBuffer {
         self.read_position = before;
         result
     }
+
+    /// Sets the `write_position` to `read_position + max_read_len` for the call of the given
+    /// closure
+    pub fn with_max_read<T, F: Fn(&mut Self) -> T>(&mut self, max_read_len: usize, f: F) -> T {
+        let before =
+            core::mem::replace(&mut self.write_position, self.read_position + max_read_len);
+        let result = f(self);
+        self.write_position = before;
+        result
+    }
 }
 
 fn bit_string_copy(

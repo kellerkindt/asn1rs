@@ -11,9 +11,9 @@ impl<T: Constraint> Default for Sequence<T> {
 
 pub trait Constraint {
     const NAME: &'static str;
-    const STD_OPTIONAL_FIELDS: usize;
-    const FIELD_COUNT: usize;
-    const EXTENDED_AFTER_FIELD: Option<usize>;
+    const STD_OPTIONAL_FIELDS: u64;
+    const FIELD_COUNT: u64;
+    const EXTENDED_AFTER_FIELD: Option<u64>;
 
     fn read_seq<R: Reader>(reader: &mut R) -> Result<Self, R::Error>
     where

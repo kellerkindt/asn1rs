@@ -321,7 +321,7 @@ impl AsnDefWriter {
 
         imp.new_fn("to_choice_index")
             .arg_ref_self()
-            .ret("usize")
+            .ret("u64")
             .push_block({
                 let mut match_block = Block::new("match self");
                 for (index, variant) in enumerated.variants().enumerate() {
@@ -331,7 +331,7 @@ impl AsnDefWriter {
             });
 
         imp.new_fn("from_choice_index")
-            .arg("index", "usize")
+            .arg("index", "u64")
             .ret("Option<Self>")
             .push_block({
                 let mut match_block = Block::new("match index");
@@ -347,9 +347,9 @@ impl AsnDefWriter {
             imp,
             &[
                 format!("const NAME: &'static str = \"{}\";", name),
-                format!("const VARIANT_COUNT: usize = {};", enumerated.len()),
+                format!("const VARIANT_COUNT: u64 = {};", enumerated.len()),
                 format!(
-                    "const STD_VARIANT_COUNT: usize = {};",
+                    "const STD_VARIANT_COUNT: u64 = {};",
                     enumerated
                         .extension_after_index()
                         .map(|v| v + 1)
@@ -366,7 +366,7 @@ impl AsnDefWriter {
 
         imp.new_fn("to_choice_index")
             .arg_ref_self()
-            .ret("usize")
+            .ret("u64")
             .push_block({
                 let mut match_block = Block::new("match self");
                 for (index, variant) in choice.variants().enumerate() {
@@ -395,7 +395,7 @@ impl AsnDefWriter {
 
         imp.new_fn("read_content")
             .generic(&format!("R: {}Reader", CRATE_SYN_PREFIX))
-            .arg("index", "usize")
+            .arg("index", "u64")
             .arg("reader", "&mut R")
             .ret("Result<Option<Self>, R::Error>")
             .push_block({
@@ -418,9 +418,9 @@ impl AsnDefWriter {
             imp,
             &[
                 format!("const NAME: &'static str = \"{}\";", name),
-                format!("const VARIANT_COUNT: usize = {};", choice.len()),
+                format!("const VARIANT_COUNT: u64 = {};", choice.len()),
                 format!(
-                    "const STD_VARIANT_COUNT: usize = {};",
+                    "const STD_VARIANT_COUNT: u64 = {};",
                     choice
                         .extension_after_index()
                         .map(|v| v + 1)
@@ -499,12 +499,12 @@ impl AsnDefWriter {
             imp,
             &[
                 format!(
-                    "const EXTENDED_AFTER_FIELD: Option<usize> = {:?};",
+                    "const EXTENDED_AFTER_FIELD: Option<u64> = {:?};",
                     extension_after_field
                 ),
-                format!("const FIELD_COUNT: usize = {};", fields.len()),
+                format!("const FIELD_COUNT: u64 = {};", fields.len()),
                 format!(
-                    "const STD_OPTIONAL_FIELDS: usize = {};",
+                    "const STD_OPTIONAL_FIELDS: u64 = {};",
                     fields
                         .iter()
                         .enumerate()
@@ -678,9 +678,9 @@ pub mod tests {
             r#"
             impl ::asn1rs::syn::sequence::Constraint for Whatever {
                 const NAME: &'static str = "Whatever";
-                const STD_OPTIONAL_FIELDS: usize = 2;
-                const FIELD_COUNT: usize = 3;
-                const EXTENDED_AFTER_FIELD: Option<usize> = None;
+                const STD_OPTIONAL_FIELDS: u64 = 2;
+                const FIELD_COUNT: u64 = 3;
+                const EXTENDED_AFTER_FIELD: Option<u64> = None;
                 
                 fn read_seq<R: ::asn1rs::syn::Reader>(reader: &mut R) -> Result<Self, R::Error>
                 where Self: Sized,
@@ -729,9 +729,9 @@ pub mod tests {
             r#"
             impl ::asn1rs::syn::sequence::Constraint for Potato {
                 const NAME: &'static str = "Potato";
-                const STD_OPTIONAL_FIELDS: usize = 1;
-                const FIELD_COUNT: usize = 3;
-                const EXTENDED_AFTER_FIELD: Option<usize> = Some(1);
+                const STD_OPTIONAL_FIELDS: u64 = 1;
+                const FIELD_COUNT: u64 = 3;
+                const EXTENDED_AFTER_FIELD: Option<u64> = Some(1);
                 
                 fn read_seq<R: ::asn1rs::syn::Reader>(reader: &mut R) -> Result<Self, R::Error>
                 where Self: Sized,

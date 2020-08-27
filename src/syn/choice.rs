@@ -11,15 +11,15 @@ impl<C: Constraint> Default for Choice<C> {
 
 pub trait Constraint: Sized {
     const NAME: &'static str;
-    const VARIANT_COUNT: usize;
-    const STD_VARIANT_COUNT: usize;
+    const VARIANT_COUNT: u64;
+    const STD_VARIANT_COUNT: u64;
     const EXTENSIBLE: bool = false;
 
-    fn to_choice_index(&self) -> usize;
+    fn to_choice_index(&self) -> u64;
 
     fn write_content<W: Writer>(&self, writer: &mut W) -> Result<(), W::Error>;
 
-    fn read_content<R: Reader>(index: usize, reader: &mut R) -> Result<Option<Self>, R::Error>;
+    fn read_content<R: Reader>(index: u64, reader: &mut R) -> Result<Option<Self>, R::Error>;
 }
 
 impl<C: Constraint> WritableType for Choice<C> {

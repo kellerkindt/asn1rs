@@ -174,9 +174,9 @@ mod tests {
 
         impl sequence::Constraint for Whatever {
             const NAME: &'static str = "Whatever";
-            const STD_OPTIONAL_FIELDS: usize = 2;
-            const FIELD_COUNT: usize = 3;
-            const EXTENDED_AFTER_FIELD: Option<usize> = None;
+            const STD_OPTIONAL_FIELDS: u64 = 2;
+            const FIELD_COUNT: u64 = 3;
+            const EXTENDED_AFTER_FIELD: Option<u64> = None;
 
             fn read_seq<R: Reader>(reader: &mut R) -> Result<Self, <R as Reader>::Error>
             where
