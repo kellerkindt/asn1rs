@@ -1,8 +1,9 @@
 use crate::io::buffer::BitBuffer;
 use crate::io::per::unaligned::BitRead;
+use crate::io::per::unaligned::BitWrite;
 use crate::io::per::PackedRead;
+use crate::io::per::PackedWrite;
 use crate::io::uper::Error as UperError;
-use crate::io::uper::Writer as _UperWriter;
 use crate::prelude::*;
 use std::ops::Range;
 
@@ -97,7 +98,9 @@ impl Scope {
             } => {
                 if *calls_until_ext_bitfield == 0 {
                     // when we reach this point, there is never zero numbers of ext-fields
-                    buffer.write_int_normally_small(*number_of_ext_fields as u64 - 1)?;
+                    buffer.write_normally_small_non_negative_whole_number(
+                        *number_of_ext_fields as u64 - 1,
+                    )?;
                     let pos = buffer.write_position;
                     for _ in 0..*number_of_ext_fields {
                         if let Err(e) = buffer.write_bit(true) {
@@ -264,9 +267,7 @@ impl UperWriter {
             let mut writer = UperWriter::default();
             let result = f(&mut writer)?;
             self.buffer
-                .write_length_determinant(writer.buffer.byte_len())?;
-            self.buffer
-                .write_bit_string_till_end(writer.buffer.content(), 0)?;
+                .write_octetstring(None, None, false, writer.buffer.content())?;
             Ok(result)
         } else {
             f(self)
@@ -334,7 +335,8 @@ impl Writer for UperWriter {
             ));
         }
         self.scope_stashed(|w| {
-            w.buffer.write_length_determinant(slice.len() - min)?; // TODO untested for MIN != 0
+            w.buffer
+                .write_length_determinant(C::MIN, C::MAX, slice.len() as u64)?;
             for value in slice {
                 T::write_value(w, value)?;
             }
@@ -348,48 +350,60 @@ impl Writer for UperWriter {
         enumerated: &C,
     ) -> Result<(), Self::Error> {
         self.write_bit_field_entry(false, true)?;
-        if C::EXTENSIBLE {
-            self.with_buffer(|w| {
-                w.buffer.write_choice_index_extensible(
-                    enumerated.to_choice_index() as u64,
-                    C::STD_VARIANT_COUNT as u64,
+        self.with_buffer(|w| {
+            let index = enumerated.to_choice_index();
+            let out_of_range = index >= C::STD_VARIANT_COUNT;
+            if C::EXTENSIBLE {
+                w.buffer.write_bit(out_of_range)?;
+            }
+
+            if out_of_range {
+                if C::EXTENSIBLE {
+                    w.buffer
+                        .write_normally_small_length(index - C::STD_VARIANT_COUNT)
+                } else {
+                    Err(UperError::InvalidChoiceIndex(index, C::STD_VARIANT_COUNT))
+                }
+            } else {
+                w.buffer.write_non_negative_binary_integer(
+                    None,
+                    Some(C::STD_VARIANT_COUNT - 1),
+                    index,
                 )
-            })
-        } else {
-            self.with_buffer(|w| {
-                w.buffer.write_choice_index(
-                    enumerated.to_choice_index() as u64,
-                    C::STD_VARIANT_COUNT as u64,
-                )
-            })
-        }
+            }
+        })
     }
 
     #[inline]
     fn write_choice<C: choice::Constraint>(&mut self, choice: &C) -> Result<(), Self::Error> {
         self.write_bit_field_entry(false, true)?;
         self.scope_stashed(|w| {
+            let index = choice.to_choice_index();
+            let out_of_range = index >= C::STD_VARIANT_COUNT;
             if C::EXTENSIBLE {
-                let index = choice.to_choice_index();
-                w.buffer
-                    .write_choice_index_extensible(index as u64, C::STD_VARIANT_COUNT as u64)?;
-                if index >= C::STD_VARIANT_COUNT {
+                w.buffer.write_bit(out_of_range)?;
+            }
+
+            if out_of_range {
+                if C::EXTENSIBLE {
+                    w.buffer
+                        .write_normally_small_length(index - C::STD_VARIANT_COUNT)?;
                     // TODO performance
-                    let mut writer = UperWriter::default();
+                    let mut writer = UperWriter::with_capacity(512);
                     choice.write_content(&mut writer)?;
                     w.buffer
-                        .write_length_determinant(writer.byte_content().len())?;
-                    return w
-                        .buffer
-                        .write_bit_string_till_end(&writer.byte_content(), 0);
+                        .write_octetstring(None, None, false, writer.byte_content())
+                } else {
+                    Err(UperError::InvalidChoiceIndex(index, C::STD_VARIANT_COUNT))
                 }
             } else {
-                w.buffer.write_choice_index(
-                    choice.to_choice_index() as u64,
-                    C::STD_VARIANT_COUNT as u64,
+                w.buffer.write_non_negative_binary_integer(
+                    None,
+                    Some(C::STD_VARIANT_COUNT - 1),
+                    index,
                 )?;
+                choice.write_content(w)
             }
-            choice.write_content(w)
         })
     }
 
@@ -426,19 +440,17 @@ impl Writer for UperWriter {
                 if C::EXTENSIBLE {
                     w.buffer.write_bit(true)?;
                 }
-                w.buffer.write_int_max_signed(value)
+                w.buffer.write_unconstrained_whole_number(value)
             })
         } else {
             self.with_buffer(|w| {
                 if C::EXTENSIBLE {
                     w.buffer.write_bit(false)?;
                 }
-                w.buffer.write_int(
+                w.buffer.write_constrained_whole_number(
+                    const_unwrap_or!(C::MIN, 0),
+                    const_unwrap_or!(C::MAX, i64::MAX),
                     value,
-                    (
-                        const_unwrap_or!(C::MIN, 0),
-                        const_unwrap_or!(C::MAX, i64::MAX),
-                    ),
                 )
             })
         }
@@ -450,7 +462,10 @@ impl Writer for UperWriter {
         value: &str,
     ) -> Result<(), Self::Error> {
         self.write_bit_field_entry(false, true)?;
-        self.with_buffer(|w| w.buffer.write_utf8_string(value))
+        self.with_buffer(|w| {
+            w.buffer
+                .write_octetstring(C::MIN, C::MAX, C::EXTENSIBLE, value.as_bytes())
+        })
     }
 
     #[inline]
@@ -460,6 +475,10 @@ impl Writer for UperWriter {
     ) -> Result<(), Self::Error> {
         self.write_bit_field_entry(false, true)?;
         self.with_buffer(|w| {
+            use crate::io::per::PackedWrite;
+            w.buffer
+                .write_octetstring(C::MIN, C::MAX, C::EXTENSIBLE, value)
+            /*
             if C::EXTENSIBLE {
                 let min = C::MIN.unwrap_or_default();
                 let max = C::MAX.unwrap_or_else(|| i64::MAX as u64);
@@ -475,7 +494,7 @@ impl Writer for UperWriter {
                 )
             } else {
                 w.buffer.write_octet_string(value, bit_buffer_range::<C>())
-            }
+            }*/
         })
     }
 

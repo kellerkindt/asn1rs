@@ -107,6 +107,15 @@ impl BitBuffer {
         self.write_position = before;
         result
     }
+
+    pub fn ensure_can_write_additional_bits(&mut self, bit_len: usize) {
+        if self.write_position + bit_len >= self.buffer.len() * BYTE_LEN {
+            let required_len = ((self.write_position + bit_len) + 7) / BYTE_LEN;
+            let extend_by_len = required_len - self.buffer.len();
+            self.buffer
+                .extend(core::iter::repeat(0u8).take(extend_by_len))
+        }
+    }
 }
 
 fn bit_string_copy(
@@ -234,78 +243,6 @@ impl Into<Vec<u8>> for BitBuffer {
 impl From<Vec<u8>> for BitBuffer {
     fn from(buffer: Vec<u8>) -> Self {
         Self::from_bytes(buffer)
-    }
-}
-
-impl UperWriter for BitBuffer {
-    #[inline]
-    fn write_substring_with_length_determinant_prefix(
-        &mut self,
-        fun: &dyn Fn(&mut dyn Writer) -> Result<(), Error>,
-    ) -> Result<(), Error> {
-        let mut buffer = BitBuffer::default();
-        let bit_offset = self.write_position % BYTE_LEN;
-        // let the new buffer have the same bit_alignment as this current instance
-        // so that ```bit_string_copy_bulked``` can utilize the fast copy-path
-        buffer.write_bit_string(&[0x00_u8], 0, bit_offset)?;
-        fun(&mut buffer)?;
-        let byte_len = (buffer.bit_len() - bit_offset + (BYTE_LEN - 1)) / BYTE_LEN;
-        self.write_length_determinant(byte_len)?;
-        self.write_bit_string(buffer.content(), bit_offset, buffer.bit_len() - bit_offset)?;
-        Ok(())
-    }
-
-    #[inline]
-    fn write_bit_string(
-        &mut self,
-        buffer: &[u8],
-        bit_offset: usize,
-        bit_length: usize,
-    ) -> Result<(), UperError> {
-        let bytes_together = (self.write_position + bit_length + (BYTE_LEN - 1)) / BYTE_LEN;
-        if bytes_together > self.buffer.len() {
-            self.buffer
-                .extend(iter::repeat(0x00).take(bytes_together - self.buffer.len()));
-        }
-
-        (&mut self.buffer[..], &mut self.write_position)
-            .write_bit_string(buffer, bit_offset, bit_length)
-    }
-
-    #[inline]
-    fn write_bit(&mut self, bit: bool) -> Result<(), UperError> {
-        while self.write_position + 1 > self.buffer.len() * BYTE_LEN {
-            self.buffer.push(0x00);
-        }
-        (&mut self.buffer[..], &mut self.write_position).write_bit(bit)
-    }
-}
-
-impl<'a> UperWriter for (&'a mut [u8], &mut usize) {
-    #[inline]
-    fn write_bit_string(
-        &mut self,
-        buffer: &[u8],
-        bit_offset: usize,
-        bit_length: usize,
-    ) -> Result<(), UperError> {
-        bit_string_copy_bulked(buffer, bit_offset, &mut self.0[..], *self.1, bit_length)?;
-        *self.1 += bit_length;
-        Ok(())
-    }
-
-    #[inline]
-    fn write_bit(&mut self, bit: bool) -> Result<(), UperError> {
-        if *self.1 + 1 > self.0.len() * BYTE_LEN {
-            return Err(Error::EndOfStream);
-        }
-        if bit {
-            self.0[*self.1 / BYTE_LEN] |= 0x80 >> (*self.1 % BYTE_LEN);
-        } else {
-            self.0[*self.1 / BYTE_LEN] &= !(0x80 >> (*self.1 % BYTE_LEN));
-        }
-        *self.1 += 1;
-        Ok(())
     }
 }
 
@@ -470,6 +407,147 @@ pub mod legacy {
 
     // the legacy BitBuffer relies solely on write_bit(), no performance optimisation
     impl UperWriter for LegacyBitBuffer<'_> {
+        fn write_utf8_string(&mut self, value: &str) -> Result<(), Error> {
+            self.write_length_determinant(value.len())?;
+            self.write_bit_string_till_end(value.as_bytes(), 0)?;
+            Ok(())
+        }
+
+        /// Range is inclusive
+        fn write_int(&mut self, value: i64, range: (i64, i64)) -> Result<(), Error> {
+            let (lower, upper) = range;
+            let value = {
+                if value > upper || value < lower {
+                    return Err(Error::ValueNotInRange(value, lower, upper));
+                }
+                (value - lower) as u64
+            };
+            let leading_zeros = ((upper - lower) as u64).leading_zeros();
+
+            let mut buffer = [0_u8; 8];
+            NetworkEndian::write_u64(&mut buffer[..], value);
+            let buffer_bits = buffer.len() * BYTE_LEN as usize;
+            debug_assert!(buffer_bits == 64);
+
+            self.write_bit_string_till_end(&buffer[..], leading_zeros as usize)?;
+
+            Ok(())
+        }
+        fn write_int_normally_small(&mut self, value: u64) -> Result<(), Error> {
+            // X.691-201508 11.6
+            if value <= 63 {
+                // 11.6.1: '0'bit + 6 bit of the number
+                self.write_bit(false)?;
+                let buffer = value.to_be_bytes();
+                self.write_bit_string(&buffer[7..8], 2, 6)?; // last 6 bits
+                Ok(())
+            } else if value <= i64::max_value() as u64 {
+                // 11.6.2: '1'bit + (length-determinant + number)
+                self.write_bit(true)?;
+                self.write_int_max_unsigned(value as _)?;
+                Ok(())
+            } else {
+                Err(Error::ValueExceedsMaxInt)
+            }
+        }
+        fn write_int_max_signed(&mut self, value: i64) -> Result<(), Error> {
+            let buffer = value.to_be_bytes();
+            let mask = if value.is_negative() { 0xFF } else { 0x00 };
+            let byte_len = {
+                let mut len = buffer.len();
+                while len > 0 && buffer[buffer.len() - len] == mask {
+                    len -= 1;
+                }
+                // otherwise one could not distinguish this positive value
+                // from it being a totally different negative value
+                if value.is_positive() && value.leading_zeros() % 8 == 0 {
+                    len += 1;
+                }
+                len
+            }
+            .max(1);
+            self.write_length_determinant(byte_len)?;
+            let bit_offset = (buffer.len() - byte_len) * BYTE_LEN;
+            self.write_bit_string_till_end(&buffer, bit_offset)?;
+            Ok(())
+        }
+        fn write_int_max_unsigned(&mut self, value: u64) -> Result<(), Error> {
+            let buffer = value.to_be_bytes();
+            let byte_len = {
+                let mut len = buffer.len();
+                while len > 0 && buffer[buffer.len() - len] == 0x00 {
+                    len -= 1;
+                }
+                len
+            }
+            .max(1);
+            self.write_length_determinant(byte_len)?;
+            let bit_offset = (buffer.len() - byte_len) * BYTE_LEN;
+            self.write_bit_string_till_end(&buffer, bit_offset)?;
+            Ok(())
+        }
+
+        fn write_bit_string(
+            &mut self,
+            buffer: &[u8],
+            bit_offset: usize,
+            bit_length: usize,
+        ) -> Result<(), Error> {
+            if buffer.len() * BYTE_LEN < bit_offset
+                || buffer.len() * BYTE_LEN < bit_offset + bit_length
+            {
+                return Err(Error::InsufficientDataInSourceBuffer);
+            }
+            for bit in bit_offset..bit_offset + bit_length {
+                let byte_pos = bit / BYTE_LEN;
+                let bit_pos = bit % BYTE_LEN;
+                let bit_pos = BYTE_LEN - bit_pos - 1; // flip
+
+                let bit = (buffer[byte_pos] >> bit_pos & 0x01) == 0x01;
+                self.write_bit(bit)?;
+            }
+            Ok(())
+        }
+
+        fn write_octet_string(
+            &mut self,
+            string: &[u8],
+            length_range: Option<(i64, i64)>,
+        ) -> Result<(), Error> {
+            if let Some((min, max)) = length_range {
+                self.write_int(string.len() as i64, (min, max))?;
+            } else {
+                self.write_length_determinant(string.len())?;
+            }
+            self.write_bit_string_till_end(string, 0)?;
+            Ok(())
+        }
+
+        fn write_bit_string_till_end(
+            &mut self,
+            buffer: &[u8],
+            bit_offset: usize,
+        ) -> Result<(), Error> {
+            let len = (buffer.len() * BYTE_LEN) - bit_offset;
+            self.write_bit_string(buffer, bit_offset, len)
+        }
+
+        fn write_length_determinant(&mut self, length: usize) -> Result<(), Error> {
+            if length <= UPER_LENGTH_DET_L1 as usize {
+                self.write_bit(false)?;
+                self.write_int(length as i64, (0, UPER_LENGTH_DET_L1))
+            } else if length <= UPER_LENGTH_DET_L2 as usize {
+                self.write_bit(true)?;
+                self.write_bit(false)?;
+                self.write_int(length as i64, (0, UPER_LENGTH_DET_L2))
+            } else {
+                Err(Error::UnsupportedOperation(format!(
+            "Writing length determinant for lengths > {} is unsupported, tried for length {}",
+            UPER_LENGTH_DET_L2, length
+        )))
+            }
+        }
+
         fn write_bit(&mut self, bit: bool) -> Result<(), UperError> {
             self.0.write_bit(bit)
         }

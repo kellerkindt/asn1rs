@@ -1,6 +1,6 @@
 use crate::io::buffer::BitBuffer;
-use crate::io::per::unaligned::BitRead;
-use crate::io::per::PackedRead;
+use crate::io::per::unaligned::{BitRead, BitWrite};
+use crate::io::per::{PackedRead, PackedWrite};
 use byteorder::ByteOrder;
 use byteorder::NetworkEndian;
 
@@ -281,7 +281,7 @@ impl<T: BitRead<Error = Error> + PackedRead<Error = Error>> Reader for T {
 
     #[inline]
     fn read_int_normally_small(&mut self) -> Result<u64, Error> {
-        <T as PackedRead>::read_normally_small_length(self)
+        <T as PackedRead>::read_normally_small_non_negative_whole_number(self)
     }
 
     #[inline]
@@ -348,11 +348,12 @@ pub trait Writer {
         Ok(())
     }
 
-    fn write_utf8_string(&mut self, value: &str) -> Result<(), Error> {
+    fn write_utf8_string(&mut self, value: &str) -> Result<(), Error>;
+    /*{
         self.write_length_determinant(value.len())?;
         self.write_bit_string_till_end(value.as_bytes(), 0)?;
         Ok(())
-    }
+    }*/
 
     fn write_choice_index_extensible(
         &mut self,
@@ -373,7 +374,8 @@ pub trait Writer {
     }
 
     /// Range is inclusive
-    fn write_int(&mut self, value: i64, range: (i64, i64)) -> Result<(), Error> {
+    fn write_int(&mut self, value: i64, range: (i64, i64)) -> Result<(), Error>;
+    /*{
         let (lower, upper) = range;
         let value = {
             if value > upper || value < lower {
@@ -391,9 +393,10 @@ pub trait Writer {
         self.write_bit_string_till_end(&buffer[..], leading_zeros as usize)?;
 
         Ok(())
-    }
+    }*/
 
-    fn write_int_normally_small(&mut self, value: u64) -> Result<(), Error> {
+    fn write_int_normally_small(&mut self, value: u64) -> Result<(), Error>;
+    /*{
         // X.691-201508 11.6
         if value <= 63 {
             // 11.6.1: '0'bit + 6 bit of the number
@@ -409,10 +412,11 @@ pub trait Writer {
         } else {
             Err(Error::ValueExceedsMaxInt)
         }
-    }
+    }*/
 
     /// ??? X.691-201508 11.9
-    fn write_int_max_signed(&mut self, value: i64) -> Result<(), Error> {
+    fn write_int_max_signed(&mut self, value: i64) -> Result<(), Error>;
+    /*{
         let buffer = value.to_be_bytes();
         let mask = if value.is_negative() { 0xFF } else { 0x00 };
         let byte_len = {
@@ -432,10 +436,11 @@ pub trait Writer {
         let bit_offset = (buffer.len() - byte_len) * BYTE_LEN;
         self.write_bit_string_till_end(&buffer, bit_offset)?;
         Ok(())
-    }
+    }*/
 
     /// ??? X.691-201508 11.9
-    fn write_int_max_unsigned(&mut self, value: u64) -> Result<(), Error> {
+    fn write_int_max_unsigned(&mut self, value: u64) -> Result<(), Error>;
+    /*{
         let buffer = value.to_be_bytes();
         let byte_len = {
             let mut len = buffer.len();
@@ -449,14 +454,15 @@ pub trait Writer {
         let bit_offset = (buffer.len() - byte_len) * BYTE_LEN;
         self.write_bit_string_till_end(&buffer, bit_offset)?;
         Ok(())
-    }
+    }*/
 
     fn write_bit_string(
         &mut self,
         buffer: &[u8],
         bit_offset: usize,
         bit_length: usize,
-    ) -> Result<(), Error> {
+    ) -> Result<(), Error>;
+    /* {
         if buffer.len() * BYTE_LEN < bit_offset || buffer.len() * BYTE_LEN < bit_offset + bit_length
         {
             return Err(Error::InsufficientDataInSourceBuffer);
@@ -470,13 +476,14 @@ pub trait Writer {
             self.write_bit(bit)?;
         }
         Ok(())
-    }
+    }*/
 
     fn write_octet_string(
         &mut self,
         string: &[u8],
         length_range: Option<(i64, i64)>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), Error>;
+    /*{
         if let Some((min, max)) = length_range {
             self.write_int(string.len() as i64, (min, max))?;
         } else {
@@ -484,14 +491,16 @@ pub trait Writer {
         }
         self.write_bit_string_till_end(string, 0)?;
         Ok(())
-    }
+    }*/
 
-    fn write_bit_string_till_end(&mut self, buffer: &[u8], bit_offset: usize) -> Result<(), Error> {
+    fn write_bit_string_till_end(&mut self, buffer: &[u8], bit_offset: usize) -> Result<(), Error>;
+    /*{
         let len = (buffer.len() * BYTE_LEN) - bit_offset;
         self.write_bit_string(buffer, bit_offset, len)
-    }
+    }*/
 
-    fn write_length_determinant(&mut self, length: usize) -> Result<(), Error> {
+    fn write_length_determinant(&mut self, length: usize) -> Result<(), Error>;
+    /*{
         if length <= UPER_LENGTH_DET_L1 as usize {
             self.write_bit(false)?;
             self.write_int(length as i64, (0, UPER_LENGTH_DET_L1))
@@ -505,7 +514,79 @@ pub trait Writer {
                 UPER_LENGTH_DET_L2, length
             )))
         }
-    }
+    }*/
 
     fn write_bit(&mut self, bit: bool) -> Result<(), Error>;
+}
+
+#[allow(deprecated)]
+impl<T: BitWrite<Error = Error> + PackedWrite<Error = Error>> Writer for T {
+    #[inline]
+    fn write_utf8_string(&mut self, value: &str) -> Result<(), Error> {
+        <T as PackedWrite>::write_octetstring(self, None, None, false, value.as_bytes())
+    }
+
+    #[inline]
+    fn write_int(
+        &mut self,
+        value: i64,
+        (lower_bound, upper_bound): (i64, i64),
+    ) -> Result<(), Error> {
+        <T as PackedWrite>::write_constrained_whole_number(self, lower_bound, upper_bound, value)
+    }
+
+    #[inline]
+    fn write_int_normally_small(&mut self, value: u64) -> Result<(), Error> {
+        <T as PackedWrite>::write_normally_small_non_negative_whole_number(self, value)
+    }
+
+    #[inline]
+    fn write_int_max_signed(&mut self, value: i64) -> Result<(), Error> {
+        <T as PackedWrite>::write_unconstrained_whole_number(self, value)
+    }
+
+    #[inline]
+    fn write_int_max_unsigned(&mut self, value: u64) -> Result<(), Error> {
+        <T as PackedWrite>::write_non_negative_binary_integer(self, None, None, value)
+    }
+
+    #[inline]
+    fn write_bit_string(
+        &mut self,
+        buffer: &[u8],
+        bit_offset: usize,
+        bit_length: usize,
+    ) -> Result<(), Error> {
+        <T as BitWrite>::write_bits_with_offset_len(self, buffer, bit_offset, bit_length)
+    }
+
+    #[inline]
+    fn write_octet_string(
+        &mut self,
+        string: &[u8],
+        length_range: Option<(i64, i64)>,
+    ) -> Result<(), Error> {
+        <T as PackedWrite>::write_octetstring(
+            self,
+            length_range.map(|v| v.0 as u64),
+            length_range.map(|v| v.1 as u64),
+            false,
+            string,
+        )
+    }
+
+    #[inline]
+    fn write_bit_string_till_end(&mut self, buffer: &[u8], bit_offset: usize) -> Result<(), Error> {
+        <T as BitWrite>::write_bits_with_offset(self, buffer, bit_offset)
+    }
+
+    #[inline]
+    fn write_length_determinant(&mut self, length: usize) -> Result<(), Error> {
+        <T as PackedWrite>::write_length_determinant(self, None, None, length as u64)
+    }
+
+    #[inline]
+    fn write_bit(&mut self, bit: bool) -> Result<(), Error> {
+        <T as BitWrite>::write_bit(self, bit)
+    }
 }
