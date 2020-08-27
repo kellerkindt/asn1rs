@@ -143,9 +143,9 @@ impl<T: BitRead> PackedRead for T {
                 Ok(lower_bound_unwrapped
                     + self.read_non_negative_binary_integer(lower_bound, upper_bound)?)
             }
-        } else if upper_bound.is_some() && upper_bound_unwrapped <= 64 {
-            // 11.9.4.1 -> 11.9.3.4
-            self.read_normally_small_length()
+        } else if upper_bound.is_some() && upper_bound_unwrapped <= 64 * 1024 {
+            // 11.9.4.1 -> 11.9.3.4 -> 11.6.1
+            Ok(self.read_non_negative_binary_integer(lower_bound, upper_bound)?)
         } else {
             // 11.9.4.1 -> 11.9.3.5
             if !self.read_bit()? {
@@ -161,6 +161,131 @@ impl<T: BitRead> PackedRead for T {
                 Ok(16 * 1024 * u64::from(multiple[0].max(4 /* 11.9.3.8, NOTE */)))
             }
         }
+    }
+
+    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 16
+    fn read_bitstring(
+        &mut self,
+        lower_bound_size: Option<u64>,
+        upper_bound_size: Option<u64>,
+        extensible: bool,
+    ) -> Result<(Vec<u8>, u64), Self::Error> {
+        // let lower_bound = lower_bound_size.unwrap_or_default();
+        let upper_bound = upper_bound_size.unwrap_or_else(|| i64::MAX as u64);
+
+        let (mut bit_len, fragmentation_possible) = if extensible && self.read_bit()? {
+            // 16.6
+            // self.read_semi_constrained_whole_number(0)
+            // self.read_non_negative_binary_integer(0, MAX) + lb  | lb=0=>MIN for unsigned
+            (self.read_length_determinant(None, None)?, true)
+        }
+        /*else if lower_bound_size.is_some()
+            && lower_bound_size == upper_bound_size
+            && upper_bound <= 16
+        {
+            // 16.9
+            (upper_bound, false)
+        }*/
+        else if lower_bound_size.is_some()
+            && lower_bound_size == upper_bound_size
+            && upper_bound < 64 * 1024
+        {
+            // 16.10
+            (upper_bound, false)
+        } else {
+            // 16.11
+            (
+                self.read_length_determinant(lower_bound_size, upper_bound_size)?,
+                true,
+            )
+        };
+
+        let mut byte_len = (bit_len + 7) / 8;
+        let mut buffer = vec![0u8; byte_len as usize];
+        self.read_bits_with_len(&mut buffer[..], bit_len as usize)?;
+
+        // fragmentation?
+        if fragmentation_possible && bit_len >= 16 * 1024 {
+            loop {
+                let ext_bit_len = self.read_length_determinant(None, None)?;
+                let ext_byte_len = byte_len - ((bit_len + ext_bit_len) + 7) / 8;
+                buffer.extend(core::iter::repeat(0x00).take(ext_byte_len as usize));
+                self.read_bits_with_offset_len(
+                    &mut buffer[..],
+                    bit_len as usize,
+                    ext_bit_len as usize,
+                )?;
+
+                bit_len += ext_bit_len;
+                byte_len += ext_bit_len;
+
+                if ext_bit_len < 16 * 1024 {
+                    break;
+                }
+            }
+        }
+
+        Ok((buffer, bit_len))
+    }
+
+    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 17
+    fn read_octetstring(
+        &mut self,
+        lower_bound_size: Option<u64>,
+        upper_bound_size: Option<u64>,
+        extensible: bool,
+    ) -> Result<Vec<u8>, Self::Error> {
+        // let lower_bound = lower_bound_size.unwrap_or_default();
+        let upper_bound = upper_bound_size.unwrap_or_else(|| i64::MAX as u64);
+
+        let (mut byte_len, fragmentation_possible) = if extensible && self.read_bit()? {
+            // 17.3
+            // self.read_semi_constrained_whole_number(0)
+            // self.read_non_negative_binary_integer(0, MAX) + lb  | lb=0=>MIN for unsigned
+            (self.read_length_determinant(None, None)?, true)
+        } else if upper_bound == 0 {
+            // 17.5
+            return Ok(Vec::default());
+        }
+        /* else if lower_bound_size.is_some()
+            && lower_bound_size == upper_bound_size
+            && upper_bound <= 2
+        {
+            // 17.6
+            (upper_bound, false)
+        }*/
+        else if lower_bound_size.is_some()
+            && lower_bound_size == upper_bound_size
+            && upper_bound < 64 * 1024
+        {
+            // 17.7
+            (upper_bound, false)
+        } else {
+            // 17.8
+            (
+                self.read_length_determinant(lower_bound_size, upper_bound_size)?,
+                true,
+            )
+        };
+
+        let mut buffer = vec![0u8; byte_len as usize];
+        self.read_bits(&mut buffer[..])?;
+
+        // fragmentation?
+        if fragmentation_possible && byte_len >= 16 * 1024 {
+            loop {
+                let ext_byte_len = self.read_length_determinant(None, None)?;
+                buffer.extend(core::iter::repeat(0u8).take(ext_byte_len as usize));
+                self.read_bits(&mut buffer[byte_len as usize..])?;
+                byte_len += ext_byte_len;
+
+                if ext_byte_len < 16 * 1024 {
+                    break;
+                }
+            }
+        }
+
+        Ok(buffer)
     }
 }
 

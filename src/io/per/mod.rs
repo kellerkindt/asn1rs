@@ -57,6 +57,20 @@ pub trait PackedRead {
     /// According to ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 3.7.27, a semi constrained whole
     /// number is a whole number with a lower-bound constrained but no upper-bound constrained
     fn read_unconstrained_whole_number(&mut self) -> Result<i64, Self::Error>;
+
+    fn read_bitstring(
+        &mut self,
+        lower_bound_size: Option<u64>,
+        upper_bound_size: Option<u64>,
+        extensible: bool,
+    ) -> Result<(Vec<u8>, u64), Self::Error>;
+
+    fn read_octetstring(
+        &mut self,
+        lower_bound_size: Option<u64>,
+        upper_bound_size: Option<u64>,
+        extensible: bool,
+    ) -> Result<Vec<u8>, Self::Error>;
 }
 
 pub trait PackedWrite {

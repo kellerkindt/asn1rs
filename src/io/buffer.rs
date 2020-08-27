@@ -300,7 +300,7 @@ impl<'a> UperWriter for (&'a mut [u8], &mut usize) {
 }
 
 #[cfg(any(test, feature = "legacy_bit_buffer"))]
-#[allow(clippy::module_name_repetitions)]
+#[allow(clippy::module_name_repetitions, deprecated)]
 pub mod legacy {
     use super::*;
     use crate::io::uper::Reader as UperReader;
@@ -315,6 +315,17 @@ pub mod legacy {
 
     // the legacy BitBuffer relies solely on read_bit(), no performance optimisation
     impl UperReader for LegacyBitBuffer<'_> {
+        fn read_utf8_string(&mut self) -> Result<String, Error> {
+            let len = self.read_length_determinant()?;
+            let mut buffer = vec![0_u8; len];
+            self.read_bit_string_till_end(&mut buffer[..len], 0)?;
+            if let Ok(string) = String::from_utf8(buffer) {
+                Ok(string)
+            } else {
+                Err(Error::InvalidUtf8String)
+            }
+        }
+
         fn read_int(&mut self, range: (i64, i64)) -> Result<i64, Error> {
             let (lower, upper) = range;
             let leading_zeros = ((upper - lower) as u64).leading_zeros();
@@ -403,6 +414,20 @@ pub mod legacy {
                 }
             }
             Ok(())
+        }
+
+        fn read_octet_string(
+            &mut self,
+            length_range: Option<(i64, i64)>,
+        ) -> Result<Vec<u8>, Error> {
+            let len = if let Some((min, max)) = length_range {
+                self.read_int((min, max))? as usize
+            } else {
+                self.read_length_determinant()?
+            };
+            let mut vec = vec![0_u8; len];
+            self.read_bit_string_till_end(&mut vec[..], 0)?;
+            Ok(vec)
         }
 
         fn read_bit_string_till_end(

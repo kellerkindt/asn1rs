@@ -106,7 +106,8 @@ pub trait Reader {
         Ok(BitBuffer::from_bits(bytes, bit_len))
     }
 
-    fn read_utf8_string(&mut self) -> Result<String, Error> {
+    fn read_utf8_string(&mut self) -> Result<String, Error>;
+    /* {
         let len = self.read_length_determinant()?;
         let mut buffer = vec![0_u8; len];
         self.read_bit_string_till_end(&mut buffer[..len], 0)?;
@@ -115,7 +116,7 @@ pub trait Reader {
         } else {
             Err(Error::InvalidUtf8String)
         }
-    }
+    }*/
 
     fn read_choice_index_extensible(&mut self, no_of_default_variants: u64) -> Result<u64, Error> {
         if self.read_bit()? {
@@ -224,7 +225,8 @@ pub trait Reader {
         Ok(())
     }*/
 
-    fn read_octet_string(&mut self, length_range: Option<(i64, i64)>) -> Result<Vec<u8>, Error> {
+    fn read_octet_string(&mut self, length_range: Option<(i64, i64)>) -> Result<Vec<u8>, Error>;
+    /*{
         let len = if let Some((min, max)) = length_range {
             self.read_int((min, max))? as usize
         } else {
@@ -233,7 +235,7 @@ pub trait Reader {
         let mut vec = vec![0_u8; len];
         self.read_bit_string_till_end(&mut vec[..], 0)?;
         Ok(vec)
-    }
+    }*/
 
     fn read_bit_string_till_end(
         &mut self,
@@ -264,7 +266,14 @@ pub trait Reader {
     fn read_bit(&mut self) -> Result<bool, Error>;
 }
 
+#[allow(deprecated)]
 impl<T: BitRead<Error = Error> + PackedRead<Error = Error>> Reader for T {
+    #[inline]
+    fn read_utf8_string(&mut self) -> Result<String, Error> {
+        let octets = <T as PackedRead>::read_octetstring(self, None, None, false)?;
+        String::from_utf8(octets).map_err(|_| Error::InvalidUtf8String)
+    }
+
     #[inline]
     fn read_int(&mut self, (lower_bound, upper_bound): (i64, i64)) -> Result<i64, Error> {
         <T as PackedRead>::read_constrained_whole_number(self, lower_bound, upper_bound)
@@ -293,6 +302,16 @@ impl<T: BitRead<Error = Error> + PackedRead<Error = Error>> Reader for T {
         bit_length: usize,
     ) -> Result<(), Error> {
         <T as BitRead>::read_bits_with_offset_len(self, buffer, bit_offset, bit_length)
+    }
+
+    #[inline]
+    fn read_octet_string(&mut self, length_range: Option<(i64, i64)>) -> Result<Vec<u8>, Error> {
+        <T as PackedRead>::read_octetstring(
+            self,
+            length_range.map(|v| v.0 as u64),
+            length_range.map(|v| v.1 as u64),
+            false,
+        )
     }
 
     #[inline]

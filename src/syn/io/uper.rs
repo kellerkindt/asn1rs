@@ -722,6 +722,13 @@ impl Reader for UperReader {
     fn read_octet_string<C: octetstring::Constraint>(&mut self) -> Result<Vec<u8>, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
         self.with_buffer(|w| {
+            use crate::io::per::PackedRead;
+            w.buffer.read_octetstring(
+                C::MIN.map(|v| v as u64),
+                C::MAX.map(|v| v as u64),
+                C::EXTENSIBLE,
+            )
+            /*
             if C::EXTENSIBLE {
                 let out_of_range = w.buffer.read_bit()?;
                 w.buffer.read_octet_string(if out_of_range {
@@ -731,7 +738,7 @@ impl Reader for UperReader {
                 })
             } else {
                 w.buffer.read_octet_string(bit_buffer_range::<C>())
-            }
+            }*/
         })
     }
 
