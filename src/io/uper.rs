@@ -1,5 +1,5 @@
 use crate::io::buffer::BitBuffer;
-use crate::io::per::packed::BitRead;
+use crate::io::per::unaligned::BitRead;
 use crate::io::per::PackedRead;
 use byteorder::ByteOrder;
 use byteorder::NetworkEndian;

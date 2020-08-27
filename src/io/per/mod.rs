@@ -3,7 +3,7 @@
 //! The idea is to provide all building blocks to composite the more complex types on top of the
 //! traits without caring about the representation being ALIGNED or UNALIGNED.
 
-pub mod packed;
+pub mod unaligned;
 
 pub use crate::io::uper::Error;
 pub use crate::io::uper::BYTE_LEN;

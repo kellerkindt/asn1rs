@@ -2,7 +2,7 @@ use super::*;
 use crate::io::buffer::BitBuffer;
 
 impl BitRead for BitBuffer {
-    type Error = crate::io::per::packed::slice::Error;
+    type Error = super::slice::Error;
 
     #[inline]
     fn read_bit(&mut self) -> Result<bool, Self::Error> {

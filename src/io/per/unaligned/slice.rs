@@ -1,5 +1,5 @@
+use super::BitRead;
 use crate::io::buffer::bit_string_copy_bulked;
-use crate::io::per::packed::BitRead;
 use crate::io::per::BYTE_LEN;
 
 pub(crate) use crate::io::per::Error;

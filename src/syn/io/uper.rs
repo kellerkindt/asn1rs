@@ -1,5 +1,5 @@
 use crate::io::buffer::BitBuffer;
-use crate::io::per::packed::BitRead;
+use crate::io::per::unaligned::BitRead;
 use crate::io::per::PackedRead;
 use crate::io::uper::Error as UperError;
 use crate::io::uper::Writer as _UperWriter;
@@ -718,31 +718,20 @@ impl Reader for UperReader {
         let _ = self.read_bit_field_entry(false)?;
         self.with_buffer(|w| {
             let unconstrained = if C::EXTENSIBLE {
-                // w.buffer.read_bit()?
-                crate::io::per::PackedRead::read_boolean(&mut w.buffer)?
+                w.buffer.read_bit()?
             } else {
                 C::MIN.is_none() && C::MAX.is_none()
             };
 
             if unconstrained {
-                // w.buffer.read_int_max_signed().map(T::from_i64)
-                crate::io::per::PackedRead::read_unconstrained_whole_number(&mut w.buffer)
-                    .map(T::from_i64)
+                w.buffer.read_unconstrained_whole_number().map(T::from_i64)
             } else {
-                crate::io::per::PackedRead::read_constrained_whole_number(
-                    &mut w.buffer,
-                    const_unwrap_or!(C::MIN, 0),
-                    const_unwrap_or!(C::MAX, i64::MAX),
-                )
-                .map(T::from_i64)
-                /*
                 w.buffer
-                    .read_int((
-                        C::MIN.map(T::to_i64).unwrap_or(0),
-                        C::MAX.map(T::to_i64).unwrap_or(i64::MAX),
-                    ))
+                    .read_constrained_whole_number(
+                        const_unwrap_or!(C::MIN, 0),
+                        const_unwrap_or!(C::MAX, i64::MAX),
+                    )
                     .map(T::from_i64)
-                     */
             }
         })
     }
@@ -751,7 +740,6 @@ impl Reader for UperReader {
     fn read_utf8string<C: utf8string::Constraint>(&mut self) -> Result<String, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
         self.with_buffer(|w| {
-            use crate::io::per::PackedRead;
             let octets = w.buffer.read_octetstring(C::MIN, C::MAX, C::EXTENSIBLE)?;
             String::from_utf8(octets).map_err(|_| Self::Error::InvalidUtf8String)
         })
@@ -760,27 +748,13 @@ impl Reader for UperReader {
     #[inline]
     fn read_octet_string<C: octetstring::Constraint>(&mut self) -> Result<Vec<u8>, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|w| {
-            use crate::io::per::PackedRead;
-            w.buffer.read_octetstring(C::MIN, C::MAX, C::EXTENSIBLE)
-            /*
-            if C::EXTENSIBLE {
-                let out_of_range = w.buffer.read_bit()?;
-                w.buffer.read_octet_string(if out_of_range {
-                    None
-                } else {
-                    bit_buffer_range::<C>()
-                })
-            } else {
-                w.buffer.read_octet_string(bit_buffer_range::<C>())
-            }*/
-        })
+        self.with_buffer(|w| w.buffer.read_octetstring(C::MIN, C::MAX, C::EXTENSIBLE))
     }
 
     #[inline]
     fn read_boolean<C: boolean::Constraint>(&mut self) -> Result<bool, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|w| crate::io::per::PackedRead::read_boolean(&mut w.buffer))
+        self.with_buffer(|w| w.buffer.read_boolean())
     }
 }
 
