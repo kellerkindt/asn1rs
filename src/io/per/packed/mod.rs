@@ -31,6 +31,7 @@ impl<T: BitRead> PackedRead for T {
     type Error = T::Error;
 
     /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 12
+    #[inline]
     fn read_boolean(&mut self) -> Result<bool, Self::Error> {
         self.read_bit()
     }
@@ -82,6 +83,7 @@ impl<T: BitRead> PackedRead for T {
     }
 
     /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.5
+    #[inline]
     fn read_constrained_whole_number(
         &mut self,
         lower_bound: i64,
@@ -110,18 +112,21 @@ impl<T: BitRead> PackedRead for T {
     }
 
     /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.7
+    #[inline]
     fn read_semi_constrained_whole_number(&mut self, lower_bound: i64) -> Result<i64, Self::Error> {
         let n = self.read_non_negative_binary_integer(None, None)?;
         Ok((n as i64) + lower_bound)
     }
 
     /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.8
+    #[inline]
     fn read_unconstrained_whole_number(&mut self) -> Result<i64, Self::Error> {
         let octet_len = self.read_length_determinant(None, None)?;
         self.read_2s_compliment_binary_integer(octet_len * 8)
     }
 
     /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.9.3
+    #[inline]
     fn read_normally_small_length(&mut self) -> Result<u64, Self::Error> {
         self.read_normally_small_non_negative_whole_number()
     }

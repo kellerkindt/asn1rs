@@ -5,6 +5,26 @@ use crate::io::uper::Writer as _UperWriter;
 use crate::prelude::*;
 use std::ops::Range;
 
+/// allow const expansion until https://github.com/rust-lang/rust/issues/67441
+macro_rules! const_unwrap_or {
+    ($op:path, $def:expr) => {
+        match $op {
+            Some(value) => value,
+            None => $def,
+        }
+    };
+}
+
+/// allow const expansion until https://github.com/rust-lang/rust/issues/67441
+macro_rules! const_is_none {
+    ($op:path) => {
+        match &$op {
+            Some(_) => false,
+            None => true,
+        }
+    };
+}
+
 pub enum Scope {
     OptBitField(Range<usize>),
     AllBitField(Range<usize>),
@@ -387,11 +407,11 @@ impl Writer for UperWriter {
         self.write_bit_field_entry(false, true)?;
         let value = value.to_i64();
         let max_fn = if C::EXTENSIBLE {
-            let min = C::MIN.map(T::to_i64).unwrap_or(0);
-            let max = C::MAX.map(T::to_i64).unwrap_or(i64::MAX);
+            let min = const_unwrap_or!(C::MIN, 0);
+            let max = const_unwrap_or!(C::MAX, i64::MAX);
             value < min || value > max
         } else {
-            C::MIN.is_none() && C::MAX.is_none()
+            const_is_none!(C::MIN) && const_is_none!(C::MAX)
         };
 
         if max_fn {
@@ -409,8 +429,8 @@ impl Writer for UperWriter {
                 w.buffer.write_int(
                     value,
                     (
-                        C::MIN.map(T::to_i64).unwrap_or(0),
-                        C::MAX.map(T::to_i64).unwrap_or(i64::MAX),
+                        const_unwrap_or!(C::MIN, 0),
+                        const_unwrap_or!(C::MAX, i64::MAX),
                     ),
                 )
             })
@@ -435,8 +455,8 @@ impl Writer for UperWriter {
         self.with_buffer(|w| {
             if C::EXTENSIBLE {
                 let min = C::MIN.unwrap_or_default();
-                let max = C::MAX.unwrap_or_else(|| i64::MAX as usize);
-                let out_of_range = value.len() < min || value.len() > max;
+                let max = C::MAX.unwrap_or_else(|| i64::MAX as u64);
+                let out_of_range = value.len() < min as usize || value.len() > max as usize;
                 w.buffer.write_bit(out_of_range)?;
                 w.buffer.write_octet_string(
                     value,
@@ -696,8 +716,8 @@ impl Reader for UperReader {
             } else {
                 crate::io::per::PackedRead::read_constrained_whole_number(
                     &mut w.buffer,
-                    C::MIN.map(T::to_i64).unwrap_or(0),
-                    C::MAX.map(T::to_i64).unwrap_or(i64::MAX),
+                    const_unwrap_or!(C::MIN, 0),
+                    const_unwrap_or!(C::MAX, i64::MAX),
                 )
                 .map(T::from_i64)
                 /*
@@ -715,7 +735,11 @@ impl Reader for UperReader {
     #[inline]
     fn read_utf8string<C: utf8string::Constraint>(&mut self) -> Result<String, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|w| w.buffer.read_utf8_string())
+        self.with_buffer(|w| {
+            use crate::io::per::PackedRead;
+            let octets = w.buffer.read_octetstring(C::MIN, C::MAX, C::EXTENSIBLE)?;
+            String::from_utf8(octets).map_err(|_| Self::Error::InvalidUtf8String)
+        })
     }
 
     #[inline]
@@ -723,11 +747,7 @@ impl Reader for UperReader {
         let _ = self.read_bit_field_entry(false)?;
         self.with_buffer(|w| {
             use crate::io::per::PackedRead;
-            w.buffer.read_octetstring(
-                C::MIN.map(|v| v as u64),
-                C::MAX.map(|v| v as u64),
-                C::EXTENSIBLE,
-            )
+            w.buffer.read_octetstring(C::MIN, C::MAX, C::EXTENSIBLE)
             /*
             if C::EXTENSIBLE {
                 let out_of_range = w.buffer.read_bit()?;
@@ -755,7 +775,7 @@ fn bit_buffer_range<C: octetstring::Constraint>() -> Option<(i64, i64)> {
         (None, None) => None,
         (min, max) => Some((
             min.unwrap_or(0) as i64,
-            max.unwrap_or(std::i64::MAX as usize) as i64, // TODO never verified!
+            max.unwrap_or(std::i64::MAX as u64) as i64, // TODO never verified!
         )),
     }
 }

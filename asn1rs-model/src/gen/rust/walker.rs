@@ -447,10 +447,16 @@ impl AsnDefWriter {
             CRATE_SYN_PREFIX, r#type, combined
         ));
         if let Some(min) = range.min() {
-            scope.raw(&format!("const MIN: Option<{}> = Some({});", r#type, min));
+            // scope.raw(&format!("const MIN: Option<{}> = Some({});", r#type, min));
+            // scope.raw(&format!("const MIN_I64: Option<i64> = Some({});", min));
+            scope.raw(&format!("const MIN: Option<i64> = Some({});", min));
+            scope.raw(&format!("const MIN_T: Option<{}> = Some({});", r#type, min));
         }
         if let Some(max) = range.max() {
-            scope.raw(&format!("const MAX: Option<{}> = Some({});", r#type, max));
+            // scope.raw(&format!("const MAX: Option<{}> = Some({});", r#type, max));
+            // scope.raw(&format!("const MAX_I64: Option<i64> = Some({});", max));
+            scope.raw(&format!("const MAX: Option<i64> = Some({});", max));
+            scope.raw(&format!("const MAX_T: Option<{}> = Some({});", r#type, max));
         }
         scope.raw(&format!("const EXTENSIBLE: bool = {};", range.extensible()));
         scope.raw("}");
@@ -472,10 +478,10 @@ impl AsnDefWriter {
             CRATE_SYN_PREFIX, module, combined
         ));
         if let Some(min) = size.min() {
-            scope.raw(&format!("const MIN: Option<usize> = Some({});", min));
+            scope.raw(&format!("const MIN: Option<u64> = Some({});", min));
         }
         if let Some(max) = size.max() {
-            scope.raw(&format!("const MAX: Option<usize> = Some({});", max));
+            scope.raw(&format!("const MAX: Option<u64> = Some({});", max));
         }
         scope.raw(&format!("const EXTENSIBLE: bool = {};", size.extensible()));
         scope.raw("}");

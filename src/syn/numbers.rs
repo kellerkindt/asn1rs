@@ -20,8 +20,10 @@ pub trait Number: Copy {
 
 pub trait Constraint<T: Number> {
     // TODO MIN-MAX into RANGE: Option<(T, T)>
-    const MIN: Option<T> = None;
-    const MAX: Option<T> = None;
+    const MIN: Option<i64> = None;
+    const MAX: Option<i64> = None;
+    const MIN_T: Option<T> = None;
+    const MAX_T: Option<T> = None;
     const EXTENSIBLE: bool = false;
 }
 

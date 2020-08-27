@@ -25,20 +25,36 @@ pub struct RangedAndExtensiblePureRust(#[asn(integer(0..255,...))] pub u64);
 fn test_extensible_range() {
     use asn1rs::syn::numbers::Constraint;
     assert_eq!(
-        Some(0_u64),
+        Some(0_i64),
         ___asn1rs_RangedAndExtensiblePureRustField0Constraint::MIN
     );
     assert_eq!(
-        Some(255_u64),
+        Some(0_u64),
+        ___asn1rs_RangedAndExtensiblePureRustField0Constraint::MIN_T
+    );
+    assert_eq!(
+        Some(255_i64),
         ___asn1rs_RangedAndExtensiblePureRustField0Constraint::MAX
     );
     assert_eq!(
-        Some(0_u64),
+        Some(255_u64),
+        ___asn1rs_RangedAndExtensiblePureRustField0Constraint::MAX_T
+    );
+    assert_eq!(
+        Some(0_i64),
         ___asn1rs_RangedAndExtensibleField0Constraint::MIN
     );
     assert_eq!(
-        Some(255_u64),
+        Some(0_u64),
+        ___asn1rs_RangedAndExtensibleField0Constraint::MIN_T
+    );
+    assert_eq!(
+        Some(255_i64),
         ___asn1rs_RangedAndExtensibleField0Constraint::MAX
+    );
+    assert_eq!(
+        Some(255_u64),
+        ___asn1rs_RangedAndExtensibleField0Constraint::MAX_T
     );
 }
 

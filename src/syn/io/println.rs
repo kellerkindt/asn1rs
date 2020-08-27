@@ -111,11 +111,9 @@ impl Writer for PrintlnWriter {
         self.indented_println(&format!(
             "WRITING Integer({}..{}{}) {}",
             C::MIN
-                .map(T::to_i64)
                 .map(|v| v.to_string())
                 .unwrap_or_else(|| "MIN".to_string()),
             C::MAX
-                .map(T::to_i64)
                 .map(|v| v.to_string())
                 .unwrap_or_else(|| "MAX".to_string()),
             if C::EXTENSIBLE { ",..." } else { "" },
