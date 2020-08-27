@@ -272,6 +272,20 @@ pub mod legacy {
                 Err(Error::InvalidUtf8String)
             }
         }
+        fn read_choice_index_extensible(
+            &mut self,
+            no_of_default_variants: u64,
+        ) -> Result<u64, Error> {
+            if self.read_bit()? {
+                Ok((self.read_int_normally_small()? + no_of_default_variants) as u64)
+            } else {
+                self.read_choice_index(no_of_default_variants)
+            }
+        }
+
+        fn read_choice_index(&mut self, no_of_default_variants: u64) -> Result<u64, Error> {
+            Ok(self.read_int((0, no_of_default_variants as i64 - 1))? as u64)
+        }
 
         fn read_int(&mut self, range: (i64, i64)) -> Result<i64, Error> {
             let (lower, upper) = range;
@@ -411,6 +425,27 @@ pub mod legacy {
             self.write_length_determinant(value.len())?;
             self.write_bit_string_till_end(value.as_bytes(), 0)?;
             Ok(())
+        }
+        fn write_choice_index_extensible(
+            &mut self,
+            index: u64,
+            no_of_default_variants: u64,
+        ) -> Result<(), Error> {
+            if index >= no_of_default_variants {
+                self.write_bit(true)?;
+                self.write_int_normally_small((index - no_of_default_variants) as u64)
+            } else {
+                self.write_bit(false)?;
+                self.write_choice_index(index, no_of_default_variants)
+            }
+        }
+
+        fn write_choice_index(
+            &mut self,
+            index: u64,
+            no_of_default_variants: u64,
+        ) -> Result<(), Error> {
+            self.write_int(index as i64, (0, no_of_default_variants as i64 - 1))
         }
 
         /// Range is inclusive

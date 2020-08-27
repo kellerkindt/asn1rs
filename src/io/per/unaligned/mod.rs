@@ -299,6 +299,28 @@ impl<T: BitRead> PackedRead for T {
 
         Ok(buffer)
     }
+
+    #[inline]
+    fn read_choice_index(
+        &mut self,
+        std_variants: u64,
+        extensible: bool,
+    ) -> Result<u64, Self::Error> {
+        self.read_enumeration_index(std_variants, extensible)
+    }
+
+    #[inline]
+    fn read_enumeration_index(
+        &mut self,
+        std_variants: u64,
+        extensible: bool,
+    ) -> Result<u64, Self::Error> {
+        if extensible && self.read_bit()? {
+            Ok(self.read_normally_small_length()? + std_variants)
+        } else {
+            self.read_non_negative_binary_integer(None, Some(std_variants - 1))
+        }
+    }
 }
 
 pub trait BitWrite {
@@ -662,5 +684,38 @@ impl<T: BitWrite<Error = super::Error>> PackedWrite for T {
         }
 
         Ok(())
+    }
+
+    #[inline]
+    fn write_choice_index(
+        &mut self,
+        std_variants: u64,
+        extensible: bool,
+        index: u64,
+    ) -> Result<(), Self::Error> {
+        self.write_enumeration_index(std_variants, extensible, index)
+    }
+
+    #[inline]
+    fn write_enumeration_index(
+        &mut self,
+        std_variants: u64,
+        extensible: bool,
+        index: u64,
+    ) -> Result<(), Self::Error> {
+        let out_of_range = index >= std_variants;
+        if extensible {
+            self.write_bit(out_of_range)?;
+        }
+
+        if out_of_range {
+            if extensible {
+                self.write_normally_small_length(index - std_variants)
+            } else {
+                Err(Self::Error::InvalidChoiceIndex(index, std_variants))
+            }
+        } else {
+            self.write_non_negative_binary_integer(None, Some(std_variants - 1), index)
+        }
     }
 }

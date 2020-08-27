@@ -118,17 +118,19 @@ pub trait Reader {
         }
     }*/
 
-    fn read_choice_index_extensible(&mut self, no_of_default_variants: u64) -> Result<u64, Error> {
+    fn read_choice_index_extensible(&mut self, no_of_default_variants: u64) -> Result<u64, Error>;
+    /*{
         if self.read_bit()? {
             Ok((self.read_int_normally_small()? + no_of_default_variants) as u64)
         } else {
             self.read_choice_index(no_of_default_variants)
         }
-    }
+    }*/
 
-    fn read_choice_index(&mut self, no_of_default_variants: u64) -> Result<u64, Error> {
+    fn read_choice_index(&mut self, no_of_default_variants: u64) -> Result<u64, Error>;
+    /*{
         Ok(self.read_int((0, no_of_default_variants as i64 - 1))? as u64)
-    }
+    }*/
 
     /// Range is inclusive
     fn read_int(&mut self, range: (i64, i64)) -> Result<i64, Error>;
@@ -275,6 +277,16 @@ impl<T: BitRead<Error = Error> + PackedRead<Error = Error>> Reader for T {
     }
 
     #[inline]
+    fn read_choice_index_extensible(&mut self, no_of_default_variants: u64) -> Result<u64, Error> {
+        <T as PackedRead>::read_choice_index(self, no_of_default_variants, true)
+    }
+
+    #[inline]
+    fn read_choice_index(&mut self, no_of_default_variants: u64) -> Result<u64, Error> {
+        <T as PackedRead>::read_choice_index(self, no_of_default_variants, false)
+    }
+
+    #[inline]
     fn read_int(&mut self, (lower_bound, upper_bound): (i64, i64)) -> Result<i64, Error> {
         <T as PackedRead>::read_constrained_whole_number(self, lower_bound, upper_bound)
     }
@@ -359,7 +371,8 @@ pub trait Writer {
         &mut self,
         index: u64,
         no_of_default_variants: u64,
-    ) -> Result<(), Error> {
+    ) -> Result<(), Error>;
+    /*{
         if index >= no_of_default_variants {
             self.write_bit(true)?;
             self.write_int_normally_small((index - no_of_default_variants) as u64)
@@ -367,11 +380,12 @@ pub trait Writer {
             self.write_bit(false)?;
             self.write_choice_index(index, no_of_default_variants)
         }
-    }
+    }*/
 
-    fn write_choice_index(&mut self, index: u64, no_of_default_variants: u64) -> Result<(), Error> {
+    fn write_choice_index(&mut self, index: u64, no_of_default_variants: u64) -> Result<(), Error>;
+    /*{
         self.write_int(index as i64, (0, no_of_default_variants as i64 - 1))
-    }
+    }*/
 
     /// Range is inclusive
     fn write_int(&mut self, value: i64, range: (i64, i64)) -> Result<(), Error>;
@@ -524,6 +538,20 @@ impl<T: BitWrite<Error = Error> + PackedWrite<Error = Error>> Writer for T {
     #[inline]
     fn write_utf8_string(&mut self, value: &str) -> Result<(), Error> {
         <T as PackedWrite>::write_octetstring(self, None, None, false, value.as_bytes())
+    }
+
+    #[inline]
+    fn write_choice_index_extensible(
+        &mut self,
+        index: u64,
+        no_of_default_variants: u64,
+    ) -> Result<(), Error> {
+        <T as PackedWrite>::write_choice_index(self, no_of_default_variants, true, index)
+    }
+
+    #[inline]
+    fn write_choice_index(&mut self, index: u64, no_of_default_variants: u64) -> Result<(), Error> {
+        <T as PackedWrite>::write_choice_index(self, no_of_default_variants, false, index)
     }
 
     #[inline]

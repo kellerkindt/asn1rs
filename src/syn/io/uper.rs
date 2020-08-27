@@ -1,9 +1,9 @@
 use crate::io::buffer::BitBuffer;
 use crate::io::per::unaligned::BitRead;
 use crate::io::per::unaligned::BitWrite;
+use crate::io::per::Error;
 use crate::io::per::PackedRead;
 use crate::io::per::PackedWrite;
-use crate::io::uper::Error as UperError;
 use crate::prelude::*;
 use std::ops::Range;
 
@@ -73,7 +73,7 @@ impl Scope {
         buffer: &mut BitBuffer,
         is_opt: bool,
         is_present: bool,
-    ) -> Result<(), UperError> {
+    ) -> Result<(), Error> {
         match self {
             Scope::OptBitField(range) => {
                 if is_opt {
@@ -135,7 +135,7 @@ impl Scope {
         &mut self,
         buffer: &mut BitBuffer,
         is_opt: bool,
-    ) -> Result<Option<bool>, UperError> {
+    ) -> Result<Option<bool>, Error> {
         match self {
             Scope::OptBitField(range) => {
                 if is_opt {
@@ -161,7 +161,7 @@ impl Scope {
                     let read_number_of_ext_fields =
                         buffer.read_normally_small_length()? as usize + 1;
                     if read_number_of_ext_fields != *number_of_ext_fields {
-                        return Err(UperError::UnsupportedOperation(format!(
+                        return Err(Error::UnsupportedOperation(format!(
                             "Expected {} extended fields but got {}",
                             number_of_ext_fields, read_number_of_ext_fields
                         )));
@@ -239,11 +239,7 @@ impl UperWriter {
     }
 
     #[inline]
-    pub fn write_bit_field_entry(
-        &mut self,
-        is_opt: bool,
-        is_present: bool,
-    ) -> Result<(), UperError> {
+    pub fn write_bit_field_entry(&mut self, is_opt: bool, is_present: bool) -> Result<(), Error> {
         if let Some(scope) = &mut self.scope {
             scope.write_into_field(&mut self.buffer, is_opt, is_present)
         } else if is_opt {
@@ -254,17 +250,17 @@ impl UperWriter {
     }
 
     #[inline]
-    pub fn with_buffer<T, F: FnOnce(&mut Self) -> Result<T, UperError>>(
+    pub fn with_buffer<T, F: FnOnce(&mut Self) -> Result<T, Error>>(
         &mut self,
         f: F,
-    ) -> Result<T, UperError> {
+    ) -> Result<T, Error> {
         if self
             .scope
             .as_ref()
             .map(Scope::encode_as_open_type_field)
             .unwrap_or(false)
         {
-            let mut writer = UperWriter::default();
+            let mut writer = UperWriter::with_capacity(512);
             let result = f(&mut writer)?;
             self.buffer
                 .write_octetstring(None, None, false, writer.buffer.content())?;
@@ -276,7 +272,7 @@ impl UperWriter {
 }
 
 impl Writer for UperWriter {
-    type Error = UperError;
+    type Error = Error;
 
     #[inline]
     fn write_sequence<C: sequence::Constraint, F: Fn(&mut Self) -> Result<(), Self::Error>>(
@@ -328,7 +324,7 @@ impl Writer for UperWriter {
         let min = const_unwrap_or!(C::MIN, 0) as usize;
         let max = const_unwrap_or!(C::MAX, MAX) as usize;
         if slice.len() < min || slice.len() > max {
-            return Err(UperError::SizeNotInRange(
+            return Err(Error::SizeNotInRange(
                 slice.len() as u64,
                 min as u64,
                 max as u64,
@@ -351,26 +347,11 @@ impl Writer for UperWriter {
     ) -> Result<(), Self::Error> {
         self.write_bit_field_entry(false, true)?;
         self.with_buffer(|w| {
-            let index = enumerated.to_choice_index();
-            let out_of_range = index >= C::STD_VARIANT_COUNT;
-            if C::EXTENSIBLE {
-                w.buffer.write_bit(out_of_range)?;
-            }
-
-            if out_of_range {
-                if C::EXTENSIBLE {
-                    w.buffer
-                        .write_normally_small_length(index - C::STD_VARIANT_COUNT)
-                } else {
-                    Err(UperError::InvalidChoiceIndex(index, C::STD_VARIANT_COUNT))
-                }
-            } else {
-                w.buffer.write_non_negative_binary_integer(
-                    None,
-                    Some(C::STD_VARIANT_COUNT - 1),
-                    index,
-                )
-            }
+            w.buffer.write_enumeration_index(
+                C::STD_VARIANT_COUNT,
+                C::EXTENSIBLE,
+                enumerated.to_choice_index(),
+            )
         })
     }
 
@@ -379,29 +360,18 @@ impl Writer for UperWriter {
         self.write_bit_field_entry(false, true)?;
         self.scope_stashed(|w| {
             let index = choice.to_choice_index();
-            let out_of_range = index >= C::STD_VARIANT_COUNT;
-            if C::EXTENSIBLE {
-                w.buffer.write_bit(out_of_range)?;
-            }
 
-            if out_of_range {
-                if C::EXTENSIBLE {
-                    w.buffer
-                        .write_normally_small_length(index - C::STD_VARIANT_COUNT)?;
-                    // TODO performance
-                    let mut writer = UperWriter::with_capacity(512);
-                    choice.write_content(&mut writer)?;
-                    w.buffer
-                        .write_octetstring(None, None, false, writer.byte_content())
-                } else {
-                    Err(UperError::InvalidChoiceIndex(index, C::STD_VARIANT_COUNT))
-                }
+            // this fails if the index is out of range
+            w.buffer
+                .write_choice_index(C::STD_VARIANT_COUNT, C::EXTENSIBLE, index)?;
+
+            if index >= C::STD_VARIANT_COUNT {
+                // TODO performance
+                let mut writer = UperWriter::with_capacity(512);
+                choice.write_content(&mut writer)?;
+                w.buffer
+                    .write_octetstring(None, None, false, writer.byte_content())
             } else {
-                w.buffer.write_non_negative_binary_integer(
-                    None,
-                    Some(C::STD_VARIANT_COUNT - 1),
-                    index,
-                )?;
                 choice.write_content(w)
             }
         })
@@ -560,7 +530,7 @@ impl UperReader {
     }
 
     #[inline]
-    pub fn read_bit_field_entry(&mut self, is_opt: bool) -> Result<Option<bool>, UperError> {
+    pub fn read_bit_field_entry(&mut self, is_opt: bool) -> Result<Option<bool>, Error> {
         if let Some(scope) = &mut self.scope {
             scope.read_from_field(&mut self.buffer, is_opt)
         } else if is_opt {
@@ -571,10 +541,10 @@ impl UperReader {
     }
 
     #[inline]
-    pub fn with_buffer<T, F: FnOnce(&mut Self) -> Result<T, UperError>>(
+    pub fn with_buffer<T, F: FnOnce(&mut Self) -> Result<T, Error>>(
         &mut self,
         f: F,
-    ) -> Result<T, UperError> {
+    ) -> Result<T, Error> {
         if self
             .scope
             .as_ref()
@@ -590,7 +560,7 @@ impl UperReader {
 }
 
 impl Reader for UperReader {
-    type Error = UperError;
+    type Error = Error;
 
     #[inline]
     fn read_sequence<
@@ -607,7 +577,7 @@ impl Reader for UperReader {
                 let has_extension = w.buffer.read_bit()?;
                 let expects_extension = C::FIELD_COUNT > extension_after;
                 if has_extension != expects_extension {
-                    return Err(UperError::InvalidExtensionConstellation(
+                    return Err(Error::InvalidExtensionConstellation(
                         expects_extension,
                         has_extension,
                     ));
@@ -620,7 +590,7 @@ impl Reader for UperReader {
             let range =
                 w.buffer.read_position..w.buffer.read_position + C::STD_OPTIONAL_FIELDS as usize;
             if w.buffer.bit_len() < range.end {
-                return Err(UperError::EndOfStream);
+                return Err(Error::EndOfStream);
             }
             w.buffer.read_position = range.end; // skip optional
 
@@ -649,7 +619,7 @@ impl Reader for UperReader {
             let max = const_unwrap_or!(C::MAX, u64::MAX);
             let len = w.buffer.read_length_determinant(None, None)? + min;
             if len > max {
-                Err(UperError::SizeNotInRange(len, min, max))
+                Err(Error::SizeNotInRange(len, min, max))
             } else {
                 w.scope_stashed(|w| {
                     let mut vec = Vec::with_capacity(len as usize);
@@ -666,29 +636,12 @@ impl Reader for UperReader {
     fn read_enumerated<C: enumerated::Constraint>(&mut self) -> Result<C, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
         self.with_buffer(|w| {
-            if C::EXTENSIBLE && w.buffer.read_bit()? {
-                Ok(w.buffer.read_normally_small_length()? + C::STD_VARIANT_COUNT)
-            } else {
-                w.buffer
-                    .read_non_negative_binary_integer(None, Some(C::STD_VARIANT_COUNT - 1))
-            }
-        }) /*
-        if C::EXTENSIBLE {
-            self.with_buffer(|w| {
-                w.buffer
-                    .read_choice_index_extensible(C::STD_VARIANT_COUNT as u64)
-                    .map(|v| v as usize)
-            })
-        } else {
-            self.with_buffer(|w| {
-                w.buffer
-                    .read_choice_index(C::STD_VARIANT_COUNT as u64)
-                    .map(|v| v as usize)
-            })
-        }*/
+            w.buffer
+                .read_enumeration_index(C::STD_VARIANT_COUNT, C::EXTENSIBLE)
+        })
         .and_then(|index| {
             C::from_choice_index(index)
-                .ok_or_else(|| UperError::InvalidChoiceIndex(index, C::VARIANT_COUNT))
+                .ok_or_else(|| Error::InvalidChoiceIndex(index, C::VARIANT_COUNT))
         })
     }
 
@@ -696,24 +649,17 @@ impl Reader for UperReader {
     fn read_choice<C: choice::Constraint>(&mut self) -> Result<C, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
         self.scope_stashed(|r| {
-            if C::EXTENSIBLE && r.buffer.read_bit()? {
-                let index = r.buffer.read_normally_small_length()? + C::STD_VARIANT_COUNT;
-                if index >= C::STD_VARIANT_COUNT {
-                    let length = r.buffer.read_length_determinant(None, None)?;
-                    r.read_whole_sub_slice(length as usize, |r| {
-                        Ok((index, C::read_content(index, r)?))
-                    })
-                } else {
-                    Ok((index, C::read_content(index, r)?))
-                }
+            let index = r
+                .buffer
+                .read_choice_index(C::STD_VARIANT_COUNT, C::EXTENSIBLE)?;
+            if index >= C::STD_VARIANT_COUNT {
+                let length = r.buffer.read_length_determinant(None, None)?;
+                r.read_whole_sub_slice(length as usize, |r| Ok((index, C::read_content(index, r)?)))
             } else {
-                let index = r
-                    .buffer
-                    .read_non_negative_binary_integer(None, Some(C::STD_VARIANT_COUNT - 1))?;
                 Ok((index, C::read_content(index, r)?))
             }
             .and_then(|(index, content)| {
-                content.ok_or_else(|| UperError::InvalidChoiceIndex(index, C::VARIANT_COUNT))
+                content.ok_or_else(|| Error::InvalidChoiceIndex(index, C::VARIANT_COUNT))
             })
         })
     }

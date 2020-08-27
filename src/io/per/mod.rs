@@ -71,6 +71,18 @@ pub trait PackedRead {
         upper_bound_size: Option<u64>,
         extensible: bool,
     ) -> Result<Vec<u8>, Self::Error>;
+
+    fn read_choice_index(
+        &mut self,
+        std_variants: u64,
+        extensible: bool,
+    ) -> Result<u64, Self::Error>;
+
+    fn read_enumeration_index(
+        &mut self,
+        std_variants: u64,
+        extensible: bool,
+    ) -> Result<u64, Self::Error>;
 }
 
 pub trait PackedWrite {
@@ -153,5 +165,19 @@ pub trait PackedWrite {
         upper_bound_size: Option<u64>,
         extensible: bool,
         src: &[u8],
+    ) -> Result<(), Self::Error>;
+
+    fn write_choice_index(
+        &mut self,
+        std_variants: u64,
+        extensible: bool,
+        index: u64,
+    ) -> Result<(), Self::Error>;
+
+    fn write_enumeration_index(
+        &mut self,
+        std_variants: u64,
+        extensible: bool,
+        index: u64,
     ) -> Result<(), Self::Error>;
 }
