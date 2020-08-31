@@ -163,7 +163,7 @@ pub trait Writer {
     }
 
     fn write_tagged_bit_vec(&mut self, field: u32, value: &BitVec) -> Result<(), Error> {
-        let bytes = value.to_length_terminated_bytes();
+        let bytes = value.to_vec_with_trailing_bit_len();
         self.write_tagged_bytes(field, &bytes)
     }
 
@@ -245,7 +245,7 @@ pub trait Reader {
 
     fn read_bit_vec(&mut self) -> Result<BitVec, Error> {
         let bytes = self.read_bytes()?;
-        Ok(BitVec::from_length_terminated_bytes(bytes))
+        Ok(BitVec::from_vec_with_trailing_bit_len(bytes))
     }
 
     fn read_tag(&mut self) -> Result<(u32, Format), Error> {
@@ -355,6 +355,11 @@ impl<T: ProtobufEq> ProtobufEq<Vec<T>> for Vec<T> {
         } else {
             false
         }
+    }
+}
+impl ProtobufEq<BitVec> for BitVec {
+    fn protobuf_eq(&self, other: &BitVec) -> bool {
+        self.eq(other)
     }
 }
 

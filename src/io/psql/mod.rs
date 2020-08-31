@@ -1,10 +1,11 @@
+use crate::postgres::rows::Rows;
+use backtrace::Backtrace;
 pub use postgres::rows::Row;
 pub use postgres::transaction::Transaction;
 pub use postgres::Error as PostgresError;
-
-use crate::postgres::rows::Rows;
-use backtrace::Backtrace;
 use std::fmt::{Display, Formatter};
+
+pub mod bit_vec_impl;
 
 #[derive(Debug)]
 pub enum Error {

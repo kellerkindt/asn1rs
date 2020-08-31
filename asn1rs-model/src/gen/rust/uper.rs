@@ -145,7 +145,7 @@ impl UperSerializer {
                 block.line("reader.read_octet_string(None)?");
             }
             RustType::BitVec(_) => {
-                block.line("BitVec::from_length_terminated_bytes(reader.read_octet_string(None)?)");
+                block.line("reader.read_bitstring()?");
             }
             RustType::Vec(inner) => {
                 block.line("let len = reader.read_length_determinant()?;");
@@ -422,10 +422,9 @@ impl UperSerializer {
             }
             RustType::BitVec(_) => {
                 block.line(format!(
-                    "let encoded_bit_vec = {}.to_length_terminated_bytes();",
+                    "writer.write_bitstring({})?;",
                     field_name.map_or_else(|| "value".into(), |f| f.with_ref().to_string()),
                 ));
-                block.line("writer.write_octet_string(&encoded_bit_vec[..], None)?;");
             }
             RustType::Vec(inner) => {
                 block.line(format!(

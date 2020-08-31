@@ -6,6 +6,7 @@ use crate::io::per::{PackedRead, PackedWrite};
 pub use crate::io::per::err::Error;
 #[deprecated(note = "Use asn1rs::io::per::unaligned::BYTE_LEN instead")]
 use crate::io::per::unaligned::BYTE_LEN;
+use crate::syn::BitVec;
 
 #[deprecated(note = "Use the UperReader/-Writer with the Read-/Writable interface instead")]
 #[cfg(feature = "legacy-uper-codegen")]
@@ -124,6 +125,8 @@ pub trait Reader {
         }
     }*/
 
+    fn read_bitstring(&mut self) -> Result<BitVec, Error>;
+
     fn read_bit_string(
         &mut self,
         buffer: &mut [u8],
@@ -228,6 +231,12 @@ impl<T: BitRead + PackedRead> Reader for T {
     #[inline]
     fn read_int_max_unsigned(&mut self) -> Result<u64, Error> {
         <T as PackedRead>::read_non_negative_binary_integer(self, None, None)
+    }
+
+    #[inline]
+    fn read_bitstring(&mut self) -> Result<BitVec, Error> {
+        let (bytes, len) = <T as PackedRead>::read_bitstring(self, None, None, false)?;
+        Ok(BitVec::from_bytes(bytes, len))
     }
 
     #[inline]
@@ -394,6 +403,8 @@ pub trait Writer {
         Ok(())
     }*/
 
+    fn write_bitstring(&mut self, bits: &BitVec) -> Result<(), Error>;
+
     fn write_bit_string(
         &mut self,
         buffer: &[u8],
@@ -500,6 +511,19 @@ impl<T: BitWrite + PackedWrite> Writer for T {
     #[inline]
     fn write_int_max_unsigned(&mut self, value: u64) -> Result<(), Error> {
         <T as PackedWrite>::write_non_negative_binary_integer(self, None, None, value)
+    }
+
+    #[inline]
+    fn write_bitstring(&mut self, bits: &BitVec) -> Result<(), Error> {
+        <T as PackedWrite>::write_bitstring(
+            self,
+            None,
+            None,
+            false,
+            bits.as_byte_slice(),
+            0,
+            bits.bit_len(),
+        )
     }
 
     #[inline]

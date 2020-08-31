@@ -9,6 +9,7 @@ pub mod legacy {
     use crate::io::uper::Error as UperError;
     use crate::io::uper::Reader as UperReader;
     use crate::io::uper::Writer as UperWriter;
+    use crate::syn::BitVec;
     use byteorder::ByteOrder;
     use byteorder::NetworkEndian;
 
@@ -109,6 +110,16 @@ pub mod legacy {
                 self.read_bit_string_till_end(&mut buffer[..], offset)?;
                 Ok(u64::from_be_bytes(buffer))
             }
+        }
+
+        fn read_bitstring(&mut self) -> Result<BitVec, Error> {
+            let (bytes, bit_len) = <BitBuffer as crate::io::per::PackedRead>::read_bitstring(
+                &mut self.0,
+                None,
+                None,
+                false,
+            )?;
+            Ok(BitVec::from_bytes(bytes, bit_len))
         }
 
         fn read_bit_string(
@@ -281,6 +292,18 @@ pub mod legacy {
             let bit_offset = (buffer.len() - byte_len) * BYTE_LEN;
             self.write_bit_string_till_end(&buffer, bit_offset)?;
             Ok(())
+        }
+
+        fn write_bitstring(&mut self, bits: &BitVec) -> Result<(), Error> {
+            <BitBuffer as crate::io::per::PackedWrite>::write_bitstring(
+                &mut self.0,
+                None,
+                None,
+                false,
+                bits.as_byte_slice(),
+                0,
+                bits.bit_len(),
+            )
         }
 
         fn write_bit_string(

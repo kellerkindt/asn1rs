@@ -38,10 +38,19 @@ impl<C: Constraint> ReadableType for BitString<C> {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Default, Clone, PartialOrd, PartialEq, Hash)]
 pub struct BitVec(Vec<u8>, u64);
 
 impl BitVec {
+    pub fn from_all_bytes(bytes: Vec<u8>) -> Self {
+        let bit_len = (bytes.len() * 8) as u64;
+        Self::from_bytes(bytes, bit_len)
+    }
+
+    pub const fn from_bytes(bytes: Vec<u8>, bit_len: u64) -> Self {
+        BitVec(bytes, bit_len)
+    }
+
     pub fn with_capacity(bits: u64) -> Self {
         let bytes = (bits + 7) / 8;
         BitVec(Vec::with_capacity(bytes as usize), bits)
@@ -50,7 +59,7 @@ impl BitVec {
     /// # Panics
     ///
     /// If the given `Vec<u8>` is not at least 4 bytes large
-    pub fn from_length_terminated_bytes(mut bytes: Vec<u8>) -> Self {
+    pub fn from_vec_with_trailing_bit_len(mut bytes: Vec<u8>) -> Self {
         const U64_SIZE: usize = std::mem::size_of::<u64>();
         let bytes_position = bytes.len() - U64_SIZE - 1;
         let mut bit_len_buffer = [0u8; U64_SIZE];
@@ -60,7 +69,7 @@ impl BitVec {
         Self(bytes, u64::from_be_bytes(bit_len_buffer))
     }
 
-    pub fn to_length_terminated_bytes(&self) -> Vec<u8> {
+    pub fn to_vec_with_trailing_bit_len(&self) -> Vec<u8> {
         let mut buffer = self.0.clone();
         self.1.to_be_bytes().iter().for_each(|b| buffer.push(*b));
         buffer

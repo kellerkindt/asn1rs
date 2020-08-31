@@ -460,14 +460,14 @@ impl Model<Asn> {
         } else if text.eq_ignore_ascii_case("OCTET") {
             let token = Self::next(iter)?;
             if token.text().map_or(false, |t| t.eq("STRING")) {
-                if Self::peek(iter)?.eq_separator('(') {
-                    Self::next_separator_ignore_case(iter, '(')?;
-                    let result = Type::OctetString(Model::<Asn>::read_size(iter)?);
-                    Self::next_separator_ignore_case(iter, ')')?;
-                    Ok(result)
-                } else {
-                    Ok(Type::OctetString(Size::Any))
-                }
+                Ok(Type::OctetString(Model::<Asn>::maybe_read_size(iter)?))
+            } else {
+                Err(Error::unexpected_token(token))
+            }
+        } else if text.eq_ignore_ascii_case("BIT") {
+            let token = Self::next(iter)?;
+            if token.text().map_or(false, |t| t.eq("STRING")) {
+                Ok(Type::BitString(BitString::try_from(iter)?))
             } else {
                 Err(Error::unexpected_token(token))
             }
@@ -521,6 +521,17 @@ impl Model<Asn> {
             }
         } else {
             Ok(Range(None, None, false))
+        }
+    }
+
+    fn maybe_read_size(iter: &mut Peekable<IntoIter<Token>>) -> Result<Size, Error> {
+        if Self::peek(iter)?.eq_separator('(') {
+            Self::next_separator_ignore_case(iter, '(')?;
+            let result = Self::read_size(iter)?;
+            Self::next_separator_ignore_case(iter, ')')?;
+            Ok(result)
+        } else {
+            Ok(Size::Any)
         }
     }
 
@@ -593,6 +604,11 @@ impl Model<Asn> {
     }
 
     fn constant_i64_parser(token: Token) -> Result<i64, Error> {
+        let parsed = token.text().and_then(|s| s.parse().ok());
+        parsed.ok_or_else(|| Error::invalid_value_for_constant(token))
+    }
+
+    fn constant_u64_parser(token: Token) -> Result<u64, Error> {
         let parsed = token.text().and_then(|s| s.parse().ok());
         parsed.ok_or_else(|| Error::invalid_value_for_constant(token))
     }
@@ -995,7 +1011,7 @@ pub enum Type {
     Integer(Integer),
     UTF8String,
     OctetString(Size),
-    BitString(Size),
+    BitString(BitString),
 
     Optional(Box<Type>),
 
@@ -1021,6 +1037,13 @@ impl Type {
     pub const fn integer_with_range_opt(range: Range<Option<i64>>) -> Self {
         Self::Integer(Integer {
             range,
+            constants: Vec::new(),
+        })
+    }
+
+    pub const fn bit_vec_with_size(size: Size) -> Self {
+        Self::BitString(BitString {
+            size,
             constants: Vec::new(),
         })
     }
@@ -1075,6 +1098,23 @@ impl TryFrom<&mut Peekable<IntoIter<Token>>> for Integer {
             Model::<Asn>::maybe_read_constants(iter, Model::<Asn>::constant_i64_parser)?;
         let range = Model::<Asn>::read_number_range(iter)?;
         Ok(Self { range, constants })
+    }
+}
+
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub struct BitString {
+    pub size: Size,
+    pub constants: Vec<(String, u64)>,
+}
+
+impl TryFrom<&mut Peekable<IntoIter<Token>>> for BitString {
+    type Error = Error;
+
+    fn try_from(iter: &mut Peekable<IntoIter<Token>>) -> Result<Self, Self::Error> {
+        let constants =
+            Model::<Asn>::maybe_read_constants(iter, Model::<Asn>::constant_u64_parser)?;
+        let size = Model::<Asn>::maybe_read_size(iter)?;
+        Ok(Self { size, constants })
     }
 }
 

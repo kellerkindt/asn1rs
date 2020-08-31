@@ -14,6 +14,7 @@ pub mod sequenceof;
 pub mod utf8string;
 
 pub use bitstring::BitString;
+pub use bitstring::BitVec;
 pub use boolean::Boolean;
 pub use choice::Choice;
 pub use complex::Complex;

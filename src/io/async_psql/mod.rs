@@ -1,22 +1,23 @@
+use bytes::Buf;
 pub use futures::future::join_all;
 pub use futures::future::try_join_all;
-pub use tokio::join;
-pub use tokio::try_join;
-pub use tokio_postgres::Error as PsqlError;
-pub use tokio_postgres::Row;
-
-use bytes::Buf;
 use futures::lock::Mutex;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::error;
 use std::fmt;
 use std::sync::Arc;
+pub use tokio::join;
+pub use tokio::try_join;
 use tokio_postgres::types::{ToSql, Type};
+pub use tokio_postgres::Error as PsqlError;
+pub use tokio_postgres::Row;
 use tokio_postgres::{
     CancelToken, Client, CopyInSink, CopyOutStream, RowStream, SimpleQueryMessage, Statement,
 };
 use tokio_postgres::{ToStatement, Transaction};
+
+pub mod bit_vec_impl;
 
 #[derive(Clone)]
 pub enum StatementState {

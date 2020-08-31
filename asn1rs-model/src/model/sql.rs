@@ -407,6 +407,7 @@ impl Model<Sql> {
         match rust.clone().into_inner_type() {
             RustType::String => true,
             RustType::VecU8(_) => true,
+            RustType::BitVec(_) => true,
             r => r.is_primitive(),
         }
     }

@@ -217,7 +217,7 @@ impl RustType {
             )),
             RustType::String => AsnType::UTF8String,
             RustType::VecU8(size) => AsnType::OctetString(size),
-            RustType::BitVec(size) => AsnType::BitString(size),
+            RustType::BitVec(size) => AsnType::bit_vec_with_size(size),
             RustType::Vec(inner) => AsnType::SequenceOf(Box::new(inner.into_asn())),
             RustType::Option(value) => AsnType::Optional(Box::new(value.into_asn())),
             RustType::Complex(name) => AsnType::TypeReference(name),
@@ -240,21 +240,21 @@ impl RustType {
             RustType::BitVec(_) => matches!(other, RustType::BitVec(_)),
             RustType::Vec(inner_a) => {
                 if let RustType::Vec(inner_b) = other {
-                    return inner_a.similar(inner_b);
+                    inner_a.similar(inner_b)
                 } else {
                     false
                 }
             }
             RustType::Option(inner_a) => {
                 if let RustType::Option(inner_b) = other {
-                    return inner_a.similar(inner_b);
+                    inner_a.similar(inner_b)
                 } else {
                     false
                 }
             }
             RustType::Complex(inner_a) => {
                 if let RustType::Complex(inner_b) = other {
-                    return inner_a.eq(inner_b);
+                    inner_a.eq(inner_b)
                 } else {
                     false
                 }
@@ -595,14 +595,27 @@ impl Model<Rust> {
     }
 
     pub fn asn_constants_to_rust_constants(asn: &AsnType) -> Vec<(String, String)> {
-        if let AsnType::Integer(integer) = asn {
-            integer
+        match asn {
+            AsnType::Integer(integer) => integer
                 .constants
                 .iter()
                 .map(|(name, value)| (rust_module_name(name).to_uppercase(), format!("{}", value)))
-                .collect()
-        } else {
-            Vec::default()
+                .collect(),
+            AsnType::BitString(bitstring) => bitstring
+                .constants
+                .iter()
+                .map(|(name, value)| (rust_module_name(name).to_uppercase(), format!("{}", value)))
+                .collect(),
+
+            Type::Boolean
+            | Type::UTF8String
+            | Type::OctetString(_)
+            | Type::Optional(_)
+            | Type::Sequence(_)
+            | Type::SequenceOf(_)
+            | Type::Enumerated(_)
+            | Type::Choice(_)
+            | Type::TypeReference(_) => Vec::default(),
         }
     }
 
@@ -662,7 +675,7 @@ impl Model<Rust> {
 
             AsnType::UTF8String => RustType::String,
             AsnType::OctetString(size) => RustType::VecU8(*size),
-            AsnType::BitString(size) => RustType::BitVec(*size),
+            AsnType::BitString(bitstring) => RustType::BitVec(bitstring.size),
             Type::Optional(inner) => RustType::Option(Box::new(
                 Self::definition_type_to_rust_type(name, inner, defs),
             )),

@@ -457,6 +457,7 @@ impl ProtobufSerializer {
                             "{}{}",
                             if ProtobufType::String == r.to_protobuf()
                                 || matches!(r.to_protobuf().to_rust(), RustType::VecU8(_))
+                                || matches!(r.to_protobuf().to_rust(), RustType::BitVec(_))
                             {
                                 if deny_self || field_type.is_option() {
                                     ""

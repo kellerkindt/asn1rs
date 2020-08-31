@@ -7,7 +7,7 @@ use std::fmt::Display;
 use std::marker::PhantomData;
 use std::ops::Deref;
 use syn::parenthesized;
-use syn::parse::{Parse, ParseBuffer};
+use syn::parse::{Parse, ParseBuffer, ParseStream};
 use syn::token;
 
 #[derive(Debug)]
@@ -94,20 +94,8 @@ fn parse_type_pre_stepped<'a>(
 ) -> syn::Result<Type> {
     match lowercase_ident {
         "utf8string" => Ok(Type::UTF8String),
-        "octet_string" => {
-            if input.is_empty() {
-                Ok(Type::OctetString(Size::Any))
-            } else {
-                let content;
-                parenthesized!(content in input);
-                if content.is_empty() {
-                    Ok(Type::OctetString(Size::Any))
-                } else {
-                    let size = Size::parse(&content)?;
-                    Ok(Type::OctetString(size))
-                }
-            }
-        }
+        "octet_string" => parse_opt_size_or_any(input).map(Type::OctetString),
+        "bit_string" => parse_opt_size_or_any(input).map(Type::bit_vec_with_size),
         "integer" => {
             if input.is_empty() {
                 Ok(Type::any_integer())
@@ -149,6 +137,20 @@ fn parse_type_pre_stepped<'a>(
             Ok(Type::SequenceOf(Box::new(inner)))
         }
         r#type => Err(input.error(format!("Unexpected attribute: `{}`", r#type))),
+    }
+}
+
+fn parse_opt_size_or_any(input: ParseStream) -> syn::Result<Size> {
+    if input.is_empty() {
+        Ok(Size::Any)
+    } else {
+        let content;
+        parenthesized!(content in input);
+        if content.is_empty() {
+            Ok(Size::Any)
+        } else {
+            Size::parse(&content)
+        }
     }
 }
 
