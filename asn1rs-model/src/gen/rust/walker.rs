@@ -296,6 +296,7 @@ impl AsnDefWriter {
             .impl_trait(format!("{}Readable", CRATE_SYN_PREFIX));
 
         imp.new_fn("read")
+            .attr("inline")
             .generic(&format!("R: {}Reader", CRATE_SYN_PREFIX))
             .arg("reader", "&mut R")
             .ret("Result<Self, R::Error>")
@@ -308,6 +309,7 @@ impl AsnDefWriter {
             .impl_trait(format!("{}Writable", CRATE_SYN_PREFIX));
 
         imp.new_fn("write")
+            .attr("inline")
             .generic(&format!("W: {}Writer", CRATE_SYN_PREFIX))
             .arg_ref_self()
             .arg("writer", "&mut W")
@@ -320,6 +322,7 @@ impl AsnDefWriter {
         imp.impl_trait(format!("{}enumerated::Constraint", CRATE_SYN_PREFIX));
 
         imp.new_fn("to_choice_index")
+            .attr("inline")
             .arg_ref_self()
             .ret("u64")
             .push_block({
@@ -331,6 +334,7 @@ impl AsnDefWriter {
             });
 
         imp.new_fn("from_choice_index")
+            .attr("inline")
             .arg("index", "u64")
             .ret("Option<Self>")
             .push_block({
@@ -365,6 +369,7 @@ impl AsnDefWriter {
         imp.impl_trait(format!("{}choice::Constraint", CRATE_SYN_PREFIX));
 
         imp.new_fn("to_choice_index")
+            .attr("inline")
             .arg_ref_self()
             .ret("u64")
             .push_block({
@@ -376,6 +381,7 @@ impl AsnDefWriter {
             });
 
         imp.new_fn("write_content")
+            .attr("inline")
             .generic(&format!("W: {}Writer", CRATE_SYN_PREFIX))
             .arg_ref_self()
             .arg("writer", "&mut W")
@@ -394,6 +400,7 @@ impl AsnDefWriter {
             });
 
         imp.new_fn("read_content")
+            .attr("inline")
             .generic(&format!("R: {}Reader", CRATE_SYN_PREFIX))
             .arg("index", "u64")
             .arg("reader", "&mut R")
@@ -536,6 +543,7 @@ impl AsnDefWriter {
 
     fn write_sequence_constraint_read_fn(&self, imp: &mut Impl, name: &str, fields: &[Field]) {
         imp.new_fn("read_seq")
+            .attr("inline")
             .generic(&format!("R: {}Reader", CRATE_SYN_PREFIX))
             .arg("reader", "&mut R")
             .ret("Result<Self, R::Error>")
@@ -559,6 +567,7 @@ impl AsnDefWriter {
     fn write_sequence_constraint_write_fn(&self, imp: &mut Impl, name: &str, fields: &[Field]) {
         let body = imp
             .new_fn("write_seq")
+            .attr("inline")
             .generic(&format!("W: {}Writer", CRATE_SYN_PREFIX))
             .arg_ref_self()
             .arg("writer", "&mut W")
@@ -682,6 +691,7 @@ pub mod tests {
                 const FIELD_COUNT: u64 = 3;
                 const EXTENDED_AFTER_FIELD: Option<u64> = None;
                 
+                #[inline]
                 fn read_seq<R: ::asn1rs::syn::Reader>(reader: &mut R) -> Result<Self, R::Error>
                 where Self: Sized,
                 {
@@ -692,6 +702,7 @@ pub mod tests {
                     })
                 }
                 
+                #[inline]
                 fn write_seq<W: ::asn1rs::syn::Writer>(&self, writer: &mut W) -> Result<(), W::Error> {
                     AsnDefWhateverFieldName::write_value(writer, &self.name)?;
                     AsnDefWhateverFieldOpt::write_value(writer, &self.opt)?;
@@ -701,12 +712,14 @@ pub mod tests {
             }
             
             impl ::asn1rs::syn::Readable for Whatever {
+                #[inline]
                 fn read<R: ::asn1rs::syn::Reader>(reader: &mut R) -> Result<Self, R::Error> {
                     AsnDefWhatever::read_value(reader)
                 }
             }
             
             impl ::asn1rs::syn::Writable for Whatever {
+                #[inline]
                 fn write<W: ::asn1rs::syn::Writer>(&self, writer: &mut W) -> Result<(), W::Error> {
                     AsnDefWhatever::write_value(writer, self)
                 }
@@ -733,6 +746,7 @@ pub mod tests {
                 const FIELD_COUNT: u64 = 3;
                 const EXTENDED_AFTER_FIELD: Option<u64> = Some(1);
                 
+                #[inline]
                 fn read_seq<R: ::asn1rs::syn::Reader>(reader: &mut R) -> Result<Self, R::Error>
                 where Self: Sized,
                 {
@@ -743,6 +757,7 @@ pub mod tests {
                     })
                 }
                 
+                #[inline]
                 fn write_seq<W: ::asn1rs::syn::Writer>(&self, writer: &mut W) -> Result<(), W::Error> {
                     AsnDefPotatoFieldName::write_value(writer, &self.name)?;
                     AsnDefPotatoFieldOpt::write_value(writer, &self.opt)?;
