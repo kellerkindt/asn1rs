@@ -10,8 +10,8 @@ impl<C: Constraint> Default for BitString<C> {
 }
 
 pub trait Constraint {
-    const MIN: Option<usize> = None;
-    const MAX: Option<usize> = None;
+    const MIN: Option<u64> = None;
+    const MAX: Option<u64> = None;
     const EXTENSIBLE: bool = false;
 }
 
@@ -39,40 +39,43 @@ impl<C: Constraint> ReadableType for BitString<C> {
 }
 
 #[derive(Debug, Default, Clone, PartialOrd, PartialEq)]
-pub struct BitVec(Vec<u8>, usize);
+pub struct BitVec(Vec<u8>, u64);
 
 impl BitVec {
-    pub fn with_capacity(bits: usize) -> Self {
+    pub fn with_capacity(bits: u64) -> Self {
         let bytes = (bits + 7) / 8;
-        BitVec(Vec::with_capacity(bytes), bits)
+        BitVec(Vec::with_capacity(bytes as usize), bits)
     }
 
-    pub fn is_bit_set(&self, bit: usize) -> bool {
+    pub fn is_bit_set(&self, bit: u64) -> bool {
         let byte = bit / 8;
         let bit = bit % 8;
         let mask = 0x80_u8 >> bit;
-        self.0.get(byte).map(|b| *b & mask != 0).unwrap_or(false)
+        self.0
+            .get(byte as usize)
+            .map(|b| *b & mask != 0)
+            .unwrap_or(false)
     }
 
-    pub fn set_bit(&mut self, bit: usize) {
+    pub fn set_bit(&mut self, bit: u64) {
         self.ensure_vec_large_enough(bit);
         let byte = bit / 8;
         let bit = bit % 8;
         let mask = 0x80_u8 >> bit;
-        self.0[byte] |= mask;
+        self.0[byte as usize] |= mask;
     }
 
-    pub fn reset_bit(&mut self, bit: usize) {
+    pub fn reset_bit(&mut self, bit: u64) {
         self.ensure_vec_large_enough(bit);
         let byte = bit / 8;
         let bit = bit % 8;
         let mask = 0x80_u8 >> bit;
-        self.0[byte] &= !mask;
+        self.0[byte as usize] &= !mask;
     }
 
-    fn ensure_vec_large_enough(&mut self, bits: usize) {
+    fn ensure_vec_large_enough(&mut self, bits: u64) {
         if bits > self.1 {
-            let byte = bits / 8;
+            let byte = (bits / 8) as usize;
             for _ in self.0.len()..byte {
                 self.0.push(0x00);
             }
@@ -80,7 +83,7 @@ impl BitVec {
         }
     }
 
-    pub fn bit_len(&self) -> usize {
+    pub fn bit_len(&self) -> u64 {
         self.1
     }
 

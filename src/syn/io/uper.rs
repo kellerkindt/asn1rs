@@ -462,6 +462,19 @@ impl Writer for UperWriter {
     }
 
     #[inline]
+    fn write_bit_string<C: bitstring::Constraint>(
+        &mut self,
+        value: &[u8],
+        bit_len: u64,
+    ) -> Result<(), Self::Error> {
+        self.write_bit_field_entry(false, true)?;
+        self.with_buffer(|w| {
+            w.buffer
+                .write_bitstring(C::MIN, C::MAX, C::EXTENSIBLE, value, 0, bit_len)
+        })
+    }
+
+    #[inline]
     fn write_boolean<C: boolean::Constraint>(&mut self, value: bool) -> Result<(), Self::Error> {
         self.write_bit_field_entry(false, true)?;
         self.with_buffer(|w| w.buffer.write_bit(value))
@@ -565,9 +578,9 @@ impl Reader for UperReader {
         f: F,
     ) -> Result<S, Self::Error> {
         let _ = self.read_bit_field_entry(false);
-        self.with_buffer(|w| {
+        self.with_buffer(|r| {
             if let Some(extension_after) = C::EXTENDED_AFTER_FIELD {
-                let has_extension = w.buffer.read_bit()?;
+                let has_extension = r.buffer.read_bit()?;
                 let expects_extension = C::FIELD_COUNT > extension_after;
                 if has_extension != expects_extension {
                     return Err(Error::InvalidExtensionConstellation(
@@ -581,14 +594,14 @@ impl Reader for UperReader {
             // value is written. This remembers their position, so a later call of `read_opt`
             // can retrieve them from the buffer
             let range =
-                w.buffer.read_position..w.buffer.read_position + C::STD_OPTIONAL_FIELDS as usize;
-            if w.buffer.bit_len() < range.end {
+                r.buffer.read_position..r.buffer.read_position + C::STD_OPTIONAL_FIELDS as usize;
+            if r.buffer.bit_len() < range.end {
                 return Err(Error::EndOfStream);
             }
-            w.buffer.read_position = range.end; // skip optional
+            r.buffer.read_position = range.end; // skip optional
 
             if let Some(extension_after) = C::EXTENDED_AFTER_FIELD {
-                w.scope_pushed(
+                r.scope_pushed(
                     Scope::ExtensibleSequence {
                         opt_bit_field: Some(range),
                         calls_until_ext_bitfield: (extension_after + 1) as usize,
@@ -597,7 +610,7 @@ impl Reader for UperReader {
                     f,
                 )
             } else {
-                w.scope_pushed(Scope::OptBitField(range), f)
+                r.scope_pushed(Scope::OptBitField(range), f)
             }
         })
     }
@@ -607,14 +620,14 @@ impl Reader for UperReader {
         &mut self,
     ) -> Result<Vec<T::Type>, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|w| {
+        self.with_buffer(|r| {
             let min = const_unwrap_or!(C::MIN, 0);
             let max = const_unwrap_or!(C::MAX, u64::MAX);
-            let len = w.buffer.read_length_determinant(None, None)? + min;
+            let len = r.buffer.read_length_determinant(None, None)? + min;
             if len > max {
                 Err(Error::SizeNotInRange(len, min, max))
             } else {
-                w.scope_stashed(|w| {
+                r.scope_stashed(|w| {
                     let mut vec = Vec::with_capacity(len as usize);
                     for _ in 0..len {
                         vec.push(T::read_value(w)?);
@@ -628,8 +641,8 @@ impl Reader for UperReader {
     #[inline]
     fn read_enumerated<C: enumerated::Constraint>(&mut self) -> Result<C, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|w| {
-            w.buffer
+        self.with_buffer(|r| {
+            r.buffer
                 .read_enumeration_index(C::STD_VARIANT_COUNT, C::EXTENSIBLE)
         })
         .and_then(|index| {
@@ -674,17 +687,17 @@ impl Reader for UperReader {
         &mut self,
     ) -> Result<T, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|w| {
+        self.with_buffer(|r| {
             let unconstrained = if C::EXTENSIBLE {
-                w.buffer.read_bit()?
+                r.buffer.read_bit()?
             } else {
                 C::MIN.is_none() && C::MAX.is_none()
             };
 
             if unconstrained {
-                w.buffer.read_unconstrained_whole_number().map(T::from_i64)
+                r.buffer.read_unconstrained_whole_number().map(T::from_i64)
             } else {
-                w.buffer
+                r.buffer
                     .read_constrained_whole_number(
                         const_unwrap_or!(C::MIN, 0),
                         const_unwrap_or!(C::MAX, i64::MAX),
@@ -697,8 +710,8 @@ impl Reader for UperReader {
     #[inline]
     fn read_utf8string<C: utf8string::Constraint>(&mut self) -> Result<String, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|w| {
-            let octets = w.buffer.read_octetstring(C::MIN, C::MAX, C::EXTENSIBLE)?;
+        self.with_buffer(|r| {
+            let octets = r.buffer.read_octetstring(C::MIN, C::MAX, C::EXTENSIBLE)?;
             String::from_utf8(octets).map_err(|_| Self::Error::InvalidUtf8String)
         })
     }
@@ -706,12 +719,18 @@ impl Reader for UperReader {
     #[inline]
     fn read_octet_string<C: octetstring::Constraint>(&mut self) -> Result<Vec<u8>, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|w| w.buffer.read_octetstring(C::MIN, C::MAX, C::EXTENSIBLE))
+        self.with_buffer(|r| r.buffer.read_octetstring(C::MIN, C::MAX, C::EXTENSIBLE))
+    }
+
+    #[inline]
+    fn read_bit_string<C: bitstring::Constraint>(&mut self) -> Result<(Vec<u8>, u64), Self::Error> {
+        let _ = self.read_bit_field_entry(false)?;
+        self.with_buffer(|r| r.buffer.read_bitstring(C::MIN, C::MAX, C::EXTENSIBLE))
     }
 
     #[inline]
     fn read_boolean<C: boolean::Constraint>(&mut self) -> Result<bool, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|w| w.buffer.read_boolean())
+        self.with_buffer(|r| r.buffer.read_boolean())
     }
 }

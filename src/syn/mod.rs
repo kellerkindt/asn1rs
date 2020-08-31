@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+pub mod bitstring;
 pub mod boolean;
 pub mod choice;
 pub mod complex;
@@ -12,6 +13,7 @@ pub mod sequence;
 pub mod sequenceof;
 pub mod utf8string;
 
+pub use bitstring::BitString;
 pub use boolean::Boolean;
 pub use choice::Choice;
 pub use complex::Complex;
@@ -59,6 +61,8 @@ pub trait Reader {
     fn read_utf8string<C: utf8string::Constraint>(&mut self) -> Result<String, Self::Error>;
 
     fn read_octet_string<C: octetstring::Constraint>(&mut self) -> Result<Vec<u8>, Self::Error>;
+
+    fn read_bit_string<C: bitstring::Constraint>(&mut self) -> Result<(Vec<u8>, u64), Self::Error>;
 
     fn read_boolean<C: boolean::Constraint>(&mut self) -> Result<bool, Self::Error>;
 }
@@ -130,6 +134,12 @@ pub trait Writer {
     fn write_octet_string<C: octetstring::Constraint>(
         &mut self,
         value: &[u8],
+    ) -> Result<(), Self::Error>;
+
+    fn write_bit_string<C: bitstring::Constraint>(
+        &mut self,
+        value: &[u8],
+        bit_len: u64,
     ) -> Result<(), Self::Error>;
 
     fn write_boolean<C: boolean::Constraint>(&mut self, value: bool) -> Result<(), Self::Error>;

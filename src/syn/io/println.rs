@@ -143,7 +143,35 @@ impl Writer for PrintlnWriter {
         &mut self,
         value: &[u8],
     ) -> Result<(), Self::Error> {
-        self.indented_println(format!("WRITING OctetString {:?}", value));
+        self.indented_println(format!(
+            "WRITING OctetString({}..{}) {:02x?}",
+            C::MIN
+                .map(|v| format!("{}", v))
+                .unwrap_or_else(|| String::from("MIN")),
+            C::MAX
+                .map(|v| format!("{}", v))
+                .unwrap_or_else(|| String::from("MAX")),
+            value
+        ));
+        Ok(())
+    }
+
+    fn write_bit_string<C: bitstring::Constraint>(
+        &mut self,
+        value: &[u8],
+        bit_len: u64,
+    ) -> Result<(), Self::Error> {
+        self.indented_println(format!(
+            "WRITING BitString({}..{}) bits={} {:02x?}",
+            C::MIN
+                .map(|v| format!("{}", v))
+                .unwrap_or_else(|| String::from("MIN")),
+            C::MAX
+                .map(|v| format!("{}", v))
+                .unwrap_or_else(|| String::from("MAX")),
+            bit_len,
+            value
+        ));
         Ok(())
     }
 
