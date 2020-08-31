@@ -47,6 +47,25 @@ impl BitVec {
         BitVec(Vec::with_capacity(bytes as usize), bits)
     }
 
+    /// # Panics
+    ///
+    /// If the given `Vec<u8>` is not at least 4 bytes large
+    pub fn from_length_terminated_bytes(mut bytes: Vec<u8>) -> Self {
+        const U64_SIZE: usize = std::mem::size_of::<u64>();
+        let bytes_position = bytes.len() - U64_SIZE - 1;
+        let mut bit_len_buffer = [0u8; U64_SIZE];
+        for i in (0..U64_SIZE).rev() {
+            bit_len_buffer[i] = bytes.remove(bytes_position + i);
+        }
+        Self(bytes, u64::from_be_bytes(bit_len_buffer))
+    }
+
+    pub fn to_length_terminated_bytes(&self) -> Vec<u8> {
+        let mut buffer = self.0.clone();
+        self.1.to_be_bytes().iter().for_each(|b| buffer.push(*b));
+        buffer
+    }
+
     pub fn is_bit_set(&self, bit: u64) -> bool {
         let byte = bit / 8;
         let bit = bit % 8;

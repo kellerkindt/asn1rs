@@ -1,3 +1,4 @@
+use crate::syn::bitstring::BitVec;
 use backtrace::Backtrace;
 use byteorder::LittleEndian as E;
 use byteorder::ReadBytesExt;
@@ -161,6 +162,11 @@ pub trait Writer {
         self.write_bytes(value)
     }
 
+    fn write_tagged_bit_vec(&mut self, field: u32, value: &BitVec) -> Result<(), Error> {
+        let bytes = value.to_length_terminated_bytes();
+        self.write_tagged_bytes(field, &bytes)
+    }
+
     fn write_tagged_sfixed32(&mut self, field: u32, value: i32) -> Result<(), Error> {
         self.write_tag(field, Format::Fixed32)?;
         self.write_sfixed32(value)
@@ -236,6 +242,11 @@ pub trait Reader {
     }
 
     fn read_bytes(&mut self) -> Result<Vec<u8>, Error>;
+
+    fn read_bit_vec(&mut self) -> Result<BitVec, Error> {
+        let bytes = self.read_bytes()?;
+        Ok(BitVec::from_length_terminated_bytes(bytes))
+    }
 
     fn read_tag(&mut self) -> Result<(u32, Format), Error> {
         let mask = 0b0000_0111;

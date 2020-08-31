@@ -349,6 +349,18 @@ impl RustCodeGenerator {
                     String::from("octet_string")
                 }
             }
+            Type::BitString(size) => {
+                if size.min().is_some() || size.max().is_some() {
+                    format!(
+                        "bit_string({}..{}{})",
+                        size.min().unwrap_or_default(),
+                        size.max().unwrap_or_else(|| i64::max_value() as usize),
+                        if size.extensible() { ",..." } else { "" }
+                    )
+                } else {
+                    String::from("bit_string")
+                }
+            }
             Type::Optional(inner) => format!("option({})", Self::asn_attribute_type(&*inner)),
             Type::SequenceOf(inner) => {
                 format!("sequence_of({})", Self::asn_attribute_type(&*inner))

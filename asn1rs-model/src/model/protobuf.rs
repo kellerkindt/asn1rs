@@ -18,6 +18,7 @@ pub enum ProtobufType {
     SInt64,
     String,
     Bytes,
+    BitsReprByBytesAndBitsLen,
     Repeated(Box<ProtobufType>),
     OneOf(Vec<(String, ProtobufType)>),
     /// Indicates a complex, custom type that is
@@ -42,6 +43,7 @@ impl ProtobufType {
             ProtobufType::SInt64 => RustType::I64(Range::inclusive(0, i64::max_value())),
             ProtobufType::String => RustType::String,
             ProtobufType::Bytes => RustType::VecU8(Size::Any),
+            ProtobufType::BitsReprByBytesAndBitsLen => RustType::BitVec(Size::Any),
             ProtobufType::Repeated(inner) => RustType::Vec(Box::new(inner.to_rust())),
             ProtobufType::OneOf(_) => panic!("ProtobufType::OneOf cannot be mapped to a RustType"),
             ProtobufType::Complex(name) => RustType::Complex(name.clone()),
@@ -59,7 +61,7 @@ impl ProtobufType {
             ProtobufType::SInt32 => true,
             ProtobufType::SInt64 => true,
             ProtobufType::String => true,
-            ProtobufType::Bytes => true,
+            ProtobufType::Bytes | ProtobufType::BitsReprByBytesAndBitsLen => true,
             ProtobufType::OneOf(_) => false,
             ProtobufType::Complex(_) => false,
             ProtobufType::Repeated(_) => false,
@@ -79,6 +81,7 @@ impl ToString for ProtobufType {
             ProtobufType::SInt64 => "sint64",
             ProtobufType::String => "string",
             ProtobufType::Bytes => "bytes",
+            ProtobufType::BitsReprByBytesAndBitsLen => "bit_vec",
             ProtobufType::OneOf(_) => "oneof",
             ProtobufType::Complex(name) => return name.clone(),
             ProtobufType::Repeated(name) => return format!("repeated {}", name.to_string()),
@@ -173,6 +176,7 @@ impl Model<Protobuf> {
             RustType::I64(_) => ProtobufType::SInt64,
             RustType::String => ProtobufType::String,
             RustType::VecU8(_) => ProtobufType::Bytes,
+            RustType::BitVec(_) => ProtobufType::BitsReprByBytesAndBitsLen,
 
             RustType::Complex(complex) => ProtobufType::Complex(complex.clone()),
 

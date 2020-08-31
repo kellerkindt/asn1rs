@@ -11,6 +11,10 @@ pub extern crate asn1rs_macros as macros;
 #[cfg(not(feature = "macros"))]
 pub mod macros {}
 
+pub mod io;
+pub mod prelude;
+pub mod syn;
+
 #[cfg(feature = "model")]
 pub mod converter;
 #[cfg(feature = "model")]
@@ -21,13 +25,3 @@ pub use asn1rs_model::gen;
 pub use asn1rs_model::model;
 #[cfg(feature = "model")]
 pub use asn1rs_model::parser;
-
-pub mod io;
-pub mod syn;
-
-pub mod prelude {
-    #[cfg(feature = "macros")]
-    pub use crate::macros::*;
-    pub use crate::syn::io::*;
-    pub use crate::syn::*;
-}

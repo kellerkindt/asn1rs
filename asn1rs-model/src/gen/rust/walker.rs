@@ -76,6 +76,8 @@ impl AsnDefWriter {
             RustType::String => format!("{}Utf8String", CRATE_SYN_PREFIX),
             RustType::VecU8(Size::Any) => format!("{}OctetString", CRATE_SYN_PREFIX),
             RustType::VecU8(_) => format!("{}OctetString<{}Constraint>", CRATE_SYN_PREFIX, name),
+            RustType::BitVec(Size::Any) => format!("{}BitString", CRATE_SYN_PREFIX),
+            RustType::BitVec(_) => format!("{}BitString<{}Constraint>", CRATE_SYN_PREFIX, name),
             RustType::Vec(inner) => format!(
                 "{}SequenceOf<{}>",
                 CRATE_SYN_PREFIX,
@@ -253,6 +255,9 @@ impl AsnDefWriter {
                 RustType::String => {}
                 RustType::VecU8(size) => {
                     Self::write_size_constraint_type("octetstring", scope, name, field.name(), size)
+                }
+                RustType::BitVec(size) => {
+                    Self::write_size_constraint_type("bitstring", scope, name, field.name(), size)
                 }
                 RustType::Vec(inner) | RustType::Option(inner) => self.write_field_constraints(
                     scope,

@@ -967,44 +967,6 @@ impl Asn {
     pub const fn tagged(tag: Tag, r#type: Type) -> Self {
         Self::opt_tagged(Some(tag), r#type)
     }
-
-    pub fn extensible_range(&self) -> bool {
-        fn is_extensible(r#type: &Type) -> bool {
-            match r#type {
-                Type::Boolean => false,
-                Type::Integer(int) => int.range.extensible(),
-                Type::UTF8String => false,
-                Type::OctetString(_) => false,
-                Type::Optional(inner) => is_extensible(&*inner),
-                Type::Sequence(_) => false,
-                Type::SequenceOf(_) => false,
-                Type::Enumerated(_) => false,
-                Type::Choice(_) => false,
-                Type::TypeReference(_) => false,
-            }
-        }
-        is_extensible(&self.r#type)
-    }
-
-    pub fn extensible_after_index(&self) -> Option<usize> {
-        match &self.r#type {
-            Type::Choice(c) => c.extension_after_index(),
-            Type::Enumerated(e) => e.extension_after_index(),
-            _ => None,
-        }
-    }
-
-    pub fn extensible_after_variant(&self) -> Option<&str> {
-        match &self.r#type {
-            Type::Choice(c) => c
-                .extension_after_index()
-                .and_then(|index| c.variants().nth(index).map(ChoiceVariant::name)),
-            Type::Enumerated(e) => e
-                .extension_after_index()
-                .and_then(|index| e.variants().nth(index).map(EnumeratedVariant::name)),
-            _ => None,
-        }
-    }
 }
 
 impl From<Type> for Asn {
@@ -1033,6 +995,7 @@ pub enum Type {
     Integer(Integer),
     UTF8String,
     OctetString(Size),
+    BitString(Size),
 
     Optional(Box<Type>),
 

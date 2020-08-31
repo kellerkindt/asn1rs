@@ -617,7 +617,9 @@ impl ProtobufSerializer {
             ProtobufType::SInt32 => format!("{}Format::VarInt", Self::CODEC),
             ProtobufType::SInt64 => format!("{}Format::VarInt", Self::CODEC),
             ProtobufType::String => format!("{}Format::LengthDelimited", Self::CODEC),
-            ProtobufType::Bytes => format!("{}Format::LengthDelimited", Self::CODEC),
+            ProtobufType::Bytes | ProtobufType::BitsReprByBytesAndBitsLen => {
+                format!("{}Format::LengthDelimited", Self::CODEC)
+            }
             ProtobufType::OneOf(_) => format!("{}Format::LengthDelimited", Self::CODEC),
             ProtobufType::Repeated(_) => format!("{}Format::LengthDelimited", Self::CODEC),
             ProtobufType::Complex(_complex_type) => {

@@ -4,13 +4,23 @@
 #[cfg(feature = "psql")]
 extern crate postgres;
 
-pub use asn1rs_model::gen;
-pub use asn1rs_model::model;
-pub use asn1rs_model::parser;
+#[cfg(feature = "macros")]
+pub extern crate asn1rs_macros as macros;
+
+// provide an empty module, so that `use asn1rs::macros::*;` does not fail
+#[cfg(not(feature = "macros"))]
+pub mod macros {}
+
+pub mod io;
+pub mod prelude;
+pub mod syn;
 
 pub mod cli;
 pub mod converter;
-pub mod io;
+
+pub use asn1rs_model::gen;
+pub use asn1rs_model::model;
+pub use asn1rs_model::parser;
 
 pub fn main() {
     let params = cli::parse_parameters();

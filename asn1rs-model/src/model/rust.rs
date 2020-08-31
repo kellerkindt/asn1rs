@@ -39,6 +39,7 @@ pub enum RustType {
     U64(Range<Option<u64>>),
     String,
     VecU8(Size),
+    BitVec(Size),
     Vec(Box<RustType>),
     Option(Box<RustType>),
 
@@ -166,6 +167,7 @@ impl RustType {
             }
             RustType::String => None,
             RustType::VecU8(_) => None,
+            RustType::BitVec(_) => None,
             RustType::Vec(inner) => inner.integer_range_str(),
             RustType::Option(inner) => inner.integer_range_str(),
             RustType::Complex(_) => None,
@@ -215,6 +217,7 @@ impl RustType {
             )),
             RustType::String => AsnType::UTF8String,
             RustType::VecU8(size) => AsnType::OctetString(size),
+            RustType::BitVec(size) => AsnType::BitString(size),
             RustType::Vec(inner) => AsnType::SequenceOf(Box::new(inner.into_asn())),
             RustType::Option(value) => AsnType::Optional(Box::new(value.into_asn())),
             RustType::Complex(name) => AsnType::TypeReference(name),
@@ -223,74 +226,40 @@ impl RustType {
 
     pub fn similar(&self, other: &Self) -> bool {
         match self {
-            RustType::Bool => return *other == RustType::Bool,
-            RustType::U8(_) => {
-                if let RustType::U8(_) = other {
-                    return true;
-                }
-            }
-            RustType::I8(_) => {
-                if let RustType::I8(_) = other {
-                    return true;
-                }
-            }
-            RustType::U16(_) => {
-                if let RustType::U16(_) = other {
-                    return true;
-                }
-            }
-            RustType::I16(_) => {
-                if let RustType::I16(_) = other {
-                    return true;
-                }
-            }
-            RustType::U32(_) => {
-                if let RustType::U32(_) = other {
-                    return true;
-                }
-            }
-            RustType::I32(_) => {
-                if let RustType::I32(_) = other {
-                    return true;
-                }
-            }
-            RustType::U64(_) => {
-                if let RustType::U64(_) = other {
-                    return true;
-                }
-            }
-            RustType::I64(_) => {
-                if let RustType::I64(_) = other {
-                    return true;
-                }
-            }
-            RustType::String => {
-                if let RustType::String = other {
-                    return true;
-                }
-            }
-            RustType::VecU8(_) => {
-                if let RustType::VecU8(_) = other {
-                    return true;
-                }
-            }
+            RustType::Bool => RustType::Bool == *other,
+            RustType::U8(_) => matches!(other, RustType::U8(_)),
+            RustType::I8(_) => matches!(other, RustType::I8(_)),
+            RustType::U16(_) => matches!(other, RustType::U16(_)),
+            RustType::I16(_) => matches!(other, RustType::I16(_)),
+            RustType::U32(_) => matches!(other, RustType::U32(_)),
+            RustType::I32(_) => matches!(other, RustType::I32(_)),
+            RustType::U64(_) => matches!(other, RustType::U64(_)),
+            RustType::I64(_) => matches!(other, RustType::I64(_)),
+            RustType::String => RustType::String == *other,
+            RustType::VecU8(_) => matches!(other, RustType::VecU8(_)),
+            RustType::BitVec(_) => matches!(other, RustType::BitVec(_)),
             RustType::Vec(inner_a) => {
                 if let RustType::Vec(inner_b) = other {
                     return inner_a.similar(inner_b);
+                } else {
+                    false
                 }
             }
             RustType::Option(inner_a) => {
                 if let RustType::Option(inner_b) = other {
                     return inner_a.similar(inner_b);
+                } else {
+                    false
                 }
             }
             RustType::Complex(inner_a) => {
                 if let RustType::Complex(inner_b) = other {
                     return inner_a.eq(inner_b);
+                } else {
+                    false
                 }
             }
-        };
-        false
+        }
     }
 }
 
@@ -340,6 +309,7 @@ impl ToString for RustType {
             RustType::I64(_) => "i64",
             RustType::String => "String",
             RustType::VecU8(_) => "Vec<u8>",
+            RustType::BitVec(_) => "BitVec",
             RustType::Vec(inner) => return format!("Vec<{}>", inner.to_string()),
             RustType::Option(inner) => return format!("Option<{}>", inner.to_string()),
             RustType::Complex(name) => return name.clone(),
@@ -529,6 +499,7 @@ impl Model<Rust> {
             AsnType::Boolean
             | AsnType::UTF8String
             | AsnType::OctetString(_)
+            | AsnType::BitString(_)
             | AsnType::TypeReference(_) => {
                 let rust_type = Self::definition_type_to_rust_type(name, asn, defs);
                 defs.push(Definition(
@@ -691,6 +662,7 @@ impl Model<Rust> {
 
             AsnType::UTF8String => RustType::String,
             AsnType::OctetString(size) => RustType::VecU8(*size),
+            AsnType::BitString(size) => RustType::BitVec(*size),
             Type::Optional(inner) => RustType::Option(Box::new(
                 Self::definition_type_to_rust_type(name, inner, defs),
             )),
