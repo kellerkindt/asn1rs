@@ -1,97 +1,21 @@
 use crate::io::buffer::BitBuffer;
 use crate::io::per::unaligned::{BitRead, BitWrite};
 use crate::io::per::{PackedRead, PackedWrite};
-use byteorder::ByteOrder;
-use byteorder::NetworkEndian;
 
-pub const BYTE_LEN: usize = 8;
-
-pub const UPER_LENGTH_DET_L1: i64 = 127;
-pub const UPER_LENGTH_DET_L2: i64 = 16383;
-// pub const UPER_LENGTH_DET_L3: i64 = 49151;
-// pub const UPER_LENGTH_DET_L4: i64 = 65535;
-
-#[derive(Debug, PartialOrd, PartialEq)]
-pub enum Error {
-    InvalidUtf8String,
-    UnsupportedOperation(String),
-    InsufficientSpaceInDestinationBuffer,
-    InsufficientDataInSourceBuffer,
-    InvalidChoiceIndex(u64, u64),
-    InvalidExtensionConstellation(bool, bool),
-    ValueNotInRange(i64, i64, i64),
-    ValueExceedsMaxInt,
-    ValueIsNegativeButExpectedUnsigned(i64),
-    SizeNotInRange(u64, u64, u64),
-    OptFlagsExhausted,
-    EndOfStream,
-}
-
-impl std::fmt::Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Error::InvalidUtf8String => {
-                write!(f, "The underlying dataset is not a valid UTF8-String")
-            }
-            Error::UnsupportedOperation(o) => write!(f, "The operation is not supported: {}", o),
-            Error::InsufficientSpaceInDestinationBuffer => write!(
-                f,
-                "There is insufficient space in the destination buffer for this operation"
-            ),
-            Error::InsufficientDataInSourceBuffer => write!(
-                f,
-                "There is insufficient data in the source buffer for this operation"
-            ),
-            Error::InvalidChoiceIndex(index, variant_count) => write!(
-                f,
-                "Unexpected choice-index {} with variant count {}",
-                index, variant_count
-            ),
-            Error::InvalidExtensionConstellation(expects, has) => write!(
-                f,
-                "Unexpected extension constellation, expected: {}, read: {}",
-                expects, has
-            ),
-            Error::ValueNotInRange(value, min, max) => write!(
-                f,
-                "The value {} is not within the inclusive range of {} and {}",
-                value, min, max
-            ),
-            Error::ValueExceedsMaxInt => {
-                write!(f, "The value exceeds the maximum supported integer size",)
-            }
-            Error::ValueIsNegativeButExpectedUnsigned(value) => write!(
-                f,
-                "The value {} is negative, but expected an unsigned/positive value",
-                value
-            ),
-            Error::SizeNotInRange(size, min, max) => write!(
-                f,
-                "The size {} is not within the inclusive range of {} and {}",
-                size, min, max
-            ),
-            Error::OptFlagsExhausted => write!(f, "All optional flags have already been exhausted"),
-            Error::EndOfStream => write!(
-                f,
-                "Can no longer read or write any bytes from the underlying dataset"
-            ),
-        }
-    }
-}
-
-impl std::error::Error for Error {
-    fn description(&self) -> &str {
-        "encoding or decoding UPER failed"
-    }
-}
+#[deprecated(note = "Use asn1rs::io::per::Error instead")]
+pub use crate::io::per::err::Error;
+#[deprecated(note = "Use asn1rs::io::per::unaligned::BYTE_LEN instead")]
+use crate::io::per::unaligned::BYTE_LEN;
 
 #[deprecated(note = "Use the UperReader/-Writer with the Read-/Writable interface instead")]
 #[cfg(feature = "legacy-uper-codegen")]
 pub trait Uper {
+    #[allow(deprecated)]
     fn read_uper(reader: &mut dyn Reader) -> Result<Self, Error>
     where
         Self: Sized;
 
+    #[allow(deprecated)]
     fn write_uper(&self, writer: &mut dyn Writer) -> Result<(), Error>;
 }
 
@@ -269,7 +193,7 @@ pub trait Reader {
 }
 
 #[allow(deprecated)]
-impl<T: BitRead<Error = Error> + PackedRead<Error = Error>> Reader for T {
+impl<T: BitRead + PackedRead> Reader for T {
     #[inline]
     fn read_utf8_string(&mut self) -> Result<String, Error> {
         let octets = <T as PackedRead>::read_octetstring(self, None, None, false)?;
@@ -534,7 +458,7 @@ pub trait Writer {
 }
 
 #[allow(deprecated)]
-impl<T: BitWrite<Error = Error> + PackedWrite<Error = Error>> Writer for T {
+impl<T: BitWrite + PackedWrite> Writer for T {
     #[inline]
     fn write_utf8_string(&mut self, value: &str) -> Result<(), Error> {
         <T as PackedWrite>::write_octetstring(self, None, None, false, value.as_bytes())

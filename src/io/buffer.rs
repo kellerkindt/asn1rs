@@ -1,260 +1,21 @@
-use crate::io::uper::Writer as UperWriter;
-use crate::io::uper::Writer;
-use crate::io::uper::BYTE_LEN;
-use crate::io::uper::{Error as UperError, Error};
-use std::iter;
-
-#[allow(clippy::module_name_repetitions)]
-#[derive(Debug, Default)]
-pub struct BitBuffer {
-    pub(crate) buffer: Vec<u8>,
-    pub(crate) write_position: usize,
-    pub(crate) read_position: usize,
-}
-
-impl BitBuffer {
-    pub fn with_capacity(capacity: usize) -> Self {
-        Self {
-            buffer: Vec::with_capacity(capacity),
-            ..Default::default()
-        }
-    }
-
-    pub fn from_bytes(buffer: Vec<u8>) -> BitBuffer {
-        let bits = buffer.len() * BYTE_LEN;
-        Self::from_bits(buffer, bits)
-    }
-
-    pub fn from_bits(buffer: Vec<u8>, bit_length: usize) -> BitBuffer {
-        assert!(bit_length <= buffer.len() * BYTE_LEN);
-        BitBuffer {
-            buffer,
-            write_position: bit_length,
-            read_position: 0,
-        }
-    }
-
-    pub fn from_bits_with_position(
-        buffer: Vec<u8>,
-        write_position: usize,
-        read_position: usize,
-    ) -> BitBuffer {
-        assert!(write_position <= buffer.len() * BYTE_LEN);
-        assert!(read_position <= buffer.len() * BYTE_LEN);
-        BitBuffer {
-            buffer,
-            write_position,
-            read_position,
-        }
-    }
-
-    pub fn clear(&mut self) {
-        self.buffer.clear();
-        self.write_position = 0;
-        self.read_position = 0;
-    }
-
-    pub fn reset_read_position(&mut self) {
-        self.read_position = 0;
-    }
-
-    pub fn content(&self) -> &[u8] {
-        &self.buffer[..]
-    }
-
-    pub const fn bit_len(&self) -> usize {
-        self.write_position
-    }
-
-    pub fn byte_len(&self) -> usize {
-        self.buffer.len()
-    }
-
-    /// Changes the write-position to the given position for the closure call.
-    /// Restores the original write-position after the call.
-    ///
-    /// # Panics
-    /// Positions beyond the current buffer length will result in panics.
-    #[inline]
-    pub fn with_write_position_at<T, F: Fn(&mut Self) -> T>(&mut self, position: usize, f: F) -> T {
-        debug_assert!(position <= self.buffer.len() * 8);
-        let before = core::mem::replace(&mut self.write_position, position);
-        let result = f(self);
-        self.write_position = before;
-        result
-    }
-
-    /// Changes the read-position to the given position for the closure call.
-    /// Restores the original read-position after the call.
-    ///
-    /// # Panics
-    /// Positions beyond the current write-position will result in panics.
-    #[inline]
-    pub fn with_read_position_at<T, F: Fn(&mut Self) -> T>(&mut self, position: usize, f: F) -> T {
-        debug_assert!(position < self.write_position);
-        let before = core::mem::replace(&mut self.read_position, position);
-        let result = f(self);
-        self.read_position = before;
-        result
-    }
-
-    /// Sets the `write_position` to `read_position + max_read_len` for the call of the given
-    /// closure
-    pub fn with_max_read<T, F: Fn(&mut Self) -> T>(&mut self, max_read_len: usize, f: F) -> T {
-        let before =
-            core::mem::replace(&mut self.write_position, self.read_position + max_read_len);
-        let result = f(self);
-        self.write_position = before;
-        result
-    }
-
-    pub fn ensure_can_write_additional_bits(&mut self, bit_len: usize) {
-        if self.write_position + bit_len >= self.buffer.len() * BYTE_LEN {
-            let required_len = ((self.write_position + bit_len) + 7) / BYTE_LEN;
-            let extend_by_len = required_len - self.buffer.len();
-            self.buffer
-                .extend(core::iter::repeat(0u8).take(extend_by_len))
-        }
-    }
-}
-
-fn bit_string_copy(
-    src: &[u8],
-    src_bit_position: usize,
-    dst: &mut [u8],
-    dst_bit_position: usize,
-    len: usize,
-) -> Result<(), UperError> {
-    if dst.len() * BYTE_LEN < dst_bit_position + len {
-        return Err(Error::InsufficientSpaceInDestinationBuffer);
-    }
-    if src.len() * BYTE_LEN < src_bit_position + len {
-        return Err(Error::InsufficientDataInSourceBuffer);
-    }
-    for bit in 0..len {
-        let dst_byte_pos = (dst_bit_position + bit) / BYTE_LEN;
-        let dst_bit_pos = (dst_bit_position + bit) % BYTE_LEN;
-        let dst_bit_pos = BYTE_LEN - dst_bit_pos - 1; // flip
-
-        let bit = {
-            let src_byte_pos = (src_bit_position + bit) / BYTE_LEN;
-            let src_bit_pos = (src_bit_position + bit) % BYTE_LEN;
-            let src_bit_pos = BYTE_LEN - src_bit_pos - 1; // flip
-
-            src[src_byte_pos] & (0x01 << src_bit_pos) > 0
-        };
-
-        if bit {
-            // set bit
-            dst[dst_byte_pos] |= 0x01 << dst_bit_pos;
-        } else {
-            // reset bit
-            dst[dst_byte_pos] &= !(0x01 << dst_bit_pos);
-        }
-    }
-    Ok(())
-}
-
-pub(crate) fn bit_string_copy_bulked(
-    src: &[u8],
-    src_bit_position: usize,
-    dst: &mut [u8],
-    dst_bit_position: usize,
-    len: usize,
-) -> Result<(), UperError> {
-    // chosen by real world tests
-    if len <= BYTE_LEN * 2 {
-        return bit_string_copy(src, src_bit_position, dst, dst_bit_position, len);
-    }
-
-    if dst.len() * BYTE_LEN < dst_bit_position + len {
-        return Err(Error::InsufficientSpaceInDestinationBuffer);
-    }
-    if src.len() * BYTE_LEN < src_bit_position + len {
-        return Err(Error::InsufficientDataInSourceBuffer);
-    }
-
-    let bits_till_full_byte_src = (BYTE_LEN - (src_bit_position % BYTE_LEN)) % BYTE_LEN;
-
-    // align read_position to a full byte
-    if bits_till_full_byte_src != 0 {
-        bit_string_copy(
-            src,
-            src_bit_position,
-            dst,
-            dst_bit_position,
-            bits_till_full_byte_src.min(len),
-        )?;
-
-        if len <= bits_till_full_byte_src {
-            return Ok(());
-        }
-    }
-
-    let src_bit_position = src_bit_position + bits_till_full_byte_src;
-    let dst_bit_position = dst_bit_position + bits_till_full_byte_src;
-
-    let len = len - bits_till_full_byte_src;
-
-    let dst_byte_index = dst_bit_position / BYTE_LEN;
-    let dst_byte_offset = dst_bit_position % BYTE_LEN;
-
-    let src_byte_index = src_bit_position / BYTE_LEN;
-    let len_in_bytes = len / BYTE_LEN;
-
-    if dst_byte_offset == 0 {
-        // both align
-        dst[dst_byte_index..dst_byte_index + len_in_bytes]
-            .copy_from_slice(&src[src_byte_index..src_byte_index + len_in_bytes]);
-    } else {
-        for index in 0..len_in_bytes {
-            let byte = src[index + src_byte_index];
-            let half_left = byte >> dst_byte_offset;
-            let half_right = byte << (BYTE_LEN - dst_byte_offset);
-
-            dst[index + dst_byte_index] = (dst[index + dst_byte_index]
-                    & (0xFF << (BYTE_LEN - dst_byte_offset))) // do not destroy current values on the furthe left side
-                    | half_left;
-
-            dst[index + dst_byte_index + 1] = half_right;
-        }
-    }
-
-    if len % BYTE_LEN == 0 {
-        Ok(())
-    } else {
-        // copy the remaining
-        bit_string_copy(
-            src,
-            src_bit_position + (len_in_bytes * BYTE_LEN),
-            dst,
-            dst_bit_position + (len_in_bytes * BYTE_LEN),
-            len % BYTE_LEN,
-        )
-    }
-}
-
-impl Into<Vec<u8>> for BitBuffer {
-    fn into(self) -> Vec<u8> {
-        self.buffer
-    }
-}
-
-impl From<Vec<u8>> for BitBuffer {
-    fn from(buffer: Vec<u8>) -> Self {
-        Self::from_bytes(buffer)
-    }
-}
+pub use crate::io::per::unaligned::buffer::BitBuffer;
 
 #[cfg(any(test, feature = "legacy_bit_buffer"))]
 #[allow(clippy::module_name_repetitions, deprecated)]
 pub mod legacy {
     use super::*;
+    use crate::io::per::unaligned::BYTE_LEN;
+    use crate::io::uper::Error;
+    use crate::io::uper::Error as UperError;
     use crate::io::uper::Reader as UperReader;
     use crate::io::uper::Writer as UperWriter;
-    use crate::io::uper::{Error as UperError, UPER_LENGTH_DET_L1, UPER_LENGTH_DET_L2};
     use byteorder::ByteOrder;
     use byteorder::NetworkEndian;
+
+    pub const UPER_LENGTH_DET_L1: i64 = 127;
+    pub const UPER_LENGTH_DET_L2: i64 = 16383;
+    // pub const UPER_LENGTH_DET_L3: i64 = 49151;
+    // pub const UPER_LENGTH_DET_L4: i64 = 65535;
 
     pub const SIZE_BITS: usize = 100 * BYTE_LEN;
 
@@ -674,7 +435,10 @@ pub mod legacy {
 mod tests {
     use super::legacy::*;
     use super::*;
+    use crate::io::per::unaligned::BYTE_LEN;
+    use crate::io::uper::Error as UperError;
     use crate::io::uper::Reader as UperReader;
+    use crate::io::uper::Writer as UperWriter;
 
     #[test]
     fn test_legacy_bit_string_offset_0_to_7_pos_0_to_7() {

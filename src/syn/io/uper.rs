@@ -1,13 +1,14 @@
-use crate::io::buffer::BitBuffer;
+use crate::io::per::err::Error;
+use crate::io::per::unaligned::buffer::BitBuffer;
 use crate::io::per::unaligned::BitRead;
 use crate::io::per::unaligned::BitWrite;
-use crate::io::per::Error;
 use crate::io::per::PackedRead;
 use crate::io::per::PackedWrite;
 use crate::prelude::*;
 use std::ops::Range;
 
-/// allow const expansion until https://github.com/rust-lang/rust/issues/67441
+/// Allows const expansion until https://github.com/rust-lang/rust/issues/67441
+/// Cannot be a function with generic type because of https://github.com/rust-lang/rust/issues/73255
 macro_rules! const_unwrap_or {
     ($op:path, $def:expr) => {
         match $op {
@@ -17,12 +18,24 @@ macro_rules! const_unwrap_or {
     };
 }
 
-/// allow const expansion until https://github.com/rust-lang/rust/issues/67441
+/// Allows const expansion until https://github.com/rust-lang/rust/issues/67441
+/// Cannot be a function with generic type because of https://github.com/rust-lang/rust/issues/73255
 macro_rules! const_is_none {
     ($op:path) => {
         match &$op {
             Some(_) => false,
             None => true,
+        }
+    };
+}
+
+/// Allows const expansion until https://github.com/rust-lang/rust/issues/67441
+/// Cannot be a function with generic type because of https://github.com/rust-lang/rust/issues/73255
+macro_rules! const_map_or {
+    ($op:expr, $fn:expr, $def:expr) => {
+        match &$op {
+            Some(v) => $fn(v),
+            None => $def,
         }
     };
 }
@@ -56,7 +69,7 @@ pub enum Scope {
 }
 
 impl Scope {
-    pub fn exhausted(&self) -> bool {
+    pub const fn exhausted(&self) -> bool {
         match self {
             Scope::OptBitField(range) => range.start == range.end,
             Scope::AllBitField(range) => range.start == range.end,
@@ -64,7 +77,7 @@ impl Scope {
         }
     }
 
-    pub fn encode_as_open_type_field(&self) -> bool {
+    pub const fn encode_as_open_type_field(&self) -> bool {
         matches!(self, Scope::AllBitField(_))
     }
 
@@ -225,8 +238,8 @@ impl UperWriter {
         let original = core::mem::replace(&mut self.scope, Some(scope));
         let result = f(self);
         let scope = core::mem::replace(&mut self.scope, original);
-        let scope = scope.unwrap(); // save because this is the original from above
-        debug_assert!(scope.exhausted());
+        // save because this is the original from above
+        debug_assert!(scope.unwrap().exhausted());
         result
     }
 
@@ -254,12 +267,7 @@ impl UperWriter {
         &mut self,
         f: F,
     ) -> Result<T, Error> {
-        if self
-            .scope
-            .as_ref()
-            .map(Scope::encode_as_open_type_field)
-            .unwrap_or(false)
-        {
+        if const_map_or!(self.scope, Scope::encode_as_open_type_field, false) {
             let mut writer = UperWriter::with_capacity(512);
             let result = f(&mut writer)?;
             self.buffer
@@ -397,6 +405,9 @@ impl Writer for UperWriter {
     ) -> Result<(), Self::Error> {
         self.write_bit_field_entry(false, true)?;
         let value = value.to_i64();
+
+        // allow for const_is_none! - remove as soon as Option::is_none is a const-fn
+        #[allow(clippy::redundant_pattern_matching)]
         let max_fn = if C::EXTENSIBLE {
             let min = const_unwrap_or!(C::MIN, 0);
             let max = const_unwrap_or!(C::MAX, i64::MAX);
@@ -445,26 +456,8 @@ impl Writer for UperWriter {
     ) -> Result<(), Self::Error> {
         self.write_bit_field_entry(false, true)?;
         self.with_buffer(|w| {
-            use crate::io::per::PackedWrite;
             w.buffer
                 .write_octetstring(C::MIN, C::MAX, C::EXTENSIBLE, value)
-            /*
-            if C::EXTENSIBLE {
-                let min = C::MIN.unwrap_or_default();
-                let max = C::MAX.unwrap_or_else(|| i64::MAX as u64);
-                let out_of_range = value.len() < min as usize || value.len() > max as usize;
-                w.buffer.write_bit(out_of_range)?;
-                w.buffer.write_octet_string(
-                    value,
-                    if out_of_range {
-                        None
-                    } else {
-                        bit_buffer_range::<C>()
-                    },
-                )
-            } else {
-                w.buffer.write_octet_string(value, bit_buffer_range::<C>())
-            }*/
         })
     }
 
@@ -720,16 +713,5 @@ impl Reader for UperReader {
     fn read_boolean<C: boolean::Constraint>(&mut self) -> Result<bool, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
         self.with_buffer(|w| w.buffer.read_boolean())
-    }
-}
-
-#[inline]
-fn bit_buffer_range<C: octetstring::Constraint>() -> Option<(i64, i64)> {
-    match (C::MIN, C::MAX) {
-        (None, None) => None,
-        (min, max) => Some((
-            min.unwrap_or(0) as i64,
-            max.unwrap_or(std::i64::MAX as u64) as i64, // TODO never verified!
-        )),
     }
 }
