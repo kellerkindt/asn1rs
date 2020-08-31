@@ -208,9 +208,9 @@ pub struct UperWriter {
 }
 
 impl UperWriter {
-    pub fn with_capacity(capacity: usize) -> Self {
+    pub fn with_capacity(capacity_bytes: usize) -> Self {
         Self {
-            buffer: BitBuffer::with_capacity(capacity),
+            buffer: BitBuffer::with_capacity(capacity_bytes),
             ..Default::default()
         }
     }
