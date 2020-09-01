@@ -1,5 +1,6 @@
 use crate::io::per::unaligned::BYTE_LEN;
 use crate::syn::{ReadableType, Reader, WritableType, Writer};
+use std::cmp::Ordering;
 use std::marker::PhantomData;
 
 pub struct BitString<C: Constraint = NoConstraint>(PhantomData<C>);
@@ -49,14 +50,21 @@ impl BitVec {
     }
 
     pub fn from_bytes(mut bytes: Vec<u8>, bit_len: u64) -> Self {
-        if bytes.len() * BYTE_LEN > bit_len as usize {
-            // ensure bits that are zeroed out
-            let mask = 0xFF_u8 >> (bit_len as usize % BYTE_LEN);
-            let index = bit_len as usize / BYTE_LEN;
-            bytes[index] &= !mask;
-        } else if bytes.len() * BYTE_LEN < bit_len as usize {
-            let missing_bytes = ((bit_len as usize + 7) / 8) - bytes.len();
-            bytes.extend(core::iter::repeat(0u8).take(missing_bytes));
+        match (bytes.len() * BYTE_LEN).cmp(&(bit_len as usize)) {
+            Ordering::Less => {
+                // fill vec with missing zero-bytes
+                let missing_bytes = ((bit_len as usize + 7) / BYTE_LEN) - bytes.len();
+                bytes.extend(core::iter::repeat(0u8).take(missing_bytes));
+            }
+            Ordering::Equal => {
+                // nothing to do
+            }
+            Ordering::Greater => {
+                // ensure that unused bits are zero
+                let mask = 0xFF_u8 >> (bit_len as usize % BYTE_LEN);
+                let index = bit_len as usize / BYTE_LEN;
+                bytes[index] &= !mask;
+            }
         }
         BitVec(bytes, bit_len)
     }
