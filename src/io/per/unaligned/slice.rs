@@ -89,6 +89,7 @@ impl<'a> BitWrite for (&'a mut [u8], &mut usize) {
     }
 }
 
+#[inline]
 fn bit_string_copy(
     src: &[u8],
     src_bit_position: usize,
@@ -126,6 +127,7 @@ fn bit_string_copy(
     Ok(())
 }
 
+#[inline]
 pub(crate) fn bit_string_copy_bulked(
     src: &[u8],
     src_bit_position: usize,

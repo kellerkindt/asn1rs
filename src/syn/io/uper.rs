@@ -40,6 +40,12 @@ macro_rules! const_map_or {
     };
 }
 
+/// This ist enum is the main reason, the new impl is about ~10% slower (2020-09) than the previous/
+/// legacy implementation. This dynamic state tracking at runtime could be avoided by passing all
+/// values as const generics on each `read_`*/`write_`* call [RFC 2000]. Maybe getting rid of all
+/// `mem::replace` calls would also be sufficient.
+///
+/// [RFC 2000]: https://github.com/rust-lang/rust/issues/44580    
 pub enum Scope {
     OptBitField(Range<usize>),
     AllBitField(Range<usize>),
@@ -69,6 +75,7 @@ pub enum Scope {
 }
 
 impl Scope {
+    #[inline]
     pub const fn exhausted(&self) -> bool {
         match self {
             Scope::OptBitField(range) => range.start == range.end,
@@ -77,10 +84,12 @@ impl Scope {
         }
     }
 
+    #[inline]
     pub const fn encode_as_open_type_field(&self) -> bool {
         matches!(self, Scope::AllBitField(_))
     }
 
+    #[inline]
     pub fn write_into_field(
         &mut self,
         buffer: &mut BitBuffer,
@@ -144,6 +153,7 @@ impl Scope {
         }
     }
 
+    #[inline]
     pub fn read_from_field(
         &mut self,
         buffer: &mut BitBuffer,
@@ -562,6 +572,10 @@ impl UperReader {
         } else {
             f(self)
         }
+    }
+
+    pub fn reset_read_position(&mut self) {
+        self.buffer.reset_read_position()
     }
 }
 
