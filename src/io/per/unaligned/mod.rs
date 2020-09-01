@@ -7,13 +7,15 @@ pub mod slice;
 pub const BYTE_LEN: usize = 8;
 
 const FRAGMENT_SIZE: u64 = 16 * 1024;
-const MAX_FRAGMENTS: u64 = 4  /* 11.9.3.8, NOTE */ ;
+const MAX_FRAGMENTS: u8 = 4  /* 11.9.3.8, NOTE */ ;
 const MIN_FRAGMENT_SIZE: u64 = FRAGMENT_SIZE;
-const MAX_FRAGMENT_SIZE: u64 = FRAGMENT_SIZE * MAX_FRAGMENTS;
+const MAX_FRAGMENT_SIZE: u64 = FRAGMENT_SIZE * MAX_FRAGMENTS as u64;
 
 const LENGTH_127: u64 = 127;
 const LENGTH_16K: u64 = 16 * 1024;
 const LENGTH_64K: u64 = 64 * 1024;
+
+const SMALL_NON_NEGATIVE_NUMBER: u64 = 64;
 
 pub trait BitRead {
     fn read_bit(&mut self) -> Result<bool, Error>;
@@ -71,10 +73,10 @@ impl<T: BitRead> PackedRead for T {
     #[inline]
     fn read_2s_compliment_binary_integer(&mut self, bit_len: u64) -> Result<i64, Error> {
         let mut bytes = [0u8; std::mem::size_of::<i64>()];
-        let bits_offset = (bytes.len() * 8) - bit_len as usize;
+        let bits_offset = (bytes.len() * BYTE_LEN) - bit_len as usize;
         self.read_bits_with_offset(&mut bytes, bits_offset)?;
-        let byte_offset = bits_offset / 8;
-        let bit_offset = bits_offset % 8;
+        let byte_offset = bits_offset / BYTE_LEN;
+        let bit_offset = bits_offset % BYTE_LEN;
         // check if the most significant bit is set (2er compliment -> negative number)
         if bytes[byte_offset] & (0x80 >> bit_offset) != 0 {
             // negative number, needs to be expanded before converting
@@ -114,7 +116,7 @@ impl<T: BitRead> PackedRead for T {
             self.read_non_negative_binary_integer(None, None)
         } else {
             // 11.6.1
-            self.read_non_negative_binary_integer(None, Some(63))
+            self.read_non_negative_binary_integer(None, Some(SMALL_NON_NEGATIVE_NUMBER - 1))
         }
     }
 
@@ -129,7 +131,7 @@ impl<T: BitRead> PackedRead for T {
     #[inline]
     fn read_unconstrained_whole_number(&mut self) -> Result<i64, Error> {
         let octet_len = self.read_length_determinant(None, None)?;
-        self.read_2s_compliment_binary_integer(octet_len * 8)
+        self.read_2s_compliment_binary_integer(octet_len * BYTE_LEN as u64)
     }
 
     /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.9.3
@@ -148,7 +150,7 @@ impl<T: BitRead> PackedRead for T {
         let lower_bound_unwrapped = lower_bound.unwrap_or(0);
         let upper_bound_unwrapped = upper_bound.unwrap_or_else(|| i64::MAX as u64);
 
-        if (lower_bound.is_some() || upper_bound.is_some()) && upper_bound_unwrapped >= 64 * 1024 {
+        if (lower_bound.is_some() || upper_bound.is_some()) && upper_bound_unwrapped >= LENGTH_64K {
             // 11.9.4.2
             if lower_bound == upper_bound {
                 Ok(lower_bound_unwrapped)
@@ -156,22 +158,22 @@ impl<T: BitRead> PackedRead for T {
                 Ok(lower_bound_unwrapped
                     + self.read_non_negative_binary_integer(lower_bound, upper_bound)?)
             }
-        } else if upper_bound.is_some() && upper_bound_unwrapped <= 64 * 1024 {
+        } else if upper_bound.is_some() && upper_bound_unwrapped <= LENGTH_64K {
             // 11.9.4.1 -> 11.9.3.4 -> 11.6.1
             self.read_non_negative_binary_integer(lower_bound, upper_bound)
         } else {
             // 11.9.4.1 -> 11.9.3.5
             if !self.read_bit()? {
                 // 11.9.3.6: less than or equal to 127
-                self.read_non_negative_binary_integer(None, Some(127))
+                self.read_non_negative_binary_integer(None, Some(LENGTH_127))
             } else if !self.read_bit()? {
                 // 11.9.3.7: greater than 127 and less than or equal to 16K
-                self.read_non_negative_binary_integer(None, Some(16 * 1024 - 1))
+                self.read_non_negative_binary_integer(None, Some(LENGTH_16K - 1))
             } else {
                 // 11.9.3.8: chunks of 16k multiples
                 let mut multiple = [0u8; 1];
                 self.read_bits_with_offset(&mut multiple[..], 2)?;
-                Ok(16 * 1024 * u64::from(multiple[0].max(4 /* 11.9.3.8, NOTE */)))
+                Ok(LENGTH_16K * u64::from(multiple[0].max(MAX_FRAGMENTS)))
             }
         }
     }
@@ -203,7 +205,7 @@ impl<T: BitRead> PackedRead for T {
         }*/
         else if lower_bound_size.is_some()
             && lower_bound_size == upper_bound_size
-            && upper_bound < 64 * 1024
+            && upper_bound < LENGTH_64K
         {
             // 16.10
             (upper_bound, false)
@@ -220,7 +222,7 @@ impl<T: BitRead> PackedRead for T {
         self.read_bits_with_len(&mut buffer[..], bit_len as usize)?;
 
         // fragmentation?
-        if fragmentation_possible && bit_len >= 16 * 1024 {
+        if fragmentation_possible && bit_len >= LENGTH_16K {
             loop {
                 let ext_bit_len = self.read_length_determinant(None, None)?;
                 let ext_byte_len = byte_len - ((bit_len + ext_bit_len) + 7) / 8;
@@ -234,7 +236,7 @@ impl<T: BitRead> PackedRead for T {
                 bit_len += ext_bit_len;
                 byte_len += ext_bit_len;
 
-                if ext_bit_len < 16 * 1024 {
+                if ext_bit_len < LENGTH_16K {
                     break;
                 }
             }
@@ -273,7 +275,7 @@ impl<T: BitRead> PackedRead for T {
         }*/
         else if lower_bound_size.is_some()
             && lower_bound_size == upper_bound_size
-            && upper_bound < 64 * 1024
+            && upper_bound < LENGTH_64K
         {
             // 17.7
             (upper_bound, false)
@@ -289,14 +291,14 @@ impl<T: BitRead> PackedRead for T {
         self.read_bits(&mut buffer[..])?;
 
         // fragmentation?
-        if fragmentation_possible && byte_len >= 16 * 1024 {
+        if fragmentation_possible && byte_len >= LENGTH_16K {
             loop {
                 let ext_byte_len = self.read_length_determinant(None, None)?;
                 buffer.extend(core::iter::repeat(0u8).take(ext_byte_len as usize));
                 self.read_bits(&mut buffer[byte_len as usize..])?;
                 byte_len += ext_byte_len;
 
-                if ext_byte_len < 16 * 1024 {
+                if ext_byte_len < LENGTH_16K {
                     break;
                 }
             }
@@ -384,7 +386,7 @@ impl<T: BitWrite> PackedWrite for T {
         value: i64,
     ) -> Result<(), Error> {
         let bytes = value.to_be_bytes();
-        let bits_offset = (bytes.len() * 8) - bit_len as usize;
+        let bits_offset = (bytes.len() * BYTE_LEN) - bit_len as usize;
         self.write_bits_with_offset(&bytes[..], bits_offset)
     }
 
@@ -415,7 +417,7 @@ impl<T: BitWrite> PackedWrite for T {
     /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.6
     #[inline]
     fn write_normally_small_non_negative_whole_number(&mut self, value: u64) -> Result<(), Error> {
-        let greater_or_equal_to_64 = value >= 64;
+        let greater_or_equal_to_64 = value >= SMALL_NON_NEGATIVE_NUMBER;
         self.write_bit(greater_or_equal_to_64)?;
         if greater_or_equal_to_64 {
             // 11.6.2: self.write_semi_constrained_whole_number(0)
@@ -423,7 +425,7 @@ impl<T: BitWrite> PackedWrite for T {
             self.write_non_negative_binary_integer(None, None, value)
         } else {
             // 11.6.1
-            self.write_non_negative_binary_integer(None, Some(63), value)
+            self.write_non_negative_binary_integer(None, Some(SMALL_NON_NEGATIVE_NUMBER - 1), value)
         }
     }
 
@@ -452,7 +454,7 @@ impl<T: BitWrite> PackedWrite for T {
             / 8;
         let octet_len = core::mem::size_of::<i64>() as u64 - prefix_len;
         self.write_length_determinant(None, None, octet_len)?;
-        self.write_2s_compliment_binary_integer(octet_len * 8, value)
+        self.write_2s_compliment_binary_integer(octet_len * BYTE_LEN as u64, value)
     }
 
     /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.9.3
@@ -507,9 +509,8 @@ impl<T: BitWrite> PackedWrite for T {
                 // 11.9.3.8: chunks of 16k multiples
                 self.write_bit(true)?;
                 self.write_bit(true)?;
-                let multiple = (value / LENGTH_16K).max(MAX_FRAGMENTS);
-                let multiple = [multiple as u8];
-                self.write_bits_with_offset(&multiple[..], 2)?;
+                let multiple = ((value / LENGTH_16K) as u8).max(MAX_FRAGMENTS);
+                self.write_bits_with_offset(&[multiple], 2)?;
                 Ok(())
             }
         }
