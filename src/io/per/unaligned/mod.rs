@@ -44,6 +44,7 @@ impl<T: BitRead> PackedRead for T {
 
     /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.3
     #[inline]
+    #[allow(clippy::redundant_pattern_matching)] // allow for const_*!
     fn read_non_negative_binary_integer(
         &mut self,
         lower_bound: Option<u64>,
@@ -51,7 +52,10 @@ impl<T: BitRead> PackedRead for T {
     ) -> Result<u64, Error> {
         let range = match (lower_bound, upper_bound) {
             (None, None) => None,
-            (lb, ub) => Some((lb.unwrap_or(0), ub.unwrap_or(i64::MAX as u64))),
+            (lb, ub) => Some((
+                const_unwrap_or!(lb, 0),
+                const_unwrap_or!(ub, i64::MAX as u64),
+            )),
         };
 
         if let Some((lower, upper)) = range {
@@ -142,15 +146,18 @@ impl<T: BitRead> PackedRead for T {
 
     /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.9.4
     #[inline]
+    #[allow(clippy::redundant_pattern_matching)] // allow for const_*!
     fn read_length_determinant(
         &mut self,
         lower_bound: Option<u64>,
         upper_bound: Option<u64>,
     ) -> Result<u64, Error> {
-        let lower_bound_unwrapped = lower_bound.unwrap_or(0);
-        let upper_bound_unwrapped = upper_bound.unwrap_or_else(|| i64::MAX as u64);
+        let lower_bound_unwrapped = const_unwrap_or!(lower_bound, 0);
+        let upper_bound_unwrapped = const_unwrap_or!(upper_bound, i64::MAX as u64);
 
-        if (lower_bound.is_some() || upper_bound.is_some()) && upper_bound_unwrapped >= LENGTH_64K {
+        if (const_is_some!(lower_bound) || const_is_some!(upper_bound))
+            && upper_bound_unwrapped >= LENGTH_64K
+        {
             // 11.9.4.2
             if lower_bound == upper_bound {
                 Ok(lower_bound_unwrapped)
@@ -158,7 +165,7 @@ impl<T: BitRead> PackedRead for T {
                 Ok(lower_bound_unwrapped
                     + self.read_non_negative_binary_integer(lower_bound, upper_bound)?)
             }
-        } else if upper_bound.is_some() && upper_bound_unwrapped <= LENGTH_64K {
+        } else if const_is_some!(upper_bound) && upper_bound_unwrapped <= LENGTH_64K {
             // 11.9.4.1 -> 11.9.3.4 -> 11.6.1
             self.read_non_negative_binary_integer(lower_bound, upper_bound)
         } else {
@@ -181,14 +188,15 @@ impl<T: BitRead> PackedRead for T {
     /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 16
     #[inline]
     #[allow(clippy::suspicious_else_formatting)] // for 16.9 else-if comment block
+    #[allow(clippy::redundant_pattern_matching)] // allow for const_*!
     fn read_bitstring(
         &mut self,
         lower_bound_size: Option<u64>,
         upper_bound_size: Option<u64>,
         extensible: bool,
     ) -> Result<(Vec<u8>, u64), Error> {
-        // let lower_bound = lower_bound_size.unwrap_or_default();
-        let upper_bound = upper_bound_size.unwrap_or_else(|| i64::MAX as u64);
+        // let lower_bound = const_unwrap_or!(lower_bound_size, 0);
+        let upper_bound = const_unwrap_or!(upper_bound_size, i64::MAX as u64);
 
         let (mut bit_len, fragmentation_possible) = if extensible && self.read_bit()? {
             // 16.6
@@ -196,14 +204,14 @@ impl<T: BitRead> PackedRead for T {
             // self.read_non_negative_binary_integer(0, MAX) + lb  | lb=0=>MIN for unsigned
             (self.read_length_determinant(None, None)?, true)
         }
-        /*else if lower_bound_size.is_some()
+        /*else if const_is_some!(lower_bound_size)
             && lower_bound_size == upper_bound_size
             && upper_bound <= 16
         {
             // 16.9
             (upper_bound, false)
         }*/
-        else if lower_bound_size.is_some()
+        else if const_is_some!(lower_bound_size)
             && lower_bound_size == upper_bound_size
             && upper_bound < LENGTH_64K
         {
@@ -248,14 +256,15 @@ impl<T: BitRead> PackedRead for T {
     /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 17
     #[inline]
     #[allow(clippy::suspicious_else_formatting)] // for 17.6 else-if comment block
+    #[allow(clippy::redundant_pattern_matching)] // allow for const_*!
     fn read_octetstring(
         &mut self,
         lower_bound_size: Option<u64>,
         upper_bound_size: Option<u64>,
         extensible: bool,
     ) -> Result<Vec<u8>, Error> {
-        // let lower_bound = lower_bound_size.unwrap_or_default();
-        let upper_bound = upper_bound_size.unwrap_or_else(|| i64::MAX as u64);
+        // let lower_bound = const_unwrap_or!(lower_bound_size, 0);
+        let upper_bound = const_unwrap_or!(upper_bound_size, i64::MAX as u64);
 
         let (mut byte_len, fragmentation_possible) = if extensible && self.read_bit()? {
             // 17.3
@@ -266,14 +275,14 @@ impl<T: BitRead> PackedRead for T {
             // 17.5
             return Ok(Vec::default());
         }
-        /* else if lower_bound_size.is_some()
+        /* else if const_is_some!(lower_bound_size)
             && lower_bound_size == upper_bound_size
             && upper_bound <= 2
         {
             // 17.6
             (upper_bound, false)
         }*/
-        else if lower_bound_size.is_some()
+        else if const_is_some!(lower_bound_size)
             && lower_bound_size == upper_bound_size
             && upper_bound < LENGTH_64K
         {
@@ -360,7 +369,10 @@ impl<T: BitWrite> PackedWrite for T {
     ) -> Result<(), Error> {
         let range = match (lower_bound, upper_bound) {
             (None, None) => None,
-            (lb, ub) => Some((lb.unwrap_or(0), ub.unwrap_or(i64::MAX as u64))),
+            (lb, ub) => Some((
+                const_unwrap_or!(lb, 0),
+                const_unwrap_or!(ub, i64::MAX as u64),
+            )),
         };
 
         if let Some((lower, upper)) = range {
@@ -465,16 +477,19 @@ impl<T: BitWrite> PackedWrite for T {
 
     /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.9.4
     #[inline]
+    #[allow(clippy::redundant_pattern_matching)] // allow for const_*!
     fn write_length_determinant(
         &mut self,
         lower_bound: Option<u64>,
         upper_bound: Option<u64>,
         value: u64,
     ) -> Result<(), Error> {
-        let lower_bound_unwrapped = lower_bound.unwrap_or(0);
-        let upper_bound_unwrapped = upper_bound.unwrap_or_else(|| i64::MAX as u64);
+        let lower_bound_unwrapped = const_unwrap_or!(lower_bound, 0);
+        let upper_bound_unwrapped = const_unwrap_or!(upper_bound, i64::MAX as u64);
 
-        if (lower_bound.is_some() || upper_bound.is_some()) && upper_bound_unwrapped >= LENGTH_64K {
+        if (const_is_some!(lower_bound) || const_is_some!(upper_bound))
+            && upper_bound_unwrapped >= LENGTH_64K
+        {
             // 11.9.4.2
             if lower_bound == upper_bound {
                 Ok(())
@@ -491,7 +506,7 @@ impl<T: BitWrite> PackedWrite for T {
                     value - lower_bound_unwrapped,
                 )
             }
-        } else if upper_bound.is_some() && upper_bound_unwrapped <= LENGTH_64K {
+        } else if const_is_some!(upper_bound) && upper_bound_unwrapped <= LENGTH_64K {
             // 11.9.4.1 -> 11.9.3.4 -> 11.6.1
             self.write_non_negative_binary_integer(lower_bound, upper_bound, value)
         } else {
@@ -519,6 +534,7 @@ impl<T: BitWrite> PackedWrite for T {
     /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 16
     #[inline]
     #[allow(clippy::suspicious_else_formatting)] // for 16.9 else-if comment block
+    #[allow(clippy::redundant_pattern_matching)] // allow for const_*!
     fn write_bitstring(
         &mut self,
         lower_bound_size: Option<u64>,
@@ -528,8 +544,8 @@ impl<T: BitWrite> PackedWrite for T {
         offset: u64,
         len: u64,
     ) -> Result<(), Error> {
-        let lower_bound = lower_bound_size.unwrap_or_default();
-        let upper_bound = upper_bound_size.unwrap_or_else(|| i64::MAX as u64);
+        let lower_bound = const_unwrap_or!(lower_bound_size, 0);
+        let upper_bound = const_unwrap_or!(upper_bound_size, i64::MAX as u64);
         let length = len;
         let fragmented = length > MAX_FRAGMENT_SIZE;
         let out_of_range = length < lower_bound || length > upper_bound;
@@ -548,13 +564,13 @@ impl<T: BitWrite> PackedWrite for T {
                 return Err(Error::SizeNotInRange(length, lower_bound, upper_bound));
             }
         }
-        /*else if lower_bound_size.is_some()
+        /*else if const_is_some!(lower_bound_size)
             && lower_bound_size == upper_bound_size
             && upper_bound <= 16
         {
             // 16.9
         }*/
-        else if lower_bound_size.is_some()
+        else if const_is_some!(lower_bound_size)
             && lower_bound_size == upper_bound_size
             && upper_bound < LENGTH_64K
         {
@@ -595,6 +611,7 @@ impl<T: BitWrite> PackedWrite for T {
     /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 17
     #[inline]
     #[allow(clippy::suspicious_else_formatting)] // for 17.6 else-if comment block
+    #[allow(clippy::redundant_pattern_matching)] // allow for const_*!
     fn write_octetstring(
         &mut self,
         lower_bound_size: Option<u64>,
@@ -602,8 +619,8 @@ impl<T: BitWrite> PackedWrite for T {
         extensible: bool,
         src: &[u8],
     ) -> Result<(), Error> {
-        let lower_bound = lower_bound_size.unwrap_or_default();
-        let upper_bound = upper_bound_size.unwrap_or_else(|| i64::MAX as u64);
+        let lower_bound = const_unwrap_or!(lower_bound_size, 0);
+        let upper_bound = const_unwrap_or!(upper_bound_size, i64::MAX as u64);
         let length = src.len() as u64;
         let fragmented = length > MAX_FRAGMENT_SIZE;
         let out_of_range = length < lower_bound || length > upper_bound;
@@ -625,13 +642,13 @@ impl<T: BitWrite> PackedWrite for T {
             // 17.5
             return Ok(());
         }
-        /*else if lower_bound_size.is_some()
+        /*else if const_is_some!(lower_bound_size)
             && lower_bound_size == upper_bound_size
             && upper_bound <= 2
         {
             // 17.6
         }*/
-        else if lower_bound_size.is_some()
+        else if const_is_some!(lower_bound_size)
             && lower_bound_size == upper_bound_size
             && upper_bound < LENGTH_64K
         {

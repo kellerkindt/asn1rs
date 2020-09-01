@@ -11,6 +11,9 @@ pub extern crate asn1rs_macros as macros;
 #[cfg(not(feature = "macros"))]
 pub mod macros {}
 
+#[macro_use]
+pub mod internal_macros;
+
 pub mod io;
 pub mod prelude;
 pub mod syn;

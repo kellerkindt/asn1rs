@@ -7,39 +7,6 @@ use crate::io::per::PackedWrite;
 use crate::prelude::*;
 use std::ops::Range;
 
-/// Allows const expansion until https://github.com/rust-lang/rust/issues/67441
-/// Cannot be a function with generic type because of https://github.com/rust-lang/rust/issues/73255
-macro_rules! const_unwrap_or {
-    ($op:path, $def:expr) => {
-        match $op {
-            Some(value) => value,
-            None => $def,
-        }
-    };
-}
-
-/// Allows const expansion until https://github.com/rust-lang/rust/issues/67441
-/// Cannot be a function with generic type because of https://github.com/rust-lang/rust/issues/73255
-macro_rules! const_is_none {
-    ($op:path) => {
-        match &$op {
-            Some(_) => false,
-            None => true,
-        }
-    };
-}
-
-/// Allows const expansion until https://github.com/rust-lang/rust/issues/67441
-/// Cannot be a function with generic type because of https://github.com/rust-lang/rust/issues/73255
-macro_rules! const_map_or {
-    ($op:expr, $fn:expr, $def:expr) => {
-        match &$op {
-            Some(v) => $fn(v),
-            None => $def,
-        }
-    };
-}
-
 /// This ist enum is the main reason, the new impl is about ~10% slower (2020-09) than the previous/
 /// legacy implementation. This dynamic state tracking at runtime could be avoided by passing all
 /// values as const generics on each `read_`*/`write_`* call [RFC 2000]. Maybe getting rid of all
@@ -273,6 +240,7 @@ impl UperWriter {
     }
 
     #[inline]
+    #[allow(clippy::redundant_pattern_matching)] // allow for const_*!
     pub fn with_buffer<T, F: FnOnce(&mut Self) -> Result<T, Error>>(
         &mut self,
         f: F,
@@ -333,6 +301,7 @@ impl Writer for UperWriter {
     }
 
     #[inline]
+    #[allow(clippy::redundant_pattern_matching)] // allow for const_*!
     fn write_sequence_of<C: sequenceof::Constraint, T: WritableType>(
         &mut self,
         slice: &[T::Type],
@@ -396,11 +365,12 @@ impl Writer for UperWriter {
     }
 
     #[inline]
+    #[allow(clippy::redundant_pattern_matching)] // allow for const_*!
     fn write_opt<T: WritableType>(
         &mut self,
         value: Option<&<T as WritableType>::Type>,
     ) -> Result<(), Self::Error> {
-        self.write_bit_field_entry(true, value.is_some())?;
+        self.write_bit_field_entry(true, const_is_some!(value))?;
         if let Some(value) = value {
             self.scope_stashed(|w| T::write_value(w, value))
         } else {
@@ -409,6 +379,7 @@ impl Writer for UperWriter {
     }
 
     #[inline]
+    #[allow(clippy::redundant_pattern_matching)] // allow for const_*!
     fn write_number<T: numbers::Number, C: numbers::Constraint<T>>(
         &mut self,
         value: T,
@@ -416,8 +387,6 @@ impl Writer for UperWriter {
         self.write_bit_field_entry(false, true)?;
         let value = value.to_i64();
 
-        // allow for const_is_none! - remove as soon as Option::is_none is a const-fn
-        #[allow(clippy::redundant_pattern_matching)]
         let max_fn = if C::EXTENSIBLE {
             let min = const_unwrap_or!(C::MIN, 0);
             let max = const_unwrap_or!(C::MAX, i64::MAX);
@@ -448,6 +417,7 @@ impl Writer for UperWriter {
     }
 
     #[inline]
+    #[allow(clippy::redundant_pattern_matching)] // allow for const_*!
     fn write_utf8string<C: utf8string::Constraint>(
         &mut self,
         value: &str,
@@ -707,6 +677,7 @@ impl Reader for UperReader {
     }
 
     #[inline]
+    #[allow(clippy::redundant_pattern_matching)] // allow for const_*!
     fn read_number<T: numbers::Number, C: numbers::Constraint<T>>(
         &mut self,
     ) -> Result<T, Self::Error> {
@@ -715,7 +686,7 @@ impl Reader for UperReader {
             let unconstrained = if C::EXTENSIBLE {
                 r.buffer.read_bit()?
             } else {
-                C::MIN.is_none() && C::MAX.is_none()
+                const_is_none!(C::MIN) && const_is_none!(C::MAX)
             };
 
             if unconstrained {
