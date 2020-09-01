@@ -37,7 +37,7 @@ pub enum RustType {
     U32(Range<u32>),
     I64(Range<i64>),
     U64(Range<Option<u64>>),
-    String,
+    String(Size),
     VecU8(Size),
     BitVec(Size),
     Vec(Box<RustType>),
@@ -165,7 +165,7 @@ impl RustType {
             RustType::I64(Range(min, max, extensible)) => {
                 Some(Range(min.to_string(), max.to_string(), *extensible))
             }
-            RustType::String => None,
+            RustType::String(_) => None,
             RustType::VecU8(_) => None,
             RustType::BitVec(_) => None,
             RustType::Vec(inner) => inner.integer_range_str(),
@@ -215,7 +215,7 @@ impl RustType {
                 range.max().map(|v| v as i64),
                 range.extensible(),
             )),
-            RustType::String => AsnType::UTF8String,
+            RustType::String(size) => AsnType::UTF8String(size),
             RustType::VecU8(size) => AsnType::OctetString(size),
             RustType::BitVec(size) => AsnType::bit_vec_with_size(size),
             RustType::Vec(inner) => AsnType::SequenceOf(Box::new(inner.into_asn())),
@@ -235,7 +235,7 @@ impl RustType {
             RustType::I32(_) => matches!(other, RustType::I32(_)),
             RustType::U64(_) => matches!(other, RustType::U64(_)),
             RustType::I64(_) => matches!(other, RustType::I64(_)),
-            RustType::String => RustType::String == *other,
+            RustType::String(_) => matches!(other, RustType::String(_)),
             RustType::VecU8(_) => matches!(other, RustType::VecU8(_)),
             RustType::BitVec(_) => matches!(other, RustType::BitVec(_)),
             RustType::Vec(inner_a) => {
@@ -307,7 +307,7 @@ impl ToString for RustType {
             RustType::I32(_) => "i32",
             RustType::U64(_) => "u64",
             RustType::I64(_) => "i64",
-            RustType::String => "String",
+            RustType::String(_) => "String",
             RustType::VecU8(_) => "Vec<u8>",
             RustType::BitVec(_) => "BitVec",
             RustType::Vec(inner) => return format!("Vec<{}>", inner.to_string()),
@@ -497,7 +497,7 @@ impl Model<Rust> {
     pub fn definition_to_rust(name: &str, asn: &AsnType, defs: &mut Vec<Definition<Rust>>) {
         match asn {
             AsnType::Boolean
-            | AsnType::UTF8String
+            | AsnType::UTF8String(_)
             | AsnType::OctetString(_)
             | AsnType::BitString(_)
             | AsnType::TypeReference(_) => {
@@ -608,7 +608,7 @@ impl Model<Rust> {
                 .collect(),
 
             Type::Boolean
-            | Type::UTF8String
+            | Type::UTF8String(_)
             | Type::OctetString(_)
             | Type::Optional(_)
             | Type::Sequence(_)
@@ -673,7 +673,7 @@ impl Model<Rust> {
                 }
             }
 
-            AsnType::UTF8String => RustType::String,
+            AsnType::UTF8String(size) => RustType::String(*size),
             AsnType::OctetString(size) => RustType::VecU8(*size),
             AsnType::BitString(bitstring) => RustType::BitVec(bitstring.size),
             Type::Optional(inner) => RustType::Option(Box::new(
@@ -1003,8 +1003,8 @@ mod tests {
         model_asn.definitions.push(Definition(
             "SimpleChoiceTest".into(),
             AsnType::choice_from_variants(vec![
-                ChoiceVariant::name_type("bernd-das-brot", AsnType::UTF8String),
-                ChoiceVariant::name_type("nochSoEinBrot", AsnType::OctetString(Size::Any)),
+                ChoiceVariant::name_type("bernd-das-brot", AsnType::unconstrained_utf8string()),
+                ChoiceVariant::name_type("nochSoEinBrot", AsnType::unconstrained_octetstring()),
             ])
             .untagged(),
         ));
@@ -1017,7 +1017,7 @@ mod tests {
                 "SimpleChoiceTest".into(),
                 Rust::DataEnum(
                     vec![
-                        DataVariant::from_name_type("BerndDasBrot", RustType::String),
+                        DataVariant::from_name_type("BerndDasBrot", RustType::String(Size::Any)),
                         DataVariant::from_name_type("NochSoEinBrot", RustType::VecU8(Size::Any)),
                     ]
                     .into()
@@ -1035,12 +1035,12 @@ mod tests {
             AsnType::choice_from_variants(vec![
                 ChoiceVariant::name_type(
                     "normal-List",
-                    AsnType::SequenceOf(Box::new(AsnType::UTF8String)),
+                    AsnType::SequenceOf(Box::new(AsnType::unconstrained_utf8string())),
                 ),
                 ChoiceVariant::name_type(
                     "NESTEDList",
                     AsnType::SequenceOf(Box::new(AsnType::SequenceOf(Box::new(
-                        AsnType::OctetString(Size::Any),
+                        AsnType::unconstrained_octetstring(),
                     )))),
                 ),
             ])
@@ -1057,7 +1057,7 @@ mod tests {
                     vec![
                         DataVariant::from_name_type(
                             "NormalList",
-                            RustType::Vec(Box::new(RustType::String)),
+                            RustType::Vec(Box::new(RustType::String(Size::Any))),
                         ),
                         DataVariant::from_name_type(
                             "NESTEDList",
@@ -1079,7 +1079,7 @@ mod tests {
         model_asn.name = "TupleTestModel".into();
         model_asn.definitions.push(Definition(
             "TupleTest".into(),
-            AsnType::SequenceOf(Box::new(AsnType::UTF8String)).untagged(),
+            AsnType::SequenceOf(Box::new(AsnType::unconstrained_utf8string())).untagged(),
         ));
         let model_rust = model_asn.to_rust();
         assert_eq!("tuple_test_model", model_rust.name);
@@ -1088,7 +1088,7 @@ mod tests {
         assert_eq!(
             Definition(
                 "TupleTest".into(),
-                Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::String))),
+                Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::String(Size::Any)))),
             ),
             model_rust.definitions[0]
         );
@@ -1100,8 +1100,10 @@ mod tests {
         model_asn.name = "TupleTestModel".into();
         model_asn.definitions.push(Definition(
             "NestedTupleTest".into(),
-            AsnType::SequenceOf(Box::new(AsnType::SequenceOf(Box::new(AsnType::UTF8String))))
-                .untagged(),
+            AsnType::SequenceOf(Box::new(AsnType::SequenceOf(Box::new(
+                AsnType::unconstrained_utf8string(),
+            ))))
+            .untagged(),
         ));
         let model_rust = model_asn.to_rust();
         assert_eq!("tuple_test_model", model_rust.name);
@@ -1111,7 +1113,7 @@ mod tests {
             Definition(
                 "NestedTupleTest".into(),
                 Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::Vec(Box::new(
-                    RustType::String
+                    RustType::String(Size::Any)
                 ))))),
             ),
             model_rust.definitions[0]
@@ -1126,7 +1128,7 @@ mod tests {
             "OptionalStructListTest".into(),
             AsnType::sequence_from_fields(vec![Field {
                 name: "strings".into(),
-                role: AsnType::SequenceOf(Box::new(AsnType::UTF8String))
+                role: AsnType::SequenceOf(Box::new(AsnType::unconstrained_utf8string()))
                     .optional()
                     .untagged(),
             }])
@@ -1141,7 +1143,9 @@ mod tests {
                 "OptionalStructListTest".into(),
                 Rust::struct_from_fields(vec![RustField::from_name_type(
                     "strings",
-                    RustType::Option(Box::new(RustType::Vec(Box::new(RustType::String)))),
+                    RustType::Option(Box::new(RustType::Vec(Box::new(RustType::String(
+                        Size::Any
+                    ))))),
                 )]),
             ),
             model_rust.definitions[0]
@@ -1156,7 +1160,7 @@ mod tests {
             "StructListTest".into(),
             AsnType::sequence_from_fields(vec![Field {
                 name: "strings".into(),
-                role: AsnType::SequenceOf(Box::new(AsnType::UTF8String)).untagged(),
+                role: AsnType::SequenceOf(Box::new(AsnType::unconstrained_utf8string())).untagged(),
             }])
             .untagged(),
         ));
@@ -1169,7 +1173,7 @@ mod tests {
                 "StructListTest".into(),
                 Rust::struct_from_fields(vec![RustField::from_name_type(
                     "strings",
-                    RustType::Vec(Box::new(RustType::String)),
+                    RustType::Vec(Box::new(RustType::String(Size::Any))),
                 )]),
             ),
             model_rust.definitions[0]
@@ -1185,7 +1189,7 @@ mod tests {
             AsnType::sequence_from_fields(vec![Field {
                 name: "strings".into(),
                 role: AsnType::SequenceOf(Box::new(AsnType::SequenceOf(Box::new(
-                    AsnType::UTF8String,
+                    AsnType::unconstrained_utf8string(),
                 ))))
                 .untagged(),
             }])
@@ -1200,7 +1204,9 @@ mod tests {
                 "NestedStructListTest".into(),
                 Rust::struct_from_fields(vec![RustField::from_name_type(
                     "strings",
-                    RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::String)))),
+                    RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::String(
+                        Size::Any
+                    ))))),
                 )]),
             ),
             model_rust.definitions[0]
@@ -1246,8 +1252,8 @@ mod tests {
             "Extensible".to_string(),
             AsnType::Choice(Choice {
                 variants: vec![
-                    ChoiceVariant::name_type("abc", Type::OctetString(Size::Any)),
-                    ChoiceVariant::name_type("def", Type::any_integer()),
+                    ChoiceVariant::name_type("abc", Type::unconstrained_octetstring()),
+                    ChoiceVariant::name_type("def", Type::unconstrained_integer()),
                     ChoiceVariant {
                         name: "ghi".to_string(),
                         tag: Some(Tag::Universal(4)),

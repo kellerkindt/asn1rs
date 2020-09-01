@@ -93,17 +93,17 @@ fn parse_type_pre_stepped<'a>(
     input: &'a ParseBuffer<'a>,
 ) -> syn::Result<Type> {
     match lowercase_ident {
-        "utf8string" => Ok(Type::UTF8String),
+        "utf8string" => parse_opt_size_or_any(input).map(Type::UTF8String),
         "octet_string" => parse_opt_size_or_any(input).map(Type::OctetString),
         "bit_string" => parse_opt_size_or_any(input).map(Type::bit_vec_with_size),
         "integer" => {
             if input.is_empty() {
-                Ok(Type::any_integer())
+                Ok(Type::unconstrained_integer())
             } else {
                 let content;
                 parenthesized!(content in input);
                 if content.is_empty() {
-                    Ok(Type::any_integer())
+                    Ok(Type::unconstrained_integer())
                 } else {
                     let int_range = IntegerRange::parse(&content)?;
                     Ok(Type::integer_with_range_opt(
@@ -141,7 +141,7 @@ fn parse_type_pre_stepped<'a>(
 }
 
 fn parse_opt_size_or_any(input: ParseStream) -> syn::Result<Size> {
-    if input.is_empty() {
+    if input.is_empty() || !input.peek(token::Paren) {
         Ok(Size::Any)
     } else {
         let content;

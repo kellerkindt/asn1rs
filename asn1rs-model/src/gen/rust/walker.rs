@@ -73,7 +73,8 @@ impl AsnDefWriter {
                     format!("{}Integer<u64>", CRATE_SYN_PREFIX)
                 }
             }
-            RustType::String => format!("{}Utf8String", CRATE_SYN_PREFIX),
+            RustType::String(Size::Any) => format!("{}Utf8String", CRATE_SYN_PREFIX),
+            RustType::String(_) => format!("{}Utf8String<{}Constraint>", CRATE_SYN_PREFIX, name),
             RustType::VecU8(Size::Any) => format!("{}OctetString", CRATE_SYN_PREFIX),
             RustType::VecU8(_) => format!("{}OctetString<{}Constraint>", CRATE_SYN_PREFIX, name),
             RustType::BitVec(Size::Any) => format!("{}BitString", CRATE_SYN_PREFIX),
@@ -157,7 +158,7 @@ impl AsnDefWriter {
                 name,
                 r#type.to_string(),
                 // TODO this does only support a small variety of constant types
-                if RustType::String == r#type {
+                if matches!(r#type, RustType::String(_)) {
                     format!("\"{}\"", value)
                 } else {
                     value
@@ -252,7 +253,9 @@ impl AsnDefWriter {
                     &field.r#type().to_string(),
                     range,
                 ),
-                RustType::String => {}
+                RustType::String(size) => {
+                    Self::write_size_constraint_type("utf8string", scope, name, field.name(), size)
+                }
                 RustType::VecU8(size) => {
                     Self::write_size_constraint_type("octetstring", scope, name, field.name(), size)
                 }
@@ -481,22 +484,24 @@ impl AsnDefWriter {
         field: &str,
         size: &Size,
     ) {
-        let combined = Self::combined_field_type_name(name, field) + "Constraint";
-        let combined = Self::constraint_impl_name(&combined);
+        if size.min().is_some() || size.max().is_some() || size.extensible() {
+            let combined = Self::combined_field_type_name(name, field) + "Constraint";
+            let combined = Self::constraint_impl_name(&combined);
 
-        scope.new_struct(&combined).derive("Default");
-        scope.raw(&format!(
-            "impl {}{}::Constraint for {} {{",
-            CRATE_SYN_PREFIX, module, combined
-        ));
-        if let Some(min) = size.min() {
-            scope.raw(&format!("const MIN: Option<u64> = Some({});", min));
+            scope.new_struct(&combined).derive("Default");
+            scope.raw(&format!(
+                "impl {}{}::Constraint for {} {{",
+                CRATE_SYN_PREFIX, module, combined
+            ));
+            if let Some(min) = size.min() {
+                scope.raw(&format!("const MIN: Option<u64> = Some({});", min));
+            }
+            if let Some(max) = size.max() {
+                scope.raw(&format!("const MAX: Option<u64> = Some({});", max));
+            }
+            scope.raw(&format!("const EXTENSIBLE: bool = {};", size.extensible()));
+            scope.raw("}");
         }
-        if let Some(max) = size.max() {
-            scope.raw(&format!("const MAX: Option<u64> = Some({});", max));
-        }
-        scope.raw(&format!("const EXTENSIBLE: bool = {};", size.extensible()));
-        scope.raw("}");
     }
 
     fn write_sequence_constraint_insert_consts(
@@ -609,7 +614,7 @@ impl AsnDefWriter {
 pub mod tests {
     use crate::gen::rust::walker::AsnDefWriter;
     use crate::model::rust::Field;
-    use crate::model::{Definition, Model, Rust, RustType};
+    use crate::model::{Definition, Model, Rust, RustType, Size};
     use crate::parser::Tokenizer;
     use codegen::Scope;
 
@@ -617,9 +622,15 @@ pub mod tests {
         Definition(
             String::from("Whatever"),
             Rust::struct_from_fields(vec![
-                Field::from_name_type("name", RustType::String),
-                Field::from_name_type("opt", RustType::Option(Box::new(RustType::String))),
-                Field::from_name_type("some", RustType::Option(Box::new(RustType::String))),
+                Field::from_name_type("name", RustType::String(Size::Any)),
+                Field::from_name_type(
+                    "opt",
+                    RustType::Option(Box::new(RustType::String(Size::Any))),
+                ),
+                Field::from_name_type(
+                    "some",
+                    RustType::Option(Box::new(RustType::String(Size::Any))),
+                ),
             ]),
         )
     }
@@ -629,9 +640,15 @@ pub mod tests {
             String::from("Potato"),
             Rust::Struct {
                 fields: vec![
-                    Field::from_name_type("name", RustType::String),
-                    Field::from_name_type("opt", RustType::Option(Box::new(RustType::String))),
-                    Field::from_name_type("some", RustType::Option(Box::new(RustType::String))),
+                    Field::from_name_type("name", RustType::String(Size::Any)),
+                    Field::from_name_type(
+                        "opt",
+                        RustType::Option(Box::new(RustType::String(Size::Any))),
+                    ),
+                    Field::from_name_type(
+                        "some",
+                        RustType::Option(Box::new(RustType::String(Size::Any))),
+                    ),
                 ],
                 extension_after: Some(1),
             },

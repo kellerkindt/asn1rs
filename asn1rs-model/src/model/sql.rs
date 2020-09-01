@@ -63,7 +63,7 @@ impl SqlType {
             SqlType::BigInt => RustType::I64(Range::inclusive(0, i64::max_value())),
             SqlType::Serial => RustType::I32(Range::inclusive(0, i32::max_value())),
             SqlType::Boolean => RustType::Bool,
-            SqlType::Text => RustType::String,
+            SqlType::Text => RustType::String(Size::Any),
             SqlType::Array(inner) => RustType::Vec(Box::new(inner.to_rust())),
             SqlType::NotNull(inner) => return inner.to_rust().no_option(),
             SqlType::ByteArray => RustType::VecU8(Size::Any),
@@ -405,7 +405,7 @@ impl Model<Sql> {
     pub fn is_primitive(rust: &RustType) -> bool {
         #[allow(clippy::match_same_arms)] // to have the same order as the original enum
         match rust.clone().into_inner_type() {
-            RustType::String => true,
+            RustType::String(_) => true,
             RustType::VecU8(_) => true,
             RustType::BitVec(_) => true,
             r => r.is_primitive(),
@@ -450,7 +450,7 @@ impl ToSql for RustType {
             }
             RustType::U16(_) | RustType::I32(_) => SqlType::Integer,
             RustType::U32(_) | RustType::U64(_) | RustType::I64(_) => SqlType::BigInt,
-            RustType::String => SqlType::Text,
+            RustType::String(_) => SqlType::Text,
             RustType::VecU8(_) => SqlType::ByteArray,
             RustType::BitVec(_) => SqlType::BitsReprByByteArrayAndBitsLen,
             RustType::Vec(inner) => SqlType::Array(inner.to_sql().into()),
@@ -485,7 +485,7 @@ mod tests {
             definitions: vec![Definition(
                 "Person".into(),
                 Rust::struct_from_fields(vec![
-                    Field::from_name_type("name", RustType::String),
+                    Field::from_name_type("name", RustType::String(Size::Any)),
                     Field::from_name_type("birth", RustType::Complex("City".into())),
                 ]),
             )],
@@ -556,7 +556,7 @@ mod tests {
                 "PersonState".into(),
                 Rust::DataEnum(
                     vec![
-                        DataVariant::from_name_type("DeadSince", RustType::String),
+                        DataVariant::from_name_type("DeadSince", RustType::String(Size::Any)),
                         DataVariant::from_name_type("Alive", RustType::Complex("Person".into())),
                     ]
                     .into(),
@@ -659,7 +659,7 @@ mod tests {
                 Rust::struct_from_fields(vec![
                     Field::from_name_type(
                         "list_of_primitive",
-                        RustType::Vec(Box::new(RustType::String)),
+                        RustType::Vec(Box::new(RustType::String(Size::Any))),
                     ),
                     Field::from_name_type(
                         "list_of_reference",
@@ -785,7 +785,7 @@ mod tests {
             definitions: vec![
                 Definition(
                     "Whatever".into(),
-                    Rust::tuple_struct_from_type(RustType::String),
+                    Rust::tuple_struct_from_type(RustType::String(Size::Any)),
                 ),
                 Definition(
                     "Whatelse".into(),
@@ -942,7 +942,10 @@ mod tests {
             }],
             definitions: vec![Definition(
                 "City".into(),
-                Rust::struct_from_fields(vec![Field::from_name_type("id", RustType::String)]),
+                Rust::struct_from_fields(vec![Field::from_name_type(
+                    "id",
+                    RustType::String(Size::Any),
+                )]),
             )],
         }
         .to_sql();
@@ -1039,14 +1042,19 @@ mod tests {
             RustType::I64(Range::inclusive(0, i64::max_value()))
         );
 
-        assert_eq!(RustType::String.to_sql().to_rust(), RustType::String,);
+        assert_eq!(
+            RustType::String(Size::Any).to_sql().to_rust(),
+            RustType::String(Size::Any),
+        );
         assert_eq!(
             RustType::VecU8(Size::Any).to_sql().to_rust(),
             RustType::VecU8(Size::Any)
         );
         assert_eq!(
-            RustType::Vec(Box::new(RustType::String)).to_sql().to_rust(),
-            RustType::Vec(Box::new(RustType::String)),
+            RustType::Vec(Box::new(RustType::String(Size::Any)))
+                .to_sql()
+                .to_rust(),
+            RustType::Vec(Box::new(RustType::String(Size::Any))),
         );
         assert_eq!(
             RustType::Option(Box::new(RustType::VecU8(Size::Any)))

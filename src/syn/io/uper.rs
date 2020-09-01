@@ -454,8 +454,18 @@ impl Writer for UperWriter {
     ) -> Result<(), Self::Error> {
         self.write_bit_field_entry(false, true)?;
         self.with_buffer(|w| {
+            // ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 30.3
+            // For 'known-multiplier character string types' there is no min/max in the encoding
+            if !C::EXTENSIBLE {
+                let chars = value.chars().count() as u64;
+                let min = const_unwrap_or!(C::MIN, 0);
+                let max = const_unwrap_or!(C::MAX, u64::MAX);
+                if chars < min || chars > max {
+                    return Err(Error::SizeNotInRange(chars, min, max));
+                }
+            }
             w.buffer
-                .write_octetstring(C::MIN, C::MAX, C::EXTENSIBLE, value.as_bytes())
+                .write_octetstring(None, None, false, value.as_bytes())
         })
     }
 
@@ -725,7 +735,9 @@ impl Reader for UperReader {
     fn read_utf8string<C: utf8string::Constraint>(&mut self) -> Result<String, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
         self.with_buffer(|r| {
-            let octets = r.buffer.read_octetstring(C::MIN, C::MAX, C::EXTENSIBLE)?;
+            // ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 30.3
+            // For 'known-multiplier character string types' there is no min/max in the encoding
+            let octets = r.buffer.read_octetstring(None, None, false)?;
             String::from_utf8(octets).map_err(|_| Self::Error::InvalidUtf8String)
         })
     }

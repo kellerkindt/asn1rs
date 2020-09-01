@@ -456,7 +456,7 @@ impl Model<Asn> {
         } else if text.eq_ignore_ascii_case("BOOLEAN") {
             Ok(Type::Boolean)
         } else if text.eq_ignore_ascii_case("UTF8String") {
-            Ok(Type::UTF8String)
+            Ok(Type::UTF8String(Model::<Asn>::maybe_read_size(iter)?))
         } else if text.eq_ignore_ascii_case("OCTET") {
             let token = Self::next(iter)?;
             if token.text().map_or(false, |t| t.eq("STRING")) {
@@ -1009,7 +1009,7 @@ impl TagProperty for Asn {
 pub enum Type {
     Boolean,
     Integer(Integer),
-    UTF8String,
+    UTF8String(Size),
     OctetString(Size),
     BitString(BitString),
 
@@ -1023,7 +1023,15 @@ pub enum Type {
 }
 
 impl Type {
-    pub fn any_integer() -> Self {
+    pub const fn unconstrained_utf8string() -> Self {
+        Self::UTF8String(Size::Any)
+    }
+
+    pub const fn unconstrained_octetstring() -> Self {
+        Self::OctetString(Size::Any)
+    }
+
+    pub fn unconstrained_integer() -> Self {
         Self::integer_with_range_opt(Range::none())
     }
 
@@ -1501,7 +1509,7 @@ pub(crate) mod tests {
                     },
                     Field {
                         name: "unlimited".into(),
-                        role: Type::any_integer().optional().untagged(),
+                        role: Type::unconstrained_integer().optional().untagged(),
                     }
                 ])
                 .untagged(),
@@ -1616,7 +1624,7 @@ pub(crate) mod tests {
                     Field {
                         name: "optionals".into(),
                         role: Type::SequenceOf(Box::new(Type::SequenceOf(Box::new(
-                            Type::any_integer()
+                            Type::unconstrained_integer()
                         ))))
                         .optional()
                         .untagged(),
@@ -1824,7 +1832,7 @@ pub(crate) mod tests {
         assert_eq!(
             &[Definition(
                 "SimpleStringType".to_string(),
-                Type::UTF8String.untagged(),
+                Type::unconstrained_utf8string().untagged(),
             )][..],
             &model.definitions[..]
         )
@@ -2002,7 +2010,7 @@ pub(crate) mod tests {
                     Type::sequence_from_fields(vec![
                         Field {
                             name: "abc".to_string(),
-                            role: Type::any_integer().tagged(Tag::ContextSpecific(1)),
+                            role: Type::unconstrained_integer().tagged(Tag::ContextSpecific(1)),
                         },
                         Field {
                             name: "def".to_string(),
@@ -2014,7 +2022,8 @@ pub(crate) mod tests {
                 ),
                 Definition(
                     "Application".to_string(),
-                    Type::SequenceOf(Box::new(Type::UTF8String)).tagged(Tag::Application(7)),
+                    Type::SequenceOf(Box::new(Type::unconstrained_utf8string()))
+                        .tagged(Tag::Application(7)),
                 ),
                 Definition(
                     "Private".to_string(),
@@ -2023,7 +2032,7 @@ pub(crate) mod tests {
                 ),
                 Definition(
                     "ContextSpecific".to_string(),
-                    Type::any_integer().tagged(Tag::ContextSpecific(8)),
+                    Type::unconstrained_integer().tagged(Tag::ContextSpecific(8)),
                 ),
             ][..],
             &model.definitions[..]
@@ -2066,8 +2075,8 @@ pub(crate) mod tests {
                     "WithoutMarker",
                     Type::Choice(Choice {
                         variants: vec![
-                            ChoiceVariant::name_type("abc", Type::UTF8String),
-                            ChoiceVariant::name_type("def", Type::UTF8String),
+                            ChoiceVariant::name_type("abc", Type::unconstrained_utf8string()),
+                            ChoiceVariant::name_type("def", Type::unconstrained_utf8string()),
                         ],
                         extension_after: None,
                     })
@@ -2077,8 +2086,8 @@ pub(crate) mod tests {
                     "WithoutExtensionPresent",
                     Type::Choice(Choice {
                         variants: vec![
-                            ChoiceVariant::name_type("abc", Type::UTF8String),
-                            ChoiceVariant::name_type("def", Type::UTF8String),
+                            ChoiceVariant::name_type("abc", Type::unconstrained_utf8string()),
+                            ChoiceVariant::name_type("def", Type::unconstrained_utf8string()),
                         ],
                         extension_after: Some(1),
                     })
@@ -2088,9 +2097,9 @@ pub(crate) mod tests {
                     "WithExtensionPresent",
                     Type::Choice(Choice {
                         variants: vec![
-                            ChoiceVariant::name_type("abc", Type::UTF8String),
-                            ChoiceVariant::name_type("def", Type::UTF8String),
-                            ChoiceVariant::name_type("ghi", Type::UTF8String),
+                            ChoiceVariant::name_type("abc", Type::unconstrained_utf8string()),
+                            ChoiceVariant::name_type("def", Type::unconstrained_utf8string()),
+                            ChoiceVariant::name_type("ghi", Type::unconstrained_utf8string()),
                         ],
                         extension_after: Some(1),
                     })
