@@ -1,3 +1,4 @@
+use crate::io::per::unaligned::BYTE_LEN;
 use crate::syn::{ReadableType, Reader, WritableType, Writer};
 use std::marker::PhantomData;
 
@@ -43,17 +44,26 @@ pub struct BitVec(Vec<u8>, u64);
 
 impl BitVec {
     pub fn from_all_bytes(bytes: Vec<u8>) -> Self {
-        let bit_len = (bytes.len() * 8) as u64;
+        let bit_len = (bytes.len() * BYTE_LEN) as u64;
         Self::from_bytes(bytes, bit_len)
     }
 
-    pub const fn from_bytes(bytes: Vec<u8>, bit_len: u64) -> Self {
+    pub fn from_bytes(mut bytes: Vec<u8>, bit_len: u64) -> Self {
+        if bytes.len() * BYTE_LEN > bit_len as usize {
+            // ensure bits that are zeroed out
+            let mask = 0xFF_u8 >> (bit_len as usize % BYTE_LEN);
+            let index = bit_len as usize / BYTE_LEN;
+            bytes[index] &= !mask;
+        } else if bytes.len() * BYTE_LEN < bit_len as usize {
+            let missing_bytes = ((bit_len as usize + 7) / 8) - bytes.len();
+            bytes.extend(core::iter::repeat(0u8).take(missing_bytes));
+        }
         BitVec(bytes, bit_len)
     }
 
-    pub fn with_capacity(bits: u64) -> Self {
-        let bytes = (bits + 7) / 8;
-        BitVec(Vec::with_capacity(bytes as usize), bits)
+    pub fn with_len(bits: u64) -> Self {
+        let bytes = (bits as usize + 7) / 8;
+        BitVec(core::iter::repeat(0u8).take(bytes).collect(), bits)
     }
 
     /// # Panics
@@ -61,7 +71,7 @@ impl BitVec {
     /// If the given `Vec<u8>` is not at least 4 bytes large
     pub fn from_vec_with_trailing_bit_len(mut bytes: Vec<u8>) -> Self {
         const U64_SIZE: usize = std::mem::size_of::<u64>();
-        let bytes_position = bytes.len() - U64_SIZE - 1;
+        let bytes_position = bytes.len() - U64_SIZE;
         let mut bit_len_buffer = [0u8; U64_SIZE];
         for i in (0..U64_SIZE).rev() {
             bit_len_buffer[i] = bytes.remove(bytes_position + i);
@@ -121,5 +131,26 @@ impl BitVec {
 
     pub fn as_byte_slice(&self) -> &[u8] {
         self.0.as_slice()
+    }
+}
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+
+    #[test]
+    fn trailing_bit_len_repr() {
+        for bit_len in 0..(BYTE_LEN * 10) {
+            for value in 0..u8::MAX {
+                let byte_len = (bit_len + 7) / 8;
+                let start = BitVec(
+                    core::iter::repeat(value).take(byte_len).collect(),
+                    bit_len as u64,
+                );
+                let vec_repr = start.to_vec_with_trailing_bit_len();
+                let end = BitVec::from_vec_with_trailing_bit_len(vec_repr);
+                assert_eq!(start, end);
+            }
+        }
     }
 }
