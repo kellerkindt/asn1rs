@@ -1,9 +1,7 @@
 pub mod protobuf;
 pub mod walker;
 
-#[deprecated(
-    note = "This generator is  the UperReader/-Writer with the Read-/Writable interface instead"
-)]
+#[deprecated(note = "Use the Reader/-Writer with the Read-/Writable interface instead")]
 #[cfg(feature = "legacy-uper-codegen")]
 pub mod uper;
 
