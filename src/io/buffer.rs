@@ -20,6 +20,7 @@ pub mod legacy {
 
     pub const SIZE_BITS: usize = 100 * BYTE_LEN;
 
+    #[deprecated]
     pub struct LegacyBitBuffer<'a>(&'a mut BitBuffer);
 
     // the legacy BitBuffer relies solely on read_bit(), no performance optimisation
@@ -453,8 +454,9 @@ pub mod legacy {
     }
 }
 
+#[allow(deprecated)] // all the legacy stuff is deprecated
 #[allow(clippy::identity_op)] // for better readability across multiple tests
-#[cfg(test)]
+#[cfg(all(test, feature = "legacy_bit_buffer"))]
 mod tests {
     use super::legacy::*;
     use super::*;
