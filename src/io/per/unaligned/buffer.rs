@@ -228,3 +228,662 @@ impl BitWrite for BitBuffer {
         )
     }
 }
+
+#[cfg(test)]
+pub mod tests {
+    use super::*;
+    use crate::io::per::unaligned::BitRead;
+    use crate::io::per::unaligned::BitWrite;
+    use crate::io::per::unaligned::PackedRead;
+    use crate::io::per::unaligned::PackedWrite;
+
+    #[test]
+    pub fn bit_buffer_write_bit_keeps_correct_order() -> Result<(), Error> {
+        let mut buffer = BitBuffer::default();
+
+        buffer.write_bit(true)?;
+        buffer.write_bit(false)?;
+        buffer.write_bit(false)?;
+        buffer.write_bit(true)?;
+
+        buffer.write_bit(true)?;
+        buffer.write_bit(true)?;
+        buffer.write_bit(true)?;
+        buffer.write_bit(false)?;
+
+        assert_eq!(buffer.content(), &[0b1001_1110]);
+
+        buffer.write_bit(true)?;
+        buffer.write_bit(false)?;
+        buffer.write_bit(true)?;
+        buffer.write_bit(true)?;
+
+        buffer.write_bit(true)?;
+        buffer.write_bit(true)?;
+        buffer.write_bit(true)?;
+        buffer.write_bit(false)?;
+
+        assert_eq!(buffer.content(), &[0b1001_1110, 0b1011_1110]);
+
+        buffer.write_bit(true)?;
+        buffer.write_bit(false)?;
+        buffer.write_bit(true)?;
+        buffer.write_bit(false)?;
+
+        assert_eq!(buffer.content(), &[0b1001_1110, 0b1011_1110, 0b1010_0000]);
+
+        let mut buffer = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
+        assert!(buffer.read_bit()?);
+        assert!(!buffer.read_bit()?);
+        assert!(!buffer.read_bit()?);
+        assert!(buffer.read_bit()?);
+
+        assert!(buffer.read_bit()?);
+        assert!(buffer.read_bit()?);
+        assert!(buffer.read_bit()?);
+        assert!(!buffer.read_bit()?);
+
+        assert!(buffer.read_bit()?);
+        assert!(!buffer.read_bit()?);
+        assert!(buffer.read_bit()?);
+        assert!(buffer.read_bit()?);
+
+        assert!(buffer.read_bit()?);
+        assert!(buffer.read_bit()?);
+        assert!(buffer.read_bit()?);
+        assert!(!buffer.read_bit()?);
+
+        assert!(buffer.read_bit()?);
+        assert!(!buffer.read_bit()?);
+        assert!(buffer.read_bit()?);
+        assert!(!buffer.read_bit()?);
+
+        assert_eq!(buffer.read_bit(), Err(Error::EndOfStream));
+
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_bits() -> Result<(), Error> {
+        let content = &[0xFF, 0x74, 0xA6, 0x0F];
+        let mut buffer = BitBuffer::default();
+        buffer.write_bits(content)?;
+        assert_eq!(buffer.content(), content);
+
+        {
+            let mut buffer2 = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
+            let mut content2 = vec![0_u8; content.len()];
+            buffer2.read_bits(&mut content2[..])?;
+            assert_eq!(&content[..], &content2[..]);
+        }
+
+        let mut content2 = vec![0xFF_u8; content.len()];
+        buffer.read_bits(&mut content2[..])?;
+        assert_eq!(&content[..], &content2[..]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffers_with_offset() -> Result<(), Error> {
+        let content = &[0b1111_1111, 0b0111_0100, 0b1010_0110, 0b0000_1111];
+        let mut buffer = BitBuffer::default();
+        buffer.write_bits_with_offset(content, 7)?;
+        assert_eq!(
+            buffer.content(),
+            &[0b1011_1010, 0b0101_0011, 0b0000_0111, 0b1000_0000]
+        );
+
+        {
+            let mut buffer2 = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
+            let mut content2 = vec![0xFF_u8; content.len()];
+            content2[0] = content[0] & 0b1111_1110; // since we are skipping the first 7 bits
+            buffer2.read_bits_with_offset(&mut content2[..], 7)?;
+            assert_eq!(&content[..], &content2[..]);
+        }
+
+        let mut content2 = vec![0_u8; content.len()];
+        content2[0] = content[0] & 0b1111_1110; // since we are skipping the first 7 bits
+        buffer.read_bits_with_offset(&mut content2[..], 7)?;
+        assert_eq!(&content[..], &content2[..]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_bits_with_offset_len() -> Result<(), Error> {
+        let content = &[0b1111_1111, 0b0111_0100, 0b1010_0110, 0b0000_1111];
+        let mut buffer = BitBuffer::default();
+        buffer.write_bits_with_offset_len(content, 7, 12)?;
+        assert_eq!(buffer.content(), &[0b1011_1010, 0b0101_0000]);
+
+        {
+            let mut buffer2 = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
+            let mut content2 = vec![0_u8; content.len()];
+            // since we are skipping the first 7 bits
+            let content = &[
+                content[0] & 0x01,
+                content[1],
+                content[2] & 0b1110_0000,
+                0x00,
+            ];
+            buffer2.read_bits_with_offset_len(&mut content2[..], 7, 12)?;
+            assert_eq!(&content[..], &content2[..]);
+        }
+
+        let mut content2 = vec![0x00_u8; content.len()];
+        // since we are skipping the first 7 bits
+        let content = &[
+            content[0] & 0x01,
+            content[1],
+            content[2] & 0b1110_0000,
+            0x00,
+        ];
+        buffer.read_bits_with_offset_len(&mut content2[..], 7, 12)?;
+        assert_eq!(&content[..], &content2[..]);
+
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_length_determinant_0() -> Result<(), Error> {
+        const DET: u64 = 0;
+        let mut buffer = BitBuffer::default();
+        buffer.write_length_determinant(None, None, DET)?;
+        assert_eq!(buffer.content(), &[0x00 | DET as u8]);
+
+        {
+            let mut buffer2 = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
+            assert_eq!(DET, buffer2.read_length_determinant(None, None)?);
+        }
+
+        assert_eq!(DET, buffer.read_length_determinant(None, None)?);
+
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_length_determinant_1() -> Result<(), Error> {
+        const DET: u64 = 1;
+        let mut buffer = BitBuffer::default();
+        buffer.write_length_determinant(None, None, DET)?;
+        assert_eq!(buffer.content(), &[0x00 | DET as u8]);
+
+        {
+            let mut buffer2 = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
+            assert_eq!(DET, buffer2.read_length_determinant(None, None)?);
+        }
+
+        assert_eq!(DET, buffer.read_length_determinant(None, None)?);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_length_determinant_127() -> Result<(), Error> {
+        const DET: u64 = 126;
+        let mut buffer = BitBuffer::default();
+        buffer.write_length_determinant(None, None, DET)?;
+        assert_eq!(buffer.content(), &[0x00 | DET as u8]);
+
+        {
+            let mut buffer2 = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
+            assert_eq!(DET, buffer2.read_length_determinant(None, None)?);
+        }
+
+        assert_eq!(DET, buffer.read_length_determinant(None, None)?);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_length_determinant_128() -> Result<(), Error> {
+        const DET: u64 = 128;
+        let mut buffer = BitBuffer::default();
+        buffer.write_length_determinant(None, None, DET)?;
+        // detects that the value is greater than 127, so
+        //   10xx_xxxx xxxx_xxxx (header)
+        // | --00_0000 1000_0000 (128)
+        // =======================
+        //   1000_0000 1000_0000
+        assert_eq!(buffer.content(), &[0x80 | 0x00, 0x00 | DET as u8]);
+
+        {
+            let mut buffer2 = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
+            assert_eq!(DET, buffer2.read_length_determinant(None, None)?);
+        }
+
+        assert_eq!(DET, buffer.read_length_determinant(None, None)?);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_length_determinant_16383() -> Result<(), Error> {
+        const DET: u64 = 16383;
+        let mut buffer = BitBuffer::default();
+        buffer.write_length_determinant(None, None, DET)?;
+        // detects that the value is greater than 127, so
+        //   10xx_xxxx xxxx_xxxx (header)
+        // | --11_1111 1111_1111 (16383)
+        // =======================
+        //   1011_1111 1111_1111
+        assert_eq!(
+            buffer.content(),
+            &[0x80 | (DET >> 8) as u8, 0x00 | (DET & 0xFF) as u8]
+        );
+
+        {
+            let mut buffer2 = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
+            assert_eq!(DET, buffer2.read_length_determinant(None, None)?);
+        }
+
+        assert_eq!(DET, buffer.read_length_determinant(None, None)?);
+        Ok(())
+    }
+
+    fn check_unconstrained_whole_number(buffer: &mut BitBuffer, int: i64) -> Result<(), Error> {
+        {
+            let mut buffer2 = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
+            assert_eq!(int, buffer2.read_unconstrained_whole_number()?)
+        }
+
+        assert_eq!(int, buffer.read_unconstrained_whole_number()?);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_unconstrained_whole_number_neg_12() -> Result<(), Error> {
+        const INT: i64 = -12;
+        let mut buffer = BitBuffer::default();
+        buffer.write_unconstrained_whole_number(INT)?;
+        // Can be represented in 1 byte,
+        // therefore the first byte is written
+        // with 0x00 (header) | 1 (byte len).
+        // The second byte is then the actual value
+        assert_eq!(buffer.content(), &[0x00 | 1, INT as u8]);
+        check_unconstrained_whole_number(&mut buffer, INT)?;
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_unconstrained_whole_number_0() -> Result<(), Error> {
+        const INT: i64 = 0;
+        let mut buffer = BitBuffer::default();
+        buffer.write_unconstrained_whole_number(INT)?;
+        // Can be represented in 1 byte,
+        // therefore the first byte is written
+        // with 0x00 (header) | 1 (byte len).
+        // The second byte is then the actual value
+        assert_eq!(buffer.content(), &[0x00 | 1, INT as u8]);
+        check_unconstrained_whole_number(&mut buffer, INT)?;
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_unconstrained_whole_number_127() -> Result<(), Error> {
+        const INT: i64 = 127; // u4::max_value() as u64
+        let mut buffer = BitBuffer::default();
+        buffer.write_unconstrained_whole_number(INT)?;
+        // Can be represented in 1 byte,
+        // therefore the first byte is written
+        // with 0x00 (header) | 1 (byte len).
+        // The second byte is then the actual value
+        assert_eq!(buffer.content(), &[0x00 | 1, INT as u8]);
+        check_unconstrained_whole_number(&mut buffer, INT)?;
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_unconstrained_whole_number_128() -> Result<(), Error> {
+        const INT: i64 = 128; // u4::max_value() as u64 + 1
+        let mut buffer = BitBuffer::default();
+        buffer.write_unconstrained_whole_number(INT)?;
+        assert_eq!(buffer.content(), &[0x02, 0x00, 0x80]);
+        check_unconstrained_whole_number(&mut buffer, INT)?;
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_unconstrained_whole_number_255() -> Result<(), Error> {
+        const INT: i64 = 255; // u8::max_value() as u64
+        let mut buffer = BitBuffer::default();
+        buffer.write_unconstrained_whole_number(INT)?;
+        assert_eq!(buffer.content(), &[0x02, 0x00, 0xFF]);
+        check_unconstrained_whole_number(&mut buffer, INT)?;
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_unconstrained_whole_number_256() -> Result<(), Error> {
+        const INT: i64 = 256; // u8::max_value() as u64 + 1
+        let mut buffer = BitBuffer::default();
+        buffer.write_unconstrained_whole_number(INT)?;
+        // Can be represented in 2 bytes,
+        // therefore the first byte is written
+        // with 0x00 (header) | 2 (byte len).
+        // The second byte is then the actual value
+        assert_eq!(
+            buffer.content(),
+            &[
+                0x00 | 2,
+                ((INT & 0xFF_00) >> 8) as u8,
+                ((INT & 0x00_ff) >> 0) as u8,
+            ]
+        );
+        check_unconstrained_whole_number(&mut buffer, INT)?;
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_unconstrained_whole_number_65535() -> Result<(), Error> {
+        const INT: i64 = 65_535; // u16::max_value() as u64
+        let mut buffer = BitBuffer::default();
+        buffer.write_unconstrained_whole_number(INT)?;
+        assert_eq!(buffer.content(), &[0x03, 0x00, 0xFF, 0xFF]);
+        check_unconstrained_whole_number(&mut buffer, INT)?;
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_unconstrained_whole_number_65536() -> Result<(), Error> {
+        const INT: i64 = 65_536; // u16::max_value() as u64 + 1
+        let mut buffer = BitBuffer::default();
+        buffer.write_unconstrained_whole_number(INT)?;
+        assert_eq!(buffer.content(), &[0x03, 0x01, 0x00, 0x00]);
+        check_unconstrained_whole_number(&mut buffer, INT)?;
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_unconstrained_whole_number_16777215() -> Result<(), Error> {
+        const INT: i64 = 16_777_215; // u24::max_value() as u64
+        let mut buffer = BitBuffer::default();
+        buffer.write_unconstrained_whole_number(INT)?;
+        assert_eq!(buffer.content(), &[0x04, 0x00, 0xFF, 0xFF, 0xFF]);
+        check_unconstrained_whole_number(&mut buffer, INT)?;
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_unconstrained_whole_number_16777216() -> Result<(), Error> {
+        const INT: i64 = 16_777_216; // u24::max_value() as u64 + 1
+        let mut buffer = BitBuffer::default();
+        buffer.write_unconstrained_whole_number(INT)?;
+        // Can be represented in 4 bytes,
+        // therefore the first byte is written
+        // with 0x00 (header) | 4 (byte len).
+        // The second byte is then the actual value
+        assert_eq!(
+            buffer.content(),
+            &[
+                0x00 | 4,
+                ((INT & 0xFF_00_00_00) >> 24) as u8,
+                ((INT & 0x00_FF_00_00) >> 16) as u8,
+                ((INT & 0x00_00_FF_00) >> 8) as u8,
+                ((INT & 0x00_00_00_FF) >> 0) as u8,
+            ]
+        );
+        check_unconstrained_whole_number(&mut buffer, INT)?;
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_unconstrained_whole_number_4294967295() -> Result<(), Error> {
+        const INT: i64 = 4_294_967_295; // u32::max_value() as u64
+        let mut buffer = BitBuffer::default();
+        buffer.write_unconstrained_whole_number(INT)?;
+        assert_eq!(buffer.content(), &[0x05, 0x00, 0xFF, 0xFF, 0xFF, 0xFF]);
+        check_unconstrained_whole_number(&mut buffer, INT)?;
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_unconstrained_whole_number_4294967296() -> Result<(), Error> {
+        const INT: i64 = 4_294_967_296; // u32::max_value() as u64 + 1
+        let mut buffer = BitBuffer::default();
+        buffer.write_unconstrained_whole_number(INT)?;
+        assert_eq!(buffer.content(), &[0x05, 0x01, 0x00, 0x00, 0x00, 0x00]);
+        check_unconstrained_whole_number(&mut buffer, INT)?;
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_unconstrained_whole_number_i64_max() -> Result<(), Error> {
+        const INT: i64 = i64::max_value();
+        let mut buffer = BitBuffer::default();
+        buffer.write_unconstrained_whole_number(INT)?;
+        // Can be represented in 8 bytes,
+        // therefore the first byte is written
+        // with 0x00 (header) | 8 (byte len).
+        // The second byte is then the actual value
+        assert_eq!(
+            buffer.content(),
+            &[
+                0x00 | 8,
+                ((INT as u64 & 0xFF_00_00_00_00_00_00_00_u64) >> 56) as u8,
+                ((INT as u64 & 0x00_FF_00_00_00_00_00_00_u64) >> 48) as u8,
+                ((INT as u64 & 0x00_00_FF_00_00_00_00_00_u64) >> 40) as u8,
+                ((INT as u64 & 0x00_00_00_FF_00_00_00_00_u64) >> 32) as u8,
+                ((INT as u64 & 0x00_00_00_00_FF_00_00_00_u64) >> 24) as u8,
+                ((INT as u64 & 0x00_00_00_00_00_FF_00_00_u64) >> 16) as u8,
+                ((INT as u64 & 0x00_00_00_00_00_00_FF_00_u64) >> 8) as u8,
+                ((INT as u64 & 0x00_00_00_00_00_00_00_FF_u64) >> 0) as u8,
+            ]
+        );
+        check_unconstrained_whole_number(&mut buffer, INT)?;
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_constrained_whole_number_detects_not_in_range_positive_only() {
+        let mut buffer = BitBuffer::default();
+        // lower check
+        assert_eq!(
+            buffer.write_constrained_whole_number(10, 127, 0),
+            Err(Error::ValueNotInRange(0, 10, 127))
+        );
+        // upper check
+        assert_eq!(
+            buffer.write_constrained_whole_number(10, 127, 128),
+            Err(Error::ValueNotInRange(128, 10, 127))
+        );
+    }
+
+    #[test]
+    fn bit_buffer_write_constrained_whole_number_detects_not_in_range_negative() {
+        let mut buffer = BitBuffer::default();
+        // lower check
+        assert_eq!(
+            buffer.write_constrained_whole_number(-10, -1, -11),
+            Err(Error::ValueNotInRange(-11, -10, -1))
+        );
+        // upper check
+        assert_eq!(
+            buffer.write_constrained_whole_number(-10, -1, 0),
+            Err(Error::ValueNotInRange(0, -10, -1))
+        );
+    }
+
+    #[test]
+    fn bit_buffer_write_constrained_whole_number_detects_not_in_range_with_negative() {
+        let mut buffer = BitBuffer::default();
+        // lower check
+        assert_eq!(
+            buffer.write_constrained_whole_number(-10, 1, -11),
+            Err(Error::ValueNotInRange(-11, -10, 1))
+        );
+        // upper check
+        assert_eq!(
+            buffer.write_constrained_whole_number(-10, 1, 2),
+            Err(Error::ValueNotInRange(2, -10, 1))
+        );
+    }
+
+    fn check_constrained_whole_number(
+        buffer: &mut BitBuffer,
+        int: i64,
+        range: (i64, i64),
+    ) -> Result<(), Error> {
+        {
+            let mut buffer2 = BitBuffer::from_bits(buffer.content().into(), buffer.bit_len());
+            assert_eq!(
+                int,
+                buffer2.read_constrained_whole_number(range.0, range.1)?
+            );
+        }
+        assert_eq!(int, buffer.read_constrained_whole_number(range.0, range.1)?);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_constrained_whole_number_7bits() -> Result<(), Error> {
+        const INT: i64 = 10;
+        const RANGE: (i64, i64) = (0, 127);
+        let mut buffer = BitBuffer::default();
+        buffer.write_constrained_whole_number(RANGE.0, RANGE.1, INT)?;
+        // [0; 127] are 128 numbers, so they
+        // have to fit in 7 bit
+        assert_eq!(buffer.content(), &[(INT as u8) << 1]);
+        check_constrained_whole_number(&mut buffer, INT, RANGE)?;
+        // be sure write_bit writes at the 8th bit
+        buffer.write_bit(true)?;
+        assert_eq!(buffer.content(), &[(INT as u8) << 1 | 0b0000_0001]);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_constrained_whole_number_neg() -> Result<(), Error> {
+        const INT: i64 = -10;
+        const RANGE: (i64, i64) = (-128, 127);
+        let mut buffer = BitBuffer::default();
+        buffer.write_constrained_whole_number(RANGE.0, RANGE.1, INT)?;
+        // [-128; 127] are 255 numbers, so they
+        // have to fit in one byte
+        assert_eq!(buffer.content(), &[(INT - RANGE.0) as u8]);
+        check_constrained_whole_number(&mut buffer, INT, RANGE)?;
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_constrained_whole_number_neg_extended_range() -> Result<(), Error> {
+        const INT: i64 = -10;
+        const RANGE: (i64, i64) = (-128, 128);
+        let mut buffer = BitBuffer::default();
+        buffer.write_constrained_whole_number(RANGE.0, RANGE.1, INT)?;
+        // [-128; 127] are 256 numbers, so they
+        // don't fit in one byte but in 9 bits
+        assert_eq!(
+            buffer.content(),
+            &[
+                ((INT - RANGE.0) as u8) >> 1,
+                (((INT - RANGE.0) as u8) << 7) | 0b0000_0000
+            ]
+        );
+        // be sure write_bit writes at the 10th bit
+        buffer.write_bit(true)?;
+        assert_eq!(
+            buffer.content(),
+            &[
+                ((INT - RANGE.0) as u8) >> 1,
+                ((INT - RANGE.0) as u8) << 7 | 0b0100_0000
+            ]
+        );
+        check_constrained_whole_number(&mut buffer, INT, RANGE)?;
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_octet_string_with_range() -> Result<(), Error> {
+        // test scenario from https://github.com/alexvoronov/geonetworking/blob/57a43113aeabc25f005ea17f76409aed148e67b5/camdenm/src/test/java/net/gcdc/camdenm/UperEncoderDecodeTest.java#L169
+        const BYTES: &[u8] = &[0x2A, 0x2B, 0x96, 0xFF];
+        const RANGE: (u64, u64) = (1, 20);
+        let mut buffer = BitBuffer::default();
+        buffer.write_octetstring(Some(RANGE.0), Some(RANGE.1), false, BYTES)?;
+        assert_eq!(&[0x19, 0x51, 0x5c, 0xb7, 0xf8], &buffer.content(),);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_octet_string_without_range() -> Result<(), Error> {
+        const BYTES: &[u8] = &[0x2A, 0x2B, 0x96, 0xFF];
+        let mut buffer = BitBuffer::default();
+        buffer.write_octetstring(None, None, false, BYTES)?;
+        assert_eq!(&[0x04, 0x2a, 0x2b, 0x96, 0xff], &buffer.content(),);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_octet_string_empty() -> Result<(), Error> {
+        const BYTES: &[u8] = &[];
+        let mut buffer = BitBuffer::default();
+        buffer.write_octetstring(None, None, false, BYTES)?;
+        assert_eq!(&[0x00], &buffer.content(),);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_normally_small_non_negative_whole_number_5() -> Result<(), Error> {
+        // example from larmouth-asn1-book, p.296, Figure III-25
+        let mut buffer = BitBuffer::default();
+        buffer.write_normally_small_non_negative_whole_number(5)?;
+        // first 7 bits are relevant
+        assert_eq!(&[0b0000_101_0], &buffer.content());
+        assert_eq!(5, buffer.read_normally_small_non_negative_whole_number()?);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_normally_small_non_negative_whole_number_60() -> Result<(), Error> {
+        // example from larmouth-asn1-book, p.296, Figure III-25
+        let mut buffer = BitBuffer::default();
+        buffer.write_normally_small_non_negative_whole_number(60)?;
+        // first 7 bits
+        assert_eq!(&[0b0111_100_0], &buffer.content());
+        assert_eq!(60, buffer.read_normally_small_non_negative_whole_number()?);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_normally_small_non_negative_whole_number_254() -> Result<(), Error> {
+        // example from larmouth-asn1-book, p.296, Figure III-25
+        let mut buffer = BitBuffer::default();
+        buffer.write_normally_small_non_negative_whole_number(254)?;
+        // first 17 bits are relevant
+        // assert_eq!(&[0x1, 0b0000_0001, 0b1111_1110], &buffer.content());
+        assert_eq!(
+            //  Bit for greater 63
+            //  |
+            //  V |-len 1 byte-| |-value 254-| |-rest-|
+            &[0b1_000_0000, 0b1__111_1111, 0b0_000_0000],
+            &buffer.content()
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_write_choice_index_extensible() -> Result<(), Error> {
+        fn write_once(index: u64, no_of_default_variants: u64) -> Result<(usize, Vec<u8>), Error> {
+            let mut buffer = BitBuffer::default();
+            buffer.write_choice_index(no_of_default_variants, true, index)?;
+            let bits = buffer.bit_len();
+            Ok((bits, buffer.into()))
+        }
+        assert_eq!((2, vec![0x00]), write_once(0, 2)?);
+        assert_eq!((2, vec![0x40]), write_once(1, 2)?);
+        assert_eq!((8, vec![0x80]), write_once(2, 2)?);
+        assert_eq!((8, vec![0x81]), write_once(3, 2)?);
+        Ok(())
+    }
+
+    #[test]
+    fn bit_buffer_read_choice_index_extensible() -> Result<(), Error> {
+        fn read_once(data: &[u8], bits: usize, no_of_variants: u64) -> Result<u64, Error> {
+            let mut buffer = BitBuffer::default();
+            buffer.write_bits_with_len(data, bits)?;
+            buffer.read_choice_index(no_of_variants, true)
+        }
+        assert_eq!(0, read_once(&[0x00], 2, 2)?);
+        assert_eq!(1, read_once(&[0x40], 2, 2)?);
+        assert_eq!(2, read_once(&[0x80], 8, 2)?);
+        assert_eq!(3, read_once(&[0x81], 8, 2)?);
+        Ok(())
+    }
+}
