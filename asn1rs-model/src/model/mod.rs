@@ -538,6 +538,8 @@ impl Model<Asn> {
             let result = Self::read_size(iter)?;
             Self::next_separator_ignore_case(iter, ')')?;
             Ok(result)
+        } else if Self::peek(iter)?.eq_text_ignore_ascii_case("SIZE") {
+            Self::read_size(iter)
         } else {
             Ok(Size::Any)
         }

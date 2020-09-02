@@ -10,11 +10,11 @@ asn_to_rust!(
     
     Unconstrained ::= SEQUENCE OF INTEGER
     
-    BasicConstrained ::= SEQUENCE (SIZE(3)) OF INTEGER
+    BasicConstrained ::= SEQUENCE SIZE(3) OF INTEGER
     
     BasicConstrainedSmall ::= SEQUENCE (SIZE(2..3)) OF INTEGER
     
-    BasicConstrainedExtensible ::= SEQUENCE (SIZE(2..3,...)) OF INTEGER
+    BasicConstrainedExtensible ::= SEQUENCE SIZE(2..3,...) OF INTEGER
     
     END"
 );
