@@ -105,7 +105,11 @@ impl ProtobufSerializer {
 
         match aliased.clone().into_inner_type() {
             RustType::Complex(custom) => {
-                block_reader.line(format!("me.0.push({}::read_protobuf(reader)?);", custom))
+                if aliased.as_no_option().is_vec() {
+                    block_reader.line(format!("me.0.push({}::read_protobuf(reader)?);", custom))
+                } else {
+                    block_reader.line(format!("me.0 = {}::read_protobuf(reader)?;", custom))
+                }
             }
             r => {
                 if aliased.as_no_option().is_vec() {
