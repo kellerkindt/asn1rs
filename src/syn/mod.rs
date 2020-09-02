@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 pub mod bitstring;
 pub mod boolean;
 pub mod choice;
@@ -160,8 +158,6 @@ pub trait WritableType {
 
     fn write_value<W: Writer>(writer: &mut W, value: &Self::Type) -> Result<(), W::Error>;
 }
-
-pub struct AsnType<T>(PhantomData<T>);
 
 #[cfg(test)]
 mod tests {
