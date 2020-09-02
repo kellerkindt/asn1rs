@@ -334,18 +334,18 @@ impl RustCodeGenerator {
                     ""
                 }
             ),
-            Type::UTF8String(size) => {
-                if size.min().is_some() || size.max().is_some() {
-                    format!(
-                        "utf8string({}..{}{})",
-                        size.min().unwrap_or_default(),
-                        size.max().unwrap_or_else(|| i64::max_value() as usize),
-                        if size.extensible() { ",..." } else { "" }
-                    )
-                } else {
-                    String::from("utf8string")
-                }
+            Type::String(size, charset) => if size.min().is_some() || size.max().is_some() {
+                format!(
+                    "{:?}string({}..{}{})",
+                    charset,
+                    size.min().unwrap_or_default(),
+                    size.max().unwrap_or_else(|| i64::max_value() as usize),
+                    if size.extensible() { ",..." } else { "" }
+                )
+            } else {
+                format!("{:?}string", charset)
             }
+            .to_lowercase(),
             Type::OctetString(size) => {
                 if size.min().is_some() || size.max().is_some() {
                     format!(

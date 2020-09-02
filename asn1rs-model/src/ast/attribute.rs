@@ -2,10 +2,13 @@ use super::range::ident_or_literal_or_punct;
 use super::range::IntegerRange;
 use super::tag::AttrTag;
 use crate::ast::constants::ConstLit;
-use crate::model::{Choice, ChoiceVariant, Enumerated, EnumeratedVariant, Range, Size, Tag, Type};
+use crate::model::{
+    Charset, Choice, ChoiceVariant, Enumerated, EnumeratedVariant, Range, Size, Tag, Type,
+};
 use std::fmt::Display;
 use std::marker::PhantomData;
 use std::ops::Deref;
+use std::str::FromStr;
 use syn::parenthesized;
 use syn::parse::{Parse, ParseBuffer, ParseStream};
 use syn::token;
@@ -93,9 +96,17 @@ fn parse_type_pre_stepped<'a>(
     input: &'a ParseBuffer<'a>,
 ) -> syn::Result<Type> {
     match lowercase_ident {
-        "utf8string" => parse_opt_size_or_any(input).map(Type::UTF8String),
+        // "utf8string" => parse_opt_size_or_any(input).map(|size| Type::String(size, Charset::Utf8)),
+        // "ia5string" => parse_opt_size_or_any(input).map(|size| Type::String(size, Charset::Ia5)),
         "octet_string" => parse_opt_size_or_any(input).map(Type::OctetString),
         "bit_string" => parse_opt_size_or_any(input).map(Type::bit_vec_with_size),
+        string if string.ends_with("string") => {
+            let len = string.chars().count();
+            let charset = &string[..len - "string".chars().count()];
+            let charset = Charset::from_str(&charset)
+                .map_err(|_| input.error(format!("Unexpected charset '{}'", charset)))?;
+            parse_opt_size_or_any(input).map(|size| Type::String(size, charset))
+        }
         "integer" => {
             if input.is_empty() {
                 Ok(Type::unconstrained_integer())

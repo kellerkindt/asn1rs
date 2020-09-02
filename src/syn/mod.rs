@@ -3,6 +3,7 @@ pub mod boolean;
 pub mod choice;
 pub mod complex;
 pub mod enumerated;
+pub mod ia5string;
 pub mod io;
 pub mod numbers;
 pub mod octetstring;
@@ -17,6 +18,7 @@ pub use boolean::Boolean;
 pub use choice::Choice;
 pub use complex::Complex;
 pub use enumerated::Enumerated;
+pub use ia5string::Ia5String;
 pub use numbers::Integer;
 pub use octetstring::OctetString;
 pub use sequence::Sequence;
@@ -58,6 +60,8 @@ pub trait Reader {
     ) -> Result<T, Self::Error>;
 
     fn read_utf8string<C: utf8string::Constraint>(&mut self) -> Result<String, Self::Error>;
+
+    fn read_ia5string<C: ia5string::Constraint>(&mut self) -> Result<String, Self::Error>;
 
     fn read_octet_string<C: octetstring::Constraint>(&mut self) -> Result<Vec<u8>, Self::Error>;
 
@@ -129,6 +133,9 @@ pub trait Writer {
         &mut self,
         value: &str,
     ) -> Result<(), Self::Error>;
+
+    fn write_ia5string<C: ia5string::Constraint>(&mut self, value: &str)
+        -> Result<(), Self::Error>;
 
     fn write_octet_string<C: octetstring::Constraint>(
         &mut self,

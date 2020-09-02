@@ -138,7 +138,7 @@ impl UperSerializer {
                     block.line("reader.read_int_max_signed()? as _");
                 }
             }
-            RustType::String(_) => {
+            RustType::String(..) => {
                 block.line("reader.read_utf8_string()?");
             }
             RustType::VecU8(_) => {
@@ -408,7 +408,7 @@ impl UperSerializer {
                     ));
                 }
             }
-            RustType::String(_) => {
+            RustType::String(..) => {
                 block.line(&format!(
                     "writer.write_utf8_string({})?;",
                     field_name.map_or_else(|| "value".into(), |f| f.to_string()),

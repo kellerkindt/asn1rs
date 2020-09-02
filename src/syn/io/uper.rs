@@ -424,8 +424,6 @@ impl Writer for UperWriter {
     ) -> Result<(), Self::Error> {
         self.write_bit_field_entry(false, true)?;
         self.with_buffer(|w| {
-            // ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 30.3
-            // For 'known-multiplier character string types' there is no min/max in the encoding
             if !C::EXTENSIBLE {
                 let chars = value.chars().count() as u64;
                 let min = const_unwrap_or!(C::MIN, 0);
@@ -434,8 +432,49 @@ impl Writer for UperWriter {
                     return Err(Error::SizeNotInRange(chars, min, max));
                 }
             }
+
+            // ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 30.3
+            // For 'known-multiplier character string types' there is no min/max in the encoding
             w.buffer
                 .write_octetstring(None, None, false, value.as_bytes())
+        })
+    }
+
+    fn write_ia5string<C: ia5string::Constraint>(
+        &mut self,
+        value: &str,
+    ) -> Result<(), Self::Error> {
+        self.write_bit_field_entry(false, true)?;
+        self.with_buffer(|w| {
+            if value.chars().any(|c| c as u32 >= 128) {
+                return Err(Error::InvalidIa5String);
+            }
+
+            let chars = value.chars().count() as u64;
+            let min = const_unwrap_or!(C::MIN, 0);
+            let max = const_unwrap_or!(C::MAX, u64::MAX);
+            let out_of_range = chars < min || chars > max;
+
+            if C::EXTENSIBLE {
+                w.buffer.write_bit(out_of_range)?;
+            }
+
+            if out_of_range {
+                if !C::EXTENSIBLE {
+                    return Err(Error::SizeNotInRange(chars, min, max));
+                } else {
+                    w.buffer.write_length_determinant(None, None, chars)?;
+                }
+            } else {
+                w.buffer.write_length_determinant(C::MIN, C::MAX, chars)?;
+            }
+
+            for char in value.chars().map(|c| c as u8) {
+                // 7 bits
+                w.buffer.write_bits_with_offset(&[char], 1)?;
+            }
+
+            Ok(())
         })
     }
 
@@ -710,6 +749,24 @@ impl Reader for UperReader {
             // For 'known-multiplier character string types' there is no min/max in the encoding
             let octets = r.buffer.read_octetstring(None, None, false)?;
             String::from_utf8(octets).map_err(|_| Self::Error::InvalidUtf8String)
+        })
+    }
+
+    fn read_ia5string<C: ia5string::Constraint>(&mut self) -> Result<String, Self::Error> {
+        let _ = self.read_bit_field_entry(false)?;
+        self.with_buffer(|r| {
+            let len = if C::EXTENSIBLE && r.buffer.read_bit()? {
+                r.buffer.read_length_determinant(None, None)?
+            } else {
+                r.buffer.read_length_determinant(C::MIN, C::MAX)?
+            };
+
+            let mut buffer = vec![0u8; len as usize];
+            for i in 0..len as usize {
+                r.buffer.read_bits_with_offset(&mut buffer[i..i + 1], 1)?;
+            }
+
+            String::from_utf8(buffer).map_err(|_| Error::InvalidIa5String)
         })
     }
 

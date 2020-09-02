@@ -139,6 +139,23 @@ impl Writer for PrintlnWriter {
         Ok(())
     }
 
+    fn write_ia5string<C: ia5string::Constraint>(
+        &mut self,
+        value: &str,
+    ) -> Result<(), Self::Error> {
+        self.indented_println(&format!(
+            "Writing Ia5String({}..{}): {}",
+            C::MIN
+                .map(|v| format!("{}", v))
+                .unwrap_or_else(|| String::from("MIN")),
+            C::MAX
+                .map(|v| format!("{}", v))
+                .unwrap_or_else(|| String::from("MAX")),
+            value
+        ));
+        Ok(())
+    }
+
     fn write_octet_string<C: octetstring::Constraint>(
         &mut self,
         value: &[u8],

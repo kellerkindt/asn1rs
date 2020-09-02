@@ -456,7 +456,15 @@ impl Model<Asn> {
         } else if text.eq_ignore_ascii_case("BOOLEAN") {
             Ok(Type::Boolean)
         } else if text.eq_ignore_ascii_case("UTF8String") {
-            Ok(Type::UTF8String(Model::<Asn>::maybe_read_size(iter)?))
+            Ok(Type::String(
+                Model::<Asn>::maybe_read_size(iter)?,
+                Charset::Utf8,
+            ))
+        } else if text.eq_ignore_ascii_case("IA5STring") {
+            Ok(Type::String(
+                Model::<Asn>::maybe_read_size(iter)?,
+                Charset::Ia5,
+            ))
         } else if text.eq_ignore_ascii_case("OCTET") {
             let token = Self::next(iter)?;
             if token.text().map_or(false, |t| t.eq("STRING")) {
@@ -769,6 +777,13 @@ impl Size {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialOrd, PartialEq, EnumString)]
+#[strum(serialize_all = "lowercase")]
+pub enum Charset {
+    Utf8,
+    Ia5,
+}
+
 #[derive(Debug, Default, Clone, Copy, PartialOrd, PartialEq)]
 pub struct Range<T>(pub T, pub T, bool);
 
@@ -1009,7 +1024,7 @@ impl TagProperty for Asn {
 pub enum Type {
     Boolean,
     Integer(Integer),
-    UTF8String(Size),
+    String(Size, Charset),
     OctetString(Size),
     BitString(BitString),
 
@@ -1024,7 +1039,7 @@ pub enum Type {
 
 impl Type {
     pub const fn unconstrained_utf8string() -> Self {
-        Self::UTF8String(Size::Any)
+        Self::String(Size::Any, Charset::Utf8)
     }
 
     pub const fn unconstrained_octetstring() -> Self {

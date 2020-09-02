@@ -41,7 +41,7 @@ impl ProtobufType {
             ProtobufType::UInt64 => RustType::U64(Range::none()),
             ProtobufType::SInt32 => RustType::I32(Range::inclusive(0, i32::max_value())),
             ProtobufType::SInt64 => RustType::I64(Range::inclusive(0, i64::max_value())),
-            ProtobufType::String => RustType::String(Size::Any),
+            ProtobufType::String => RustType::String(Size::Any, Charset::Utf8),
             ProtobufType::Bytes => RustType::VecU8(Size::Any),
             ProtobufType::BitsReprByBytesAndBitsLen => RustType::BitVec(Size::Any),
             ProtobufType::Repeated(inner) => RustType::Vec(Box::new(inner.to_rust())),
@@ -174,7 +174,7 @@ impl Model<Protobuf> {
             RustType::I32(_) => ProtobufType::SInt32,
             RustType::U64(_) => ProtobufType::UInt64,
             RustType::I64(_) => ProtobufType::SInt64,
-            RustType::String(_) => ProtobufType::String,
+            RustType::String(..) => ProtobufType::String,
             RustType::VecU8(_) => ProtobufType::Bytes,
             RustType::BitVec(_) => ProtobufType::BitsReprByBytesAndBitsLen,
 
@@ -288,7 +288,7 @@ mod tests {
                 "SuchStruct".into(),
                 Rust::struct_from_fields(vec![Field::from_name_type(
                     "very_optional",
-                    RustType::Option(Box::new(RustType::String(Size::Any))),
+                    RustType::Option(Box::new(RustType::String(Size::Any, Charset::Utf8))),
                 )]),
             )],
             &[Definition(
@@ -306,7 +306,7 @@ mod tests {
                 Rust::DataEnum(
                     vec![DataVariant::from_name_type(
                         "MuchVariant",
-                        RustType::String(Size::Any),
+                        RustType::String(Size::Any, Charset::Utf8),
                     )]
                     .into(),
                 ),

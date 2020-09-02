@@ -1,6 +1,7 @@
 #[derive(Debug, PartialOrd, PartialEq)]
 pub enum Error {
     InvalidUtf8String,
+    InvalidIa5String,
     UnsupportedOperation(String),
     InsufficientSpaceInDestinationBuffer,
     InsufficientDataInSourceBuffer,
@@ -19,6 +20,9 @@ impl std::fmt::Display for Error {
         match self {
             Error::InvalidUtf8String => {
                 write!(f, "The underlying dataset is not a valid UTF8-String")
+            }
+            Error::InvalidIa5String => {
+                write!(f, "The underlying dataset is not a valid IA5-String")
             }
             Error::UnsupportedOperation(o) => write!(f, "The operation is not supported: {}", o),
             Error::InsufficientSpaceInDestinationBuffer => write!(

@@ -1,10 +1,10 @@
 use crate::gen::RustCodeGenerator;
 use crate::model::rust::{DataEnum, DataVariant};
 use crate::model::rust::{Field, PlainEnum};
-use crate::model::Model;
 use crate::model::Range;
 use crate::model::Rust;
 use crate::model::RustType;
+use crate::model::{Charset, Model};
 use crate::model::{Definition, Size};
 
 const FOREIGN_KEY_DEFAULT_COLUMN: &str = "id";
@@ -63,7 +63,7 @@ impl SqlType {
             SqlType::BigInt => RustType::I64(Range::inclusive(0, i64::max_value())),
             SqlType::Serial => RustType::I32(Range::inclusive(0, i32::max_value())),
             SqlType::Boolean => RustType::Bool,
-            SqlType::Text => RustType::String(Size::Any),
+            SqlType::Text => RustType::String(Size::Any, Charset::Utf8),
             SqlType::Array(inner) => RustType::Vec(Box::new(inner.to_rust())),
             SqlType::NotNull(inner) => return inner.to_rust().no_option(),
             SqlType::ByteArray => RustType::VecU8(Size::Any),
@@ -405,7 +405,7 @@ impl Model<Sql> {
     pub fn is_primitive(rust: &RustType) -> bool {
         #[allow(clippy::match_same_arms)] // to have the same order as the original enum
         match rust.clone().into_inner_type() {
-            RustType::String(_) => true,
+            RustType::String(..) => true,
             RustType::VecU8(_) => true,
             RustType::BitVec(_) => true,
             r => r.is_primitive(),
@@ -450,7 +450,7 @@ impl ToSql for RustType {
             }
             RustType::U16(_) | RustType::I32(_) => SqlType::Integer,
             RustType::U32(_) | RustType::U64(_) | RustType::I64(_) => SqlType::BigInt,
-            RustType::String(_) => SqlType::Text,
+            RustType::String(_size, _charset) => SqlType::Text,
             RustType::VecU8(_) => SqlType::ByteArray,
             RustType::BitVec(_) => SqlType::BitsReprByByteArrayAndBitsLen,
             RustType::Vec(inner) => SqlType::Array(inner.to_sql().into()),
@@ -469,7 +469,7 @@ impl ToSql for RustType {
 mod tests {
     use super::*;
     use crate::model::rust::Field;
-    use crate::model::Model;
+    use crate::model::{Charset, Model};
     use crate::model::{Import, Size};
 
     #[test]
@@ -485,7 +485,7 @@ mod tests {
             definitions: vec![Definition(
                 "Person".into(),
                 Rust::struct_from_fields(vec![
-                    Field::from_name_type("name", RustType::String(Size::Any)),
+                    Field::from_name_type("name", RustType::String(Size::Any, Charset::Utf8)),
                     Field::from_name_type("birth", RustType::Complex("City".into())),
                 ]),
             )],
@@ -556,7 +556,10 @@ mod tests {
                 "PersonState".into(),
                 Rust::DataEnum(
                     vec![
-                        DataVariant::from_name_type("DeadSince", RustType::String(Size::Any)),
+                        DataVariant::from_name_type(
+                            "DeadSince",
+                            RustType::String(Size::Any, Charset::Utf8),
+                        ),
                         DataVariant::from_name_type("Alive", RustType::Complex("Person".into())),
                     ]
                     .into(),
@@ -659,7 +662,7 @@ mod tests {
                 Rust::struct_from_fields(vec![
                     Field::from_name_type(
                         "list_of_primitive",
-                        RustType::Vec(Box::new(RustType::String(Size::Any))),
+                        RustType::Vec(Box::new(RustType::String(Size::Any, Charset::Utf8))),
                     ),
                     Field::from_name_type(
                         "list_of_reference",
@@ -785,7 +788,7 @@ mod tests {
             definitions: vec![
                 Definition(
                     "Whatever".into(),
-                    Rust::tuple_struct_from_type(RustType::String(Size::Any)),
+                    Rust::tuple_struct_from_type(RustType::String(Size::Any, Charset::Utf8)),
                 ),
                 Definition(
                     "Whatelse".into(),
@@ -944,7 +947,7 @@ mod tests {
                 "City".into(),
                 Rust::struct_from_fields(vec![Field::from_name_type(
                     "id",
-                    RustType::String(Size::Any),
+                    RustType::String(Size::Any, Charset::Utf8),
                 )]),
             )],
         }
@@ -1043,18 +1046,20 @@ mod tests {
         );
 
         assert_eq!(
-            RustType::String(Size::Any).to_sql().to_rust(),
-            RustType::String(Size::Any),
+            RustType::String(Size::Any, Charset::Utf8)
+                .to_sql()
+                .to_rust(),
+            RustType::String(Size::Any, Charset::Utf8),
         );
         assert_eq!(
             RustType::VecU8(Size::Any).to_sql().to_rust(),
             RustType::VecU8(Size::Any)
         );
         assert_eq!(
-            RustType::Vec(Box::new(RustType::String(Size::Any)))
+            RustType::Vec(Box::new(RustType::String(Size::Any, Charset::Utf8)))
                 .to_sql()
                 .to_rust(),
-            RustType::Vec(Box::new(RustType::String(Size::Any))),
+            RustType::Vec(Box::new(RustType::String(Size::Any, Charset::Utf8))),
         );
         assert_eq!(
             RustType::Option(Box::new(RustType::VecU8(Size::Any)))

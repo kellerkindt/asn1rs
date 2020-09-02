@@ -1,8 +1,8 @@
 use crate::model::rust::Field as RustField;
-use crate::model::Range;
 use crate::model::Sequence;
 use crate::model::Type as AsnType;
 use crate::model::{Asn, ChoiceVariant};
+use crate::model::{Charset, Range};
 use crate::model::{Definition, Type};
 use crate::model::{Import, Tag, TagProperty};
 use crate::model::{Model, Size};
@@ -37,7 +37,7 @@ pub enum RustType {
     U32(Range<u32>),
     I64(Range<i64>),
     U64(Range<Option<u64>>),
-    String(Size),
+    String(Size, Charset),
     VecU8(Size),
     BitVec(Size),
     Vec(Box<RustType>),
@@ -165,7 +165,7 @@ impl RustType {
             RustType::I64(Range(min, max, extensible)) => {
                 Some(Range(min.to_string(), max.to_string(), *extensible))
             }
-            RustType::String(_) => None,
+            RustType::String(..) => None,
             RustType::VecU8(_) => None,
             RustType::BitVec(_) => None,
             RustType::Vec(inner) => inner.integer_range_str(),
@@ -215,7 +215,7 @@ impl RustType {
                 range.max().map(|v| v as i64),
                 range.extensible(),
             )),
-            RustType::String(size) => AsnType::UTF8String(size),
+            RustType::String(size, charset) => AsnType::String(size, charset),
             RustType::VecU8(size) => AsnType::OctetString(size),
             RustType::BitVec(size) => AsnType::bit_vec_with_size(size),
             RustType::Vec(inner) => AsnType::SequenceOf(Box::new(inner.into_asn())),
@@ -235,7 +235,7 @@ impl RustType {
             RustType::I32(_) => matches!(other, RustType::I32(_)),
             RustType::U64(_) => matches!(other, RustType::U64(_)),
             RustType::I64(_) => matches!(other, RustType::I64(_)),
-            RustType::String(_) => matches!(other, RustType::String(_)),
+            RustType::String(..) => matches!(other, RustType::String(..)),
             RustType::VecU8(_) => matches!(other, RustType::VecU8(_)),
             RustType::BitVec(_) => matches!(other, RustType::BitVec(_)),
             RustType::Vec(inner_a) => {
@@ -307,7 +307,7 @@ impl ToString for RustType {
             RustType::I32(_) => "i32",
             RustType::U64(_) => "u64",
             RustType::I64(_) => "i64",
-            RustType::String(_) => "String",
+            RustType::String(..) => "String",
             RustType::VecU8(_) => "Vec<u8>",
             RustType::BitVec(_) => "BitVec",
             RustType::Vec(inner) => return format!("Vec<{}>", inner.to_string()),
@@ -497,7 +497,7 @@ impl Model<Rust> {
     pub fn definition_to_rust(name: &str, asn: &AsnType, defs: &mut Vec<Definition<Rust>>) {
         match asn {
             AsnType::Boolean
-            | AsnType::UTF8String(_)
+            | AsnType::String(..)
             | AsnType::OctetString(_)
             | AsnType::BitString(_)
             | AsnType::TypeReference(_) => {
@@ -608,7 +608,7 @@ impl Model<Rust> {
                 .collect(),
 
             Type::Boolean
-            | Type::UTF8String(_)
+            | Type::String(..)
             | Type::OctetString(_)
             | Type::Optional(_)
             | Type::Sequence(_)
@@ -673,7 +673,7 @@ impl Model<Rust> {
                 }
             }
 
-            AsnType::UTF8String(size) => RustType::String(*size),
+            AsnType::String(size, charset) => RustType::String(*size, *charset),
             AsnType::OctetString(size) => RustType::VecU8(*size),
             AsnType::BitString(bitstring) => RustType::BitVec(bitstring.size),
             Type::Optional(inner) => RustType::Option(Box::new(
@@ -1017,7 +1017,10 @@ mod tests {
                 "SimpleChoiceTest".into(),
                 Rust::DataEnum(
                     vec![
-                        DataVariant::from_name_type("BerndDasBrot", RustType::String(Size::Any)),
+                        DataVariant::from_name_type(
+                            "BerndDasBrot",
+                            RustType::String(Size::Any, Charset::Utf8)
+                        ),
                         DataVariant::from_name_type("NochSoEinBrot", RustType::VecU8(Size::Any)),
                     ]
                     .into()
@@ -1057,7 +1060,7 @@ mod tests {
                     vec![
                         DataVariant::from_name_type(
                             "NormalList",
-                            RustType::Vec(Box::new(RustType::String(Size::Any))),
+                            RustType::Vec(Box::new(RustType::String(Size::Any, Charset::Utf8))),
                         ),
                         DataVariant::from_name_type(
                             "NESTEDList",
@@ -1088,7 +1091,10 @@ mod tests {
         assert_eq!(
             Definition(
                 "TupleTest".into(),
-                Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::String(Size::Any)))),
+                Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::String(
+                    Size::Any,
+                    Charset::Utf8
+                )))),
             ),
             model_rust.definitions[0]
         );
@@ -1113,7 +1119,7 @@ mod tests {
             Definition(
                 "NestedTupleTest".into(),
                 Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::Vec(Box::new(
-                    RustType::String(Size::Any)
+                    RustType::String(Size::Any, Charset::Utf8)
                 ))))),
             ),
             model_rust.definitions[0]
@@ -1144,7 +1150,8 @@ mod tests {
                 Rust::struct_from_fields(vec![RustField::from_name_type(
                     "strings",
                     RustType::Option(Box::new(RustType::Vec(Box::new(RustType::String(
-                        Size::Any
+                        Size::Any,
+                        Charset::Utf8
                     ))))),
                 )]),
             ),
@@ -1173,7 +1180,7 @@ mod tests {
                 "StructListTest".into(),
                 Rust::struct_from_fields(vec![RustField::from_name_type(
                     "strings",
-                    RustType::Vec(Box::new(RustType::String(Size::Any))),
+                    RustType::Vec(Box::new(RustType::String(Size::Any, Charset::Utf8))),
                 )]),
             ),
             model_rust.definitions[0]
@@ -1205,7 +1212,8 @@ mod tests {
                 Rust::struct_from_fields(vec![RustField::from_name_type(
                     "strings",
                     RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::String(
-                        Size::Any
+                        Size::Any,
+                        Charset::Utf8
                     ))))),
                 )]),
             ),
