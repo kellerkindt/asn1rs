@@ -14,6 +14,9 @@ pub mod macros {}
 #[macro_use]
 pub mod internal_macros;
 
+#[macro_use]
+pub extern crate serde_derive;
+
 pub mod io;
 pub mod prelude;
 pub mod syn;
