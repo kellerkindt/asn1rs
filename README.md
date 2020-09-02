@@ -18,39 +18,39 @@ The crate can be used as standalone CLI binary or used as library through its AP
 
 | Feature             | Parses  | UPER    | Protobuf    | PSQL        | Async PSQL | UPER Legacy       |
 | --------------------|:--------|:--------|:------------|:------------|:-----------|------------------:|
-| `SEQUENCE`          | ✅ yes  | ✅ yes  | ✅ yes      | ✅ yes      | ✅ yes     | ✅ yes             | 
-| ...extensible       | ✅ yes  | ✅ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | 🔶 not serialized  | 
-| `SEQUENCE OF`       | ✅ yes  | ✅ yes  | ✅ yes      | ✅ yes      | ✅ yes     | ✅ yes             | 
-| ...`SIZE(A..B)`     | ✅ yes  | ✅ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored️         | 
-| ...`SIZE(A..B,...)` | ✅ yes  | ✅ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored️         | 
-| `ENUMERATED`        | ✅ yes  | ✅ yes  | ✅ yes      | ✅ yes      | ✅ yes     | ✅ yes             |           
-| ...extensible       | ✅ yes  | ✅ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | 🔶 not serialized  |           
-| `CHOICE`            | ✅ yes  | ✅ yes  | ✅ yes      | ✅ yes      | ✅ yes     | ✅ yes             |           
-| ...extensible       | ✅ yes  | ✅ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | 🔶 not serialized  | 
-| `BIT STRING`        | ✅ yes  | ✅ yes  | ✅ yes(1)   | ✅ yes(1)   | ✅ yes(1)  | ✅ yes             | 
-| ...`SIZE(A..B)`     | ✅ yes  | ✅ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored         | 
-| ...`SIZE(A..B,...)` | ✅ yes  | ✅ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored         | 
-| `OCTET STRING`      | ✅ yes  | ✅ yes  | ✅ yes      | ✅ yes      | ✅ yes     | ✅ yes             | 
-| ...`SIZE(A..B)`     | ✅ yes  | ✅ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored         | 
-| ...`SIZE(A..B,...)` | ✅ yes  | ✅ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored         |   
-| `UTF8String`        | ✅ yes  | ✅ yes  | ✅ yes      | ✅ yes      | ✅ yes     | ✅ yes             | 
-| ...`SIZE(A..B)`     | ✅ yes  | ✅ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored         | 
-| ...`SIZE(A..B,...)` | ✅ yes  | ✅ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored         | 
-| `IA5String`         | ✅ yes  | ✅ yes  | ✅ yes(1)   | ✅ yes(1)   | ✅ yes(1)  | ❌ ub              | 
-| ...`SIZE(A..B)`     | ✅ yes  | ✅ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ❌ ub              | 
-| ...`SIZE(A..B,...)` | ✅ yes  | ✅ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ❌ ub              |   
-| `INTEGER`           | ✅ yes  | ✅ yes  | ✅ yes      | ✅ yes      | ✅ yes     | ✅ yes             |
-| ...`A..B`           | ✅ yes  | ✅ yes  | ✅ yes(2)   | ✅ yes(2)   | ✅ yes(2)  | ✅ yes             |
-| ...`A..B,...`       | ✅ yes  | ✅ yes  | ✅ yes(2)   | ✅ yes(2)   | ✅ yes(2)  | ⚠️ ignored         |
-| `BOOLEAN`           | ✅ yes  | ✅ yes  | ✅ yes      | ✅ yes      | ✅ yes     | ✅ yes             |
-| `OPTIONAL`          | ✅ yes  | ✅ yes  | ✅ yes      | ✅ yes      | ✅ yes     | ✅ yes             |
-| `IMPORTS..FROM..;`  | ✅ yes  |         |             |             |            |                    |
-| `ObjectIdentifiers` | ✅ yes  |         |             |             |            |                    |
+| `SEQUENCE`          | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             | 
+| ...extensible       | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | 🔶 not serialized  | 
+| `SEQUENCE OF`       | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             | 
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored️         | 
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored️         | 
+| `ENUMERATED`        | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             |           
+| ...extensible       | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | 🔶 not serialized  |           
+| `CHOICE`            | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             |           
+| ...extensible       | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | 🔶 not serialized  | 
+| `BIT STRING`        | ✔️ yes  | ✔️ yes  | ✔️ yes(1)   | ✔️ yes(1)   | ✔️ yes(1)  | ✔️ yes             | 
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored         | 
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored         | 
+| `OCTET STRING`      | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             | 
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored         | 
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored         |   
+| `UTF8String`        | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             | 
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored         | 
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored         | 
+| `IA5String`         | ✔️ yes  | ✔️ yes  | ✔️ yes(1)   | ✔️ yes(1)   | ✔️ yes(1)  | ❌ ub              | 
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ❌ ub              | 
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ❌ ub              |   
+| `INTEGER`           | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             |
+| ...`A..B`           | ✔️ yes  | ✔️ yes  | ✔️ yes(2)   | ✔️ yes(2)   | ✔️ yes(2)  | ✔️ yes             |
+| ...`A..B,...`       | ✔️ yes  | ✔️ yes  | ✔️ yes(2)   | ✔️ yes(2)   | ✔️ yes(2)  | ⚠️ ignored         |
+| `BOOLEAN`           | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             |
+| `OPTIONAL`          | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             |
+| `IMPORTS..FROM..;`  | ✔️ yes  |         |             |             |            |                    |
+| `ObjectIdentifiers` | ✔️ yes  |         |             |             |            |                    |
 
 
- - ✅ yes: according to specification
- - ✅ yes(1): different representation
- - ✅ yes(2): as close as possible to the original specification (sometimes yes, sometimes yes(1))
+ - ✔️ yes: according to specification
+ - ✔️ yes(1): different representation
+ - ✔️ yes(2): as close as possible to the original specification (sometimes yes, sometimes yes(1))
  - 🔶 not serialized: values are not serialized or deserialized in this case, might break compatibility
  - ⚠️ ignored️: constraint is ignored, this most likely breaks compatibility
  - 🆗 ignored: constraint is ignored but it does not break compatibility
