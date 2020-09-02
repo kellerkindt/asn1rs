@@ -673,7 +673,7 @@ impl AsyncPsqlInserter {
                 &sql,
                 &**inner,
             )
-        } else if let RustType::Vec(inner) = f_type {
+        } else if let RustType::Vec(inner, _size) = f_type {
             AsyncPsqlInserter::append_load_vec_field(
                 is_tuple_struct,
                 struct_name,

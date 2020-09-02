@@ -84,10 +84,16 @@ impl AsnDefWriter {
             RustType::VecU8(_) => format!("{}OctetString<{}Constraint>", CRATE_SYN_PREFIX, name),
             RustType::BitVec(Size::Any) => format!("{}BitString", CRATE_SYN_PREFIX),
             RustType::BitVec(_) => format!("{}BitString<{}Constraint>", CRATE_SYN_PREFIX, name),
-            RustType::Vec(inner) => format!(
+            RustType::Vec(inner, Size::Any) => format!(
                 "{}SequenceOf<{}>",
                 CRATE_SYN_PREFIX,
                 Self::type_declaration(&*inner, name)
+            ),
+            RustType::Vec(inner, _) => format!(
+                "{}SequenceOf<{}, {}Constraint>",
+                CRATE_SYN_PREFIX,
+                Self::type_declaration(&*inner, name),
+                name
             ),
             RustType::Option(inner) => format!("Option<{}>", Self::type_declaration(&*inner, name)),
             RustType::Complex(inner) => format!("{}Complex<{}>", CRATE_SYN_PREFIX, inner),
@@ -200,87 +206,104 @@ impl AsnDefWriter {
 
     fn write_field_constraints(&self, scope: &mut Scope, name: &str, fields: &[Field]) {
         for field in fields {
-            match field.r#type() {
-                RustType::Bool => {}
-                RustType::I8(range) => Self::write_integer_constraint_type(
+            let constraint_name = Self::constraint_type_name(name, field.name());
+            Self::write_constraint_type_decl(scope, &constraint_name);
+            self.write_field_constraint(scope, name, field, &constraint_name)
+        }
+    }
+    fn write_field_constraint(
+        &self,
+        scope: &mut Scope,
+        name: &str,
+        field: &Field,
+        constraint_type_name: &str,
+    ) {
+        match field.r#type() {
+            RustType::Bool => {}
+            RustType::I8(range) => Self::write_integer_constraint_type(
+                scope,
+                constraint_type_name,
+                &field.r#type().to_string(),
+                &range.wrap_opt(),
+            ),
+            RustType::U8(range) => Self::write_integer_constraint_type(
+                scope,
+                constraint_type_name,
+                &field.r#type().to_string(),
+                &range.wrap_opt(),
+            ),
+            RustType::I16(range) => Self::write_integer_constraint_type(
+                scope,
+                constraint_type_name,
+                &field.r#type().to_string(),
+                &range.wrap_opt(),
+            ),
+            RustType::U16(range) => Self::write_integer_constraint_type(
+                scope,
+                constraint_type_name,
+                &field.r#type().to_string(),
+                &range.wrap_opt(),
+            ),
+            RustType::I32(range) => Self::write_integer_constraint_type(
+                scope,
+                constraint_type_name,
+                &field.r#type().to_string(),
+                &range.wrap_opt(),
+            ),
+            RustType::U32(range) => Self::write_integer_constraint_type(
+                scope,
+                constraint_type_name,
+                &field.r#type().to_string(),
+                &range.wrap_opt(),
+            ),
+            RustType::I64(range) => Self::write_integer_constraint_type(
+                scope,
+                constraint_type_name,
+                &field.r#type().to_string(),
+                &range.wrap_opt(),
+            ),
+            RustType::U64(range) => Self::write_integer_constraint_type(
+                scope,
+                constraint_type_name,
+                &field.r#type().to_string(),
+                range,
+            ),
+            RustType::String(size, Charset::Utf8) => {
+                Self::write_size_constraint("utf8string", scope, constraint_type_name, size)
+            }
+            RustType::String(size, Charset::Ia5) => {
+                Self::write_size_constraint("ia5string", scope, constraint_type_name, size)
+            }
+            RustType::VecU8(size) => {
+                Self::write_size_constraint("octetstring", scope, constraint_type_name, size)
+            }
+            RustType::BitVec(size) => {
+                Self::write_size_constraint("bitstring", scope, constraint_type_name, size)
+            }
+            RustType::Vec(inner, size) => {
+                Self::write_size_constraint("sequenceof", scope, constraint_type_name, size);
+                self.write_field_constraint(
                     scope,
                     name,
-                    field.name(),
-                    &field.r#type().to_string(),
-                    &range.wrap_opt(),
-                ),
-                RustType::U8(range) => Self::write_integer_constraint_type(
-                    scope,
-                    name,
-                    field.name(),
-                    &field.r#type().to_string(),
-                    &range.wrap_opt(),
-                ),
-                RustType::I16(range) => Self::write_integer_constraint_type(
-                    scope,
-                    name,
-                    field.name(),
-                    &field.r#type().to_string(),
-                    &range.wrap_opt(),
-                ),
-                RustType::U16(range) => Self::write_integer_constraint_type(
-                    scope,
-                    name,
-                    field.name(),
-                    &field.r#type().to_string(),
-                    &range.wrap_opt(),
-                ),
-                RustType::I32(range) => Self::write_integer_constraint_type(
-                    scope,
-                    name,
-                    field.name(),
-                    &field.r#type().to_string(),
-                    &range.wrap_opt(),
-                ),
-                RustType::U32(range) => Self::write_integer_constraint_type(
-                    scope,
-                    name,
-                    field.name(),
-                    &field.r#type().to_string(),
-                    &range.wrap_opt(),
-                ),
-                RustType::I64(range) => Self::write_integer_constraint_type(
-                    scope,
-                    name,
-                    field.name(),
-                    &field.r#type().to_string(),
-                    &range.wrap_opt(),
-                ),
-                RustType::U64(range) => Self::write_integer_constraint_type(
-                    scope,
-                    name,
-                    field.name(),
-                    &field.r#type().to_string(),
-                    range,
-                ),
-                RustType::String(size, Charset::Utf8) => {
-                    Self::write_size_constraint_type("utf8string", scope, name, field.name(), size)
-                }
-                RustType::String(size, Charset::Ia5) => {
-                    Self::write_size_constraint_type("ia5string", scope, name, field.name(), size)
-                }
-                RustType::VecU8(size) => {
-                    Self::write_size_constraint_type("octetstring", scope, name, field.name(), size)
-                }
-                RustType::BitVec(size) => {
-                    Self::write_size_constraint_type("bitstring", scope, name, field.name(), size)
-                }
-                RustType::Vec(inner) | RustType::Option(inner) => self.write_field_constraints(
-                    scope,
-                    name,
-                    &[Field {
+                    &Field {
                         name_type: (field.name().to_string(), *inner.clone()),
                         tag: field.tag(),
                         constants: field.constants().to_vec(),
-                    }],
-                ),
-                RustType::Complex(_) => {}
+                    },
+                    constraint_type_name,
+                )
             }
+            RustType::Option(inner) => self.write_field_constraint(
+                scope,
+                name,
+                &Field {
+                    name_type: (field.name().to_string(), *inner.clone()),
+                    tag: field.tag(),
+                    constants: field.constants().to_vec(),
+                },
+                constraint_type_name,
+            ),
+            RustType::Complex(_) => {}
         }
     }
 
@@ -456,18 +479,13 @@ impl AsnDefWriter {
 
     fn write_integer_constraint_type<T: Display>(
         scope: &mut Scope,
-        name: &str,
-        field: &str,
+        constraint_type_name: &str,
         r#type: &str,
         range: &Range<Option<T>>,
     ) {
-        let combined = Self::combined_field_type_name(name, field) + "Constraint";
-        let combined = Self::constraint_impl_name(&combined);
-
-        scope.new_struct(&combined).derive("Default");
         scope.raw(&format!(
             "impl {}numbers::Constraint<{}> for {} {{",
-            CRATE_SYN_PREFIX, r#type, combined
+            CRATE_SYN_PREFIX, r#type, constraint_type_name
         ));
         if let Some(min) = range.min() {
             // scope.raw(&format!("const MIN: Option<{}> = Some({});", r#type, min));
@@ -485,21 +503,25 @@ impl AsnDefWriter {
         scope.raw("}");
     }
 
-    fn write_size_constraint_type(
+    fn constraint_type_name(name: &str, field: &str) -> String {
+        let combined = Self::combined_field_type_name(name, field) + "Constraint";
+        Self::constraint_impl_name(&combined)
+    }
+
+    fn write_constraint_type_decl(scope: &mut Scope, constraint_type_name: &str) {
+        scope.new_struct(constraint_type_name).derive("Default");
+    }
+
+    fn write_size_constraint(
         module: &str,
         scope: &mut Scope,
-        name: &str,
-        field: &str,
+        constraint_type_name: &str,
         size: &Size,
     ) {
         if size.min().is_some() || size.max().is_some() || size.extensible() {
-            let combined = Self::combined_field_type_name(name, field) + "Constraint";
-            let combined = Self::constraint_impl_name(&combined);
-
-            scope.new_struct(&combined).derive("Default");
             scope.raw(&format!(
                 "impl {}{}::Constraint for {} {{",
-                CRATE_SYN_PREFIX, module, combined
+                CRATE_SYN_PREFIX, module, constraint_type_name
             ));
             if let Some(min) = size.min() {
                 scope.raw(&format!("const MIN: Option<u64> = Some({});", min));
@@ -715,6 +737,15 @@ pub mod tests {
 
         assert_lines(
             r#"
+            #[derive(Default)]
+            struct ___asn1rs_WhateverFieldNameConstraint;
+            
+            #[derive(Default)]
+            struct ___asn1rs_WhateverFieldOptConstraint;
+            
+            #[derive(Default)]
+            struct ___asn1rs_WhateverFieldSomeConstraint;
+
             impl ::asn1rs::syn::sequence::Constraint for Whatever {
                 const NAME: &'static str = "Whatever";
                 const STD_OPTIONAL_FIELDS: u64 = 2;
@@ -770,6 +801,15 @@ pub mod tests {
 
         assert_lines(
             r#"
+            #[derive(Default)]
+            struct ___asn1rs_PotatoFieldNameConstraint;
+            
+            #[derive(Default)]
+            struct ___asn1rs_PotatoFieldOptConstraint;
+            
+            #[derive(Default)]
+            struct ___asn1rs_PotatoFieldSomeConstraint;
+
             impl ::asn1rs::syn::sequence::Constraint for Potato {
                 const NAME: &'static str = "Potato";
                 const STD_OPTIONAL_FIELDS: u64 = 1;

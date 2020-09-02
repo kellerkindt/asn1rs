@@ -307,23 +307,32 @@ impl Writer for UperWriter {
         slice: &[T::Type],
     ) -> Result<(), Self::Error> {
         self.write_bit_field_entry(false, true)?;
-        const MAX: u64 = i64::MAX as u64;
-        let min = const_unwrap_or!(C::MIN, 0) as usize;
-        let max = const_unwrap_or!(C::MAX, MAX) as usize;
-        if slice.len() < min || slice.len() > max {
-            return Err(Error::SizeNotInRange(
-                slice.len() as u64,
-                min as u64,
-                max as u64,
-            ));
-        }
         self.scope_stashed(|w| {
-            w.buffer
-                .write_length_determinant(C::MIN, C::MAX, slice.len() as u64)?;
-            for value in slice {
-                T::write_value(w, value)?;
+            const MAX: u64 = i64::MAX as u64;
+            let min = const_unwrap_or!(C::MIN, 0);
+            let max = const_unwrap_or!(C::MAX, MAX);
+            let len = slice.len() as u64;
+            let out_of_range = len < min || len > max;
+
+            if C::EXTENSIBLE {
+                w.buffer.write_bit(out_of_range)?;
             }
-            Ok(())
+
+            if out_of_range {
+                if !C::EXTENSIBLE {
+                    return Err(Error::SizeNotInRange(len, min, max));
+                } else {
+                    w.buffer.write_length_determinant(None, None, len)?;
+                }
+            } else {
+                w.buffer.write_length_determinant(C::MIN, C::MAX, len)?;
+            }
+            w.scope_stashed(|w| {
+                for value in slice {
+                    T::write_value(w, value)?;
+                }
+                Ok(())
+            })
         })
     }
 
@@ -654,20 +663,18 @@ impl Reader for UperReader {
     ) -> Result<Vec<T::Type>, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
         self.with_buffer(|r| {
-            let min = const_unwrap_or!(C::MIN, 0);
-            let max = const_unwrap_or!(C::MAX, u64::MAX);
-            let len = r.buffer.read_length_determinant(None, None)? + min;
-            if len > max {
-                Err(Error::SizeNotInRange(len, min, max))
+            let len = if C::EXTENSIBLE && r.buffer.read_bit()? {
+                r.buffer.read_length_determinant(None, None)?
             } else {
-                r.scope_stashed(|w| {
-                    let mut vec = Vec::with_capacity(len as usize);
-                    for _ in 0..len {
-                        vec.push(T::read_value(w)?);
-                    }
-                    Ok(vec)
-                })
-            }
+                r.buffer.read_length_determinant(C::MIN, C::MAX)?
+            };
+            r.scope_stashed(|r| {
+                let mut vec = Vec::with_capacity(len as usize);
+                for _ in 0..len {
+                    vec.push(T::read_value(r)?);
+                }
+                Ok(vec)
+            })
         })
     }
 

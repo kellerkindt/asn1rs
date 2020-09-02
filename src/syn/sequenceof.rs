@@ -12,6 +12,7 @@ impl<C: Constraint> Default for SequenceOf<C> {
 pub trait Constraint {
     const MIN: Option<u64> = None;
     const MAX: Option<u64> = None;
+    const EXTENSIBLE: bool = false;
 }
 
 #[derive(Default)]

@@ -12,6 +12,7 @@ use std::str::FromStr;
 use syn::parenthesized;
 use syn::parse::{Parse, ParseBuffer, ParseStream};
 use syn::token;
+use syn::Token;
 
 #[derive(Debug)]
 pub(crate) struct AsnAttribute<C: Context> {
@@ -144,8 +145,17 @@ fn parse_type_pre_stepped<'a>(
         "sequence_of" => {
             let content;
             parenthesized!(content in input);
+            let size = if content.peek2(Token![.])
+                || (content.peek(Token![-]) && content.peek3(Token![.]))
+            {
+                let size = Size::parse(&content)?;
+                let _ = content.parse::<token::Comma>()?;
+                size
+            } else {
+                Size::Any
+            };
             let inner = parse_type(&content)?;
-            Ok(Type::SequenceOf(Box::new(inner)))
+            Ok(Type::SequenceOf(Box::new(inner), size))
         }
         r#type => Err(input.error(format!("Unexpected attribute: `{}`", r#type))),
     }

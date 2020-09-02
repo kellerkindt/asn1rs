@@ -64,7 +64,7 @@ impl SqlType {
             SqlType::Serial => RustType::I32(Range::inclusive(0, i32::max_value())),
             SqlType::Boolean => RustType::Bool,
             SqlType::Text => RustType::String(Size::Any, Charset::Utf8),
-            SqlType::Array(inner) => RustType::Vec(Box::new(inner.to_rust())),
+            SqlType::Array(inner) => RustType::Vec(Box::new(inner.to_rust()), Size::Any),
             SqlType::NotNull(inner) => return inner.to_rust().no_option(),
             SqlType::ByteArray => RustType::VecU8(Size::Any),
             SqlType::BitsReprByByteArrayAndBitsLen => RustType::BitVec(Size::Any),
@@ -453,7 +453,7 @@ impl ToSql for RustType {
             RustType::String(_size, _charset) => SqlType::Text,
             RustType::VecU8(_) => SqlType::ByteArray,
             RustType::BitVec(_) => SqlType::BitsReprByByteArrayAndBitsLen,
-            RustType::Vec(inner) => SqlType::Array(inner.to_sql().into()),
+            RustType::Vec(inner, _size) => SqlType::Array(inner.to_sql().into()),
             RustType::Option(inner) => return inner.to_sql().nullable(),
             RustType::Complex(name) => SqlType::References(
                 name.clone(),
@@ -662,11 +662,14 @@ mod tests {
                 Rust::struct_from_fields(vec![
                     Field::from_name_type(
                         "list_of_primitive",
-                        RustType::Vec(Box::new(RustType::String(Size::Any, Charset::Utf8))),
+                        RustType::Vec(
+                            Box::new(RustType::String(Size::Any, Charset::Utf8)),
+                            Size::Any,
+                        ),
                     ),
                     Field::from_name_type(
                         "list_of_reference",
-                        RustType::Vec(Box::new(RustType::Complex("ComplexType".into()))),
+                        RustType::Vec(Box::new(RustType::Complex("ComplexType".into())), Size::Any),
                     ),
                 ]),
             )],
@@ -1056,10 +1059,16 @@ mod tests {
             RustType::VecU8(Size::Any)
         );
         assert_eq!(
-            RustType::Vec(Box::new(RustType::String(Size::Any, Charset::Utf8)))
-                .to_sql()
-                .to_rust(),
-            RustType::Vec(Box::new(RustType::String(Size::Any, Charset::Utf8))),
+            RustType::Vec(
+                Box::new(RustType::String(Size::Any, Charset::Utf8)),
+                Size::Any
+            )
+            .to_sql()
+            .to_rust(),
+            RustType::Vec(
+                Box::new(RustType::String(Size::Any, Charset::Utf8)),
+                Size::Any
+            ),
         );
         assert_eq!(
             RustType::Option(Box::new(RustType::VecU8(Size::Any)))

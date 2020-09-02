@@ -19,7 +19,7 @@ impl Parse for Size {
             let _ = input.parse::<Token![.]>()?;
             let _ = input.parse::<Token![.]>()?;
             let max = value(input)?.ok_or_else(|| input.error("invalid max"))?;
-            let extensible = if input.peek(Token![,]) {
+            let extensible = if input.peek(Token![,]) && input.peek2(Token![.]) {
                 let _ = input.parse::<Token![,]>()?;
                 let _ = input.parse::<Token![.]>()?;
                 let _ = input.parse::<Token![.]>()?;

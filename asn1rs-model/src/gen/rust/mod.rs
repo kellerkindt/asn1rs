@@ -18,11 +18,11 @@ use self::protobuf::ProtobufSerializer;
 use crate::gen::Generator;
 use crate::model::rust::PlainEnum;
 use crate::model::rust::{DataEnum, Field};
-use crate::model::Model;
 use crate::model::Rust;
 use crate::model::RustType;
 use crate::model::TagProperty;
 use crate::model::{Definition, Tag, Type as AsnType, Type};
+use crate::model::{Model, Size};
 use codegen::Block;
 use codegen::Enum;
 use codegen::Function;
@@ -378,9 +378,20 @@ impl RustCodeGenerator {
                 }
             }
             Type::Optional(inner) => format!("option({})", Self::asn_attribute_type(&*inner)),
-            Type::SequenceOf(inner) => {
-                format!("sequence_of({})", Self::asn_attribute_type(&*inner))
-            }
+            Type::SequenceOf(inner, size) => format!(
+                "sequence_of({}{})",
+                if Size::Any != *size {
+                    format!(
+                        "{}..{}{}, ",
+                        size.min().unwrap_or_default(),
+                        size.max().unwrap_or_else(|| i64::max_value() as usize),
+                        if size.extensible() { ",..." } else { "" }
+                    )
+                } else {
+                    String::default()
+                },
+                Self::asn_attribute_type(&*inner)
+            ),
             Type::Sequence(_) => String::from("sequence"),
             Type::Enumerated(_) => String::from("enumerated"),
             Type::Choice(_) => String::from("choice"),

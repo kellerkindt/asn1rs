@@ -147,7 +147,7 @@ impl ProtobufSerializer {
                         "{} => read_{}{}(",
                         prev_tag + 1,
                         RustCodeGenerator::rust_field_name(field.name(), false),
-                        if let RustType::Vec(_) = field.r#type().clone().no_option() {
+                        if let RustType::Vec(..) = field.r#type().clone().no_option() {
                             ".get_or_insert_with(Vec::default).push"
                         } else {
                             " = Some"
@@ -171,7 +171,7 @@ impl ProtobufSerializer {
                     block_match_tag.push_block(block_case);
                 }
                 role => {
-                    if let RustType::Vec(_) = field.r#type().clone().no_option() {
+                    if let RustType::Vec(..) = field.r#type().clone().no_option() {
                         block_match_tag.line(format!(
                             "{} => read_{}.get_or_insert_with(Vec::default).push({}),",
                             prev_tag + 1,
@@ -206,7 +206,7 @@ impl ProtobufSerializer {
                 RustCodeGenerator::rust_field_name(field.name(), false),
                 if as_rust_statement.is_empty() {
                     "".into()
-                } else if let RustType::Vec(_) = field.r#type().clone().no_option() {
+                } else if let RustType::Vec(..) = field.r#type().clone().no_option() {
                     format!(
                         ".map(|v| v.into_iter().map(|v| v{}).collect())",
                         as_rust_statement
@@ -400,7 +400,7 @@ impl ProtobufSerializer {
         deny_self: bool,
     ) {
         match &field_type.clone().no_option() {
-            RustType::Vec(_) => {
+            RustType::Vec(..) => {
                 Self::impl_write_for_vec_attribute(&mut block, field_type, &field_name, tag);
             }
             RustType::Complex(_) => {

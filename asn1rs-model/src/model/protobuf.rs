@@ -44,7 +44,7 @@ impl ProtobufType {
             ProtobufType::String => RustType::String(Size::Any, Charset::Utf8),
             ProtobufType::Bytes => RustType::VecU8(Size::Any),
             ProtobufType::BitsReprByBytesAndBitsLen => RustType::BitVec(Size::Any),
-            ProtobufType::Repeated(inner) => RustType::Vec(Box::new(inner.to_rust())),
+            ProtobufType::Repeated(inner) => RustType::Vec(Box::new(inner.to_rust()), Size::Any),
             ProtobufType::OneOf(_) => panic!("ProtobufType::OneOf cannot be mapped to a RustType"),
             ProtobufType::Complex(name) => RustType::Complex(name.clone()),
         }
@@ -185,7 +185,7 @@ impl Model<Protobuf> {
                 Self::definition_type_to_protobuf_type(inner)
             }
 
-            RustType::Vec(inner) => {
+            RustType::Vec(inner, _size) => {
                 ProtobufType::Repeated(Box::new(Self::definition_type_to_protobuf_type(inner)))
             }
         }

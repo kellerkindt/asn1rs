@@ -40,7 +40,7 @@ pub enum RustType {
     String(Size, Charset),
     VecU8(Size),
     BitVec(Size),
-    Vec(Box<RustType>),
+    Vec(Box<RustType>, Size),
     Option(Box<RustType>),
 
     /// Indicates a complex, custom type that is
@@ -55,7 +55,7 @@ impl RustType {
         if self.is_primitive() {
             return self;
         }
-        if let RustType::Vec(inner) | RustType::Option(inner) = self {
+        if let RustType::Vec(inner, ..) | RustType::Option(inner) = self {
             inner.as_inner_type()
         } else {
             self
@@ -66,7 +66,7 @@ impl RustType {
         if self.is_primitive() {
             return self;
         }
-        if let RustType::Vec(inner) | RustType::Option(inner) = self {
+        if let RustType::Vec(inner, ..) | RustType::Option(inner) = self {
             inner.into_inner_type()
         } else {
             self
@@ -77,7 +77,7 @@ impl RustType {
         if self.is_primitive() {
             return Some(self.to_string());
         }
-        if let RustType::Vec(inner) | RustType::Option(inner) = self {
+        if let RustType::Vec(inner, ..) | RustType::Option(inner) = self {
             inner.to_inner()
         } else {
             None
@@ -104,7 +104,7 @@ impl RustType {
     }
 
     pub fn is_vec(&self) -> bool {
-        if let RustType::Vec(_) = self.as_no_option() {
+        if let RustType::Vec(..) = self.as_no_option() {
             true
         } else {
             false
@@ -168,7 +168,7 @@ impl RustType {
             RustType::String(..) => None,
             RustType::VecU8(_) => None,
             RustType::BitVec(_) => None,
-            RustType::Vec(inner) => inner.integer_range_str(),
+            RustType::Vec(inner, _size) => inner.integer_range_str(),
             RustType::Option(inner) => inner.integer_range_str(),
             RustType::Complex(_) => None,
         }
@@ -218,7 +218,7 @@ impl RustType {
             RustType::String(size, charset) => AsnType::String(size, charset),
             RustType::VecU8(size) => AsnType::OctetString(size),
             RustType::BitVec(size) => AsnType::bit_vec_with_size(size),
-            RustType::Vec(inner) => AsnType::SequenceOf(Box::new(inner.into_asn())),
+            RustType::Vec(inner, size) => AsnType::SequenceOf(Box::new(inner.into_asn()), size),
             RustType::Option(value) => AsnType::Optional(Box::new(value.into_asn())),
             RustType::Complex(name) => AsnType::TypeReference(name),
         }
@@ -238,8 +238,8 @@ impl RustType {
             RustType::String(..) => matches!(other, RustType::String(..)),
             RustType::VecU8(_) => matches!(other, RustType::VecU8(_)),
             RustType::BitVec(_) => matches!(other, RustType::BitVec(_)),
-            RustType::Vec(inner_a) => {
-                if let RustType::Vec(inner_b) = other {
+            RustType::Vec(inner_a, _size) => {
+                if let RustType::Vec(inner_b, _other_size) = other {
                     inner_a.similar(inner_b)
                 } else {
                     false
@@ -310,7 +310,7 @@ impl ToString for RustType {
             RustType::String(..) => "String",
             RustType::VecU8(_) => "Vec<u8>",
             RustType::BitVec(_) => "BitVec",
-            RustType::Vec(inner) => return format!("Vec<{}>", inner.to_string()),
+            RustType::Vec(inner, _size) => return format!("Vec<{}>", inner.to_string()),
             RustType::Option(inner) => return format!("Option<{}>", inner.to_string()),
             RustType::Complex(name) => return name.clone(),
         }
@@ -554,10 +554,11 @@ impl Model<Rust> {
                 ));
             }
 
-            AsnType::SequenceOf(asn) => {
-                let inner = RustType::Vec(Box::new(Self::definition_type_to_rust_type(
-                    name, asn, defs,
-                )));
+            AsnType::SequenceOf(asn, size) => {
+                let inner = RustType::Vec(
+                    Box::new(Self::definition_type_to_rust_type(name, asn, defs)),
+                    *size,
+                );
                 defs.push(Definition(name.into(), Rust::tuple_struct_from_type(inner)));
             }
 
@@ -612,7 +613,7 @@ impl Model<Rust> {
             | Type::OctetString(_)
             | Type::Optional(_)
             | Type::Sequence(_)
-            | Type::SequenceOf(_)
+            | Type::SequenceOf(..)
             | Type::Enumerated(_)
             | Type::Choice(_)
             | Type::TypeReference(_) => Vec::default(),
@@ -679,9 +680,10 @@ impl Model<Rust> {
             Type::Optional(inner) => RustType::Option(Box::new(
                 Self::definition_type_to_rust_type(name, inner, defs),
             )),
-            AsnType::SequenceOf(asn) => RustType::Vec(Box::new(
-                Self::definition_type_to_rust_type(name, asn, defs),
-            )),
+            AsnType::SequenceOf(asn, size) => RustType::Vec(
+                Box::new(Self::definition_type_to_rust_type(name, asn, defs)),
+                *size,
+            ),
             AsnType::Sequence(_) | AsnType::Enumerated(_) | AsnType::Choice(_) => {
                 let name = rust_struct_or_enum_name(name);
                 Self::definition_to_rust(&name, asn, defs);
@@ -833,18 +835,23 @@ mod tests {
         assert_eq!(
             Definition(
                 "Ones".into(),
-                Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::U8(
-                    Range::inclusive(0, 1)
-                )))),
+                Rust::tuple_struct_from_type(RustType::Vec(
+                    Box::new(RustType::U8(Range::inclusive(0, 1))),
+                    Size::Any
+                )),
             ),
             model_rust.definitions[0]
         );
         assert_eq!(
             Definition(
                 "NestedOnes".into(),
-                Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::Vec(Box::new(
-                    RustType::U8(Range::inclusive(0, 1))
-                ))))),
+                Rust::tuple_struct_from_type(RustType::Vec(
+                    Box::new(RustType::Vec(
+                        Box::new(RustType::U8(Range::inclusive(0, 1))),
+                        Size::Any
+                    )),
+                    Size::Any
+                )),
             ),
             model_rust.definitions[1]
         );
@@ -854,19 +861,27 @@ mod tests {
                 Rust::struct_from_fields(vec![
                     RustField::from_name_type(
                         "also_ones",
-                        RustType::Vec(Box::new(RustType::U8(Range::inclusive(0, 1)))),
+                        RustType::Vec(Box::new(RustType::U8(Range::inclusive(0, 1))), Size::Any),
                     ),
                     RustField::from_name_type(
                         "nesteds",
-                        RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::U8(
-                            Range::inclusive(0, 1)
-                        ))))),
+                        RustType::Vec(
+                            Box::new(RustType::Vec(
+                                Box::new(RustType::U8(Range::inclusive(0, 1))),
+                                Size::Any
+                            )),
+                            Size::Any
+                        ),
                     ),
                     RustField::from_name_type(
                         "optionals",
-                        RustType::Option(Box::new(RustType::Vec(Box::new(RustType::Vec(
-                            Box::new(RustType::U64(Range::none()))
-                        ))))),
+                        RustType::Option(Box::new(RustType::Vec(
+                            Box::new(RustType::Vec(
+                                Box::new(RustType::U64(Range::none())),
+                                Size::Any
+                            )),
+                            Size::Any
+                        ))),
                     )
                 ]),
             ),
@@ -886,18 +901,23 @@ mod tests {
         assert_eq!(
             Definition(
                 "This".into(),
-                Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::U8(
-                    Range::inclusive(0, 1)
-                )))),
+                Rust::tuple_struct_from_type(RustType::Vec(
+                    Box::new(RustType::U8(Range::inclusive(0, 1))),
+                    Size::Any
+                )),
             ),
             model_rust.definitions[0]
         );
         assert_eq!(
             Definition(
                 "That".into(),
-                Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::Vec(Box::new(
-                    RustType::U8(Range::inclusive(0, 1))
-                ))))),
+                Rust::tuple_struct_from_type(RustType::Vec(
+                    Box::new(RustType::Vec(
+                        Box::new(RustType::U8(Range::inclusive(0, 1))),
+                        Size::Any
+                    )),
+                    Size::Any
+                )),
             ),
             model_rust.definitions[1]
         );
@@ -950,13 +970,14 @@ mod tests {
                     RustField::from_name_type("ones", RustType::U8(Range::inclusive(0, 1))),
                     RustField::from_name_type(
                         "list_ones",
-                        RustType::Vec(Box::new(RustType::U8(Range::inclusive(0, 1)))),
+                        RustType::Vec(Box::new(RustType::U8(Range::inclusive(0, 1))), Size::Any),
                     ),
                     RustField::from_name_type(
                         "optional_ones",
-                        RustType::Option(Box::new(RustType::Vec(Box::new(RustType::U8(
-                            Range::inclusive(0, 1,)
-                        ))))),
+                        RustType::Option(Box::new(RustType::Vec(
+                            Box::new(RustType::U8(Range::inclusive(0, 1,))),
+                            Size::Any
+                        ))),
                     ),
                 ]),
             ),
@@ -1038,13 +1059,17 @@ mod tests {
             AsnType::choice_from_variants(vec![
                 ChoiceVariant::name_type(
                     "normal-List",
-                    AsnType::SequenceOf(Box::new(AsnType::unconstrained_utf8string())),
+                    AsnType::SequenceOf(Box::new(AsnType::unconstrained_utf8string()), Size::Any),
                 ),
                 ChoiceVariant::name_type(
                     "NESTEDList",
-                    AsnType::SequenceOf(Box::new(AsnType::SequenceOf(Box::new(
-                        AsnType::unconstrained_octetstring(),
-                    )))),
+                    AsnType::SequenceOf(
+                        Box::new(AsnType::SequenceOf(
+                            Box::new(AsnType::unconstrained_octetstring()),
+                            Size::Any,
+                        )),
+                        Size::Any,
+                    ),
                 ),
             ])
             .untagged(),
@@ -1060,13 +1085,20 @@ mod tests {
                     vec![
                         DataVariant::from_name_type(
                             "NormalList",
-                            RustType::Vec(Box::new(RustType::String(Size::Any, Charset::Utf8))),
+                            RustType::Vec(
+                                Box::new(RustType::String(Size::Any, Charset::Utf8)),
+                                Size::Any
+                            ),
                         ),
                         DataVariant::from_name_type(
                             "NESTEDList",
-                            RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::VecU8(
+                            RustType::Vec(
+                                Box::new(RustType::Vec(
+                                    Box::new(RustType::VecU8(Size::Any)),
+                                    Size::Any
+                                )),
                                 Size::Any
-                            ))))),
+                            ),
                         ),
                     ]
                     .into()
@@ -1082,7 +1114,8 @@ mod tests {
         model_asn.name = "TupleTestModel".into();
         model_asn.definitions.push(Definition(
             "TupleTest".into(),
-            AsnType::SequenceOf(Box::new(AsnType::unconstrained_utf8string())).untagged(),
+            AsnType::SequenceOf(Box::new(AsnType::unconstrained_utf8string()), Size::Any)
+                .untagged(),
         ));
         let model_rust = model_asn.to_rust();
         assert_eq!("tuple_test_model", model_rust.name);
@@ -1091,10 +1124,10 @@ mod tests {
         assert_eq!(
             Definition(
                 "TupleTest".into(),
-                Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::String(
-                    Size::Any,
-                    Charset::Utf8
-                )))),
+                Rust::tuple_struct_from_type(RustType::Vec(
+                    Box::new(RustType::String(Size::Any, Charset::Utf8)),
+                    Size::Any
+                )),
             ),
             model_rust.definitions[0]
         );
@@ -1106,9 +1139,13 @@ mod tests {
         model_asn.name = "TupleTestModel".into();
         model_asn.definitions.push(Definition(
             "NestedTupleTest".into(),
-            AsnType::SequenceOf(Box::new(AsnType::SequenceOf(Box::new(
-                AsnType::unconstrained_utf8string(),
-            ))))
+            AsnType::SequenceOf(
+                Box::new(AsnType::SequenceOf(
+                    Box::new(AsnType::unconstrained_utf8string()),
+                    Size::Any,
+                )),
+                Size::Any,
+            )
             .untagged(),
         ));
         let model_rust = model_asn.to_rust();
@@ -1118,9 +1155,13 @@ mod tests {
         assert_eq!(
             Definition(
                 "NestedTupleTest".into(),
-                Rust::tuple_struct_from_type(RustType::Vec(Box::new(RustType::Vec(Box::new(
-                    RustType::String(Size::Any, Charset::Utf8)
-                ))))),
+                Rust::tuple_struct_from_type(RustType::Vec(
+                    Box::new(RustType::Vec(
+                        Box::new(RustType::String(Size::Any, Charset::Utf8)),
+                        Size::Any
+                    )),
+                    Size::Any
+                )),
             ),
             model_rust.definitions[0]
         );
@@ -1134,7 +1175,7 @@ mod tests {
             "OptionalStructListTest".into(),
             AsnType::sequence_from_fields(vec![Field {
                 name: "strings".into(),
-                role: AsnType::SequenceOf(Box::new(AsnType::unconstrained_utf8string()))
+                role: AsnType::SequenceOf(Box::new(AsnType::unconstrained_utf8string()), Size::Any)
                     .optional()
                     .untagged(),
             }])
@@ -1149,10 +1190,10 @@ mod tests {
                 "OptionalStructListTest".into(),
                 Rust::struct_from_fields(vec![RustField::from_name_type(
                     "strings",
-                    RustType::Option(Box::new(RustType::Vec(Box::new(RustType::String(
-                        Size::Any,
-                        Charset::Utf8
-                    ))))),
+                    RustType::Option(Box::new(RustType::Vec(
+                        Box::new(RustType::String(Size::Any, Charset::Utf8)),
+                        Size::Any
+                    ))),
                 )]),
             ),
             model_rust.definitions[0]
@@ -1167,7 +1208,8 @@ mod tests {
             "StructListTest".into(),
             AsnType::sequence_from_fields(vec![Field {
                 name: "strings".into(),
-                role: AsnType::SequenceOf(Box::new(AsnType::unconstrained_utf8string())).untagged(),
+                role: AsnType::SequenceOf(Box::new(AsnType::unconstrained_utf8string()), Size::Any)
+                    .untagged(),
             }])
             .untagged(),
         ));
@@ -1180,7 +1222,10 @@ mod tests {
                 "StructListTest".into(),
                 Rust::struct_from_fields(vec![RustField::from_name_type(
                     "strings",
-                    RustType::Vec(Box::new(RustType::String(Size::Any, Charset::Utf8))),
+                    RustType::Vec(
+                        Box::new(RustType::String(Size::Any, Charset::Utf8)),
+                        Size::Any
+                    ),
                 )]),
             ),
             model_rust.definitions[0]
@@ -1195,9 +1240,13 @@ mod tests {
             "NestedStructListTest".into(),
             AsnType::sequence_from_fields(vec![Field {
                 name: "strings".into(),
-                role: AsnType::SequenceOf(Box::new(AsnType::SequenceOf(Box::new(
-                    AsnType::unconstrained_utf8string(),
-                ))))
+                role: AsnType::SequenceOf(
+                    Box::new(AsnType::SequenceOf(
+                        Box::new(AsnType::unconstrained_utf8string()),
+                        Size::Any,
+                    )),
+                    Size::Any,
+                )
                 .untagged(),
             }])
             .untagged(),
@@ -1211,10 +1260,13 @@ mod tests {
                 "NestedStructListTest".into(),
                 Rust::struct_from_fields(vec![RustField::from_name_type(
                     "strings",
-                    RustType::Vec(Box::new(RustType::Vec(Box::new(RustType::String(
-                        Size::Any,
-                        Charset::Utf8
-                    ))))),
+                    RustType::Vec(
+                        Box::new(RustType::Vec(
+                            Box::new(RustType::String(Size::Any, Charset::Utf8)),
+                            Size::Any
+                        )),
+                        Size::Any
+                    ),
                 )]),
             ),
             model_rust.definitions[0]

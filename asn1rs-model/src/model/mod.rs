@@ -653,11 +653,12 @@ impl Model<Asn> {
     }
 
     fn read_sequence_or_sequence_of(iter: &mut Peekable<IntoIter<Token>>) -> Result<Type, Error> {
+        let size = Self::maybe_read_size(iter)?;
         let token = Self::peek(iter)?;
 
         if token.eq_text_ignore_ascii_case("OF") {
             let _ = Self::next(iter)?;
-            Ok(Type::SequenceOf(Box::new(Self::read_role(iter)?)))
+            Ok(Type::SequenceOf(Box::new(Self::read_role(iter)?), size))
         } else if token.eq_separator('{') {
             Ok(Type::Sequence(Sequence::try_from(iter)?))
         } else {
@@ -1031,7 +1032,7 @@ pub enum Type {
     Optional(Box<Type>),
 
     Sequence(Sequence),
-    SequenceOf(Box<Type>),
+    SequenceOf(Box<Type>, Size),
     Enumerated(Enumerated),
     Choice(Choice),
     TypeReference(String),
@@ -1600,10 +1601,10 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "Ones".into(),
-                Type::SequenceOf(Box::new(Type::integer_with_range(Range::inclusive(
-                    Some(0),
-                    Some(1)
-                ))))
+                Type::SequenceOf(
+                    Box::new(Type::integer_with_range(Range::inclusive(Some(0), Some(1)))),
+                    Size::Any
+                )
                 .untagged(),
             ),
             model.definitions[0]
@@ -1611,9 +1612,13 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "NestedOnes".into(),
-                Type::SequenceOf(Box::new(Type::SequenceOf(Box::new(
-                    Type::integer_with_range(Range::inclusive(Some(0), Some(1)))
-                ))))
+                Type::SequenceOf(
+                    Box::new(Type::SequenceOf(
+                        Box::new(Type::integer_with_range(Range::inclusive(Some(0), Some(1)))),
+                        Size::Any
+                    )),
+                    Size::Any
+                )
                 .untagged(),
             ),
             model.definitions[1]
@@ -1624,23 +1629,35 @@ pub(crate) mod tests {
                 Type::sequence_from_fields(vec![
                     Field {
                         name: "also-ones".into(),
-                        role: Type::SequenceOf(Box::new(Type::integer_with_range(
-                            Range::inclusive(Some(0), Some(1))
-                        )))
+                        role: Type::SequenceOf(
+                            Box::new(Type::integer_with_range(Range::inclusive(Some(0), Some(1)))),
+                            Size::Any
+                        )
                         .untagged(),
                     },
                     Field {
                         name: "nesteds".into(),
-                        role: Type::SequenceOf(Box::new(Type::SequenceOf(Box::new(
-                            Type::integer_with_range(Range::inclusive(Some(0), Some(1)))
-                        ))))
+                        role: Type::SequenceOf(
+                            Box::new(Type::SequenceOf(
+                                Box::new(Type::integer_with_range(Range::inclusive(
+                                    Some(0),
+                                    Some(1)
+                                ))),
+                                Size::Any
+                            )),
+                            Size::Any
+                        )
                         .untagged(),
                     },
                     Field {
                         name: "optionals".into(),
-                        role: Type::SequenceOf(Box::new(Type::SequenceOf(Box::new(
-                            Type::unconstrained_integer()
-                        ))))
+                        role: Type::SequenceOf(
+                            Box::new(Type::SequenceOf(
+                                Box::new(Type::unconstrained_integer()),
+                                Size::Any
+                            )),
+                            Size::Any
+                        )
                         .optional()
                         .untagged(),
                     },
@@ -1684,10 +1701,10 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "This".into(),
-                Type::SequenceOf(Box::new(Type::integer_with_range(Range::inclusive(
-                    Some(0),
-                    Some(1)
-                ))))
+                Type::SequenceOf(
+                    Box::new(Type::integer_with_range(Range::inclusive(Some(0), Some(1)))),
+                    Size::Any
+                )
                 .untagged(),
             ),
             model.definitions[0]
@@ -1695,9 +1712,13 @@ pub(crate) mod tests {
         assert_eq!(
             Definition(
                 "That".into(),
-                Type::SequenceOf(Box::new(Type::SequenceOf(Box::new(
-                    Type::integer_with_range(Range::inclusive(Some(0), Some(1)))
-                ))))
+                Type::SequenceOf(
+                    Box::new(Type::SequenceOf(
+                        Box::new(Type::integer_with_range(Range::inclusive(Some(0), Some(1)))),
+                        Size::Any
+                    )),
+                    Size::Any
+                )
                 .untagged(),
             ),
             model.definitions[1]
@@ -1761,16 +1782,24 @@ pub(crate) mod tests {
                         },
                         Field {
                             name: "list-ones".into(),
-                            role: Type::SequenceOf(Box::new(Type::integer_with_range(
-                                Range::inclusive(Some(0), Some(1))
-                            )))
+                            role: Type::SequenceOf(
+                                Box::new(Type::integer_with_range(Range::inclusive(
+                                    Some(0),
+                                    Some(1)
+                                ))),
+                                Size::Any
+                            )
                             .untagged(),
                         },
                         Field {
                             name: "optional-ones".into(),
-                            role: Type::SequenceOf(Box::new(Type::integer_with_range(
-                                Range::inclusive(Some(0), Some(1))
-                            )))
+                            role: Type::SequenceOf(
+                                Box::new(Type::integer_with_range(Range::inclusive(
+                                    Some(0),
+                                    Some(1)
+                                ))),
+                                Size::Any
+                            )
                             .optional()
                             .untagged(),
                         },
@@ -2037,7 +2066,7 @@ pub(crate) mod tests {
                 ),
                 Definition(
                     "Application".to_string(),
-                    Type::SequenceOf(Box::new(Type::unconstrained_utf8string()))
+                    Type::SequenceOf(Box::new(Type::unconstrained_utf8string()), Size::Any)
                         .tagged(Tag::Application(7)),
                 ),
                 Definition(
