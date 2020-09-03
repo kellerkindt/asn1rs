@@ -1,4 +1,4 @@
-# 0.2.0-alpha2 (Sep 09, 2020)
+# 0.2.0-alpha2 (Sep 03, 2020)
 
 This release includes a lot of refactoring and new features.
 With these changes, it is now possible to use the following two ASN.1 standards:
