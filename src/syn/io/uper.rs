@@ -215,7 +215,7 @@ impl UperWriter {
         let original = core::mem::replace(&mut self.scope, Some(scope));
         let result = f(self);
         let scope = core::mem::replace(&mut self.scope, original);
-        // save because this is the original from above
+        // save because this is supposed to be the original from above
         debug_assert!(scope.unwrap().exhausted());
         result
     }
