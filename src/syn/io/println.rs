@@ -49,6 +49,35 @@ impl Writer for PrintlnWriter {
         })
     }
 
+    fn write_set<C: set::Constraint, F: Fn(&mut Self) -> Result<(), Self::Error>>(
+        &mut self,
+        f: F,
+    ) -> Result<(), Self::Error> {
+        self.indented_println(&format!("Writing set {}", C::NAME));
+        self.with_increased_indentation(|w| f(w))
+    }
+
+    fn write_set_of<C: setof::Constraint, T: WritableType>(
+        &mut self,
+        slice: &[<T as WritableType>::Type],
+    ) -> Result<(), Self::Error> {
+        self.indented_println(format!(
+            "Writing set-of ({}..{})",
+            C::MIN
+                .map(|v| format!("{}", v))
+                .unwrap_or_else(|| String::from("MIN")),
+            C::MAX
+                .map(|v| format!("{}", v))
+                .unwrap_or_else(|| String::from("MAX")),
+        ));
+        self.with_increased_indentation(|w| {
+            for value in slice {
+                T::write_value(w, value)?;
+            }
+            Ok(())
+        })
+    }
+
     fn write_enumerated<C: enumerated::Constraint>(
         &mut self,
         enumerated: &C,

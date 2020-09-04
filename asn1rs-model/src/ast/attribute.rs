@@ -147,7 +147,7 @@ fn parse_type_pre_stepped<'a>(
             Ok(Type::Optional(Box::new(inner)))
         }
         "boolean" => Ok(Type::Boolean),
-        "sequence_of" => {
+        "sequence_of" | "set_of" => {
             let content;
             parenthesized!(content in input);
             let size = if content.peek2(Token![.])
@@ -160,7 +160,12 @@ fn parse_type_pre_stepped<'a>(
                 Size::Any
             };
             let inner = parse_type(&content)?;
-            Ok(Type::SequenceOf(Box::new(inner), size))
+            if lowercase_ident == "sequence_of" {
+                Ok(Type::SequenceOf(Box::new(inner), size))
+            } else {
+                // "set_of"
+                Ok(Type::SetOf(Box::new(inner), size))
+            }
         }
         r#type => Err(input.error(format!("Unexpected attribute: `{}`", r#type))),
     }

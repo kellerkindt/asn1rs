@@ -337,6 +337,22 @@ impl Writer for UperWriter {
     }
 
     #[inline]
+    fn write_set<C: set::Constraint, F: Fn(&mut Self) -> Result<(), Self::Error>>(
+        &mut self,
+        f: F,
+    ) -> Result<(), Self::Error> {
+        self.write_sequence::<C, F>(f)
+    }
+
+    #[inline]
+    fn write_set_of<C: setof::Constraint, T: WritableType>(
+        &mut self,
+        slice: &[<T as WritableType>::Type],
+    ) -> Result<(), Self::Error> {
+        self.write_sequence_of::<C, T>(slice)
+    }
+
+    #[inline]
     fn write_enumerated<C: enumerated::Constraint>(
         &mut self,
         enumerated: &C,
@@ -677,6 +693,21 @@ impl Reader for UperReader {
                 Ok(vec)
             })
         })
+    }
+
+    #[inline]
+    fn read_set<C: set::Constraint, S: Sized, F: Fn(&mut Self) -> Result<S, Self::Error>>(
+        &mut self,
+        f: F,
+    ) -> Result<S, Self::Error> {
+        self.read_sequence::<C, S, F>(f)
+    }
+
+    #[inline]
+    fn read_set_of<C: setof::Constraint, T: ReadableType>(
+        &mut self,
+    ) -> Result<Vec<<T as ReadableType>::Type>, Self::Error> {
+        self.read_sequence_of::<C, T>()
     }
 
     #[inline]

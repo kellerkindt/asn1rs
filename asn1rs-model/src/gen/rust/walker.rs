@@ -2,7 +2,6 @@ use crate::gen::RustCodeGenerator;
 use crate::model::rust::{rust_module_name, DataEnum, EncodingOrdering, Field, PlainEnum};
 use crate::model::{Charset, Definition, Model, Range, Rust, RustType, Size, Tag, TagProperty};
 use codegen::{Block, Impl, Scope};
-use std::collections::HashSet;
 use std::fmt::Display;
 
 pub const CRATE_SYN_PREFIX: &str = "::asn1rs::syn::";
@@ -492,7 +491,7 @@ impl AsnDefWriter {
         let (fields, module) = match ordering {
             EncodingOrdering::Keep => (fields, "sequence"),
             EncodingOrdering::Sort => {
-                sorted = Self::sort_fields_canonically(fields);
+                sorted = Self::sort_fields_canonically(fields, extension_after_field);
                 (&sorted[..], "set")
             }
         };
@@ -854,24 +853,27 @@ impl AsnDefWriter {
         scope.to_string()
     }
 
-    fn sort_fields_canonically(fields: &[Field]) -> Vec<Field> {
-        let mut used_tags = fields.iter().filter_map(|f| f.tag).collect::<HashSet<_>>();
-        let mut counter = 0;
-
-        fields
+    fn sort_fields_canonically(
+        fields: &[Field],
+        extended_after_index: Option<usize>,
+    ) -> Vec<Field> {
+        let mut fields = fields
             .iter()
-            .map(|field| {
+            .enumerate()
+            .map(|(index, field)| {
                 let mut field = field.clone();
+                field.tag = field.tag.or_else(|| field.r#type().tag());
                 if field.tag.is_none() {
-                    while used_tags.contains(&Tag::ContextSpecific(counter)) {
-                        counter += 1;
-                    }
-                    used_tags.insert(Tag::ContextSpecific(counter));
-                    field.tag = Some(Tag::ContextSpecific(counter));
+                    panic!("Field {} is missing a tag assignment", field.name());
                 }
-                field
+                let extended_field = extended_after_index
+                    .map(|after| index > after)
+                    .unwrap_or(false);
+                (extended_field, field)
             })
-            .collect()
+            .collect::<Vec<_>>();
+        fields.sort_by(|a, b| (a.0, &a.1.tag).cmp(&(b.0, &b.1.tag)));
+        fields.into_iter().map(|(_, field)| field).collect()
     }
 }
 
