@@ -531,24 +531,11 @@ impl Model<Rust> {
                 fields,
                 extension_after,
             }) => {
-                let mut rust_fields = Vec::with_capacity(fields.len());
-
-                for field in fields.iter() {
-                    let rust_name = format!("{}{}", name, rust_struct_or_enum_name(&field.name));
-                    let rust_role =
-                        Self::definition_type_to_rust_type(&rust_name, &field.role.r#type, defs);
-                    let rust_field_name = rust_field_name(&field.name);
-                    let constants = Self::asn_constants_to_rust_constants(&field.role.r#type);
-                    rust_fields.push(
-                        RustField::from_name_type(rust_field_name, rust_role)
-                            .with_constants(constants),
-                    );
-                }
-
+                let fields = Self::asn_fields_to_rust_fields(name, defs, fields);
                 defs.push(Definition(
                     name.into(),
                     Rust::Struct {
-                        fields: rust_fields,
+                        fields,
                         extension_after: *extension_after,
                     },
                 ));
@@ -593,6 +580,29 @@ impl Model<Rust> {
                 defs.push(Definition(name.into(), Rust::Enum(rust_enum)));
             }
         }
+    }
+
+    fn asn_fields_to_rust_fields(
+        name: &str,
+        defs: &mut Vec<Definition<Rust>>,
+        fields: &[crate::model::Field<Asn>],
+    ) -> Vec<Field> {
+        let mut rust_fields = Vec::with_capacity(fields.len());
+
+        for field in fields.iter() {
+            let rust_name = format!("{}{}", name, rust_struct_or_enum_name(&field.name));
+            let rust_role =
+                Self::definition_type_to_rust_type(&rust_name, &field.role.r#type, defs);
+            let rust_field_name = rust_field_name(&field.name);
+            let constants = Self::asn_constants_to_rust_constants(&field.role.r#type);
+            rust_fields.push(
+                RustField::from_name_type(rust_field_name, rust_role)
+                    .with_constants(constants)
+                    .with_tag_opt(field.role.tag),
+            );
+        }
+
+        rust_fields
     }
 
     pub fn asn_constants_to_rust_constants(asn: &AsnType) -> Vec<(String, String)> {
