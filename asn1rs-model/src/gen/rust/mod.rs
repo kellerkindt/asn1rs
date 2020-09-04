@@ -18,17 +18,18 @@ use self::protobuf::ProtobufSerializer;
 use crate::gen::Generator;
 use crate::model::rust::PlainEnum;
 use crate::model::rust::{DataEnum, Field};
+use crate::model::Model;
 use crate::model::Rust;
 use crate::model::RustType;
 use crate::model::TagProperty;
 use crate::model::{Definition, Tag, Type as AsnType, Type};
-use crate::model::{Model, Size};
 use codegen::Block;
 use codegen::Enum;
 use codegen::Function;
 use codegen::Impl;
 use codegen::Scope;
 use codegen::Struct;
+use std::borrow::Cow;
 
 #[cfg(feature = "psql")]
 use self::psql::PsqlInserter;
@@ -250,7 +251,7 @@ impl RustCodeGenerator {
                     Self::asn_attribute_type(&variant.r#type().clone().into_asn()),
                     variant.tag(),
                     None,
-                    &[]
+                    &[],
                 ),
                 Self::rust_variant_name(variant.name()),
                 variant.r#type().to_string(),
@@ -272,7 +273,7 @@ impl RustCodeGenerator {
                 Self::asn_attribute_type(&inner.clone().into_asn()),
                 tag,
                 None,
-                constants
+                constants,
             ),
             if pub_access { "pub " } else { "" },
             inner.to_string(),
@@ -312,90 +313,76 @@ impl RustCodeGenerator {
     }
 
     fn asn_attribute_type(r#type: &AsnType) -> String {
-        match r#type {
-            Type::Boolean => String::from("boolean"),
-            Type::Integer(integer) => format!(
-                "integer({}..{}{})",
-                integer
-                    .range
-                    .min()
-                    .as_ref()
-                    .map(ToString::to_string)
-                    .unwrap_or_else(|| "min".to_string()),
-                integer
-                    .range
-                    .max()
-                    .as_ref()
-                    .map(ToString::to_string)
-                    .unwrap_or_else(|| "max".to_string()),
-                if integer.range.extensible() {
-                    ",..."
-                } else {
-                    ""
-                }
+        let (name, parameters) = match r#type {
+            Type::Boolean => (Cow::Borrowed("boolean"), Vec::default()),
+            Type::Integer(integer) => (
+                Cow::Borrowed("integer"),
+                vec![format!(
+                    "{}..{}{}",
+                    integer
+                        .range
+                        .min()
+                        .as_ref()
+                        .map(ToString::to_string)
+                        .unwrap_or_else(|| "min".to_string()),
+                    integer
+                        .range
+                        .max()
+                        .as_ref()
+                        .map(ToString::to_string)
+                        .unwrap_or_else(|| "max".to_string()),
+                    if integer.range.extensible() {
+                        ",..."
+                    } else {
+                        ""
+                    }
+                )],
             ),
-            Type::String(size, charset) => if size.min().is_some() || size.max().is_some() {
-                format!(
-                    "{:?}string({}..{}{})",
-                    charset,
-                    size.min().unwrap_or_default(),
-                    size.max().unwrap_or_else(|| i64::max_value() as usize),
-                    if size.extensible() { ",..." } else { "" }
-                )
-            } else {
-                format!("{:?}string", charset)
-            }
-            .to_lowercase(),
-            Type::OctetString(size) => {
-                if size.min().is_some() || size.max().is_some() {
-                    format!(
-                        "octet_string({}..{}{})",
-                        size.min().unwrap_or_default(),
-                        size.max().unwrap_or_else(|| i64::max_value() as usize),
-                        if size.extensible() { ",..." } else { "" }
-                    )
-                } else {
-                    String::from("octet_string")
-                }
-            }
-            Type::BitString(bitstring) => {
-                if bitstring.size.min().is_some() || bitstring.size.max().is_some() {
-                    format!(
-                        "bit_string({}..{}{})",
-                        bitstring.size.min().unwrap_or_default(),
-                        bitstring
-                            .size
-                            .max()
-                            .unwrap_or_else(|| i64::max_value() as usize),
-                        if bitstring.size.extensible() {
-                            ",..."
-                        } else {
-                            ""
-                        }
-                    )
-                } else {
-                    String::from("bit_string")
-                }
-            }
-            Type::Optional(inner) => format!("optional({})", Self::asn_attribute_type(&*inner)),
-            Type::SequenceOf(inner, size) => format!(
-                "sequence_of({}{})",
-                if Size::Any != *size {
-                    format!(
-                        "{}..{}{}, ",
-                        size.min().unwrap_or_default(),
-                        size.max().unwrap_or_else(|| i64::max_value() as usize),
-                        if size.extensible() { ",..." } else { "" }
-                    )
-                } else {
-                    String::default()
-                },
-                Self::asn_attribute_type(&*inner)
+            Type::String(size, charset) => (
+                Cow::Owned(format!("{:?}string", charset).to_lowercase()),
+                vec![size.to_constraint_string()]
+                    .into_iter()
+                    .flatten()
+                    .collect(),
             ),
-            Type::Sequence(_) => String::from("sequence"),
-            Type::Enumerated(_) => String::from("enumerated"),
-            Type::Choice(_) => String::from("choice"),
-            Type::TypeReference(inner) => format!("complex({})", inner),
+            Type::OctetString(size) => (
+                Cow::Borrowed("octet_string"),
+                vec![size.to_constraint_string()]
+                    .into_iter()
+                    .flatten()
+                    .collect(),
+            ),
+            Type::BitString(bitstring) => (
+                Cow::Borrowed("bit_string"),
+                vec![vec![bitstring.size.to_constraint_string()]
+                    .into_iter()
+                    .flatten()
+                    .collect()],
+            ),
+            Type::Optional(inner) => (
+                Cow::Borrowed("optional"),
+                vec![Self::asn_attribute_type(&*inner)],
+            ),
+            Type::SequenceOf(inner, size) => (
+                Cow::Borrowed("sequence_of"),
+                vec![
+                    size.to_constraint_string(),
+                    Some(Self::asn_attribute_type(&*inner)),
+                ]
+                .into_iter()
+                .flatten()
+                .collect(),
+            ),
+
+            Type::Sequence(_) => (Cow::Borrowed("sequence"), Vec::default()),
+            Type::Enumerated(_) => (Cow::Borrowed("enumerated"), Vec::default()),
+            Type::Choice(_) => (Cow::Borrowed("choice"), Vec::default()),
+            Type::TypeReference(inner) => (Cow::Borrowed("complex"), vec![inner.clone()]),
+        };
+        if parameters.is_empty() {
+            name.into_owned()
+        } else {
+            format!("{}({})", name, parameters.join(", "))
         }
     }
 

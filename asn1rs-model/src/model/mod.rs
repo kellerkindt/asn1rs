@@ -778,6 +778,19 @@ impl Size {
             Size::Range(_, _, extensible) => *extensible,
         }
     }
+
+    pub fn to_constraint_string(&self) -> Option<String> {
+        if Size::Any != *self {
+            Some(format!(
+                "{}..{}{}",
+                self.min().unwrap_or_default(),
+                self.max().unwrap_or_else(|| i64::max_value() as usize),
+                if self.extensible() { ",..." } else { "" }
+            ))
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq, EnumString)]
