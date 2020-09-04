@@ -259,6 +259,29 @@ impl RustType {
             }
         }
     }
+
+    /// ITU-T X.680 | ISO/IEC 8824-1, 8.6
+    pub fn type_tag(&self) -> Option<Tag> {
+        Some(match self {
+            RustType::Bool => Tag::Universal(1),
+            RustType::I8(_)
+            | RustType::U8(_)
+            | RustType::I16(_)
+            | RustType::U16(_)
+            | RustType::I32(_)
+            | RustType::U32(_)
+            | RustType::I64(_)
+            | RustType::U64(_) => Tag::Universal(2),
+            RustType::BitVec(_) => Tag::Universal(3),
+            RustType::VecU8(_) => Tag::Universal(4),
+            RustType::String(_, _) => Tag::Universal(12),
+            RustType::Vec(_, _, EncodingOrdering::Keep) => Tag::Universal(16),
+            RustType::Vec(_, _, EncodingOrdering::Sort) => Tag::Universal(17),
+            RustType::Option(inner) => return inner.type_tag(),
+            // TODO this is wrong. This should resolve the tag from the referenced type instead, but atm the infrastructure is missing to do such a thing, see github#13
+            RustType::Complex(_) => return None,
+        })
+    }
 }
 
 /// Describes whether the original declaration cares about (re-)ordering the elements or whether
