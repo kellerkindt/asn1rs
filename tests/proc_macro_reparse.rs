@@ -57,9 +57,9 @@ fn test_standard_choice() {
         r#"BasicSchema DEFINITIONS AUTOMATIC TAGS ::= BEGIN
 
   MyType ::= [PRIVATE 1] CHOICE {
-    abc Utf8String,
+    abc UTF8String,
     def [APPLICATION 7] INTEGER,
-    ghi Utf8String
+    ghi UTF8String
   }
   
 END"#,
@@ -71,10 +71,10 @@ fn test_extensible_choice() {
         r#"BasicSchema DEFINITIONS AUTOMATIC TAGS ::= BEGIN
 
   MyType ::= [PRIVATE 1] CHOICE {
-    abc Utf8String,
+    abc UTF8String,
     def [APPLICATION 7] INTEGER,
     ...,
-    ghi Utf8String
+    ghi UTF8String
   }
   
 END"#,
@@ -87,9 +87,9 @@ fn test_standard_sequence() {
         r#"BasicSchema DEFINITIONS AUTOMATIC TAGS ::= BEGIN
 
   MyType ::= [5] SEQUENCE {
-    abc Utf8String,
+    abc UTF8String,
     def [APPLICATION 7] INTEGER,
-    ghi Utf8String
+    ghi UTF8String
   }
   
 END"#,
@@ -101,10 +101,10 @@ fn test_extensible_sequence() {
         r#"BasicSchema DEFINITIONS AUTOMATIC TAGS ::= BEGIN
 
   MyType ::= [5] SEQUENCE {
-    abc Utf8String,
+    abc UTF8String,
     ...,
     def [APPLICATION 7] INTEGER,
-    ghi Utf8String
+    ghi UTF8String
   }
   
 END"#,
@@ -131,7 +131,7 @@ fn test_integer_constants() {
     great INTEGER { abc(3), def(68) } (0..255),
     wower INTEGER { ghi(3), jkl(99) },
     def [APPLICATION 7] INTEGER,
-    ghi Utf8String
+    ghi UTF8String
   }
   
   OtherType ::= [APPLICATION 99] INTEGER {

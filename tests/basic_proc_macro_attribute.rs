@@ -253,7 +253,7 @@ fn are_we_binary_yet_uper() {
 #[asn(sequence)]
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct Optional {
-    #[asn(option(integer))]
+    #[asn(optional(integer))]
     value: Option<u64>,
 }
 
@@ -273,7 +273,7 @@ fn test_optional_uper() {
 #[asn(sequence)]
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct CrazyList {
-    #[asn(sequence_of(option(option(sequence_of(integer)))))]
+    #[asn(sequence_of(optional(optional(sequence_of(integer)))))]
     values: Vec<Option<Option<Vec<u64>>>>,
 }
 
@@ -387,7 +387,7 @@ fn test_flat_list_uper() {
 
 #[asn(transparent)]
 #[derive(Debug, PartialOrd, PartialEq)]
-pub struct Important(#[asn(option(integer))] Option<u64>);
+pub struct Important(#[asn(optional(integer))] Option<u64>);
 
 #[test]
 fn test_transparent_important_println() {
@@ -518,7 +518,7 @@ fn test_extensible_struct() {
 pub struct ExtensibleStruct {
     #[asn(integer(0..255))]
     range: u8,
-    #[asn(option(integer(0..255)), const(abc(2)))]
+    #[asn(optional(integer(0..255)), const(abc(2)))]
     value1: Option<u8>,
     #[asn(integer(0..255), const(abc(3), def(4)))]
     value2: u8,

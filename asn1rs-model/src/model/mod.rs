@@ -2034,7 +2034,7 @@ pub(crate) mod tests {
                 def [2] INTEGER(0..255)
             }
     
-            Application ::= [APPLICATION 7] SEQUENCE OF Utf8String
+            Application ::= [APPLICATION 7] SEQUENCE OF UTF8String
             
             Private ::= [PRIVATE 11] ENUMERATED {
                 abc,
@@ -2092,21 +2092,21 @@ pub(crate) mod tests {
             BEGIN
     
             WithoutMarker ::= CHOICE {
-                abc Utf8String,
-                def Utf8String
+                abc UTF8String,
+                def UTF8String
             }
             
             WithoutExtensionPresent ::= CHOICE {
-                abc Utf8String,
-                def Utf8String,
+                abc UTF8String,
+                def UTF8String,
                 ...
             }
     
             WithExtensionPresent ::= CHOICE {
-                abc Utf8String,
-                def Utf8String,
+                abc UTF8String,
+                def UTF8String,
                 ...,
-                ghi Utf8String
+                ghi UTF8String
             }
             
             END
@@ -2185,7 +2185,7 @@ pub(crate) mod tests {
     
                 Invalid ::= CHOICE {
                     ...,
-                    abc Utf8String
+                    abc UTF8String
                 }
                 
                 END",

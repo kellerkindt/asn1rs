@@ -377,7 +377,7 @@ impl RustCodeGenerator {
                     String::from("bit_string")
                 }
             }
-            Type::Optional(inner) => format!("option({})", Self::asn_attribute_type(&*inner)),
+            Type::Optional(inner) => format!("optional({})", Self::asn_attribute_type(&*inner)),
             Type::SequenceOf(inner, size) => format!(
                 "sequence_of({}{})",
                 if Size::Any != *size {

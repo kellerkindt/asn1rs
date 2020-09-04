@@ -7,7 +7,7 @@ BEGIN
   Pizza ::= SEQUENCE {
     price INTEGER,
     size INTEGER(1..4),
-    note Utf8String OPTIONAL
+    note UTF8String OPTIONAL
   }
 
   Topping ::= ENUMERATED {
@@ -16,7 +16,7 @@ BEGIN
     no-pineapple-at-all
   }
 
-  Custom ::= Utf8String 
+  Custom ::= UTF8String 
 
   WhatToEat ::= CHOICE {
     pizza Pizza,
@@ -37,7 +37,7 @@ mod what_is_being_generated {
         pub price: u64,
         #[asn(integer(1..4))]
         pub size: u8,
-        #[asn(option(utf8string))]
+        #[asn(optional(utf8string))]
         pub note: Option<String>,
     }
 

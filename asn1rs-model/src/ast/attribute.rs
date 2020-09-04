@@ -135,7 +135,7 @@ fn parse_type_pre_stepped<'a>(
                 content.step(|c| c.ident().ok_or_else(|| c.error("Expected type identifier")))?;
             Ok(Type::TypeReference(ident.to_string()))
         }
-        "option" => {
+        "option" | "optional" => {
             let content;
             parenthesized!(content in input);
             let inner = parse_type(&content)?;
