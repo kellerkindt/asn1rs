@@ -15,8 +15,8 @@ pub mod async_psql;
 pub(crate) mod shared_psql;
 
 use crate::gen::Generator;
-use crate::model::rust::PlainEnum;
 use crate::model::rust::{DataEnum, Field};
+use crate::model::rust::{EncodingOrdering, PlainEnum};
 use crate::model::Model;
 use crate::model::Rust;
 use crate::model::RustType;
@@ -176,9 +176,13 @@ impl RustCodeGenerator {
                 fields,
                 tag,
                 extension_after,
+                ordering,
             } => {
                 scope.raw(&Self::asn_attribute(
-                    "sequence",
+                    match ordering {
+                        EncodingOrdering::Keep => "sequence",
+                        EncodingOrdering::Sort => "set",
+                    },
                     *tag,
                     extension_after.map(|index| fields[index].name().to_string()),
                     &[],
@@ -381,8 +385,19 @@ impl RustCodeGenerator {
                 .flatten()
                 .collect(),
             ),
+            Type::SetOf(inner, size) => (
+                Cow::Borrowed("set_of"),
+                vec![
+                    size.to_constraint_string(),
+                    Some(Self::asn_attribute_type(&*inner)),
+                ]
+                .into_iter()
+                .flatten()
+                .collect(),
+            ),
 
             Type::Sequence(_) => (Cow::Borrowed("sequence"), Vec::default()),
+            Type::Set(_) => (Cow::Borrowed("set"), Vec::default()),
             Type::Enumerated(_) => (Cow::Borrowed("enumerated"), Vec::default()),
             Type::Choice(_) => (Cow::Borrowed("choice"), Vec::default()),
             Type::TypeReference(inner, tag) => (
@@ -427,6 +442,7 @@ impl RustCodeGenerator {
                 fields,
                 tag: _,
                 extension_after: _,
+                ordering: _,
             } => {
                 let implementation = Self::impl_struct(scope, name, fields, getter_and_setter);
                 for g in generators {

@@ -44,7 +44,9 @@ impl ProtobufType {
             ProtobufType::String => RustType::String(Size::Any, Charset::Utf8),
             ProtobufType::Bytes => RustType::VecU8(Size::Any),
             ProtobufType::BitsReprByBytesAndBitsLen => RustType::BitVec(Size::Any),
-            ProtobufType::Repeated(inner) => RustType::Vec(Box::new(inner.to_rust()), Size::Any),
+            ProtobufType::Repeated(inner) => {
+                RustType::Vec(Box::new(inner.to_rust()), Size::Any, EncodingOrdering::Keep)
+            }
             ProtobufType::OneOf(_) => panic!("ProtobufType::OneOf cannot be mapped to a RustType"),
             ProtobufType::Complex(name) => RustType::Complex(name.clone(), None),
         }
@@ -129,6 +131,7 @@ impl Model<Protobuf> {
                 fields,
                 tag: _,
                 extension_after: _,
+                ordering: _,
             } => {
                 let mut proto_fields = Vec::with_capacity(fields.len());
                 for field in fields.iter() {
@@ -186,7 +189,7 @@ impl Model<Protobuf> {
                 Self::definition_type_to_protobuf_type(inner)
             }
 
-            RustType::Vec(inner, _size) => {
+            RustType::Vec(inner, _size, _ordering) => {
                 ProtobufType::Repeated(Box::new(Self::definition_type_to_protobuf_type(inner)))
             }
         }

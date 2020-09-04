@@ -22,7 +22,12 @@ The crate can be used as standalone CLI binary or used as library through its AP
 | ...extensible       | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | 🔶 not serialized  | 
 | `SEQUENCE OF`       | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             | 
 | ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored️         | 
-| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored️         | 
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored️         |
+| `SET`               | ✔️ yes  | 🟥 error  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ⚠️ ignored️         | 
+| ...extensible       | ✔️ yes  | 🟥 error  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | 🔶 not serialized  | 
+| `SET OF`            | ✔️ yes  | 🟥 error  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ⚠️ ignored️         | 
+| ...`SIZE(A..B)`     | ✔️ yes  | 🟥 error  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored️         | 
+| ...`SIZE(A..B,...)` | ✔️ yes  | 🟥 error  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored️         | 
 | `ENUMERATED`        | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             |           
 | ...extensible       | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | 🔶 not serialized  |           
 | `CHOICE`            | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             |           

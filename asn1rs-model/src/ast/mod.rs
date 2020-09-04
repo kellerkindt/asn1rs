@@ -6,7 +6,9 @@ mod tag;
 
 use crate::ast::attribute::{Context, DefinitionHeader, Transparent};
 use crate::ast::constants::ConstLit;
-use crate::model::{Asn as AsnModelType, EnumeratedVariant, Sequence, TagProperty, TagResolver};
+use crate::model::{
+    Asn as AsnModelType, ComponentTypeList, EnumeratedVariant, TagProperty, TagResolver,
+};
 use crate::model::{Choice, ChoiceVariant, Definition, Enumerated, Field, Model, Type};
 use attribute::AsnAttribute;
 use quote::quote;
@@ -153,7 +155,7 @@ fn parse_sequence(
     Ok((
         Some(Definition(
             strct.ident.to_string(),
-            Type::Sequence(Sequence {
+            Type::Sequence(ComponentTypeList {
                 extension_after: find_extensible_index(
                     asn,
                     asn_span,

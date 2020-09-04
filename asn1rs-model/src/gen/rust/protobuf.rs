@@ -76,6 +76,7 @@ impl ProtobufSerializer {
                 fields,
                 tag: _,
                 extension_after: _,
+                ordering: _,
             } => {
                 Self::impl_read_fn_for_struct(function, name, &fields[..]);
             }
@@ -312,6 +313,7 @@ impl ProtobufSerializer {
                 fields,
                 tag: _,
                 extension_after: _,
+                ordering: _,
             } => {
                 Self::impl_write_fn_for_struct(function, &fields[..]);
             }
@@ -570,6 +572,7 @@ impl ProtobufSerializer {
                 fields,
                 tag: _,
                 extension_after: _,
+                ordering: _,
             } => {
                 for (num, field) in fields.iter().enumerate() {
                     if num > 0 {
