@@ -14,7 +14,6 @@ pub mod async_psql;
 #[cfg(any(feature = "psql", feature = "async-psql"))]
 pub(crate) mod shared_psql;
 
-use self::protobuf::ProtobufSerializer;
 use crate::gen::Generator;
 use crate::model::rust::PlainEnum;
 use crate::model::rust::{DataEnum, Field};
@@ -36,6 +35,9 @@ use self::psql::PsqlInserter;
 
 #[cfg(feature = "async-psql")]
 use self::async_psql::AsyncPsqlInserter;
+
+#[cfg(feature = "protobuf")]
+use self::protobuf::ProtobufSerializer;
 
 const KEYWORDS: [&str; 9] = [
     "use", "mod", "const", "type", "pub", "enum", "struct", "impl", "trait",
@@ -100,6 +102,7 @@ impl Generator<Rust> for RustCodeGenerator {
                     #[cfg(feature = "legacy-uper-codegen")]
                     #[cfg_attr(feature = "legacy-uper-codegen", allow(deprecated))]
                     &uper::UperSerializer,
+                    #[cfg(feature = "protobuf")]
                     &ProtobufSerializer,
                     #[cfg(feature = "psql")]
                     &PsqlInserter,

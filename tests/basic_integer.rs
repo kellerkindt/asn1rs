@@ -35,6 +35,7 @@ fn test_uper_big() {
 }
 
 #[test]
+#[cfg(feature = "protobuf")]
 fn test_protobuf() {
     let mut buffer = Vec::default();
     let writer = &mut buffer as &mut dyn ProtobufWriter;
