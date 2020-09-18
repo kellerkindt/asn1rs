@@ -449,6 +449,7 @@ impl Writer for UperWriter {
         })
     }
 
+    #[inline]
     fn write_ia5string<C: ia5string::Constraint>(
         &mut self,
         value: &str,
@@ -759,6 +760,7 @@ impl Reader for UperReader {
         })
     }
 
+    #[inline]
     fn read_ia5string<C: ia5string::Constraint>(&mut self) -> Result<String, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
         self.with_buffer(|r| {
