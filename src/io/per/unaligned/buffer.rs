@@ -16,14 +16,14 @@ impl BitBuffer {
         }
     }
 
-    pub fn from_bytes(buffer: Vec<u8>) -> BitBuffer {
+    pub fn from_bytes(buffer: Vec<u8>) -> Self {
         let bits = buffer.len() * BYTE_LEN;
         Self::from_bits(buffer, bits)
     }
 
-    pub fn from_bits(buffer: Vec<u8>, bit_length: usize) -> BitBuffer {
+    pub fn from_bits(buffer: Vec<u8>, bit_length: usize) -> Self {
         assert!(bit_length <= buffer.len() * BYTE_LEN);
-        BitBuffer {
+        Self {
             buffer,
             write_position: bit_length,
             read_position: 0,
@@ -34,10 +34,10 @@ impl BitBuffer {
         buffer: Vec<u8>,
         write_position: usize,
         read_position: usize,
-    ) -> BitBuffer {
+    ) -> Self {
         assert!(write_position <= buffer.len() * BYTE_LEN);
         assert!(read_position <= buffer.len() * BYTE_LEN);
-        BitBuffer {
+        Self {
             buffer,
             write_position,
             read_position,
