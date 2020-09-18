@@ -8,6 +8,7 @@ pub mod unaligned;
 
 pub use err::Error;
 
+/// According to ITU-TX.691 | ISO/IEC 8825-2:2015
 pub trait PackedRead {
     /// According to ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 12, the boolean type is represented
     /// through a single bit, where 1 represents `true` and 0 represents `false`.
@@ -76,6 +77,7 @@ pub trait PackedRead {
         -> Result<u64, Error>;
 }
 
+/// According to ITU-TX.691 | ISO/IEC 8825-2:2015
 pub trait PackedWrite {
     /// According to ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 12, the boolean type is represented
     /// through a single bit, where 1 represents `true` and 0 represents `false`.
