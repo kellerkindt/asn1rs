@@ -9,7 +9,7 @@ impl<C: Constraint> Default for SequenceOf<C> {
     }
 }
 
-pub trait Constraint {
+pub trait Constraint: super::common::Constraint {
     const MIN: Option<u64> = None;
     const MAX: Option<u64> = None;
     const EXTENSIBLE: bool = false;
@@ -17,6 +17,7 @@ pub trait Constraint {
 
 #[derive(Default)]
 pub struct NoConstraint;
+impl super::common::Constraint for NoConstraint {}
 impl Constraint for NoConstraint {}
 
 impl<T: WritableType, C: Constraint> WritableType for SequenceOf<T, C> {

@@ -1,6 +1,7 @@
 pub mod bitstring;
 pub mod boolean;
 pub mod choice;
+pub mod common;
 pub mod complex;
 pub mod enumerated;
 pub mod ia5string;
@@ -169,6 +170,7 @@ pub trait WritableType {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::syn::common;
     use crate::syn::io::PrintlnWriter;
     use crate::syn::sequence::Sequence;
     use crate::syn::utf8string::Utf8String;
@@ -186,6 +188,7 @@ mod tests {
         type AsnDefWhateverOpt = Option<Utf8String>;
         type AsnDefWhateverSome = Option<Utf8String>;
 
+        impl common::Constraint for Whatever {}
         impl sequence::Constraint for Whatever {
             const NAME: &'static str = "Whatever";
             const STD_OPTIONAL_FIELDS: u64 = 2;

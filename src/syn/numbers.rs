@@ -18,7 +18,7 @@ pub trait Number: Copy {
     fn from_i64(value: i64) -> Self;
 }
 
-pub trait Constraint<T: Number> {
+pub trait Constraint<T: Number>: super::common::Constraint {
     // TODO MIN-MAX into RANGE: Option<(T, T)>
     const MIN: Option<i64> = None;
     const MAX: Option<i64> = None;
@@ -29,7 +29,7 @@ pub trait Constraint<T: Number> {
 
 #[derive(Default)]
 pub struct NoConstraint;
-
+impl super::common::Constraint for NoConstraint {}
 impl<T: Number> Constraint<T> for NoConstraint {}
 
 impl<T: Number, C: Constraint<T>> WritableType for Integer<T, C> {

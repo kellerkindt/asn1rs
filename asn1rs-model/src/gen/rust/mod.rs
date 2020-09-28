@@ -174,11 +174,12 @@ impl RustCodeGenerator {
         match rust {
             Rust::Struct {
                 fields,
+                tag,
                 extension_after,
             } => {
                 scope.raw(&Self::asn_attribute(
                     "sequence",
-                    None,
+                    *tag,
                     extension_after.map(|index| fields[index].name().to_string()),
                     &[],
                 ));
@@ -192,7 +193,7 @@ impl RustCodeGenerator {
             Rust::Enum(plain) => {
                 scope.raw(&Self::asn_attribute(
                     "enumerated",
-                    None,
+                    plain.tag(),
                     plain.extension_after_variant().cloned(),
                     &[],
                 ));
@@ -201,14 +202,18 @@ impl RustCodeGenerator {
             Rust::DataEnum(data) => {
                 scope.raw(&Self::asn_attribute(
                     "choice",
-                    None,
+                    data.tag(),
                     data.extension_after_variant().map(|v| v.name().to_string()),
                     &[],
                 ));
                 Self::add_data_enum(self.new_enum(scope, name, false), name, data)
             }
-            Rust::TupleStruct { r#type, constants } => {
-                scope.raw(&Self::asn_attribute("transparent", None, None, &[]));
+            Rust::TupleStruct {
+                r#type,
+                tag,
+                constants,
+            } => {
+                scope.raw(&Self::asn_attribute("transparent", *tag, None, &[]));
                 Self::add_tuple_struct(
                     self.new_struct(scope, name),
                     name,
@@ -411,6 +416,7 @@ impl RustCodeGenerator {
         match rust {
             Rust::Struct {
                 fields,
+                tag: _,
                 extension_after: _,
             } => {
                 let implementation = Self::impl_struct(scope, name, fields, getter_and_setter);
@@ -432,7 +438,11 @@ impl RustCodeGenerator {
                 }
                 Self::impl_data_enum_default(scope, name, enumeration);
             }
-            Rust::TupleStruct { r#type: inner, .. } => {
+            Rust::TupleStruct {
+                r#type: inner,
+                tag: _,
+                constants: _,
+            } => {
                 let implementation = Self::impl_tuple_struct(scope, name, inner);
                 for g in generators {
                     g.extend_impl_of_tuple(name, implementation, inner);

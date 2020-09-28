@@ -23,7 +23,7 @@ impl Writer for PrintlnWriter {
         &mut self,
         f: F,
     ) -> Result<(), Self::Error> {
-        self.indented_println(&format!("Writing sequence {}", C::NAME));
+        self.indented_println(&format!("Writing sequence {}, tag={:?}", C::NAME, C::TAG));
         self.with_increased_indentation(|w| f(w))
     }
 
@@ -32,13 +32,14 @@ impl Writer for PrintlnWriter {
         slice: &[T::Type],
     ) -> Result<(), Self::Error> {
         self.indented_println(format!(
-            "Writing sequence-of ({}..{})",
+            "Writing sequence-of ({}..{}), tag={:?}",
             C::MIN
                 .map(|v| format!("{}", v))
                 .unwrap_or_else(|| String::from("MIN")),
             C::MAX
                 .map(|v| format!("{}", v))
                 .unwrap_or_else(|| String::from("MAX")),
+            C::TAG,
         ));
         self.with_increased_indentation(|w| {
             for value in slice {
@@ -52,7 +53,7 @@ impl Writer for PrintlnWriter {
         &mut self,
         enumerated: &C,
     ) -> Result<(), Self::Error> {
-        self.indented_println(&format!("Write enumerated {}", C::NAME));
+        self.indented_println(&format!("Write enumerated {}, tag={:?}", C::NAME, C::TAG));
         self.with_increased_indentation(|w| {
             if C::EXTENSIBLE {
                 w.indented_println("extensible");
@@ -72,7 +73,7 @@ impl Writer for PrintlnWriter {
     }
 
     fn write_choice<C: choice::Constraint>(&mut self, choice: &C) -> Result<(), Self::Error> {
-        self.indented_println(&format!("Write choice {}", C::NAME));
+        self.indented_println(&format!("Write choice {}, tag={:?}", C::NAME, C::TAG));
         self.with_increased_indentation(|w| {
             if C::EXTENSIBLE {
                 w.indented_println("extensible");
@@ -109,7 +110,7 @@ impl Writer for PrintlnWriter {
         value: T,
     ) -> Result<(), Self::Error> {
         self.indented_println(&format!(
-            "WRITING Integer({}..{}{}) {}",
+            "WRITING Integer({}..{}{}), tag={:?}",
             C::MIN
                 .map(|v| v.to_string())
                 .unwrap_or_else(|| "MIN".to_string()),
@@ -117,8 +118,9 @@ impl Writer for PrintlnWriter {
                 .map(|v| v.to_string())
                 .unwrap_or_else(|| "MAX".to_string()),
             if C::EXTENSIBLE { ",..." } else { "" },
-            value.to_i64()
+            C::TAG,
         ));
+        self.with_increased_indentation(|w| w.indented_println(value.to_i64().to_string()));
         Ok(())
     }
 
@@ -127,15 +129,16 @@ impl Writer for PrintlnWriter {
         value: &str,
     ) -> Result<(), Self::Error> {
         self.indented_println(&format!(
-            "Writing Utf8String({}..{}): {}",
+            "Writing Utf8String({}..{}), tag={:?}",
             C::MIN
                 .map(|v| format!("{}", v))
                 .unwrap_or_else(|| String::from("MIN")),
             C::MAX
                 .map(|v| format!("{}", v))
                 .unwrap_or_else(|| String::from("MAX")),
-            value
+            C::TAG
         ));
+        self.with_increased_indentation(|w| w.indented_println(format!("{:?}", value)));
         Ok(())
     }
 
@@ -144,15 +147,16 @@ impl Writer for PrintlnWriter {
         value: &str,
     ) -> Result<(), Self::Error> {
         self.indented_println(&format!(
-            "Writing Ia5String({}..{}): {}",
+            "Writing Ia5String({}..{}), tag={:?}",
             C::MIN
                 .map(|v| format!("{}", v))
                 .unwrap_or_else(|| String::from("MIN")),
             C::MAX
                 .map(|v| format!("{}", v))
                 .unwrap_or_else(|| String::from("MAX")),
-            value
+            C::TAG
         ));
+        self.with_increased_indentation(|w| w.indented_println(format!("{:?}", value)));
         Ok(())
     }
 
@@ -161,15 +165,16 @@ impl Writer for PrintlnWriter {
         value: &[u8],
     ) -> Result<(), Self::Error> {
         self.indented_println(format!(
-            "WRITING OctetString({}..{}) {:02x?}",
+            "WRITING OctetString({}..{}), tag={:?}",
             C::MIN
                 .map(|v| format!("{}", v))
                 .unwrap_or_else(|| String::from("MIN")),
             C::MAX
                 .map(|v| format!("{}", v))
                 .unwrap_or_else(|| String::from("MAX")),
-            value
+            C::TAG,
         ));
+        self.with_increased_indentation(|w| w.indented_println(format!("{:02x?}", value)));
         Ok(())
     }
 
@@ -179,21 +184,23 @@ impl Writer for PrintlnWriter {
         bit_len: u64,
     ) -> Result<(), Self::Error> {
         self.indented_println(format!(
-            "WRITING BitString({}..{}) bits={} {:02x?}",
+            "WRITING BitString({}..{}), tag={:?}, bits={}",
             C::MIN
                 .map(|v| format!("{}", v))
                 .unwrap_or_else(|| String::from("MIN")),
             C::MAX
                 .map(|v| format!("{}", v))
                 .unwrap_or_else(|| String::from("MAX")),
+            C::TAG,
             bit_len,
-            value
         ));
+        self.with_increased_indentation(|w| w.indented_println(format!("{:02x?}", value)));
         Ok(())
     }
 
     fn write_boolean<C: boolean::Constraint>(&mut self, value: bool) -> Result<(), Self::Error> {
-        self.indented_println(format!("WRITING Boolean {}", value));
+        self.indented_println(format!("WRITING Boolean, tag={:?}", C::TAG));
+        self.with_increased_indentation(|w| w.indented_println(value.to_string()));
         Ok(())
     }
 }

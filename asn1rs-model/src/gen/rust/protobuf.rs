@@ -74,6 +74,7 @@ impl ProtobufSerializer {
             }
             Rust::Struct {
                 fields,
+                tag: _,
                 extension_after: _,
             } => {
                 Self::impl_read_fn_for_struct(function, name, &fields[..]);
@@ -308,6 +309,7 @@ impl ProtobufSerializer {
             }
             Rust::Struct {
                 fields,
+                tag: _,
                 extension_after: _,
             } => {
                 Self::impl_write_fn_for_struct(function, &fields[..]);
@@ -565,6 +567,7 @@ impl ProtobufSerializer {
             }
             Rust::Struct {
                 fields,
+                tag: _,
                 extension_after: _,
             } => {
                 for (num, field) in fields.iter().enumerate() {

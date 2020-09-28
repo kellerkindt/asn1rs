@@ -127,6 +127,7 @@ impl Model<Protobuf> {
         match rust {
             Rust::Struct {
                 fields,
+                tag: _,
                 extension_after: _,
             } => {
                 let mut proto_fields = Vec::with_capacity(fields.len());

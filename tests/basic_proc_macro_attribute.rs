@@ -270,6 +270,16 @@ fn test_optional_uper() {
     assert_eq!(0, uper.bits_remaining());
 }
 
+#[asn(sequence, tag(5))]
+#[derive(Debug, PartialOrd, PartialEq)]
+pub struct CrazyOtherList {
+    #[asn(
+        sequence_of(optional(optional(sequence_of(integer)))),
+        tag(APPLICATION(7))
+    )]
+    values: Vec<Option<Option<Vec<u64>>>>,
+}
+
 #[asn(sequence)]
 #[derive(Debug, PartialOrd, PartialEq)]
 pub struct CrazyList {

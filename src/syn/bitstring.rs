@@ -11,7 +11,7 @@ impl<C: Constraint> Default for BitString<C> {
     }
 }
 
-pub trait Constraint {
+pub trait Constraint: super::common::Constraint {
     const MIN: Option<u64> = None;
     const MAX: Option<u64> = None;
     const EXTENSIBLE: bool = false;
@@ -19,6 +19,7 @@ pub trait Constraint {
 
 #[derive(Default)]
 pub struct NoConstraint;
+impl super::common::Constraint for NoConstraint {}
 impl Constraint for NoConstraint {}
 
 impl<C: Constraint> WritableType for BitString<C> {

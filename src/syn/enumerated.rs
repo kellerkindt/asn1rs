@@ -9,7 +9,7 @@ impl<C: Constraint> Default for Enumerated<C> {
     }
 }
 
-pub trait Constraint: Sized {
+pub trait Constraint: super::common::Constraint + Sized {
     const NAME: &'static str;
     const VARIANT_COUNT: u64;
     const STD_VARIANT_COUNT: u64;

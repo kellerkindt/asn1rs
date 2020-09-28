@@ -9,10 +9,11 @@ impl<C: Constraint> Default for Boolean<C> {
     }
 }
 
-pub trait Constraint {}
+pub trait Constraint: super::common::Constraint {}
 
 #[derive(Default)]
 pub struct NoConstraint;
+impl super::common::Constraint for NoConstraint {}
 impl Constraint for NoConstraint {}
 
 impl<C: Constraint> WritableType for Boolean<C> {

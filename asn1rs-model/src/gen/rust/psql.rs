@@ -77,6 +77,7 @@ impl PsqlInserter {
         match rust {
             Rust::Struct {
                 fields,
+                tag: _,
                 extension_after: _,
             } => {
                 Self::impl_struct_insert_statement(
@@ -399,6 +400,7 @@ impl PsqlInserter {
         match rust {
             Rust::Struct {
                 fields,
+                tag: _,
                 extension_after: _,
             } => {
                 Self::impl_query_statement(Self::new_query_statement_fn(implementation), name);

@@ -9,11 +9,11 @@ impl<V, T: Constraint> Default for Complex<V, T> {
     }
 }
 
-pub trait Constraint {}
+pub trait Constraint: super::common::Constraint {}
 
 #[derive(Default)]
 pub struct NoConstraint;
-
+impl super::common::Constraint for NoConstraint {}
 impl Constraint for NoConstraint {}
 
 impl<V: Writable, C: Constraint> WritableType for Complex<V, C> {

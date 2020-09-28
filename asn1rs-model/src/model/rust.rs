@@ -267,6 +267,7 @@ impl RustType {
 pub enum Rust {
     Struct {
         fields: Vec<Field>,
+        tag: Option<Tag>,
         extension_after: Option<usize>,
     },
     Enum(PlainEnum),
@@ -275,6 +276,7 @@ pub enum Rust {
     /// Used to represent a single, unnamed inner type
     TupleStruct {
         r#type: RustType,
+        tag: Option<Tag>,
         constants: Vec<(String, String)>,
     },
 }
@@ -283,6 +285,7 @@ impl Rust {
     pub fn struct_from_fields(fields: Vec<Field>) -> Self {
         Self::Struct {
             fields,
+            tag: None,
             extension_after: None,
         }
     }
@@ -290,7 +293,37 @@ impl Rust {
     pub fn tuple_struct_from_type(r#type: RustType) -> Self {
         Self::TupleStruct {
             r#type,
+            tag: None,
             constants: Vec::default(),
+        }
+    }
+}
+
+impl TagProperty for Rust {
+    fn tag(&self) -> Option<Tag> {
+        match self {
+            Rust::Struct { tag, .. } => *tag,
+            Rust::Enum(e) => e.tag(),
+            Rust::DataEnum(c) => c.tag(),
+            Rust::TupleStruct { tag, .. } => *tag,
+        }
+    }
+
+    fn set_tag(&mut self, new_tag: Tag) {
+        match self {
+            Rust::Struct { tag, .. } => *tag = Some(new_tag),
+            Rust::Enum(e) => e.set_tag(new_tag),
+            Rust::DataEnum(c) => c.set_tag(new_tag),
+            Rust::TupleStruct { tag, .. } => *tag = Some(new_tag),
+        }
+    }
+
+    fn reset_tag(&mut self) {
+        match self {
+            Rust::Struct { tag, .. } => *tag = None,
+            Rust::Enum(e) => e.reset_tag(),
+            Rust::DataEnum(c) => c.reset_tag(),
+            Rust::TupleStruct { tag, .. } => *tag = None,
         }
     }
 }
@@ -373,6 +406,7 @@ impl TagProperty for Field {
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct Enumeration<T> {
     variants: Vec<T>,
+    tag: Option<Tag>,
     extended_after_index: Option<usize>,
 }
 
@@ -380,6 +414,7 @@ impl<T> From<Vec<T>> for Enumeration<T> {
     fn from(variants: Vec<T>) -> Self {
         Enumeration {
             variants,
+            tag: None,
             extended_after_index: None,
         }
     }
@@ -414,6 +449,20 @@ impl<T> Enumeration<T> {
 
     pub fn is_extensible(&self) -> bool {
         self.extended_after_index.is_some()
+    }
+}
+
+impl<T> TagProperty for Enumeration<T> {
+    fn tag(&self) -> Option<Tag> {
+        self.tag
+    }
+
+    fn set_tag(&mut self, tag: Tag) {
+        self.tag = Some(tag);
+    }
+
+    fn reset_tag(&mut self) {
+        self.tag = None;
     }
 }
 
@@ -482,7 +531,7 @@ impl Model<Rust> {
         };
         for Definition(name, asn) in &asn_model.definitions {
             let rust_name = rust_struct_or_enum_name(name);
-            Self::definition_to_rust(&rust_name, &asn.r#type, &mut model.definitions);
+            Self::definition_to_rust(&rust_name, &asn.r#type, asn.tag, &mut model.definitions);
         }
         model
     }
@@ -494,14 +543,19 @@ impl Model<Rust> {
     /// and can therefore be used to be inserted in the parent element.
     ///
     /// The name is expected in a valid and rusty way
-    pub fn definition_to_rust(name: &str, asn: &AsnType, defs: &mut Vec<Definition<Rust>>) {
+    pub fn definition_to_rust(
+        name: &str,
+        asn: &AsnType,
+        tag: Option<Tag>,
+        defs: &mut Vec<Definition<Rust>>,
+    ) {
         match asn {
             AsnType::Boolean
             | AsnType::String(..)
             | AsnType::OctetString(_)
             | AsnType::BitString(_)
             | AsnType::TypeReference(_) => {
-                let rust_type = Self::definition_type_to_rust_type(name, asn, defs);
+                let rust_type = Self::definition_type_to_rust_type(name, asn, tag, defs);
                 defs.push(Definition(
                     name.into(),
                     Rust::tuple_struct_from_type(rust_type),
@@ -509,12 +563,13 @@ impl Model<Rust> {
             }
 
             me @ AsnType::Integer(_) => {
-                let rust_type = Self::definition_type_to_rust_type(name, asn, defs);
+                let rust_type = Self::definition_type_to_rust_type(name, asn, tag, defs);
                 let constants = Self::asn_constants_to_rust_constants(me);
                 defs.push(Definition(
                     name.into(),
                     Rust::TupleStruct {
                         r#type: rust_type,
+                        tag,
                         constants,
                     },
                 ));
@@ -522,7 +577,7 @@ impl Model<Rust> {
 
             AsnType::Optional(inner) => {
                 let inner = RustType::Option(Box::new(Self::definition_type_to_rust_type(
-                    name, inner, defs,
+                    name, inner, tag, defs,
                 )));
                 defs.push(Definition(name.into(), Rust::tuple_struct_from_type(inner)))
             }
@@ -536,6 +591,7 @@ impl Model<Rust> {
                     name.into(),
                     Rust::Struct {
                         fields,
+                        tag,
                         extension_after: *extension_after,
                     },
                 ));
@@ -543,21 +599,26 @@ impl Model<Rust> {
 
             AsnType::SequenceOf(asn, size) => {
                 let inner = RustType::Vec(
-                    Box::new(Self::definition_type_to_rust_type(name, asn, defs)),
+                    Box::new(Self::definition_type_to_rust_type(name, asn, tag, defs)),
                     *size,
                 );
-                defs.push(Definition(name.into(), Rust::tuple_struct_from_type(inner)));
+                defs.push(Definition(
+                    name.into(),
+                    Rust::tuple_struct_from_type(inner).with_tag_opt(tag),
+                ));
             }
 
             AsnType::Choice(choice) => {
                 let mut enumeration = Enumeration {
                     variants: Vec::with_capacity(choice.len()),
+                    tag,
                     extended_after_index: choice.extension_after_index(),
                 };
 
                 for ChoiceVariant { name, r#type, tag } in choice.variants() {
                     let rust_name = format!("{}{}", name, rust_struct_or_enum_name(&name));
-                    let rust_role = Self::definition_type_to_rust_type(&rust_name, &r#type, defs);
+                    let rust_role =
+                        Self::definition_type_to_rust_type(&rust_name, &r#type, *tag, defs);
                     let rust_field_name = rust_variant_name(&name);
                     enumeration.variants.push(
                         DataVariant::from_name_type(rust_field_name, rust_role).with_tag_opt(*tag),
@@ -570,6 +631,7 @@ impl Model<Rust> {
             AsnType::Enumerated(enumerated) => {
                 let mut rust_enum = Enumeration {
                     variants: Vec::with_capacity(enumerated.len()),
+                    tag,
                     extended_after_index: enumerated.extension_after_index(),
                 };
 
@@ -591,8 +653,12 @@ impl Model<Rust> {
 
         for field in fields.iter() {
             let rust_name = format!("{}{}", name, rust_struct_or_enum_name(&field.name));
-            let rust_role =
-                Self::definition_type_to_rust_type(&rust_name, &field.role.r#type, defs);
+            let rust_role = Self::definition_type_to_rust_type(
+                &rust_name,
+                &field.role.r#type,
+                field.role.tag,
+                defs,
+            );
             let rust_field_name = rust_field_name(&field.name);
             let constants = Self::asn_constants_to_rust_constants(&field.role.r#type);
             rust_fields.push(
@@ -633,6 +699,7 @@ impl Model<Rust> {
     pub fn definition_type_to_rust_type(
         name: &str,
         asn: &AsnType,
+        tag: Option<Tag>,
         defs: &mut Vec<Definition<Rust>>,
     ) -> RustType {
         match asn {
@@ -688,15 +755,15 @@ impl Model<Rust> {
             AsnType::OctetString(size) => RustType::VecU8(*size),
             AsnType::BitString(bitstring) => RustType::BitVec(bitstring.size),
             Type::Optional(inner) => RustType::Option(Box::new(
-                Self::definition_type_to_rust_type(name, inner, defs),
+                Self::definition_type_to_rust_type(name, inner, tag, defs),
             )),
             AsnType::SequenceOf(asn, size) => RustType::Vec(
-                Box::new(Self::definition_type_to_rust_type(name, asn, defs)),
+                Box::new(Self::definition_type_to_rust_type(name, asn, tag, defs)),
                 *size,
             ),
             AsnType::Sequence(_) | AsnType::Enumerated(_) | AsnType::Choice(_) => {
                 let name = rust_struct_or_enum_name(name);
-                Self::definition_to_rust(&name, asn, defs);
+                Self::definition_to_rust(&name, asn, tag, defs);
                 RustType::Complex(name)
             }
             AsnType::TypeReference(name) => RustType::Complex(name.clone()),
@@ -827,7 +894,7 @@ mod tests {
                 Rust::struct_from_fields(vec![RustField::from_name_type(
                     "decision",
                     RustType::Option(Box::new(RustType::Complex("WoahDecision".into()))),
-                )])
+                )]),
             ),
             modle_rust.definitions[1]
         );
@@ -847,7 +914,7 @@ mod tests {
                 "Ones".into(),
                 Rust::tuple_struct_from_type(RustType::Vec(
                     Box::new(RustType::U8(Range::inclusive(0, 1))),
-                    Size::Any
+                    Size::Any,
                 )),
             ),
             model_rust.definitions[0]
@@ -858,9 +925,9 @@ mod tests {
                 Rust::tuple_struct_from_type(RustType::Vec(
                     Box::new(RustType::Vec(
                         Box::new(RustType::U8(Range::inclusive(0, 1))),
-                        Size::Any
+                        Size::Any,
                     )),
-                    Size::Any
+                    Size::Any,
                 )),
             ),
             model_rust.definitions[1]
@@ -878,9 +945,9 @@ mod tests {
                         RustType::Vec(
                             Box::new(RustType::Vec(
                                 Box::new(RustType::U8(Range::inclusive(0, 1))),
-                                Size::Any
+                                Size::Any,
                             )),
-                            Size::Any
+                            Size::Any,
                         ),
                     ),
                     RustField::from_name_type(
@@ -888,9 +955,9 @@ mod tests {
                         RustType::Option(Box::new(RustType::Vec(
                             Box::new(RustType::Vec(
                                 Box::new(RustType::U64(Range::none())),
-                                Size::Any
+                                Size::Any,
                             )),
-                            Size::Any
+                            Size::Any,
                         ))),
                     )
                 ]),
@@ -913,7 +980,7 @@ mod tests {
                 "This".into(),
                 Rust::tuple_struct_from_type(RustType::Vec(
                     Box::new(RustType::U8(Range::inclusive(0, 1))),
-                    Size::Any
+                    Size::Any,
                 )),
             ),
             model_rust.definitions[0]
@@ -924,9 +991,9 @@ mod tests {
                 Rust::tuple_struct_from_type(RustType::Vec(
                     Box::new(RustType::Vec(
                         Box::new(RustType::U8(Range::inclusive(0, 1))),
-                        Size::Any
+                        Size::Any,
                     )),
-                    Size::Any
+                    Size::Any,
                 )),
             ),
             model_rust.definitions[1]
@@ -985,8 +1052,8 @@ mod tests {
                     RustField::from_name_type(
                         "optional_ones",
                         RustType::Option(Box::new(RustType::Vec(
-                            Box::new(RustType::U8(Range::inclusive(0, 1,))),
-                            Size::Any
+                            Box::new(RustType::U8(Range::inclusive(0, 1))),
+                            Size::Any,
                         ))),
                     ),
                 ]),
@@ -1050,7 +1117,7 @@ mod tests {
                     vec![
                         DataVariant::from_name_type(
                             "BerndDasBrot",
-                            RustType::String(Size::Any, Charset::Utf8)
+                            RustType::String(Size::Any, Charset::Utf8),
                         ),
                         DataVariant::from_name_type("NochSoEinBrot", RustType::VecU8(Size::Any)),
                     ]
@@ -1097,7 +1164,7 @@ mod tests {
                             "NormalList",
                             RustType::Vec(
                                 Box::new(RustType::String(Size::Any, Charset::Utf8)),
-                                Size::Any
+                                Size::Any,
                             ),
                         ),
                         DataVariant::from_name_type(
@@ -1105,9 +1172,9 @@ mod tests {
                             RustType::Vec(
                                 Box::new(RustType::Vec(
                                     Box::new(RustType::VecU8(Size::Any)),
-                                    Size::Any
+                                    Size::Any,
                                 )),
-                                Size::Any
+                                Size::Any,
                             ),
                         ),
                     ]
@@ -1136,7 +1203,7 @@ mod tests {
                 "TupleTest".into(),
                 Rust::tuple_struct_from_type(RustType::Vec(
                     Box::new(RustType::String(Size::Any, Charset::Utf8)),
-                    Size::Any
+                    Size::Any,
                 )),
             ),
             model_rust.definitions[0]
@@ -1168,9 +1235,9 @@ mod tests {
                 Rust::tuple_struct_from_type(RustType::Vec(
                     Box::new(RustType::Vec(
                         Box::new(RustType::String(Size::Any, Charset::Utf8)),
-                        Size::Any
+                        Size::Any,
                     )),
-                    Size::Any
+                    Size::Any,
                 )),
             ),
             model_rust.definitions[0]
@@ -1202,7 +1269,7 @@ mod tests {
                     "strings",
                     RustType::Option(Box::new(RustType::Vec(
                         Box::new(RustType::String(Size::Any, Charset::Utf8)),
-                        Size::Any
+                        Size::Any,
                     ))),
                 )]),
             ),
@@ -1234,7 +1301,7 @@ mod tests {
                     "strings",
                     RustType::Vec(
                         Box::new(RustType::String(Size::Any, Charset::Utf8)),
-                        Size::Any
+                        Size::Any,
                     ),
                 )]),
             ),
@@ -1273,9 +1340,9 @@ mod tests {
                     RustType::Vec(
                         Box::new(RustType::Vec(
                             Box::new(RustType::String(Size::Any, Charset::Utf8)),
-                            Size::Any
+                            Size::Any,
                         )),
-                        Size::Any
+                        Size::Any,
                     ),
                 )]),
             ),
@@ -1345,7 +1412,7 @@ mod tests {
                         DataVariant::from_name_type("Abc".to_string(), RustType::VecU8(Size::Any)),
                         DataVariant::from_name_type(
                             "Def".to_string(),
-                            RustType::U64(Range::none())
+                            RustType::U64(Range::none()),
                         ),
                         DataVariant::from_name_type("Ghi".to_string(), RustType::Bool)
                             .with_tag(Tag::Universal(4)),

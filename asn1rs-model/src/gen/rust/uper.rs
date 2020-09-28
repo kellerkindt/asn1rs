@@ -57,6 +57,7 @@ impl UperSerializer {
             }
             Rust::Struct {
                 fields,
+                tag: _,
                 extension_after: _,
             } => {
                 for field in fields.iter() {
@@ -321,6 +322,7 @@ impl UperSerializer {
             }
             Rust::Struct {
                 fields,
+                tag: _,
                 extension_after: _,
             } => {
                 for field in fields.iter() {

@@ -145,6 +145,7 @@ impl Model<Sql> {
         match rust {
             Rust::Struct {
                 fields,
+                tag: _,
                 extension_after: _,
             } => Self::rust_struct_to_sql_table(name, fields, definitions),
             Rust::Enum(rust_enum) => Self::rust_enum_to_sql_enum(name, rust_enum, definitions),

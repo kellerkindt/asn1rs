@@ -9,7 +9,7 @@ impl<T: Constraint> Default for Sequence<T> {
     }
 }
 
-pub trait Constraint {
+pub trait Constraint: super::common::Constraint {
     const NAME: &'static str;
     const STD_OPTIONAL_FIELDS: u64;
     const FIELD_COUNT: u64;
