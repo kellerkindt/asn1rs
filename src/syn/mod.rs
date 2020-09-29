@@ -26,6 +26,16 @@ pub use sequence::Sequence;
 pub use sequenceof::SequenceOf;
 pub use utf8string::Utf8String;
 
+pub mod prelude {
+    pub use super::bitstring::BitVec;
+    pub use super::Readable;
+    pub use super::ReadableType;
+    pub use super::Reader;
+    pub use super::Writable;
+    pub use super::WritableType;
+    pub use super::Writer;
+}
+
 pub trait Reader {
     type Error;
 

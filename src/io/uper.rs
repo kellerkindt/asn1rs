@@ -6,7 +6,7 @@ use crate::io::per::{PackedRead, PackedWrite};
 pub use crate::io::per::err::Error;
 #[deprecated(note = "Use asn1rs::io::per::unaligned::BYTE_LEN instead")]
 use crate::io::per::unaligned::BYTE_LEN;
-use crate::syn::BitVec;
+use crate::syn::bitstring::BitVec;
 
 #[deprecated(note = "Use the UperReader/-Writer with the Read-/Writable interface instead")]
 #[cfg(feature = "legacy-uper-codegen")]

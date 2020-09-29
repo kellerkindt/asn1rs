@@ -1,4 +1,4 @@
-use crate::prelude::*;
+use crate::syn::*;
 
 #[derive(Default)]
 pub struct PrintlnWriter(usize);

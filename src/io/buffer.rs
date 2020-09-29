@@ -9,7 +9,7 @@ pub mod legacy {
     use crate::io::uper::Error as UperError;
     use crate::io::uper::Reader as UperReader;
     use crate::io::uper::Writer as UperWriter;
-    use crate::syn::BitVec;
+    use crate::syn::bitstring::BitVec;
     use byteorder::ByteOrder;
     use byteorder::NetworkEndian;
 

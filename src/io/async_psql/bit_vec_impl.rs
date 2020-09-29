@@ -1,4 +1,4 @@
-use crate::syn::BitVec;
+use crate::syn::bitstring::BitVec;
 use bytes::BytesMut;
 use std::error::Error;
 use tokio_postgres::types::{FromSql, IsNull, ToSql, Type};

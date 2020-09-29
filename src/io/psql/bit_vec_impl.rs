@@ -1,4 +1,4 @@
-use crate::syn::BitVec;
+use crate::syn::bitstring::BitVec;
 use postgres::types::{FromSql, IsNull, ToSql, Type};
 use std::error::Error;
 

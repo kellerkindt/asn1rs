@@ -4,7 +4,7 @@ use crate::io::per::unaligned::BitRead;
 use crate::io::per::unaligned::BitWrite;
 use crate::io::per::PackedRead;
 use crate::io::per::PackedWrite;
-use crate::prelude::*;
+use crate::syn::*;
 use std::ops::Range;
 
 /// This ist enum is the main reason, the new impl is about ~10% slower (2020-09) than the previous/
