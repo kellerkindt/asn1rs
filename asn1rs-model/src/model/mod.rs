@@ -736,7 +736,12 @@ impl Model<Asn> {
     }
 
     pub fn to_rust(&self) -> Model<rust::Rust> {
-        Model::convert_asn_to_rust(self)
+        let scope: &[&Self] = &[];
+        Model::convert_asn_to_rust(self, scope)
+    }
+
+    pub fn to_rust_with_scope(&self, scope: &[&Self]) -> Model<rust::Rust> {
+        Model::convert_asn_to_rust(self, scope)
     }
 }
 
@@ -745,6 +750,82 @@ pub struct Import {
     pub what: Vec<String>,
     pub from: String,
     pub from_oid: Option<ObjectIdentifier>,
+}
+
+pub struct Resolver<'a> {
+    model: &'a Model<Asn>,
+    scope: &'a [&'a Model<Asn>],
+}
+
+impl Resolver<'_> {
+    /// ITU-T X.680 | ISO/IEC 8824-1, 8.6
+    /// ITU-T X.680 | ISO/IEC 8824-1, 41, table 8
+    pub fn resolve_tag(&self, ty: &str) -> Option<Tag> {
+        self.model
+            .imports
+            .iter()
+            .find(|import| import.what.iter().any(|what| what.eq(ty)))
+            .map(|import| &import.from)
+            .and_then(|model_name| self.scope.iter().find(|model| model.name.eq(model_name)))
+            .and_then(|model| {
+                Resolver {
+                    model,
+                    scope: self.scope,
+                }
+                .resolve_tag(ty)
+            })
+            .or_else(|| {
+                self.model.definitions.iter().find(|d| d.0.eq(ty)).and_then(
+                    |Definition(_name, asn)| asn.tag.or_else(|| self.resolve_type_tag(&asn.r#type)),
+                )
+            })
+    }
+
+    /// ITU-T X.680 | ISO/IEC 8824-1, 8.6
+    /// ITU-T X.680 | ISO/IEC 8824-1, 41, table 8
+    pub fn resolve_type_tag(&self, ty: &Type) -> Option<Tag> {
+        match ty {
+            Type::Boolean => Some(Tag::Universal(1)),
+            Type::Integer(_) => Some(Tag::Universal(2)),
+            Type::BitString(_) => Some(Tag::Universal(3)),
+            Type::OctetString(_) => Some(Tag::Universal(4)),
+            Type::Enumerated(_) => Some(Tag::Universal(10)),
+            Type::String(_, Charset::Utf8) => Some(Tag::Universal(12)),
+            Type::String(_, Charset::Ia5) => Some(Tag::Universal(22)),
+            Type::Optional(inner) => self.resolve_type_tag(&**inner),
+            Type::Sequence(_) | Type::SequenceOf(_, _) => Some(Tag::Universal(16)),
+            Type::Choice(choice) => {
+                let mut tags = choice
+                    .variants()
+                    .take(
+                        choice
+                            .extension_after
+                            .map(|extension_after| extension_after + 1)
+                            .unwrap_or(choice.variants.len()),
+                    )
+                    .map(|v| v.tag().or_else(|| self.resolve_type_tag(v.r#type())))
+                    .collect::<Option<Vec<Tag>>>()?;
+                tags.sort();
+                tags.into_iter().next()
+            }
+            Type::TypeReference(inner) => self.resolve_tag(inner.as_str()),
+        }
+    }
+}
+
+pub struct Context<'a> {
+    resolver: Resolver<'a>,
+    target: &'a mut Vec<Definition<Rust>>,
+}
+
+impl Context<'_> {
+    pub fn add_definition(&mut self, def: Definition<Rust>) {
+        self.target.push(def)
+    }
+
+    pub fn resolver(&self) -> &Resolver<'_> {
+        &self.resolver
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
@@ -854,9 +935,31 @@ impl<T> Definition<T> {
     pub fn new<I: ToString>(name: I, value: T) -> Self {
         Definition(name.to_string(), value)
     }
+
+    pub fn name(&self) -> &str {
+        &self.0
+    }
+
+    pub fn value(&self) -> &T {
+        &self.1
+    }
 }
 
 impl TagProperty for Definition<Asn> {
+    fn tag(&self) -> Option<Tag> {
+        self.1.tag()
+    }
+
+    fn set_tag(&mut self, tag: Tag) {
+        self.1.set_tag(tag)
+    }
+
+    fn reset_tag(&mut self) {
+        self.1.reset_tag()
+    }
+}
+
+impl TagProperty for Definition<Rust> {
     fn tag(&self) -> Option<Tag> {
         self.1.tag()
     }
@@ -1618,7 +1721,7 @@ pub(crate) mod tests {
                 "Ones".into(),
                 Type::SequenceOf(
                     Box::new(Type::integer_with_range(Range::inclusive(Some(0), Some(1)))),
-                    Size::Any
+                    Size::Any,
                 )
                 .untagged(),
             ),
@@ -1630,9 +1733,9 @@ pub(crate) mod tests {
                 Type::SequenceOf(
                     Box::new(Type::SequenceOf(
                         Box::new(Type::integer_with_range(Range::inclusive(Some(0), Some(1)))),
-                        Size::Any
+                        Size::Any,
                     )),
-                    Size::Any
+                    Size::Any,
                 )
                 .untagged(),
             ),
@@ -1646,7 +1749,7 @@ pub(crate) mod tests {
                         name: "also-ones".into(),
                         role: Type::SequenceOf(
                             Box::new(Type::integer_with_range(Range::inclusive(Some(0), Some(1)))),
-                            Size::Any
+                            Size::Any,
                         )
                         .untagged(),
                     },
@@ -1656,11 +1759,11 @@ pub(crate) mod tests {
                             Box::new(Type::SequenceOf(
                                 Box::new(Type::integer_with_range(Range::inclusive(
                                     Some(0),
-                                    Some(1)
+                                    Some(1),
                                 ))),
-                                Size::Any
+                                Size::Any,
                             )),
-                            Size::Any
+                            Size::Any,
                         )
                         .untagged(),
                     },
@@ -1669,9 +1772,9 @@ pub(crate) mod tests {
                         role: Type::SequenceOf(
                             Box::new(Type::SequenceOf(
                                 Box::new(Type::unconstrained_integer()),
-                                Size::Any
+                                Size::Any,
                             )),
-                            Size::Any
+                            Size::Any,
                         )
                         .optional()
                         .untagged(),
@@ -1718,7 +1821,7 @@ pub(crate) mod tests {
                 "This".into(),
                 Type::SequenceOf(
                     Box::new(Type::integer_with_range(Range::inclusive(Some(0), Some(1)))),
-                    Size::Any
+                    Size::Any,
                 )
                 .untagged(),
             ),
@@ -1730,9 +1833,9 @@ pub(crate) mod tests {
                 Type::SequenceOf(
                     Box::new(Type::SequenceOf(
                         Box::new(Type::integer_with_range(Range::inclusive(Some(0), Some(1)))),
-                        Size::Any
+                        Size::Any,
                     )),
-                    Size::Any
+                    Size::Any,
                 )
                 .untagged(),
             ),
@@ -1800,9 +1903,9 @@ pub(crate) mod tests {
                             role: Type::SequenceOf(
                                 Box::new(Type::integer_with_range(Range::inclusive(
                                     Some(0),
-                                    Some(1)
+                                    Some(1),
                                 ))),
-                                Size::Any
+                                Size::Any,
                             )
                             .untagged(),
                         },
@@ -1811,9 +1914,9 @@ pub(crate) mod tests {
                             role: Type::SequenceOf(
                                 Box::new(Type::integer_with_range(Range::inclusive(
                                     Some(0),
-                                    Some(1)
+                                    Some(1),
                                 ))),
-                                Size::Any
+                                Size::Any,
                             )
                             .optional()
                             .untagged(),
@@ -2399,5 +2502,86 @@ pub(crate) mod tests {
             )],
             model.definitions
         )
+    }
+
+    #[test]
+    pub fn test_resolve_tag() {
+        let external = Model::try_from(Tokenizer::default().parse(
+            r"ExternalModule DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+            External ::= [APPLICATION 1] INTEGER
+            END
+            ",
+        ))
+        .expect("Failed to parse module");
+        let model = Model::try_from(Tokenizer::default().parse(
+            r"InternalModul DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+                IMPORTS
+                    External
+                FROM ExternalModule;
+                
+                Implicit ::= SEQUENCE {
+                    implicit     INTEGER OPTIONAL,
+                    explicit [4] INTEGER 
+                }
+                
+                Explicit ::= [APPLICATION 8] ENUMERATED {
+                    abc,
+                    def
+                }
+                
+                Composed ::= CHOICE {
+                    first-but-greater-tag-value [APPLICATION 99] INTEGER,
+                    second-but-indirect-lower-tag Explicit
+                }
+                
+                ExternallyComposed ::= CHOICE {
+                    internal Explicit,
+                    extenral External
+                }
+                
+                END",
+        ))
+        .expect("Failed to load model");
+        let rust = model.to_rust_with_scope(&[&external]);
+
+        if let Rust::Struct {
+            fields,
+            tag,
+            extension_after: _,
+        } = rust.definitions[0].value()
+        {
+            assert_eq!("Implicit", rust.definitions[0].0.as_str());
+            assert_eq!(Some(Tag::Universal(16)), *tag); // ITU-T X.680 | ISO/IEC 8824-1, 8.6: SEQUENCE
+            assert_eq!(Some(Tag::Universal(2)), fields[0].tag()); // ITU-T X.680 | ISO/IEC 8824-1, 8.6: INTEGER
+            assert_eq!(Some(Tag::ContextSpecific(4)), fields[1].tag()); // explicitly set
+        } else {
+            panic!("Expected Rust::Struct for ASN.1 SEQUENCE");
+        }
+
+        if let Rust::Enum(plain) = rust.definitions[1].value() {
+            assert_eq!("Explicit", rust.definitions[1].0.as_str());
+            assert_eq!(2, plain.len());
+            assert_eq!(Some(Tag::Application(8)), plain.tag()); // explicitly set
+        } else {
+            panic!("Expected Rust::Enum for ASN.1 ENUMERATED")
+        }
+
+        if let Rust::DataEnum(data) = rust.definitions[2].value() {
+            assert_eq!("Composed", rust.definitions[2].0.as_str());
+            assert_eq!(2, data.len());
+            assert_eq!(Some(Tag::Application(8)), data.tag()); // smallest variant: Explicit
+        } else {
+            panic!("Expected Rust::DataEnum for ASN.1 CHOICE")
+        }
+
+        if let Rust::DataEnum(data) = rust.definitions[3].value() {
+            assert_eq!("ExternallyComposed", rust.definitions[3].0.as_str());
+            assert_eq!(2, data.len());
+            assert_eq!(Some(Tag::Application(1)), data.tag()); // smallest variant: ExternalModule::External
+        } else {
+            panic!("Expected Rust::DataEnum for ASN.1 CHOICE")
+        }
+
+        assert_eq!(4, rust.definitions.len());
     }
 }
