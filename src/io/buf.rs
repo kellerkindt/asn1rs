@@ -14,8 +14,10 @@ impl OctetBuffer {
     }
 
     pub fn from_bytes(buffer: Vec<u8>) -> Self {
+        let length = &buffer.len() * 8;
         Self {
             buffer,
+            write_position: length,
             ..Default::default()
         }
     }

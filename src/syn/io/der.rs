@@ -3,6 +3,8 @@ use crate::io::der::DistinguishedRead;
 use crate::io::der::DistinguishedWrite;
 use crate::io::der::Error;
 use crate::prelude::*;
+use crate::io::der::octet_aligned::{Length, Class};
+use crate::io::per::unaligned::BitRead;
 
 #[derive(Default)]
 pub struct DerWriter {
@@ -45,6 +47,14 @@ impl Writer for DerWriter {
         &mut self,
         slice: &[T::Type],
     ) -> Result<(), Self::Error> {
+        unimplemented!()
+    }
+
+    fn write_set<C: set::Constraint, F: Fn(&mut Self) -> Result<(), Self::Error>>(&mut self, f: F) -> Result<(), Self::Error> {
+        unimplemented!()
+    }
+
+    fn write_set_of<C: setof::Constraint, T: WritableType>(&mut self, slice: &[<T as WritableType>::Type]) -> Result<(), Self::Error> {
         unimplemented!()
     }
 
@@ -145,7 +155,29 @@ impl Reader for DerReader {
         &mut self,
         f: F,
     ) -> Result<S, Self::Error> {
-        unimplemented!()
+        let (class, pc, tag) = self.buffer.read_identifier()?;
+        let length = self.buffer.read_length()?;
+
+        eprintln!("Class = {:#?}, PC = {:#?}, Tag = {:#?}, Length = {:#?}", class, pc, tag, length);
+
+        // TODO: Why?!
+        if let Class::Application = class {
+            return self.read_sequence::<C, S, F>(f);
+        }
+
+        let range = match length {
+            Length::Definite(l) => Some(self.buffer.read_position..self.buffer.read_position + l as usize),
+            Length::Indefinite => Some(self.buffer.read_position..self.buffer.write_position),
+            _ => None
+        };
+
+        if let Some(ref range1) = range {
+            if self.buffer.byte_len()*8 < range1.end {
+                return Err(Error::EndOfStream);
+            }
+        }
+
+        f(self)
     }
 
     #[inline]
@@ -153,6 +185,14 @@ impl Reader for DerReader {
         &mut self,
     ) -> Result<Vec<T::Type>, Self::Error> {
         unimplemented!()
+    }
+
+    fn read_set<C: set::Constraint, S: Sized, F: Fn(&mut Self) -> Result<S, Self::Error>>(&mut self, f: F) -> Result<S, Self::Error> {
+        self.read_sequence::<C, S, F>(f)
+    }
+
+    fn read_set_of<C: setof::Constraint, T: ReadableType>(&mut self) -> Result<Vec<<T as ReadableType>::Type>, Self::Error> {
+        self.read_sequence_of::<C, T>()
     }
 
     #[inline]
@@ -169,38 +209,87 @@ impl Reader for DerReader {
     fn read_opt<T: ReadableType>(
         &mut self,
     ) -> Result<Option<<T as ReadableType>::Type>, Self::Error> {
-        unimplemented!()
+        Ok(None)
     }
 
     #[inline]
     fn read_number<T: numbers::Number, C: numbers::Constraint<T>>(
         &mut self,
     ) -> Result<T, Self::Error> {
-        unimplemented!()
+        let (class, pc, tag) = self.buffer.read_identifier()?;
+        let length = self.buffer.read_length()?;
+
+        eprintln!("Class = {:#?}, PC = {:#?}, Tag = {:#?}, Length = {:#?}", class, pc, tag, length);
+
+        if let Length::Definite(l) = length {
+            self.buffer.read_i64_number(l).map(T::from_i64)
+        } else {
+            Err(Error::UnsupportedOperation("Indefinite range is not supported in DER".to_string()))
+        }
     }
 
     #[inline]
     fn read_utf8string<C: utf8string::Constraint>(&mut self) -> Result<String, Self::Error> {
-        unimplemented!()
+        let (class, pc, tag) = self.buffer.read_identifier()?;
+        let length = self.buffer.read_length()?;
+
+        eprintln!("Class = {:#?}, PC = {:#?}, Tag = {:#?}, Length = {:#?}", class, pc, tag, length);
+
+        if let Length::Definite(l) = length {
+            let octets = self.buffer.read_octet_string(l)?;
+            String::from_utf8(octets).map_err(|_| Self::Error::InvalidUtf8String)
+        } else {
+            Err(Error::UnsupportedOperation("Indefinite range is not supported in DER".to_string()))
+        }
     }
 
     #[inline]
     fn read_ia5string<C: ia5string::Constraint>(&mut self) -> Result<String, Self::Error> {
-        unimplemented!()
+        let (class, pc, tag) = self.buffer.read_identifier()?;
+        let length = self.buffer.read_length()?;
+
+        eprintln!("Class = {:#?}, PC = {:#?}, Tag = {:#?}, Length = {:#?}", class, pc, tag, length);
+
+        if let Length::Definite(l) = length {
+            let octets = self.buffer.read_octet_string(l)?;
+            String::from_utf8(octets).map_err(|_| Self::Error::InvalidUtf8String)
+        } else {
+            Err(Error::UnsupportedOperation("Indefinite range is not supported in DER".to_string()))
+        }
     }
 
     #[inline]
     fn read_octet_string<C: octetstring::Constraint>(&mut self) -> Result<Vec<u8>, Self::Error> {
-        unimplemented!()
+        let (class, pc, tag) = self.buffer.read_identifier()?;
+        let length = self.buffer.read_length()?;
+
+        eprintln!("Class = {:#?}, PC = {:#?}, Tag = {:#?}, Length = {:#?}", class, pc, tag, length);
+
+        if let Length::Definite(l) = length {
+            self.buffer.read_octet_string(l)
+        } else {
+            Err(Error::UnsupportedOperation("Indefinite range is not supported in DER".to_string()))
+        }
     }
 
     #[inline]
     fn read_bit_string<C: bitstring::Constraint>(&mut self) -> Result<(Vec<u8>, u64), Self::Error> {
-        unimplemented!()
+        let (class, pc, tag) = self.buffer.read_identifier()?;
+        let length = self.buffer.read_length()?;
+
+        eprintln!("Class = {:#?}, PC = {:#?}, Tag = {:#?}, Length = {:#?}", class, pc, tag, length);
+
+        if let Length::Definite(l) = length {
+            let octets = self.buffer.read_octet_string(l)?;
+            let size = (&octets.len() * 8) as u64;
+            Ok((octets, size))
+        } else {
+            Err(Error::UnsupportedOperation("Indefinite range is not supported in DER".to_string()))
+        }
     }
 
     #[inline]
     fn read_boolean<C: boolean::Constraint>(&mut self) -> Result<bool, Self::Error> {
-        unimplemented!()
+        self.buffer.read_bit()
     }
 }
