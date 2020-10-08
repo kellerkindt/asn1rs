@@ -3,7 +3,7 @@ use crate::io::der::DistinguishedRead;
 use crate::io::der::DistinguishedWrite;
 use crate::io::der::Error;
 use crate::prelude::*;
-use crate::io::der::octet_aligned::{Length, Class};
+use crate::io::der::octet_aligned::{Length, Class, PC};
 use crate::io::per::unaligned::BitRead;
 
 #[derive(Default)]
@@ -158,6 +158,11 @@ impl Reader for DerReader {
         let (class, pc, tag) = self.buffer.read_identifier()?;
         let length = self.buffer.read_length()?;
 
+        match (&class, &pc, &tag) {
+            (Class::Application, _, _) | (Class::Universal, PC::Constructed, 16) | (Class::Universal, PC::Constructed, 17) => {},
+            _ => return Err(Error::InvalidType)
+        }
+
         eprintln!("Class = {:#?}, PC = {:#?}, Tag = {:#?}, Length = {:#?}", class, pc, tag, length);
 
         // TODO: Why?!
@@ -209,7 +214,15 @@ impl Reader for DerReader {
     fn read_opt<T: ReadableType>(
         &mut self,
     ) -> Result<Option<<T as ReadableType>::Type>, Self::Error> {
-        Ok(None)
+        let read_position = self.buffer.read_position;
+        match T::read_value(self) {
+            Ok(result) => Ok(Some(result)),
+            Err(Error::InvalidType) => {
+                self.buffer.read_position = read_position;
+                Ok(None)
+            },
+            Err(err) => Err(err)
+        }
     }
 
     #[inline]
@@ -218,6 +231,11 @@ impl Reader for DerReader {
     ) -> Result<T, Self::Error> {
         let (class, pc, tag) = self.buffer.read_identifier()?;
         let length = self.buffer.read_length()?;
+
+        if let (Class::Universal, PC::Primitive, 2) = (&class, &pc, &tag) {
+        } else {
+            return Err(Error::InvalidType)
+        }
 
         eprintln!("Class = {:#?}, PC = {:#?}, Tag = {:#?}, Length = {:#?}", class, pc, tag, length);
 

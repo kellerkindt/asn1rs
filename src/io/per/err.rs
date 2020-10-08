@@ -13,6 +13,7 @@ pub enum Error {
     SizeNotInRange(u64, u64, u64),
     OptFlagsExhausted,
     EndOfStream,
+    InvalidType,
 }
 
 impl std::fmt::Display for Error {
@@ -66,6 +67,7 @@ impl std::fmt::Display for Error {
                 f,
                 "Can no longer read or write any bytes from the underlying dataset"
             ),
+            Error::InvalidType => write!(f, "Invalid type"),
         }
     }
 }
