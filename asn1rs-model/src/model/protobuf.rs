@@ -46,7 +46,7 @@ impl ProtobufType {
             ProtobufType::BitsReprByBytesAndBitsLen => RustType::BitVec(Size::Any),
             ProtobufType::Repeated(inner) => RustType::Vec(Box::new(inner.to_rust()), Size::Any),
             ProtobufType::OneOf(_) => panic!("ProtobufType::OneOf cannot be mapped to a RustType"),
-            ProtobufType::Complex(name) => RustType::Complex(name.clone()),
+            ProtobufType::Complex(name) => RustType::Complex(name.clone(), None),
         }
     }
 
@@ -179,7 +179,7 @@ impl Model<Protobuf> {
             RustType::VecU8(_) => ProtobufType::Bytes,
             RustType::BitVec(_) => ProtobufType::BitsReprByBytesAndBitsLen,
 
-            RustType::Complex(complex) => ProtobufType::Complex(complex.clone()),
+            RustType::Complex(complex, _) => ProtobufType::Complex(complex.clone()),
 
             RustType::Option(inner) => {
                 // in protobuf everything is optional...
@@ -256,7 +256,7 @@ mod tests {
         test_model_definition_conversion(
             &[Definition(
                 "SuchTuple".into(),
-                Rust::tuple_struct_from_type(RustType::Complex("VeryWow".into())),
+                Rust::tuple_struct_from_type(RustType::Complex("VeryWow".into(), None)),
             )],
             &[Definition(
                 "SuchTuple".into(),

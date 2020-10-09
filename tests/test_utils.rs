@@ -1,3 +1,5 @@
+#![allow(unused)]
+
 pub use asn1rs::prelude::*;
 
 pub fn serialize_uper(to_uper: &impl Writable) -> (usize, Vec<u8>) {

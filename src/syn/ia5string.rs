@@ -1,4 +1,5 @@
 use crate::syn::{ReadableType, Reader, WritableType, Writer};
+use asn1rs_model::model::Tag;
 use core::marker::PhantomData;
 
 pub struct Ia5String<C: Constraint = NoConstraint>(PhantomData<C>);
@@ -17,7 +18,9 @@ pub trait Constraint: super::common::Constraint {
 
 #[derive(Default)]
 pub struct NoConstraint;
-impl super::common::Constraint for NoConstraint {}
+impl super::common::Constraint for NoConstraint {
+    const TAG: Tag = Tag::DEFAULT_IA5_STRING;
+}
 impl Constraint for NoConstraint {}
 
 impl<C: Constraint> WritableType for Ia5String<C> {

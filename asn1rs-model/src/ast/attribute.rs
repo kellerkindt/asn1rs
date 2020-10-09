@@ -131,9 +131,14 @@ fn parse_type_pre_stepped<'a>(
         "complex" => {
             let content;
             parenthesized!(content in input);
-            let ident =
-                content.step(|c| c.ident().ok_or_else(|| c.error("Expected type identifier")))?;
-            Ok(Type::TypeReference(ident.to_string()))
+            let ident: syn::Ident = content.parse()?;
+            let _ = content.parse::<Token![,]>()?;
+            let tag_ident: syn::Ident = content.parse()?;
+            if !"tag".eq_ignore_ascii_case(&tag_ident.to_string()) {
+                return Err(input.error("Expected identifier 'tag'"));
+            }
+            let tag = AttrTag::parse(&content)?;
+            Ok(Type::TypeReference(ident.to_string(), Some(tag.0)))
         }
         "option" | "optional" => {
             let content;

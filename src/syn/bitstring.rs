@@ -1,5 +1,6 @@
 use crate::io::per::unaligned::BYTE_LEN;
 use crate::syn::{ReadableType, Reader, WritableType, Writer};
+use asn1rs_model::model::Tag;
 use std::cmp::Ordering;
 use std::marker::PhantomData;
 
@@ -19,7 +20,9 @@ pub trait Constraint: super::common::Constraint {
 
 #[derive(Default)]
 pub struct NoConstraint;
-impl super::common::Constraint for NoConstraint {}
+impl super::common::Constraint for NoConstraint {
+    const TAG: Tag = Tag::DEFAULT_BIT_STRING;
+}
 impl Constraint for NoConstraint {}
 
 impl<C: Constraint> WritableType for BitString<C> {
@@ -122,10 +125,8 @@ impl BitVec {
 
     fn ensure_vec_large_enough(&mut self, bits: u64) {
         if bits > self.1 {
-            let byte = (bits / 8) as usize;
-            for _ in self.0.len()..byte {
-                self.0.push(0x00);
-            }
+            let bytes = ((bits + 7) / 8) as usize;
+            self.0.resize(bytes, 0x00);
             self.1 = bits;
         }
     }

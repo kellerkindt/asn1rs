@@ -184,6 +184,7 @@ mod tests {
     use crate::syn::io::PrintlnWriter;
     use crate::syn::sequence::Sequence;
     use crate::syn::utf8string::Utf8String;
+    use asn1rs_model::model::Tag;
 
     #[test]
     fn test_compilable() {
@@ -198,7 +199,9 @@ mod tests {
         type AsnDefWhateverOpt = Option<Utf8String>;
         type AsnDefWhateverSome = Option<Utf8String>;
 
-        impl common::Constraint for Whatever {}
+        impl common::Constraint for Whatever {
+            const TAG: Tag = Tag::DEFAULT_SEQUENCE;
+        }
         impl sequence::Constraint for Whatever {
             const NAME: &'static str = "Whatever";
             const STD_OPTIONAL_FIELDS: u64 = 2;

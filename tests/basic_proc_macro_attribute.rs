@@ -97,7 +97,7 @@ fn topping_test_deserialize_with_uper() {
 pub struct Pizza {
     #[asn(integer(1..4))]
     size: u8,
-    #[asn(complex(Topping))]
+    #[asn(complex(Topping, tag(UNIVERSAL(10))))]
     topping: Topping,
 }
 
@@ -152,9 +152,9 @@ fn pizza_test_uper_3() {
 #[asn(choice)]
 #[derive(Debug, PartialOrd, PartialEq)]
 pub enum WhatToEat {
-    #[asn(complex(Potato))]
+    #[asn(complex(Potato, tag(UNIVERSAL(16))))]
     Potato(Potato),
-    #[asn(complex(Pizza))]
+    #[asn(complex(Pizza, tag(UNIVERSAL(16))))]
     Pizza(Pizza),
 }
 
@@ -608,6 +608,6 @@ fn test_nested_extensible_struct() {
 pub struct NestedExtensibleStruct {
     #[asn(integer(0..255))]
     range: u8,
-    #[asn(complex(ExtensibleStruct))]
+    #[asn(complex(ExtensibleStruct, tag(UNIVERSAL(16))))]
     inner: ExtensibleStruct,
 }

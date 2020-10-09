@@ -1,3 +1,4 @@
+use crate::model::Tag;
 use crate::syn::{ReadableType, Reader, WritableType, Writer};
 use core::marker::PhantomData;
 
@@ -17,7 +18,9 @@ pub trait Constraint: super::common::Constraint {
 
 #[derive(Default)]
 pub struct NoConstraint;
-impl super::common::Constraint for NoConstraint {}
+impl super::common::Constraint for NoConstraint {
+    const TAG: Tag = Tag::DEFAULT_UTF8_STRING;
+}
 impl Constraint for NoConstraint {}
 
 impl<C: Constraint> WritableType for Utf8String<C> {

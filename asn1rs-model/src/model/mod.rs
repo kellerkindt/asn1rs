@@ -486,7 +486,7 @@ impl Model<Asn> {
         } else if text.eq_ignore_ascii_case("SEQUENCE") {
             Ok(Self::read_sequence_or_sequence_of(iter)?)
         } else {
-            Ok(Type::TypeReference(text))
+            Ok(Type::TypeReference(text, None))
         }
     }
 
@@ -752,12 +752,21 @@ pub struct Import {
     pub from_oid: Option<ObjectIdentifier>,
 }
 
-pub struct Resolver<'a> {
+pub struct TagResolver<'a> {
     model: &'a Model<Asn>,
     scope: &'a [&'a Model<Asn>],
 }
 
-impl Resolver<'_> {
+impl TagResolver<'_> {
+    pub fn resolve_default(ty: &Type) -> Option<Tag> {
+        let model = Model::<Asn>::default();
+        TagResolver {
+            model: &model,
+            scope: &[],
+        }
+        .resolve_type_tag(ty)
+    }
+
     /// ITU-T X.680 | ISO/IEC 8824-1, 8.6
     /// ITU-T X.680 | ISO/IEC 8824-1, 41, table 8
     pub fn resolve_tag(&self, ty: &str) -> Option<Tag> {
@@ -768,7 +777,7 @@ impl Resolver<'_> {
             .map(|import| &import.from)
             .and_then(|model_name| self.scope.iter().find(|model| model.name.eq(model_name)))
             .and_then(|model| {
-                Resolver {
+                TagResolver {
                     model,
                     scope: self.scope,
                 }
@@ -783,17 +792,26 @@ impl Resolver<'_> {
 
     /// ITU-T X.680 | ISO/IEC 8824-1, 8.6
     /// ITU-T X.680 | ISO/IEC 8824-1, 41, table 8
+    pub fn resolve_no_default(&self, ty: &Type) -> Option<Tag> {
+        let default = Self::resolve_default(ty);
+        let resolved = self.resolve_type_tag(ty);
+        resolved.filter(|r| default.ne(&Some(*r)))
+    }
+
+    /// ITU-T X.680 | ISO/IEC 8824-1, 8.6
+    /// ITU-T X.680 | ISO/IEC 8824-1, 41, table 8
     pub fn resolve_type_tag(&self, ty: &Type) -> Option<Tag> {
         match ty {
-            Type::Boolean => Some(Tag::Universal(1)),
-            Type::Integer(_) => Some(Tag::Universal(2)),
-            Type::BitString(_) => Some(Tag::Universal(3)),
-            Type::OctetString(_) => Some(Tag::Universal(4)),
-            Type::Enumerated(_) => Some(Tag::Universal(10)),
-            Type::String(_, Charset::Utf8) => Some(Tag::Universal(12)),
-            Type::String(_, Charset::Ia5) => Some(Tag::Universal(22)),
+            Type::Boolean => Some(Tag::DEFAULT_BOOLEAN),
+            Type::Integer(_) => Some(Tag::DEFAULT_INTEGER),
+            Type::BitString(_) => Some(Tag::DEFAULT_BIT_STRING),
+            Type::OctetString(_) => Some(Tag::DEFAULT_OCTET_STRING),
+            Type::Enumerated(_) => Some(Tag::DEFAULT_ENUMERATED),
+            Type::String(_, Charset::Utf8) => Some(Tag::DEFAULT_UTF8_STRING),
+            Type::String(_, Charset::Ia5) => Some(Tag::DEFAULT_IA5_STRING),
             Type::Optional(inner) => self.resolve_type_tag(&**inner),
-            Type::Sequence(_) | Type::SequenceOf(_, _) => Some(Tag::Universal(16)),
+            Type::Sequence(_) => Some(Tag::DEFAULT_SEQUENCE),
+            Type::SequenceOf(_, _) => Some(Tag::DEFAULT_SEQUENCE_OF),
             Type::Choice(choice) => {
                 let mut tags = choice
                     .variants()
@@ -806,15 +824,24 @@ impl Resolver<'_> {
                     .map(|v| v.tag().or_else(|| self.resolve_type_tag(v.r#type())))
                     .collect::<Option<Vec<Tag>>>()?;
                 tags.sort();
+                if cfg!(feature = "debug-proc-macro") {
+                    println!("resolved::::{:?}", tags);
+                }
                 tags.into_iter().next()
             }
-            Type::TypeReference(inner) => self.resolve_tag(inner.as_str()),
+            Type::TypeReference(inner, tag) => {
+                let tag = tag.clone().or_else(|| self.resolve_tag(inner.as_str()));
+                if cfg!(feature = "debug-proc-macro") {
+                    println!("resolved :: {}::Tag = {:?}", inner, tag);
+                }
+                tag
+            }
         }
     }
 }
 
 pub struct Context<'a> {
-    resolver: Resolver<'a>,
+    resolver: TagResolver<'a>,
     target: &'a mut Vec<Definition<Rust>>,
 }
 
@@ -823,7 +850,7 @@ impl Context<'_> {
         self.target.push(def)
     }
 
-    pub fn resolver(&self) -> &Resolver<'_> {
+    pub fn resolver(&self) -> &TagResolver<'_> {
         &self.resolver
     }
 }
@@ -1028,6 +1055,18 @@ pub enum Tag {
     Private(usize),
 }
 
+impl Tag {
+    pub const DEFAULT_BOOLEAN: Tag = Tag::Universal(1);
+    pub const DEFAULT_INTEGER: Tag = Tag::Universal(2);
+    pub const DEFAULT_BIT_STRING: Tag = Tag::Universal(3);
+    pub const DEFAULT_OCTET_STRING: Tag = Tag::Universal(4);
+    pub const DEFAULT_ENUMERATED: Tag = Tag::Universal(10);
+    pub const DEFAULT_UTF8_STRING: Tag = Tag::Universal(12);
+    pub const DEFAULT_SEQUENCE: Tag = Tag::Universal(16);
+    pub const DEFAULT_SEQUENCE_OF: Tag = Tag::Universal(16);
+    pub const DEFAULT_IA5_STRING: Tag = Tag::Universal(22);
+}
+
 impl TryFrom<&mut Peekable<IntoIter<Token>>> for Tag {
     type Error = Error;
 
@@ -1153,7 +1192,7 @@ pub enum Type {
     SequenceOf(Box<Type>, Size),
     Enumerated(Enumerated),
     Choice(Choice),
-    TypeReference(String),
+    TypeReference(String, Option<Tag>),
 }
 
 impl Type {
@@ -1854,9 +1893,12 @@ pub(crate) mod tests {
                 Type::sequence_from_fields(vec![Field {
                     name: "decision".into(),
                     role: Type::choice_from_variants(vec![
-                        ChoiceVariant::name_type("this", Type::TypeReference("This".into())),
-                        ChoiceVariant::name_type("that", Type::TypeReference("That".into())),
-                        ChoiceVariant::name_type("neither", Type::TypeReference("Neither".into())),
+                        ChoiceVariant::name_type("this", Type::TypeReference("This".into(), None)),
+                        ChoiceVariant::name_type("that", Type::TypeReference("That".into(), None)),
+                        ChoiceVariant::name_type(
+                            "neither",
+                            Type::TypeReference("Neither".into(), None)
+                        ),
                     ])
                     .untagged(),
                 }])
@@ -2551,8 +2593,8 @@ pub(crate) mod tests {
         } = rust.definitions[0].value()
         {
             assert_eq!("Implicit", rust.definitions[0].0.as_str());
-            assert_eq!(Some(Tag::Universal(16)), *tag); // ITU-T X.680 | ISO/IEC 8824-1, 8.6: SEQUENCE
-            assert_eq!(Some(Tag::Universal(2)), fields[0].tag()); // ITU-T X.680 | ISO/IEC 8824-1, 8.6: INTEGER
+            assert_eq!(None, *tag); // None because default
+            assert_eq!(None, fields[0].tag()); // None because default
             assert_eq!(Some(Tag::ContextSpecific(4)), fields[1].tag()); // explicitly set
         } else {
             panic!("Expected Rust::Struct for ASN.1 SEQUENCE");
@@ -2569,7 +2611,7 @@ pub(crate) mod tests {
         if let Rust::DataEnum(data) = rust.definitions[2].value() {
             assert_eq!("Composed", rust.definitions[2].0.as_str());
             assert_eq!(2, data.len());
-            assert_eq!(Some(Tag::Application(8)), data.tag()); // smallest variant: Explicit
+            assert_eq!(None, data.tag()); // None because no tag explicitly set
         } else {
             panic!("Expected Rust::DataEnum for ASN.1 CHOICE")
         }
@@ -2577,7 +2619,7 @@ pub(crate) mod tests {
         if let Rust::DataEnum(data) = rust.definitions[3].value() {
             assert_eq!("ExternallyComposed", rust.definitions[3].0.as_str());
             assert_eq!(2, data.len());
-            assert_eq!(Some(Tag::Application(1)), data.tag()); // smallest variant: ExternalModule::External
+            assert_eq!(None, data.tag()); // None because no tag explicitly set
         } else {
             panic!("Expected Rust::DataEnum for ASN.1 CHOICE")
         }

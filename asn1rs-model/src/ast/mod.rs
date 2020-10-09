@@ -6,7 +6,7 @@ mod tag;
 
 use crate::ast::attribute::{Context, DefinitionHeader, Transparent};
 use crate::ast::constants::ConstLit;
-use crate::model::{Asn as AsnModelType, EnumeratedVariant, Sequence, TagProperty};
+use crate::model::{Asn as AsnModelType, EnumeratedVariant, Sequence, TagProperty, TagResolver};
 use crate::model::{Choice, ChoiceVariant, Definition, Enumerated, Field, Model, Type};
 use attribute::AsnAttribute;
 use quote::quote;
@@ -70,6 +70,13 @@ pub fn expand(definition: Option<Definition<AsnModelType>>) -> Vec<TokenStream> 
     if let Some(definition) = definition {
         model.definitions.push(definition);
         use crate::gen::rust::walker::AsnDefWriter;
+
+        if cfg!(feature = "debug-proc-macro") {
+            println!("---------- parsed definition to rust begin ----------");
+            println!("{:?}", model.to_rust());
+            println!("---------- parsed definition to rust end ----------");
+            println!();
+        }
         additional_impl
             .push(TokenStream::from_str(&AsnDefWriter::stringify(&model.to_rust())).unwrap());
     }
@@ -286,14 +293,14 @@ fn parse_choice(
     let extensible_after =
         find_extensible_index(&asn, asn_span, variants.iter().map(|v| v.name()))?;
 
+    let choice = Type::Choice(
+        Choice::from_variants(variants.into_iter()).with_extension_after(extensible_after),
+    );
+
+    let tag = asn.tag.or_else(|| TagResolver::resolve_default(&choice));
+
     Ok((
-        Some(Definition(
-            enm.ident.to_string(),
-            Type::Choice(
-                Choice::from_variants(variants.into_iter()).with_extension_after(extensible_after),
-            )
-            .opt_tagged(asn.tag),
-        )),
+        Some(Definition(enm.ident.to_string(), choice.opt_tagged(tag))),
         Item::Enum(enm),
     ))
 }
@@ -356,8 +363,8 @@ fn into_asn<C: Context<Primary = Type>>(
 ) -> Option<AsnModelType> {
     Some(AsnModelType {
         tag: asn.tag,
-        r#type: if let Type::TypeReference(_) = asn.primary {
-            Type::TypeReference(quote! { #ty }.to_string())
+        r#type: if let Type::TypeReference(_, empty_tag) = asn.primary {
+            Type::TypeReference(quote! { #ty }.to_string(), empty_tag.or(asn.tag))
         } else {
             if let Type::Integer(int) = asn.primary.no_optional_mut() {
                 asn.consts

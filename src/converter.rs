@@ -9,6 +9,8 @@ use crate::model::sql::ToSqlModel;
 use crate::model::Error as ModelError;
 use crate::model::Model;
 use crate::parser::Tokenizer;
+use asn1rs_model::model::Asn;
+use std::collections::HashMap;
 use std::io::Error as IoError;
 use std::path::Path;
 
@@ -45,7 +47,116 @@ impl From<IoError> for Error {
     }
 }
 
-pub fn convert_to_rust<F: AsRef<Path>, D: AsRef<Path>, A: FnOnce(&mut RustGenerator)>(
+#[derive(Default)]
+pub struct Converter {
+    models: Vec<Model<Asn>>,
+}
+
+impl Converter {
+    pub fn load_file<F: AsRef<Path>>(&mut self, file: F) -> Result<(), Error> {
+        let input = ::std::fs::read_to_string(file)?;
+        let tokens = Tokenizer::default().parse(&input);
+        let model = Model::try_from(tokens)?;
+        self.models.push(model);
+        Ok(())
+    }
+
+    pub fn to_rust<D: AsRef<Path>, A: Fn(&mut RustGenerator)>(
+        &self,
+        directory: D,
+        custom_adjustments: A,
+    ) -> Result<HashMap<String, Vec<String>>, Error> {
+        let scope = self.models.iter().collect::<Vec<_>>();
+        let mut files = HashMap::with_capacity(self.models.len());
+
+        for model in &self.models {
+            let mut generator = RustGenerator::default();
+            generator.add_model(model.to_rust_with_scope(&scope[..]));
+
+            custom_adjustments(&mut generator);
+
+            files.insert(
+                model.name.clone(),
+                generator
+                    .to_string()
+                    .map_err(|_| Error::RustGenerator)?
+                    .into_iter()
+                    .map(|(file, content)| {
+                        ::std::fs::write(directory.as_ref().join(&file), content)?;
+                        Ok::<_, Error>(file)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+            );
+        }
+
+        Ok(files)
+    }
+
+    pub fn to_protobuf<D: AsRef<Path>>(
+        &self,
+        directory: D,
+    ) -> Result<HashMap<String, Vec<String>>, Error> {
+        let scope = self.models.iter().collect::<Vec<_>>();
+        let mut files = HashMap::with_capacity(self.models.len());
+
+        for model in &self.models {
+            let mut generator = ProtobufGenerator::default();
+            generator.add_model(model.to_rust_with_scope(&scope[..]).to_protobuf());
+
+            files.insert(
+                model.name.clone(),
+                generator
+                    .to_string()?
+                    .into_iter()
+                    .map(|(file, content)| {
+                        ::std::fs::write(directory.as_ref().join(&file), content)?;
+                        Ok::<_, Error>(file)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+            );
+        }
+
+        Ok(files)
+    }
+
+    pub fn to_sql<D: AsRef<Path>>(
+        &self,
+        directory: D,
+    ) -> Result<HashMap<String, Vec<String>>, Error> {
+        self.to_sql_with(directory, SqlGenerator::default())
+    }
+
+    pub fn to_sql_with<D: AsRef<Path>>(
+        &self,
+        directory: D,
+        mut generator: SqlGenerator,
+    ) -> Result<HashMap<String, Vec<String>>, Error> {
+        let scope = self.models.iter().collect::<Vec<_>>();
+        let mut files = HashMap::with_capacity(self.models.len());
+
+        for model in &self.models {
+            generator.reset();
+            generator.add_model(model.to_rust_with_scope(&scope[..]).to_sql());
+
+            files.insert(
+                model.name.clone(),
+                generator
+                    .to_string()?
+                    .into_iter()
+                    .map(|(file, content)| {
+                        ::std::fs::write(directory.as_ref().join(&file), content)?;
+                        Ok::<_, Error>(file)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+            );
+        }
+
+        Ok(files)
+    }
+}
+
+#[deprecated(note = "Use the Converter instead")]
+pub fn convert_to_rust<F: AsRef<Path>, D: AsRef<Path>, A: Fn(&mut RustGenerator)>(
     file: F,
     dir: D,
     custom_adjustments: A,
@@ -68,6 +179,7 @@ pub fn convert_to_rust<F: AsRef<Path>, D: AsRef<Path>, A: FnOnce(&mut RustGenera
     Ok(files)
 }
 
+#[deprecated(note = "Use the Converter instead")]
 pub fn convert_to_proto<F: AsRef<Path>, D: AsRef<Path>>(
     file: F,
     dir: D,
@@ -87,13 +199,16 @@ pub fn convert_to_proto<F: AsRef<Path>, D: AsRef<Path>>(
     Ok(files)
 }
 
+#[deprecated(note = "Use the Converter instead")]
 pub fn convert_to_sql<F: AsRef<Path>, D: AsRef<Path>>(
     file: F,
     dir: D,
 ) -> Result<Vec<String>, Error> {
+    #[allow(deprecated)]
     convert_to_sql_with(file, dir, SqlGenerator::default())
 }
 
+#[deprecated(note = "Use the Converter instead")]
 pub fn convert_to_sql_with<F: AsRef<Path>, D: AsRef<Path>>(
     file: F,
     dir: D,

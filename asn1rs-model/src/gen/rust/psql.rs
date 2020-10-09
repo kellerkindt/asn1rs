@@ -496,7 +496,7 @@ impl PsqlInserter {
                 load_block.line(&format!(
                         "let rows = transaction.prepare_cached(\"{}\")?.query(&[&row.get_opt::<usize, i32>(0).ok_or_else(PsqlError::no_result)??])?;",
 
-                        if let RustType::Complex(complex) = rust.clone().into_inner_type() {
+                        if let RustType::Complex(complex, _tag) = rust.clone().into_inner_type() {
                             struct_list_entry_select_referenced_value_statement(
                                 struct_name,
                                 name,
@@ -509,7 +509,7 @@ impl PsqlInserter {
                         }
                     ));
                 let mut rows_foreach = Block::new("for row in rows.iter()");
-                if let RustType::Complex(complex) = rust.clone().into_inner_type() {
+                if let RustType::Complex(complex, _tag) = rust.clone().into_inner_type() {
                     rows_foreach.line(&format!(
                         "vec.push({}::load_from(transaction, &row)?);",
                         complex

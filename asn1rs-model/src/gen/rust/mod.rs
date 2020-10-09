@@ -385,7 +385,16 @@ impl RustCodeGenerator {
             Type::Sequence(_) => (Cow::Borrowed("sequence"), Vec::default()),
             Type::Enumerated(_) => (Cow::Borrowed("enumerated"), Vec::default()),
             Type::Choice(_) => (Cow::Borrowed("choice"), Vec::default()),
-            Type::TypeReference(inner) => (Cow::Borrowed("complex"), vec![inner.clone()]),
+            Type::TypeReference(inner, tag) => (
+                Cow::Borrowed("complex"),
+                vec![
+                    Some(inner.clone()),
+                    tag.clone().map(Self::asn_attribute_tag),
+                ]
+                .into_iter()
+                .flatten()
+                .collect(),
+            ),
         };
         if parameters.is_empty() {
             name.into_owned()

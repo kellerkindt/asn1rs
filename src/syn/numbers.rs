@@ -1,4 +1,5 @@
 use crate::syn::{ReadableType, Reader, WritableType, Writer};
+use asn1rs_model::model::Tag;
 use core::marker::PhantomData;
 
 pub struct Integer<T: Number = u64, C: Constraint<T> = NoConstraint>(
@@ -29,7 +30,9 @@ pub trait Constraint<T: Number>: super::common::Constraint {
 
 #[derive(Default)]
 pub struct NoConstraint;
-impl super::common::Constraint for NoConstraint {}
+impl super::common::Constraint for NoConstraint {
+    const TAG: Tag = Tag::DEFAULT_INTEGER;
+}
 impl<T: Number> Constraint<T> for NoConstraint {}
 
 impl<T: Number, C: Constraint<T>> WritableType for Integer<T, C> {

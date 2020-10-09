@@ -105,7 +105,7 @@ impl ProtobufSerializer {
         ));
 
         match aliased.clone().into_inner_type() {
-            RustType::Complex(custom) => {
+            RustType::Complex(custom, _asn_tag) => {
                 if aliased.as_no_option().is_vec() {
                     block_reader.line(format!("me.0.push({}::read_protobuf(reader)?);", custom))
                 } else {
@@ -147,7 +147,7 @@ impl ProtobufSerializer {
 
         for (prev_tag, field) in fields.iter().enumerate() {
             match &field.r#type().clone().into_inner_type() {
-                RustType::Complex(name) => {
+                RustType::Complex(name, _asn_tag) => {
                     let mut block_case = Block::new(&format!(
                         "{} => read_{}{}(",
                         prev_tag + 1,
@@ -261,12 +261,13 @@ impl ProtobufSerializer {
                     format!(" if tag.1 == {}Format::LengthDelimited", Self::CODEC)
                 },
             ));
-            let complex_name =
-                if let RustType::Complex(name) = variant.r#type().clone().into_inner_type() {
-                    Some(name)
-                } else {
-                    None
-                };
+            let complex_name = if let RustType::Complex(name, _asn_tag) =
+                variant.r#type().clone().into_inner_type()
+            {
+                Some(name)
+            } else {
+                None
+            };
             if let Some(complex_name) = complex_name {
                 block_case.line("let bytes = reader.read_bytes()?;");
                 block_case.line(format!(
@@ -339,7 +340,7 @@ impl ProtobufSerializer {
             }
         ));
         match aliased.clone().into_inner_type() {
-            RustType::Complex(_) => {
+            RustType::Complex(_, _asn_tag) => {
                 block_for.line(format!(
                     "writer.write_tag({}, {})?;",
                     tag,
@@ -409,7 +410,7 @@ impl ProtobufSerializer {
             RustType::Vec(..) => {
                 Self::impl_write_for_vec_attribute(&mut block, field_type, &field_name, tag);
             }
-            RustType::Complex(_) => {
+            RustType::Complex(_, _) => {
                 let format_line = format!(
                     "{}{}.{}_format()",
                     if deny_self || field_type.is_option() {

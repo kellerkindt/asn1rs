@@ -56,9 +56,9 @@ mod what_is_being_generated {
     #[asn(choice)]
     #[derive(Debug, Clone, PartialEq, Hash)]
     pub enum WhatToEat {
-        #[asn(complex(Pizza))]
+        #[asn(complex(Pizza, tag(UNIVERSAL(16))))]
         Pizza(Pizza),
-        #[asn(complex(Custom))]
+        #[asn(complex(Custom, tag(UNIVERSAL(16))))]
         Custom(Custom),
     }
 }

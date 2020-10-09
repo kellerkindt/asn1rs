@@ -5,7 +5,7 @@ use crate::model::{Context, Sequence};
 use crate::model::{Definition, Type};
 use crate::model::{Import, Tag, TagProperty};
 use crate::model::{Model, Size};
-use crate::model::{Resolver, Type as AsnType};
+use crate::model::{TagResolver, Type as AsnType};
 
 const I8_MAX: i64 = i8::max_value() as i64;
 const I16_MAX: i64 = i16::max_value() as i64;
@@ -47,7 +47,7 @@ pub enum RustType {
     /// not one of rusts known types. This can be
     /// thought of as a "ReferenceType"; declaring usage,
     /// but not being declared here
-    Complex(String),
+    Complex(String, Option<Tag>),
 }
 
 impl RustType {
@@ -104,19 +104,11 @@ impl RustType {
     }
 
     pub fn is_vec(&self) -> bool {
-        if let RustType::Vec(..) = self.as_no_option() {
-            true
-        } else {
-            false
-        }
+        matches!(self.as_no_option(), RustType::Vec(..))
     }
 
     pub fn is_option(&self) -> bool {
-        if let RustType::Option(_) = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, RustType::Option(..))
     }
 
     pub fn is_primitive(&self) -> bool {
@@ -170,7 +162,7 @@ impl RustType {
             RustType::BitVec(_) => None,
             RustType::Vec(inner, _size) => inner.integer_range_str(),
             RustType::Option(inner) => inner.integer_range_str(),
-            RustType::Complex(_) => None,
+            RustType::Complex(_, _) => None,
         }
     }
 
@@ -220,7 +212,7 @@ impl RustType {
             RustType::BitVec(size) => AsnType::bit_vec_with_size(size),
             RustType::Vec(inner, size) => AsnType::SequenceOf(Box::new(inner.into_asn()), size),
             RustType::Option(value) => AsnType::Optional(Box::new(value.into_asn())),
-            RustType::Complex(name) => AsnType::TypeReference(name),
+            RustType::Complex(name, tag) => AsnType::TypeReference(name, tag),
         }
     }
 
@@ -252,8 +244,8 @@ impl RustType {
                     false
                 }
             }
-            RustType::Complex(inner_a) => {
-                if let RustType::Complex(inner_b) = other {
+            RustType::Complex(inner_a, _tag) => {
+                if let RustType::Complex(inner_b, _tag) = other {
                     inner_a.eq(inner_b)
                 } else {
                     false
@@ -345,7 +337,7 @@ impl ToString for RustType {
             RustType::BitVec(_) => "BitVec",
             RustType::Vec(inner, _size) => return format!("Vec<{}>", inner.to_string()),
             RustType::Option(inner) => return format!("Option<{}>", inner.to_string()),
-            RustType::Complex(name) => return name.clone(),
+            RustType::Complex(name, _) => return name.clone(),
         }
         .into()
     }
@@ -532,16 +524,13 @@ impl Model<Rust> {
         for Definition(name, asn) in &asn_model.definitions {
             let rust_name = rust_struct_or_enum_name(name);
             let mut ctxt = Context {
-                resolver: Resolver {
+                resolver: TagResolver {
                     model: asn_model,
                     scope,
                 },
                 target: &mut model.definitions,
             };
-            let tag = asn
-                .tag
-                .or_else(|| ctxt.resolver().resolve_tag(name.as_str()));
-            Self::definition_to_rust(&rust_name, &asn.r#type, tag, &mut ctxt);
+            Self::definition_to_rust(&rust_name, &asn.r#type, asn.tag, &mut ctxt);
         }
         model
     }
@@ -558,12 +547,18 @@ impl Model<Rust> {
             AsnType::Boolean
             | AsnType::String(..)
             | AsnType::OctetString(_)
-            | AsnType::BitString(_)
-            | AsnType::TypeReference(_) => {
+            | AsnType::BitString(_) => {
                 let rust_type = Self::definition_type_to_rust_type(name, asn, tag, ctxt);
                 ctxt.add_definition(Definition(
                     name.to_string(),
                     Rust::tuple_struct_from_type(rust_type).with_tag_opt(tag),
+                ));
+            }
+            AsnType::TypeReference(_, tag) => {
+                let rust_type = Self::definition_type_to_rust_type(name, asn, *tag, ctxt);
+                ctxt.add_definition(Definition(
+                    name.to_string(),
+                    Rust::tuple_struct_from_type(rust_type).with_tag_opt(*tag),
                 ));
             }
 
@@ -661,10 +656,7 @@ impl Model<Rust> {
 
         for field in fields.iter() {
             let rust_name = format!("{}{}", name, rust_struct_or_enum_name(&field.name));
-            let tag = field
-                .role
-                .tag
-                .or_else(|| ctxt.resolver().resolve_type_tag(&field.role.r#type));
+            let tag = field.role.tag;
             let rust_role =
                 Self::definition_type_to_rust_type(&rust_name, &field.role.r#type, tag, ctxt);
             let rust_field_name = rust_field_name(&field.name);
@@ -700,7 +692,7 @@ impl Model<Rust> {
             | Type::SequenceOf(..)
             | Type::Enumerated(_)
             | Type::Choice(_)
-            | Type::TypeReference(_) => Vec::default(),
+            | Type::TypeReference(_, _) => Vec::default(),
         }
     }
 
@@ -766,7 +758,7 @@ impl Model<Rust> {
                 RustType::Option(Box::new(Self::definition_type_to_rust_type(
                     name,
                     inner,
-                    tag.or_else(|| ctxt.resolver().resolve_type_tag(&**inner)),
+                    tag.or_else(|| ctxt.resolver().resolve_no_default(&**inner)),
                     ctxt,
                 )))
             }
@@ -774,17 +766,20 @@ impl Model<Rust> {
                 Box::new(Self::definition_type_to_rust_type(
                     name,
                     asn,
-                    tag.or_else(|| ctxt.resolver().resolve_type_tag(&**asn)),
+                    tag.or_else(|| ctxt.resolver().resolve_no_default(&**asn)),
                     ctxt,
                 )),
                 *size,
             ),
-            AsnType::Sequence(_) | AsnType::Enumerated(_) | AsnType::Choice(_) => {
+            ty @ AsnType::Sequence(_) | ty @ AsnType::Enumerated(_) | ty @ AsnType::Choice(_) => {
                 let name = rust_struct_or_enum_name(name);
                 Self::definition_to_rust(&name, asn, tag, ctxt);
-                RustType::Complex(name)
+                RustType::Complex(name, tag.or_else(|| ctxt.resolver().resolve_type_tag(ty)))
             }
-            AsnType::TypeReference(name) => RustType::Complex(name.clone()),
+            AsnType::TypeReference(name, tag) => RustType::Complex(
+                name.clone(),
+                tag.clone().or_else(|| ctxt.resolver().resolve_tag(name)),
+            ),
         }
     }
 }
@@ -868,24 +863,14 @@ mod tests {
             Definition(
                 "Simple".into(),
                 Rust::struct_from_fields(vec![
-                    RustField::from_name_type("small", RustType::U8(Range::inclusive(0, 255)))
-                        // INTEGER -> [UNIVERSAL 2]
-                        .with_tag(Tag::Universal(2)),
-                    RustField::from_name_type("bigger", RustType::U16(Range::inclusive(0, 65535)))
-                        // INTEGER -> [UNIVERSAL 2]
-                        .with_tag(Tag::Universal(2)),
-                    RustField::from_name_type("negative", RustType::I16(Range::inclusive(-1, 255)))
-                        // INTEGER -> [UNIVERSAL 2]
-                        .with_tag(Tag::Universal(2)),
+                    RustField::from_name_type("small", RustType::U8(Range::inclusive(0, 255))),
+                    RustField::from_name_type("bigger", RustType::U16(Range::inclusive(0, 65535))),
+                    RustField::from_name_type("negative", RustType::I16(Range::inclusive(-1, 255))),
                     RustField::from_name_type(
                         "unlimited",
                         RustType::Option(Box::new(RustType::U64(Range::none()))),
-                    )
-                    // INTEGER -> [UNIVERSAL 2]
-                    .with_tag(Tag::Universal(2)),
-                ])
-                // SEQUENCE -> [UNIVERSAL 16]
-                .with_tag(Tag::Universal(16)),
+                    ),
+                ]),
             ),
             model_rust.definitions[0]
         );
@@ -912,9 +897,7 @@ mod tests {
                         "THE_CAKE_IS_A_LIE".into()
                     ]
                     .into()
-                )
-                // ENUMERATED -> [UNIVERSAL 10]
-                .with_tag(Tag::Universal(10)),
+                ),
             ),
             modle_rust.definitions[0]
         );
@@ -923,12 +906,11 @@ mod tests {
                 "Woah".into(),
                 Rust::struct_from_fields(vec![RustField::from_name_type(
                     "decision",
-                    RustType::Option(Box::new(RustType::Complex("WoahDecision".into()))),
-                )
-                // ENUMERATED -> [UNIVERSAL 10]
-                .with_tag(Tag::Universal(10))])
-                // SEQUENCE -> [UNIVERSAL 16]
-                .with_tag(Tag::Universal(16)),
+                    RustType::Option(Box::new(RustType::Complex(
+                        "WoahDecision".into(),
+                        Some(Tag::DEFAULT_ENUMERATED)
+                    ))),
+                )])
             ),
             modle_rust.definitions[1]
         );
@@ -949,9 +931,7 @@ mod tests {
                 Rust::tuple_struct_from_type(RustType::Vec(
                     Box::new(RustType::U8(Range::inclusive(0, 1))),
                     Size::Any,
-                ))
-                // SEQUENCE OF -> [UNIVERSAL 16]
-                .with_tag(Tag::Universal(16)),
+                )),
             ),
             model_rust.definitions[0]
         );
@@ -964,9 +944,7 @@ mod tests {
                         Size::Any,
                     )),
                     Size::Any,
-                ))
-                // SEQUENCE OF -> [UNIVERSAL 16]
-                .with_tag(Tag::Universal(16)),
+                )),
             ),
             model_rust.definitions[1]
         );
@@ -977,9 +955,7 @@ mod tests {
                     RustField::from_name_type(
                         "also_ones",
                         RustType::Vec(Box::new(RustType::U8(Range::inclusive(0, 1))), Size::Any),
-                    )
-                    // SEQUENCE OF -> [UNIVERSAL 16]
-                    .with_tag(Tag::Universal(16)),
+                    ),
                     RustField::from_name_type(
                         "nesteds",
                         RustType::Vec(
@@ -989,9 +965,7 @@ mod tests {
                             )),
                             Size::Any,
                         ),
-                    )
-                    // SEQUENCE OF -> [UNIVERSAL 16]
-                    .with_tag(Tag::Universal(16)),
+                    ),
                     RustField::from_name_type(
                         "optionals",
                         RustType::Option(Box::new(RustType::Vec(
@@ -1002,11 +976,7 @@ mod tests {
                             Size::Any,
                         ))),
                     )
-                    // SEQUENCE OF -> [UNIVERSAL 16]
-                    .with_tag(Tag::Universal(16))
-                ])
-                // SEQUENCE -> [UNIVERSAL 16]
-                .with_tag(Tag::Universal(16)),
+                ]),
             ),
             model_rust.definitions[2]
         );
@@ -1027,9 +997,7 @@ mod tests {
                 Rust::tuple_struct_from_type(RustType::Vec(
                     Box::new(RustType::U8(Range::inclusive(0, 1))),
                     Size::Any,
-                ))
-                // SEQUENCE OF -> [UNIVERSAL 16]
-                .with_tag(Tag::Universal(16)),
+                )),
             ),
             model_rust.definitions[0]
         );
@@ -1042,18 +1010,14 @@ mod tests {
                         Size::Any,
                     )),
                     Size::Any,
-                ))
-                // SEQUENCE OF -> [UNIVERSAL 16]
-                .with_tag(Tag::Universal(16)),
+                )),
             ),
             model_rust.definitions[1]
         );
         assert_eq!(
             Definition(
                 "Neither".into(),
-                Rust::Enum(vec!["ABC".into(), "DEF".into(),].into())
-                    // ENUMERATED -> [UNIVERSAL 10]
-                    .with_tag(Tag::Universal(10)),
+                Rust::Enum(vec!["ABC".into(), "DEF".into(),].into()),
             ),
             model_rust.definitions[2]
         );
@@ -1062,14 +1026,21 @@ mod tests {
                 "WoahDecision".into(),
                 Rust::DataEnum(
                     vec![
-                        DataVariant::from_name_type("This", RustType::Complex("This".into())),
-                        DataVariant::from_name_type("That", RustType::Complex("That".into())),
-                        DataVariant::from_name_type("Neither", RustType::Complex("Neither".into())),
+                        DataVariant::from_name_type(
+                            "This",
+                            RustType::Complex("This".into(), Some(Tag::DEFAULT_SEQUENCE_OF))
+                        ),
+                        DataVariant::from_name_type(
+                            "That",
+                            RustType::Complex("That".into(), Some(Tag::DEFAULT_SEQUENCE_OF))
+                        ),
+                        DataVariant::from_name_type(
+                            "Neither",
+                            RustType::Complex("Neither".into(), Some(Tag::DEFAULT_ENUMERATED))
+                        ),
                     ]
                     .into()
                 )
-                // CHOICE -> the tag of the variant with the smallest tag-value, which is Neither/ENUMERATED/[UNIVERSAL 10]
-                .with_tag(Tag::Universal(10)),
             ),
             model_rust.definitions[3]
         );
@@ -1078,12 +1049,8 @@ mod tests {
                 "Woah".into(),
                 Rust::struct_from_fields(vec![RustField::from_name_type(
                     "decision",
-                    RustType::Complex("WoahDecision".into()),
-                )
-                // CHOICE -> the tag of the variant with the smallest tag-value, which is Neither/ENUMERATED/[UNIVERSAL 10]
-                .with_tag(Tag::Universal(10))])
-                // SEQUENCE -> [UNIVERSAL 16]
-                .with_tag(Tag::Universal(16)),
+                    RustType::Complex("WoahDecision".into(), Some(Tag::DEFAULT_ENUMERATED)),
+                )])
             ),
             model_rust.definitions[4]
         );
@@ -1102,27 +1069,19 @@ mod tests {
             Definition(
                 "WoahComplex".into(),
                 Rust::struct_from_fields(vec![
-                    RustField::from_name_type("ones", RustType::U8(Range::inclusive(0, 1)))
-                        // INTEGER -> [UNIVERSAL 2]
-                        .with_tag(Tag::Universal(2)),
+                    RustField::from_name_type("ones", RustType::U8(Range::inclusive(0, 1))),
                     RustField::from_name_type(
                         "list_ones",
                         RustType::Vec(Box::new(RustType::U8(Range::inclusive(0, 1))), Size::Any),
-                    )
-                    // SEQUENCE OF -> [UNIVERSAL 16]
-                    .with_tag(Tag::Universal(16)),
+                    ),
                     RustField::from_name_type(
                         "optional_ones",
                         RustType::Option(Box::new(RustType::Vec(
                             Box::new(RustType::U8(Range::inclusive(0, 1))),
                             Size::Any,
                         ))),
-                    )
-                    // SEQUENCE OF -> [UNIVERSAL 16]
-                    .with_tag(Tag::Universal(16)),
-                ])
-                // SEQUENCE -> [UNIVERSAL 16]
-                .with_tag(Tag::Universal(16)),
+                    ),
+                ]),
             ),
             model_rust.definitions[0]
         );
@@ -1131,12 +1090,11 @@ mod tests {
                 "Woah".into(),
                 Rust::struct_from_fields(vec![RustField::from_name_type(
                     "complex",
-                    RustType::Option(Box::new(RustType::Complex("WoahComplex".into()))),
-                )
-                // SEQUENCE -> [UNIVERSAL 16]
-                .with_tag(Tag::Universal(16))])
-                // SEQUENCE -> [UNIVERSAL 16]
-                .with_tag(Tag::Universal(16)),
+                    RustType::Option(Box::new(RustType::Complex(
+                        "WoahComplex".into(),
+                        Some(Tag::DEFAULT_SEQUENCE)
+                    ))),
+                )]),
             ),
             model_rust.definitions[1]
         );
@@ -1160,9 +1118,7 @@ mod tests {
             Definition(
                 "SimpleEnumTest".into(),
                 Rust::Enum(vec!["Bernd".into(), "DasVerdammte".into(), "Brooot".into(),].into()),
-            )
-            // ENUMERATED -> [UNIVERSAL 10]
-            .with_tag(Tag::Universal(10)),
+            ),
             model_rust.definitions[0]
         );
     }
@@ -1194,9 +1150,7 @@ mod tests {
                         DataVariant::from_name_type("NochSoEinBrot", RustType::VecU8(Size::Any)),
                     ]
                     .into()
-                )
-                // CHOICE -> the tag of the variant with the smallest tag-value, which is OCTET STRING/[UNIVERSAL 4]
-                .with_tag(Tag::Universal(4)),
+                ),
             ),
             model_rust.definitions[0]
         )
@@ -1253,9 +1207,7 @@ mod tests {
                         ),
                     ]
                     .into()
-                )
-                // CHOICE -> the tag of the variant with the smallest tag-value, which is SEQUENCE/[UNIVERSAL 16]
-                .with_tag(Tag::Universal(16)),
+                ),
             ),
             model_rust.definitions[0]
         )
@@ -1280,9 +1232,7 @@ mod tests {
                 Rust::tuple_struct_from_type(RustType::Vec(
                     Box::new(RustType::String(Size::Any, Charset::Utf8)),
                     Size::Any,
-                ))
-                // SEQUENCE OF -> [UNIVERSAL 16]
-                .with_tag(Tag::Universal(16)),
+                )),
             ),
             model_rust.definitions[0]
         );
@@ -1316,9 +1266,7 @@ mod tests {
                         Size::Any,
                     )),
                     Size::Any,
-                ))
-                // SEQUENCE OF -> [UNIVERSAL 16]
-                .with_tag(Tag::Universal(16)),
+                )),
             ),
             model_rust.definitions[0]
         );
@@ -1351,11 +1299,7 @@ mod tests {
                         Box::new(RustType::String(Size::Any, Charset::Utf8)),
                         Size::Any,
                     ))),
-                )
-                // SEQUENCE OF -> [UNIVERSAL 16]
-                .with_tag(Tag::Universal(16))])
-                // SEQUENCE -> [UNIVERSAL 16]
-                .with_tag(Tag::Universal(16)),
+                )]),
             ),
             model_rust.definitions[0]
         );
@@ -1387,11 +1331,7 @@ mod tests {
                         Box::new(RustType::String(Size::Any, Charset::Utf8)),
                         Size::Any,
                     ),
-                )
-                // SEQUENCE OF -> [UNIVERSAL 16]
-                .with_tag(Tag::Universal(16))])
-                // SEQUENCE -> [UNIVERSAL 16]
-                .with_tag(Tag::Universal(16)),
+                )]),
             ),
             model_rust.definitions[0]
         );
@@ -1432,11 +1372,7 @@ mod tests {
                         )),
                         Size::Any,
                     ),
-                )
-                // SEQUENCE OF -> [UNIVERSAL 16]
-                .with_tag(Tag::Universal(16))])
-                // SEQUENCE -> [UNIVERSAL 16]
-                .with_tag(Tag::Universal(16)),
+                )]),
             ),
             model_rust.definitions[0]
         );
@@ -1467,8 +1403,6 @@ mod tests {
                 Rust::Enum(
                     PlainEnum::from_names(["Abc", "Def", "Ghi"].iter())
                         .with_extension_after(Some(2))
-                        // ENUMERATED -> [UNIVERSAL 10]
-                        .with_tag(Tag::Universal(10))
                 ),
             )],
             &model_rust.definitions[..]
@@ -1495,6 +1429,7 @@ mod tests {
             })
             .untagged(),
         ));
+
         let model_rust = model_asn.to_rust();
         assert_eq!("extensible_choice", model_rust.name);
         assert_eq!(model_asn.imports, model_rust.imports);
@@ -1512,8 +1447,6 @@ mod tests {
                             .with_tag(Tag::Universal(4)),
                     ])
                     .with_extension_after(Some(2))
-                    // CHOICE -> the tag of the variant with the smallest tag-value, which is INTEGER/[UNIVERSAL 2]
-                    .with_tag(Tag::Universal(2))
                 ),
             )],
             &model_rust.definitions[..]

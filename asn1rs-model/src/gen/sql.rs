@@ -35,6 +35,12 @@ pub struct SqlDefGenerator {
     primary_key_hint: Option<PrimaryKeyHint>,
 }
 
+impl SqlDefGenerator {
+    pub fn reset(&mut self) {
+        self.models.clear();
+    }
+}
+
 impl Generator<Sql> for SqlDefGenerator {
     type Error = Error;
 

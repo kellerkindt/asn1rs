@@ -86,7 +86,9 @@ impl AsnDefWriter {
                 )
             }
             RustType::Option(inner) => format!("Option<{}>", Self::type_declaration(&*inner, name)),
-            RustType::Complex(inner) => format!("{}Complex<{}>", CRATE_SYN_PREFIX, inner),
+            RustType::Complex(inner, _tag) => {
+                format!("{}Complex<{}, {}Constraint>", CRATE_SYN_PREFIX, inner, name)
+            }
         }
     }
 
@@ -233,10 +235,18 @@ impl AsnDefWriter {
     ) {
         match field.r#type() {
             RustType::Bool => {
-                Self::write_common_constraint_type(scope, constraint_type_name, field.tag);
+                Self::write_common_constraint_type(
+                    scope,
+                    constraint_type_name,
+                    field.tag.unwrap_or(Tag::DEFAULT_BOOLEAN),
+                );
             }
             RustType::I8(range) => {
-                Self::write_common_constraint_type(scope, constraint_type_name, field.tag);
+                Self::write_common_constraint_type(
+                    scope,
+                    constraint_type_name,
+                    field.tag.unwrap_or(Tag::DEFAULT_INTEGER),
+                );
                 Self::write_integer_constraint_type(
                     scope,
                     constraint_type_name,
@@ -245,7 +255,11 @@ impl AsnDefWriter {
                 )
             }
             RustType::U8(range) => {
-                Self::write_common_constraint_type(scope, constraint_type_name, field.tag);
+                Self::write_common_constraint_type(
+                    scope,
+                    constraint_type_name,
+                    field.tag.unwrap_or(Tag::DEFAULT_INTEGER),
+                );
                 Self::write_integer_constraint_type(
                     scope,
                     constraint_type_name,
@@ -254,7 +268,11 @@ impl AsnDefWriter {
                 )
             }
             RustType::I16(range) => {
-                Self::write_common_constraint_type(scope, constraint_type_name, field.tag);
+                Self::write_common_constraint_type(
+                    scope,
+                    constraint_type_name,
+                    field.tag.unwrap_or(Tag::DEFAULT_INTEGER),
+                );
                 Self::write_integer_constraint_type(
                     scope,
                     constraint_type_name,
@@ -263,7 +281,11 @@ impl AsnDefWriter {
                 )
             }
             RustType::U16(range) => {
-                Self::write_common_constraint_type(scope, constraint_type_name, field.tag);
+                Self::write_common_constraint_type(
+                    scope,
+                    constraint_type_name,
+                    field.tag.unwrap_or(Tag::DEFAULT_INTEGER),
+                );
                 Self::write_integer_constraint_type(
                     scope,
                     constraint_type_name,
@@ -272,7 +294,11 @@ impl AsnDefWriter {
                 )
             }
             RustType::I32(range) => {
-                Self::write_common_constraint_type(scope, constraint_type_name, field.tag);
+                Self::write_common_constraint_type(
+                    scope,
+                    constraint_type_name,
+                    field.tag.unwrap_or(Tag::DEFAULT_INTEGER),
+                );
                 Self::write_integer_constraint_type(
                     scope,
                     constraint_type_name,
@@ -281,7 +307,11 @@ impl AsnDefWriter {
                 )
             }
             RustType::U32(range) => {
-                Self::write_common_constraint_type(scope, constraint_type_name, field.tag);
+                Self::write_common_constraint_type(
+                    scope,
+                    constraint_type_name,
+                    field.tag.unwrap_or(Tag::DEFAULT_INTEGER),
+                );
                 Self::write_integer_constraint_type(
                     scope,
                     constraint_type_name,
@@ -290,7 +320,11 @@ impl AsnDefWriter {
                 )
             }
             RustType::I64(range) => {
-                Self::write_common_constraint_type(scope, constraint_type_name, field.tag);
+                Self::write_common_constraint_type(
+                    scope,
+                    constraint_type_name,
+                    field.tag.unwrap_or(Tag::DEFAULT_INTEGER),
+                );
                 Self::write_integer_constraint_type(
                     scope,
                     constraint_type_name,
@@ -299,7 +333,11 @@ impl AsnDefWriter {
                 )
             }
             RustType::U64(range) => {
-                Self::write_common_constraint_type(scope, constraint_type_name, field.tag);
+                Self::write_common_constraint_type(
+                    scope,
+                    constraint_type_name,
+                    field.tag.unwrap_or(Tag::DEFAULT_INTEGER),
+                );
                 Self::write_integer_constraint_type(
                     scope,
                     constraint_type_name,
@@ -308,7 +346,14 @@ impl AsnDefWriter {
                 )
             }
             RustType::String(size, charset) => {
-                Self::write_common_constraint_type(scope, constraint_type_name, field.tag);
+                Self::write_common_constraint_type(
+                    scope,
+                    constraint_type_name,
+                    field.tag.unwrap_or(match charset {
+                        Charset::Ia5 => Tag::DEFAULT_IA5_STRING,
+                        Charset::Utf8 => Tag::DEFAULT_UTF8_STRING,
+                    }),
+                );
                 Self::write_size_constraint(
                     match charset {
                         Charset::Utf8 => "utf8string",
@@ -320,15 +365,27 @@ impl AsnDefWriter {
                 )
             }
             RustType::VecU8(size) => {
-                Self::write_common_constraint_type(scope, constraint_type_name, field.tag);
+                Self::write_common_constraint_type(
+                    scope,
+                    constraint_type_name,
+                    field.tag.unwrap_or(Tag::DEFAULT_OCTET_STRING),
+                );
                 Self::write_size_constraint("octetstring", scope, constraint_type_name, size)
             }
             RustType::BitVec(size) => {
-                Self::write_common_constraint_type(scope, constraint_type_name, field.tag);
+                Self::write_common_constraint_type(
+                    scope,
+                    constraint_type_name,
+                    field.tag.unwrap_or(Tag::DEFAULT_BIT_STRING),
+                );
                 Self::write_size_constraint("bitstring", scope, constraint_type_name, size)
             }
             RustType::Vec(inner, size) => {
-                Self::write_common_constraint_type(scope, constraint_type_name, field.tag);
+                Self::write_common_constraint_type(
+                    scope,
+                    constraint_type_name,
+                    field.tag.unwrap_or(Tag::DEFAULT_SEQUENCE_OF),
+                );
                 Self::write_size_constraint("sequenceof", scope, constraint_type_name, size);
 
                 let virtual_field_name = Self::vec_virtual_field_name(field.name());
@@ -356,8 +413,28 @@ impl AsnDefWriter {
                 },
                 constraint_type_name,
             ),
-            RustType::Complex(_) => {}
+            RustType::Complex(_, tag) => {
+                self.write_complex_constraint(
+                    scope,
+                    constraint_type_name,
+                    field.tag.or(*tag).unwrap_or_else(|| {
+                        panic!(
+                            "Complex type {}::{} requires a tag for {}",
+                            name,
+                            field.name(),
+                            constraint_type_name
+                        )
+                    }),
+                );
+            }
         }
+    }
+
+    fn write_complex_constraint(&self, scope: &mut Scope, name: &str, tag: Tag) {
+        Self::write_common_constraint_type(scope, name, tag);
+        scope
+            .new_impl(name)
+            .impl_trait(format!("{}complex::Constraint", CRATE_SYN_PREFIX));
     }
 
     fn vec_virtual_field_name(field_name: &str) -> String {
@@ -372,7 +449,7 @@ impl AsnDefWriter {
         fields: &[Field],
         extension_after_field: Option<usize>,
     ) {
-        Self::write_common_constraint_type(scope, name, tag);
+        Self::write_common_constraint_type(scope, name, tag.unwrap_or(Tag::DEFAULT_SEQUENCE));
         let mut imp = Impl::new(name);
         imp.impl_trait(format!("{}sequence::Constraint", CRATE_SYN_PREFIX));
 
@@ -416,7 +493,11 @@ impl AsnDefWriter {
     }
 
     fn write_enumerated_constraint(&self, scope: &mut Scope, name: &str, enumerated: &PlainEnum) {
-        Self::write_common_constraint_type(scope, name, enumerated.tag());
+        Self::write_common_constraint_type(
+            scope,
+            name,
+            enumerated.tag().unwrap_or(Tag::DEFAULT_ENUMERATED),
+        );
         let mut imp = Impl::new(name);
         imp.impl_trait(format!("{}enumerated::Constraint", CRATE_SYN_PREFIX));
 
@@ -464,7 +545,13 @@ impl AsnDefWriter {
     }
 
     fn write_choice_constraint(&self, scope: &mut Scope, name: &str, choice: &DataEnum) {
-        Self::write_common_constraint_type(scope, name, choice.tag());
+        Self::write_common_constraint_type(
+            scope,
+            name,
+            choice.tag().unwrap_or_else(|| {
+                panic!("For at least one entry in {} the Tag is not assigned", name)
+            }),
+        );
         let mut imp = Impl::new(name);
         imp.impl_trait(format!("{}choice::Constraint", CRATE_SYN_PREFIX));
 
@@ -538,21 +625,15 @@ impl AsnDefWriter {
         );
     }
 
-    fn write_common_constraint_type(
-        scope: &mut Scope,
-        constraint_type_name: &str,
-        tag: Option<Tag>,
-    ) {
+    fn write_common_constraint_type(scope: &mut Scope, constraint_type_name: &str, tag: Tag) {
         scope.raw(&format!(
             "impl {}common::Constraint for {} {{",
             CRATE_SYN_PREFIX, constraint_type_name
         ));
-        if let Some(tag) = tag {
-            scope.raw(&format!(
-                "const TAG: Option<{}Tag> = Some({}Tag::{:?});",
-                CRATE_MODEL_PREFIX, CRATE_MODEL_PREFIX, tag
-            ));
-        }
+        scope.raw(&format!(
+            "const TAG: {}Tag = {}Tag::{:?};",
+            CRATE_MODEL_PREFIX, CRATE_MODEL_PREFIX, tag
+        ));
         scope.raw("}");
     }
 
@@ -818,6 +899,7 @@ pub mod tests {
             #[derive(Default)]
             struct ___asn1rs_WhateverFieldNameConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_WhateverFieldNameConstraint {
+                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::Universal(12);
             }
             impl ::asn1rs::syn::utf8string::Constraint for ___asn1rs_WhateverFieldNameConstraint {
                 const EXTENSIBLE: bool = false;
@@ -827,6 +909,7 @@ pub mod tests {
             #[derive(Default)]
             struct ___asn1rs_WhateverFieldOptConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_WhateverFieldOptConstraint {
+                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::Universal(12);
             }
             impl ::asn1rs::syn::utf8string::Constraint for ___asn1rs_WhateverFieldOptConstraint {
                 const EXTENSIBLE: bool = false;
@@ -835,11 +918,13 @@ pub mod tests {
             #[derive(Default)]
             struct ___asn1rs_WhateverFieldSomeConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_WhateverFieldSomeConstraint {
+                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::Universal(12);
             }
             impl ::asn1rs::syn::utf8string::Constraint for ___asn1rs_WhateverFieldSomeConstraint {
                 const EXTENSIBLE: bool = false;
             }
             impl ::asn1rs::syn::common::Constraint for Whatever {
+                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::Universal(16);
             }
 
             impl ::asn1rs::syn::sequence::Constraint for Whatever {
@@ -900,6 +985,7 @@ pub mod tests {
             #[derive(Default)]
             struct ___asn1rs_PotatoFieldNameConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_PotatoFieldNameConstraint {
+                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::Universal(12);
             }
             impl ::asn1rs::syn::utf8string::Constraint for ___asn1rs_PotatoFieldNameConstraint {
                 const EXTENSIBLE: bool = false;
@@ -908,6 +994,7 @@ pub mod tests {
             #[derive(Default)]
             struct ___asn1rs_PotatoFieldOptConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_PotatoFieldOptConstraint {
+                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::Universal(12);
             }
             impl ::asn1rs::syn::utf8string::Constraint for ___asn1rs_PotatoFieldOptConstraint {
                 const EXTENSIBLE: bool = false;
@@ -916,11 +1003,13 @@ pub mod tests {
             #[derive(Default)]
             struct ___asn1rs_PotatoFieldSomeConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_PotatoFieldSomeConstraint {
+                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::Universal(12);
             }
             impl ::asn1rs::syn::utf8string::Constraint for ___asn1rs_PotatoFieldSomeConstraint {
                 const EXTENSIBLE: bool = false;
             }
             impl ::asn1rs::syn::common::Constraint for Potato {
+                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::Universal(16);
             }
             impl ::asn1rs::syn::sequence::Constraint for Potato {
                 const NAME: &'static str = "Potato";

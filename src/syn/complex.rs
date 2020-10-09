@@ -1,7 +1,7 @@
 use crate::syn::{Readable, ReadableType, Reader, Writable, WritableType, Writer};
 use core::marker::PhantomData;
 
-pub struct Complex<V, T: Constraint = NoConstraint>(PhantomData<T>, PhantomData<V>);
+pub struct Complex<V, T: Constraint>(PhantomData<T>, PhantomData<V>);
 
 impl<V, T: Constraint> Default for Complex<V, T> {
     fn default() -> Self {
@@ -10,11 +10,6 @@ impl<V, T: Constraint> Default for Complex<V, T> {
 }
 
 pub trait Constraint: super::common::Constraint {}
-
-#[derive(Default)]
-pub struct NoConstraint;
-impl super::common::Constraint for NoConstraint {}
-impl Constraint for NoConstraint {}
 
 impl<V: Writable, C: Constraint> WritableType for Complex<V, C> {
     type Type = V;

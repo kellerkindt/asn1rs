@@ -68,7 +68,7 @@ impl SqlType {
             SqlType::NotNull(inner) => return inner.to_rust().no_option(),
             SqlType::ByteArray => RustType::VecU8(Size::Any),
             SqlType::BitsReprByByteArrayAndBitsLen => RustType::BitVec(Size::Any),
-            SqlType::References(name, _, _, _) => RustType::Complex(name.clone()),
+            SqlType::References(name, _, _, _) => RustType::Complex(name.clone(), None),
         }))
     }
 }
@@ -456,7 +456,7 @@ impl ToSql for RustType {
             RustType::BitVec(_) => SqlType::BitsReprByByteArrayAndBitsLen,
             RustType::Vec(inner, _size) => SqlType::Array(inner.to_sql().into()),
             RustType::Option(inner) => return inner.to_sql().nullable(),
-            RustType::Complex(name) => SqlType::References(
+            RustType::Complex(name, _tag) => SqlType::References(
                 name.clone(),
                 FOREIGN_KEY_DEFAULT_COLUMN.into(),
                 Some(Action::Cascade),
@@ -470,7 +470,7 @@ impl ToSql for RustType {
 mod tests {
     use super::*;
     use crate::model::rust::Field;
-    use crate::model::{Charset, Model};
+    use crate::model::{Charset, Model, Tag};
     use crate::model::{Import, Size};
 
     #[test]
@@ -487,7 +487,7 @@ mod tests {
                 "Person".into(),
                 Rust::struct_from_fields(vec![
                     Field::from_name_type("name", RustType::String(Size::Any, Charset::Utf8)),
-                    Field::from_name_type("birth", RustType::Complex("City".into())),
+                    Field::from_name_type("birth", RustType::Complex("City".into(), None)),
                 ]),
             )],
         }
@@ -561,7 +561,10 @@ mod tests {
                             "DeadSince",
                             RustType::String(Size::Any, Charset::Utf8),
                         ),
-                        DataVariant::from_name_type("Alive", RustType::Complex("Person".into())),
+                        DataVariant::from_name_type(
+                            "Alive",
+                            RustType::Complex("Person".into(), Some(Tag::DEFAULT_UTF8_STRING)),
+                        ),
                     ]
                     .into(),
                 ),
@@ -670,7 +673,13 @@ mod tests {
                     ),
                     Field::from_name_type(
                         "list_of_reference",
-                        RustType::Vec(Box::new(RustType::Complex("ComplexType".into())), Size::Any),
+                        RustType::Vec(
+                            Box::new(RustType::Complex(
+                                "ComplexType".into(),
+                                Some(Tag::DEFAULT_UTF8_STRING),
+                            )),
+                            Size::Any,
+                        ),
                     ),
                 ]),
             )],
@@ -796,7 +805,10 @@ mod tests {
                 ),
                 Definition(
                     "Whatelse".into(),
-                    Rust::tuple_struct_from_type(RustType::Complex("Whatever".into())),
+                    Rust::tuple_struct_from_type(RustType::Complex(
+                        "Whatever".into(),
+                        Some(Tag::DEFAULT_UTF8_STRING),
+                    )),
                 ),
             ],
         }
@@ -1078,8 +1090,10 @@ mod tests {
             RustType::Option(Box::new(RustType::VecU8(Size::Any))),
         );
         assert_eq!(
-            RustType::Complex("MuchComplex".into()).to_sql().to_rust(),
-            RustType::Complex("MuchComplex".into()),
+            RustType::Complex("MuchComplex".into(), None)
+                .to_sql()
+                .to_rust(),
+            RustType::Complex("MuchComplex".into(), None),
         );
     }
 

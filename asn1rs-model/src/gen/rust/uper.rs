@@ -191,7 +191,7 @@ impl UperSerializer {
                 block.push_block(if_block);
                 block.push_block(else_block);
             }
-            RustType::Complex(_inner) => {
+            RustType::Complex(_inner, _tag) => {
                 block.line(format!("{}::read_uper(reader)?", type_name));
             }
         };
@@ -445,11 +445,7 @@ impl UperSerializer {
                     local_name,
                     if field_name
                         .as_ref()
-                        .map_or(false, |f| if let Member::Local(..) = f {
-                            true
-                        } else {
-                            false
-                        })
+                        .map_or(false, |f| matches!(f, Member::Local(..)))
                     {
                         ""
                     } else {
@@ -486,7 +482,7 @@ impl UperSerializer {
                 );
                 block.push_block(if_block);
             }
-            RustType::Complex(_inner) => {
+            RustType::Complex(_inner, _tag) => {
                 block.line(format!(
                     "{}.write_uper(writer)?;",
                     &field_name.map_or_else(

@@ -337,6 +337,8 @@ asn_to_rust!(
     
     END"
 );
+#[test]
+fn test_whether_it_compiles_at_all() {}
 
 #[test]
 fn test_extensible_more_than_63_extensions_uper() {
