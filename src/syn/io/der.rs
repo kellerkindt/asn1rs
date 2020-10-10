@@ -4,7 +4,6 @@ use crate::io::der::DistinguishedWrite;
 use crate::io::der::Error;
 use crate::prelude::*;
 use crate::io::der::octet_aligned::{Length, Class, PC};
-use crate::io::per::unaligned::BitRead;
 
 #[derive(Default)]
 pub struct DerWriter {
@@ -308,6 +307,15 @@ impl Reader for DerReader {
 
     #[inline]
     fn read_boolean<C: boolean::Constraint>(&mut self) -> Result<bool, Self::Error> {
-        self.buffer.read_bit()
+        let (class, pc, tag) = self.buffer.read_identifier()?;
+        let length = self.buffer.read_length()?;
+
+        eprintln!("Class = {:#?}, PC = {:#?}, Tag = {:#?}, Length = {:#?}", class, pc, tag, length);
+
+        if let (Class::Universal, PC::Primitive, 1, Length::Definite(1)) = (&class, &pc, &tag, &length) {
+            Ok(self.buffer.read_octet()? == 0u8)
+        } else {
+            return Err(Error::InvalidType)
+        }
     }
 }

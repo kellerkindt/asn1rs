@@ -1,60 +1,6 @@
 use crate::io::buf::OctetBuffer;
 use crate::io::der::Error;
 use crate::io::der::{DistinguishedRead, DistinguishedWrite};
-use crate::io::per::unaligned::BitRead;
-
-impl BitRead for OctetBuffer {
-    #[inline]
-    fn read_bit(&mut self) -> Result<bool, Error> {
-        if self.read_position < self.write_position {
-            BitRead::read_bit(&mut (&self.buffer[..], &mut self.read_position))
-        } else {
-            Err(Error::EndOfStream)
-        }
-    }
-
-    #[inline]
-    fn read_bits(&mut self, dst: &mut [u8]) -> Result<(), Error> {
-        BitRead::read_bits(&mut (&self.buffer[..], &mut self.read_position), dst)
-    }
-
-    #[inline]
-    fn read_bits_with_offset(
-        &mut self,
-        dst: &mut [u8],
-        dst_bit_offset: usize,
-    ) -> Result<(), Error> {
-        BitRead::read_bits_with_offset(
-            &mut (&self.buffer[..], &mut self.read_position),
-            dst,
-            dst_bit_offset,
-        )
-    }
-
-    #[inline]
-    fn read_bits_with_len(&mut self, dst: &mut [u8], dst_bit_len: usize) -> Result<(), Error> {
-        BitRead::read_bits_with_len(
-            &mut (&self.buffer[..], &mut self.read_position),
-            dst,
-            dst_bit_len,
-        )
-    }
-
-    #[inline]
-    fn read_bits_with_offset_len(
-        &mut self,
-        dst: &mut [u8],
-        dst_bit_offset: usize,
-        dst_bit_len: usize,
-    ) -> Result<(), Error> {
-        BitRead::read_bits_with_offset_len(
-            &mut (&self.buffer[..], &mut self.read_position),
-            dst,
-            dst_bit_offset,
-            dst_bit_len,
-        )
-    }
-}
 
 #[derive(Debug)]
 pub enum Class {
@@ -83,9 +29,8 @@ pub enum PC {
 impl From<bool> for PC {
     fn from(v: bool) -> Self {
         match v {
-            x if x == false => Self::Primitive,
-            x if x == true => Self::Constructed,
-            _ => Self::Constructed
+            false => Self::Primitive,
+            true => Self::Constructed
         }
     }
 }
@@ -99,35 +44,56 @@ pub enum Length {
 
 impl DistinguishedRead for OctetBuffer {
 
+    fn read_octet(&mut self) -> Result<u8, Error> {
+        if self.read_position >= self.buffer.len() {
+            return Err(Error::EndOfStream);
+        }
+        let octet = self.buffer[self.read_position];
+        self.read_position += 1;
+        Ok(octet)
+    }
+
+    fn read_octets_with_len(&mut self, dst: &mut [u8], dst_len: usize) -> Result<(), Error> {
+        if self.read_position + dst_len >= self.buffer.len() {
+            return Err(Error::EndOfStream);
+        }
+        dst.copy_from_slice(&self.buffer[self.read_position..(self.read_position + dst_len) as usize]);
+        // dst[..dst_len] = self.buffer[self.read_position..self.read_position + dst_len];
+        self.read_position += dst_len;
+        Ok(())
+    }
+
+    fn read_octets(&mut self, dst: &mut [u8]) -> Result<(), Error> {
+        let dst_len = dst.len();
+        self.read_octets_with_len(dst, dst_len)
+    }
+
     fn read_identifier(&mut self) -> Result<(Class, PC, u8), Error> {
 
-        let bit8 = self.read_bit()?;
-        let bit7 = self.read_bit()?;
-        let class = Class::from(((bit8 as u8) << 1) + (bit7 as u8));
+        let octet = self.read_octet()?;
+        let class_bits = (octet>>6)&0x3;
+        let class = Class::from(class_bits);
 
-        let bit6 = self.read_bit()?;
-        let pc = PC::from(bit6);
+        let pc_bit = (octet>>5)&0x1 == 1;
+        let pc = PC::from(pc_bit);
 
-        let mut tag_bits = vec![0u8; 1];
-        self.read_bits_with_len(&mut tag_bits[..], 5)?;
-        let tag_number = (tag_bits[0] as u8) >> 3;
+        let tag_number = octet&0x1F;
 
         // TODO: Support for log tags
 
-        // TODO: Parse tag as type
+        // TODO: Parse tag as type : https://en.wikipedia.org/wiki/X.690#Types
 
         Ok((class, pc, tag_number))
     }
 
     fn read_length(&mut self) -> Result<Length, Error> {
 
-        let bit8 = self.read_bit()?;
+        let octet = self.read_octet()?;
+        let msb = (octet>>7)&0x1==1;
 
-        let mut length_bits = vec![0u8; 1];
-        self.read_bits_with_len(&mut length_bits[..], 7)?;
-        let length_number = (length_bits[0] as usize) >> 1;
+        let length_number = (octet&0x7f) as usize;
 
-        if !bit8 {
+        if !msb {
             return Ok(Length::Definite(length_number))
         }
 
@@ -136,8 +102,8 @@ impl DistinguishedRead for OctetBuffer {
             127 => Ok(Length::Reserved),
             _ => {
                 let mut length_bits = [0u8; std::mem::size_of::<usize>()];
-                let start = &length_bits.len()-length_number;
-                self.read_bits_with_len(&mut length_bits[start..], length_number*8)?;
+                let offset = &length_bits.len()-length_number;
+                self.read_octets(&mut length_bits[offset..])?;
                 Ok(Length::Definite(usize::from_be_bytes(length_bits)))
             }
         }
@@ -146,13 +112,13 @@ impl DistinguishedRead for OctetBuffer {
     fn read_i64_number(&mut self, length: usize) -> Result<i64, Error> {
         let mut bytes = [0u8; std::mem::size_of::<i64>()];
         let offset = bytes.len() - length as usize;
-        self.read_bits(&mut bytes[offset..])?;
+        self.read_octets(&mut bytes[offset..])?;
         Ok(i64::from_be_bytes(bytes))
     }
 
     fn read_octet_string(&mut self, length: usize) -> Result<Vec<u8>, Error> {
         let mut buffer = vec![0u8; length];
-        self.read_bits(&mut buffer[..])?;
+        self.read_octets(&mut buffer[..])?;
         Ok(buffer)
     }
 

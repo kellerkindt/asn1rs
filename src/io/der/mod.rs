@@ -6,6 +6,9 @@ use crate::io::der::octet_aligned::{Class, PC, Length};
 
 /// According to ITU-TX.690 | ISO/IEC 8825-1:2015
 pub trait DistinguishedRead {
+    fn read_octet(&mut self) -> Result<u8, Error>;
+    fn read_octets_with_len(&mut self, dst: &mut [u8], dst_len: usize) -> Result<(), Error>;
+    fn read_octets(&mut self, dst: &mut [u8]) -> Result<(), Error>;
     fn read_identifier(&mut self) -> Result<(Class, PC, u8), Error>;
     fn read_length(&mut self) -> Result<Length, Error>;
     fn read_i64_number(&mut self, length: usize) -> Result<i64, Error>;
