@@ -45,7 +45,7 @@ pub enum Length {
 impl DistinguishedRead for OctetBuffer {
 
     fn read_octet(&mut self) -> Result<u8, Error> {
-        if self.read_position >= self.buffer.len() {
+        if self.read_position > self.buffer.len() {
             return Err(Error::EndOfStream);
         }
         let octet = self.buffer[self.read_position];
@@ -54,7 +54,7 @@ impl DistinguishedRead for OctetBuffer {
     }
 
     fn read_octets_with_len(&mut self, dst: &mut [u8], dst_len: usize) -> Result<(), Error> {
-        if self.read_position + dst_len >= self.buffer.len() {
+        if self.read_position + dst_len > self.buffer.len() {
             return Err(Error::EndOfStream);
         }
         dst.copy_from_slice(&self.buffer[self.read_position..(self.read_position + dst_len) as usize]);
