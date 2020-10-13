@@ -6,7 +6,9 @@ mod tag;
 
 use crate::ast::attribute::{Context, DefinitionHeader, Transparent};
 use crate::ast::constants::ConstLit;
-use crate::model::{Asn as AsnModelType, EnumeratedVariant, Sequence, TagProperty, TagResolver};
+use crate::model::{
+    Asn as AsnModelType, ComponentTypeList, EnumeratedVariant, TagProperty, TagResolver,
+};
 use crate::model::{Choice, ChoiceVariant, Definition, Enumerated, Field, Model, Type};
 use attribute::AsnAttribute;
 use quote::quote;
@@ -107,7 +109,10 @@ pub fn parse_asn_definition(
 
     match item {
         Item::Struct(strct) if asn.primary.eq_ignore_ascii_case("sequence") => {
-            parse_sequence(strct, &asn, attr_span)
+            parse_sequence_or_set(strct, &asn, attr_span, Type::Sequence)
+        }
+        Item::Struct(strct) if asn.primary.eq_ignore_ascii_case("set") => {
+            parse_sequence_or_set(strct, &asn, attr_span, Type::Set)
         }
         Item::Struct(strct) if asn.primary.eq_ignore_ascii_case("transparent") => {
             parse_transparent(strct, &asn, attr_span)
@@ -122,10 +127,11 @@ pub fn parse_asn_definition(
     }
 }
 
-fn parse_sequence(
+fn parse_sequence_or_set<F: Fn(ComponentTypeList) -> Type>(
     mut strct: syn::ItemStruct,
     asn: &AsnAttribute<DefinitionHeader>,
     asn_span: proc_macro2::Span,
+    mapper: F,
 ) -> Result<(Option<Definition<AsnModelType>>, Item), TokenStream> {
     let fields = strct
         .fields
@@ -153,7 +159,7 @@ fn parse_sequence(
     Ok((
         Some(Definition(
             strct.ident.to_string(),
-            Type::Sequence(Sequence {
+            mapper(ComponentTypeList {
                 extension_after: find_extensible_index(
                     asn,
                     asn_span,

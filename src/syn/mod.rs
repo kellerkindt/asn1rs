@@ -11,6 +11,8 @@ pub mod octetstring;
 pub mod optional;
 pub mod sequence;
 pub mod sequenceof;
+pub mod set;
+pub mod setof;
 pub mod utf8string;
 
 pub use bitstring::BitString;
@@ -24,6 +26,8 @@ pub use numbers::Integer;
 pub use octetstring::OctetString;
 pub use sequence::Sequence;
 pub use sequenceof::SequenceOf;
+pub use set::Set;
+pub use setof::SetOf;
 pub use utf8string::Utf8String;
 
 pub mod prelude {
@@ -57,6 +61,15 @@ pub trait Reader {
     ) -> Result<S, Self::Error>;
 
     fn read_sequence_of<C: sequenceof::Constraint, T: ReadableType>(
+        &mut self,
+    ) -> Result<Vec<T::Type>, Self::Error>;
+
+    fn read_set<C: set::Constraint, S: Sized, F: Fn(&mut Self) -> Result<S, Self::Error>>(
+        &mut self,
+        f: F,
+    ) -> Result<S, Self::Error>;
+
+    fn read_set_of<C: setof::Constraint, T: ReadableType>(
         &mut self,
     ) -> Result<Vec<T::Type>, Self::Error>;
 
@@ -122,6 +135,16 @@ pub trait Writer {
     ) -> Result<(), Self::Error>;
 
     fn write_sequence_of<C: sequenceof::Constraint, T: WritableType>(
+        &mut self,
+        slice: &[T::Type],
+    ) -> Result<(), Self::Error>;
+
+    fn write_set<C: set::Constraint, F: Fn(&mut Self) -> Result<(), Self::Error>>(
+        &mut self,
+        f: F,
+    ) -> Result<(), Self::Error>;
+
+    fn write_set_of<C: setof::Constraint, T: WritableType>(
         &mut self,
         slice: &[T::Type],
     ) -> Result<(), Self::Error>;

@@ -1,5 +1,5 @@
 use crate::gen::RustCodeGenerator;
-use crate::model::rust::{rust_module_name, DataEnum, Field, PlainEnum};
+use crate::model::rust::{rust_module_name, DataEnum, EncodingOrdering, Field, PlainEnum};
 use crate::model::{Charset, Definition, Model, Range, Rust, RustType, Size, Tag, TagProperty};
 use codegen::{Block, Impl, Scope};
 use std::fmt::Display;
@@ -20,10 +20,17 @@ impl AsnDefWriter {
                 fields,
                 tag: _,
                 extension_after: _,
+                ordering,
             } => {
                 scope.raw(&format!(
-                    "type AsnDef{} = {}Sequence<{}>;",
-                    name, CRATE_SYN_PREFIX, name
+                    "type AsnDef{} = {}{}<{}>;",
+                    name,
+                    CRATE_SYN_PREFIX,
+                    match ordering {
+                        EncodingOrdering::Keep => "Sequence",
+                        EncodingOrdering::Sort => "Set",
+                    },
+                    name
                 ));
                 for field in fields {
                     self.write_type_declaration(scope, &name, field.name(), field.r#type());
@@ -76,11 +83,15 @@ impl AsnDefWriter {
             ),
             RustType::VecU8(_) => format!("{}OctetString<{}Constraint>", CRATE_SYN_PREFIX, name),
             RustType::BitVec(_) => format!("{}BitString<{}Constraint>", CRATE_SYN_PREFIX, name),
-            RustType::Vec(inner, _) => {
+            RustType::Vec(inner, _, ordering) => {
                 let virtual_field = Self::vec_virtual_field_name(name);
                 format!(
-                    "{}SequenceOf<{}, {}Constraint>",
+                    "{}{}<{}, {}Constraint>",
                     CRATE_SYN_PREFIX,
+                    match ordering {
+                        EncodingOrdering::Keep => "SequenceOf",
+                        EncodingOrdering::Sort => "SetOf",
+                    },
                     Self::type_declaration(&*inner, &virtual_field),
                     name
                 )
@@ -117,6 +128,7 @@ impl AsnDefWriter {
                 fields,
                 tag: _,
                 extension_after: _,
+                ordering: _,
             } => {
                 let constants = fields
                     .iter()
@@ -182,25 +194,37 @@ impl AsnDefWriter {
                 fields,
                 tag,
                 extension_after,
+                ordering,
             } => {
+                // ITU-T X.680 | ISO/IEC 8824-1, G.2.12.3 (SEQUENCE and SET)
+                let fields = Self::assign_implicit_tags(&fields);
                 self.write_field_constraints(scope, &name, &fields);
-                self.write_sequence_constraint(scope, &name, *tag, &fields, *extension_after);
+                self.write_sequence_or_set_constraint(
+                    scope,
+                    &name,
+                    *tag,
+                    &fields,
+                    *extension_after,
+                    *ordering,
+                );
             }
             Rust::Enum(plain) => {
                 self.write_enumerated_constraint(scope, &name, plain);
             }
             Rust::DataEnum(data) => {
-                for variant in data.variants() {
-                    self.write_field_constraints(
-                        scope,
-                        &name,
-                        &[Field {
-                            name_type: (variant.name().to_string(), variant.r#type().clone()),
-                            tag: variant.tag(),
-                            constants: Vec::default(),
-                        }],
-                    );
-                }
+                let fields = data
+                    .variants()
+                    .map(|variant| Field {
+                        name_type: (variant.name().to_string(), variant.r#type().clone()),
+                        tag: variant.tag(),
+                        constants: Vec::default(),
+                    })
+                    .collect::<Vec<_>>();
+
+                // ITU-T X.680 | ISO/IEC 8824-1, G.2.12.3 (CHOICE)
+                let fields = Self::assign_implicit_tags(&fields);
+
+                self.write_field_constraints(scope, &name, &fields);
                 self.write_choice_constraint(scope, &name, data)
             }
             Rust::TupleStruct {
@@ -214,7 +238,14 @@ impl AsnDefWriter {
                     constants: constants.to_vec(),
                 }];
                 self.write_field_constraints(scope, &name, &fields[..]);
-                self.write_sequence_constraint(scope, &name, *tag, &fields[..], None);
+                self.write_sequence_or_set_constraint(
+                    scope,
+                    &name,
+                    *tag,
+                    &fields[..],
+                    None,
+                    EncodingOrdering::Keep,
+                );
             }
         }
     }
@@ -380,13 +411,21 @@ impl AsnDefWriter {
                 );
                 Self::write_size_constraint("bitstring", scope, constraint_type_name, size)
             }
-            RustType::Vec(inner, size) => {
+            RustType::Vec(inner, size, ordering) => {
                 Self::write_common_constraint_type(
                     scope,
                     constraint_type_name,
                     field.tag.unwrap_or(Tag::DEFAULT_SEQUENCE_OF),
                 );
-                Self::write_size_constraint("sequenceof", scope, constraint_type_name, size);
+                Self::write_size_constraint(
+                    match ordering {
+                        EncodingOrdering::Keep => "sequenceof",
+                        EncodingOrdering::Sort => "setof",
+                    },
+                    scope,
+                    constraint_type_name,
+                    size,
+                );
 
                 let virtual_field_name = Self::vec_virtual_field_name(field.name());
                 let constraint_type_name = Self::constraint_type_name(name, &virtual_field_name);
@@ -441,20 +480,31 @@ impl AsnDefWriter {
         field_name.to_string() + "Values"
     }
 
-    fn write_sequence_constraint(
+    fn write_sequence_or_set_constraint(
         &self,
         scope: &mut Scope,
         name: &str,
         tag: Option<Tag>,
         fields: &[Field],
         extension_after_field: Option<usize>,
+        ordering: EncodingOrdering,
     ) {
         Self::write_common_constraint_type(scope, name, tag.unwrap_or(Tag::DEFAULT_SEQUENCE));
-        let mut imp = Impl::new(name);
-        imp.impl_trait(format!("{}sequence::Constraint", CRATE_SYN_PREFIX));
 
-        self.write_sequence_constraint_read_fn(&mut imp, name, fields);
-        self.write_sequence_constraint_write_fn(&mut imp, name, fields);
+        let sorted;
+        let (fields, module) = match ordering {
+            EncodingOrdering::Keep => (fields, "sequence"),
+            EncodingOrdering::Sort => {
+                sorted = Self::sort_fields_canonically(fields, extension_after_field);
+                (&sorted[..], "set")
+            }
+        };
+
+        let mut imp = Impl::new(name);
+        imp.impl_trait(format!("{}{}::Constraint", CRATE_SYN_PREFIX, module));
+
+        self.write_sequence_or_set_constraint_read_fn(&mut imp, name, fields);
+        self.write_sequence_or_set_constraint_write_fn(&mut imp, name, fields);
 
         Self::write_sequence_constraint_insert_consts(
             scope,
@@ -739,7 +789,12 @@ impl AsnDefWriter {
         scope.raw(&lines.join("\n"));
     }
 
-    fn write_sequence_constraint_read_fn(&self, imp: &mut Impl, name: &str, fields: &[Field]) {
+    fn write_sequence_or_set_constraint_read_fn(
+        &self,
+        imp: &mut Impl,
+        name: &str,
+        fields: &[Field],
+    ) {
         imp.new_fn("read_seq")
             .attr("inline")
             .generic(&format!("R: {}Reader", CRATE_SYN_PREFIX))
@@ -762,7 +817,12 @@ impl AsnDefWriter {
             });
     }
 
-    fn write_sequence_constraint_write_fn(&self, imp: &mut Impl, name: &str, fields: &[Field]) {
+    fn write_sequence_or_set_constraint_write_fn(
+        &self,
+        imp: &mut Impl,
+        name: &str,
+        fields: &[Field],
+    ) {
         let body = imp
             .new_fn("write_seq")
             .attr("inline")
@@ -796,12 +856,53 @@ impl AsnDefWriter {
 
         scope.to_string()
     }
+
+    /// ITU-T X.680 | ISO/IEC 8824-1, G.2.12.3
+    fn assign_implicit_tags(fields: &[Field]) -> Vec<Field> {
+        let any_explicit = fields.iter().any(|f| f.tag.is_some());
+        if any_explicit {
+            fields.to_vec()
+        } else {
+            fields
+                .iter()
+                .enumerate()
+                .map(|(index, field)| {
+                    let mut field = field.clone();
+                    field.tag = Some(Tag::ContextSpecific(index));
+                    field
+                })
+                .collect()
+        }
+    }
+
+    fn sort_fields_canonically(
+        fields: &[Field],
+        extended_after_index: Option<usize>,
+    ) -> Vec<Field> {
+        let mut fields = fields
+            .iter()
+            .enumerate()
+            .map(|(index, field)| {
+                let mut field = field.clone();
+                field.tag = field.tag.or_else(|| field.r#type().tag());
+                if field.tag.is_none() {
+                    panic!("Field {} is missing a tag assignment", field.name());
+                }
+                let extended_field = extended_after_index
+                    .map(|after| index > after)
+                    .unwrap_or(false);
+                (extended_field, field)
+            })
+            .collect::<Vec<_>>();
+        fields.sort_by(|a, b| (a.0, &a.1.tag).cmp(&(b.0, &b.1.tag)));
+        fields.into_iter().map(|(_, field)| field).collect()
+    }
 }
 
 #[cfg(test)]
 pub mod tests {
     use crate::gen::rust::walker::AsnDefWriter;
-    use crate::model::rust::Field;
+    use crate::model::rust::{EncodingOrdering, Field};
     use crate::model::{Charset, Definition, Model, Rust, RustType, Size};
     use crate::parser::Tokenizer;
     use codegen::Scope;
@@ -827,6 +928,7 @@ pub mod tests {
         Definition(
             String::from("Potato"),
             Rust::Struct {
+                ordering: EncodingOrdering::Keep,
                 fields: vec![
                     Field::from_name_type("name", RustType::String(Size::Any, Charset::Utf8)),
                     Field::from_name_type(
@@ -899,7 +1001,7 @@ pub mod tests {
             #[derive(Default)]
             struct ___asn1rs_WhateverFieldNameConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_WhateverFieldNameConstraint {
-                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::Universal(12);
+                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::ContextSpecific(0);
             }
             impl ::asn1rs::syn::utf8string::Constraint for ___asn1rs_WhateverFieldNameConstraint {
                 const EXTENSIBLE: bool = false;
@@ -909,7 +1011,7 @@ pub mod tests {
             #[derive(Default)]
             struct ___asn1rs_WhateverFieldOptConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_WhateverFieldOptConstraint {
-                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::Universal(12);
+                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::ContextSpecific(1);
             }
             impl ::asn1rs::syn::utf8string::Constraint for ___asn1rs_WhateverFieldOptConstraint {
                 const EXTENSIBLE: bool = false;
@@ -918,7 +1020,7 @@ pub mod tests {
             #[derive(Default)]
             struct ___asn1rs_WhateverFieldSomeConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_WhateverFieldSomeConstraint {
-                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::Universal(12);
+                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::ContextSpecific(2);
             }
             impl ::asn1rs::syn::utf8string::Constraint for ___asn1rs_WhateverFieldSomeConstraint {
                 const EXTENSIBLE: bool = false;
@@ -985,7 +1087,7 @@ pub mod tests {
             #[derive(Default)]
             struct ___asn1rs_PotatoFieldNameConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_PotatoFieldNameConstraint {
-                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::Universal(12);
+                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::ContextSpecific(0);
             }
             impl ::asn1rs::syn::utf8string::Constraint for ___asn1rs_PotatoFieldNameConstraint {
                 const EXTENSIBLE: bool = false;
@@ -994,7 +1096,7 @@ pub mod tests {
             #[derive(Default)]
             struct ___asn1rs_PotatoFieldOptConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_PotatoFieldOptConstraint {
-                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::Universal(12);
+                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::ContextSpecific(1);
             }
             impl ::asn1rs::syn::utf8string::Constraint for ___asn1rs_PotatoFieldOptConstraint {
                 const EXTENSIBLE: bool = false;
@@ -1003,7 +1105,7 @@ pub mod tests {
             #[derive(Default)]
             struct ___asn1rs_PotatoFieldSomeConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_PotatoFieldSomeConstraint {
-                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::Universal(12);
+                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::ContextSpecific(2);
             }
             impl ::asn1rs::syn::utf8string::Constraint for ___asn1rs_PotatoFieldSomeConstraint {
                 const EXTENSIBLE: bool = false;

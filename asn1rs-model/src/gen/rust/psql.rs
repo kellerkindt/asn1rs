@@ -79,6 +79,7 @@ impl PsqlInserter {
                 fields,
                 tag: _,
                 extension_after: _,
+                ordering: _,
             } => {
                 Self::impl_struct_insert_statement(
                     Self::new_insert_statement_fn(implementation),
@@ -402,6 +403,7 @@ impl PsqlInserter {
                 fields,
                 tag: _,
                 extension_after: _,
+                ordering: _,
             } => {
                 Self::impl_query_statement(Self::new_query_statement_fn(implementation), name);
                 Self::impl_struct_query_fn(Self::new_query_fn(implementation, true), name);
