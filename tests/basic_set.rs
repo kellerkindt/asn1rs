@@ -2,24 +2,30 @@
 
 mod test_utils;
 
+use asn1rs::model::Tag;
 use test_utils::*;
 
 asn_to_rust!(
     r"BasicSet DEFINITIONS AUTOMATIC TAGS ::=
     BEGIN
 
-      Basic ::= [5] SET {
-        abc [APPLICATION 7] UTF8String,
-        def INTEGER
-      }
-    
-      Extensible ::= [5] SET {
-        abc [APPLICATION 7] UTF8String,
-        def INTEGER,
-        ...,
-        jkl [APPLICATION 3] UTF8String,
-        ghi [APPLICATION 5] UTF8String
-      }
+        Basic ::= [5] SET {
+            abc [APPLICATION 7] UTF8String,
+            def INTEGER
+        }
+      
+        Extensible ::= [5] SET {
+            abc [APPLICATION 7] UTF8String,
+            def INTEGER,
+            ...,
+            jkl [APPLICATION 3] UTF8String,
+            ghi [APPLICATION 5] UTF8String
+        }
+        
+        ImplicitNoReorder ::= SET {
+            abc UTF8String,
+            def INTEGER          
+        }
           
     END"
 );
@@ -57,4 +63,31 @@ fn test_extensible() {
             ghi: "ghi".to_string(),
         },
     );
+}
+
+#[test]
+fn test_implicit_tag_assignment() {
+    use asn1rs::syn::common::Constraint;
+
+    // implicit tagging, therefore no reordering
+    assert_eq!(
+        Tag::ContextSpecific(0),
+        ___asn1rs_ImplicitNoReorderFieldAbcConstraint::TAG
+    );
+    assert_eq!(
+        Tag::ContextSpecific(1),
+        ___asn1rs_ImplicitNoReorderFieldDefConstraint::TAG
+    );
+}
+
+#[test]
+fn test_implicit_no_reorder() {
+    serialize_and_deserialize_uper(
+        8 * 8,
+        &[0x05, 0x62, 0x65, 0x72, 0x6E, 0x64, 0x01, 0x37],
+        &ImplicitNoReorder {
+            abc: "bernd".to_string(),
+            def: 55,
+        },
+    )
 }

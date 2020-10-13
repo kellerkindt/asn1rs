@@ -196,6 +196,8 @@ impl AsnDefWriter {
                 extension_after,
                 ordering,
             } => {
+                // ITU-T X.680 | ISO/IEC 8824-1, G.2.12.3 (SEQUENCE and SET)
+                let fields = Self::assign_implicit_tags(&fields);
                 self.write_field_constraints(scope, &name, &fields);
                 self.write_sequence_or_set_constraint(
                     scope,
@@ -210,17 +212,19 @@ impl AsnDefWriter {
                 self.write_enumerated_constraint(scope, &name, plain);
             }
             Rust::DataEnum(data) => {
-                for variant in data.variants() {
-                    self.write_field_constraints(
-                        scope,
-                        &name,
-                        &[Field {
-                            name_type: (variant.name().to_string(), variant.r#type().clone()),
-                            tag: variant.tag(),
-                            constants: Vec::default(),
-                        }],
-                    );
-                }
+                let fields = data
+                    .variants()
+                    .map(|variant| Field {
+                        name_type: (variant.name().to_string(), variant.r#type().clone()),
+                        tag: variant.tag(),
+                        constants: Vec::default(),
+                    })
+                    .collect::<Vec<_>>();
+
+                // ITU-T X.680 | ISO/IEC 8824-1, G.2.12.3 (CHOICE)
+                let fields = Self::assign_implicit_tags(&fields);
+
+                self.write_field_constraints(scope, &name, &fields);
                 self.write_choice_constraint(scope, &name, data)
             }
             Rust::TupleStruct {
@@ -853,6 +857,24 @@ impl AsnDefWriter {
         scope.to_string()
     }
 
+    /// ITU-T X.680 | ISO/IEC 8824-1, G.2.12.3
+    fn assign_implicit_tags(fields: &[Field]) -> Vec<Field> {
+        let any_explicit = fields.iter().any(|f| f.tag.is_some());
+        if any_explicit {
+            fields.to_vec()
+        } else {
+            fields
+                .iter()
+                .enumerate()
+                .map(|(index, field)| {
+                    let mut field = field.clone();
+                    field.tag = Some(Tag::ContextSpecific(index));
+                    field
+                })
+                .collect()
+        }
+    }
+
     fn sort_fields_canonically(
         fields: &[Field],
         extended_after_index: Option<usize>,
@@ -979,7 +1001,7 @@ pub mod tests {
             #[derive(Default)]
             struct ___asn1rs_WhateverFieldNameConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_WhateverFieldNameConstraint {
-                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::Universal(12);
+                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::ContextSpecific(0);
             }
             impl ::asn1rs::syn::utf8string::Constraint for ___asn1rs_WhateverFieldNameConstraint {
                 const EXTENSIBLE: bool = false;
@@ -989,7 +1011,7 @@ pub mod tests {
             #[derive(Default)]
             struct ___asn1rs_WhateverFieldOptConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_WhateverFieldOptConstraint {
-                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::Universal(12);
+                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::ContextSpecific(1);
             }
             impl ::asn1rs::syn::utf8string::Constraint for ___asn1rs_WhateverFieldOptConstraint {
                 const EXTENSIBLE: bool = false;
@@ -998,7 +1020,7 @@ pub mod tests {
             #[derive(Default)]
             struct ___asn1rs_WhateverFieldSomeConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_WhateverFieldSomeConstraint {
-                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::Universal(12);
+                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::ContextSpecific(2);
             }
             impl ::asn1rs::syn::utf8string::Constraint for ___asn1rs_WhateverFieldSomeConstraint {
                 const EXTENSIBLE: bool = false;
@@ -1065,7 +1087,7 @@ pub mod tests {
             #[derive(Default)]
             struct ___asn1rs_PotatoFieldNameConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_PotatoFieldNameConstraint {
-                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::Universal(12);
+                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::ContextSpecific(0);
             }
             impl ::asn1rs::syn::utf8string::Constraint for ___asn1rs_PotatoFieldNameConstraint {
                 const EXTENSIBLE: bool = false;
@@ -1074,7 +1096,7 @@ pub mod tests {
             #[derive(Default)]
             struct ___asn1rs_PotatoFieldOptConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_PotatoFieldOptConstraint {
-                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::Universal(12);
+                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::ContextSpecific(1);
             }
             impl ::asn1rs::syn::utf8string::Constraint for ___asn1rs_PotatoFieldOptConstraint {
                 const EXTENSIBLE: bool = false;
@@ -1083,7 +1105,7 @@ pub mod tests {
             #[derive(Default)]
             struct ___asn1rs_PotatoFieldSomeConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_PotatoFieldSomeConstraint {
-                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::Universal(12);
+                const TAG: ::asn1rs::model::Tag = ::asn1rs::model::Tag::ContextSpecific(2);
             }
             impl ::asn1rs::syn::utf8string::Constraint for ___asn1rs_PotatoFieldSomeConstraint {
                 const EXTENSIBLE: bool = false;
