@@ -36,13 +36,13 @@ pub trait BitRead {
 }
 
 impl<T: BitRead> PackedRead for T {
-    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 12
+    /// ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 12
     #[inline]
     fn read_boolean(&mut self) -> Result<bool, Error> {
         self.read_bit()
     }
 
-    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.3
+    /// ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 11.3
     #[inline]
     #[allow(clippy::redundant_pattern_matching)] // allow for const_*!
     fn read_non_negative_binary_integer(
@@ -73,7 +73,7 @@ impl<T: BitRead> PackedRead for T {
         }
     }
 
-    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.4
+    /// ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 11.4
     #[inline]
     fn read_2s_compliment_binary_integer(&mut self, bit_len: u64) -> Result<i64, Error> {
         let mut bytes = [0u8; std::mem::size_of::<i64>()];
@@ -94,7 +94,7 @@ impl<T: BitRead> PackedRead for T {
         Ok(i64::from_be_bytes(bytes))
     }
 
-    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.5
+    /// ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 11.5
     #[inline]
     fn read_constrained_whole_number(
         &mut self,
@@ -110,7 +110,7 @@ impl<T: BitRead> PackedRead for T {
         }
     }
 
-    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.6
+    /// ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 11.6
     #[inline]
     fn read_normally_small_non_negative_whole_number(&mut self) -> Result<u64, Error> {
         let greater_or_equal_to_64 = self.read_bit()?;
@@ -124,27 +124,27 @@ impl<T: BitRead> PackedRead for T {
         }
     }
 
-    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.7
+    /// ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 11.7
     #[inline]
     fn read_semi_constrained_whole_number(&mut self, lower_bound: i64) -> Result<i64, Error> {
         let n = self.read_non_negative_binary_integer(None, None)?;
         Ok((n as i64) + lower_bound)
     }
 
-    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.8
+    /// ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 11.8
     #[inline]
     fn read_unconstrained_whole_number(&mut self) -> Result<i64, Error> {
         let octet_len = self.read_length_determinant(None, None)?;
         self.read_2s_compliment_binary_integer(octet_len * BYTE_LEN as u64)
     }
 
-    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.9.3
+    /// ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 11.9.3
     #[inline]
     fn read_normally_small_length(&mut self) -> Result<u64, Error> {
         self.read_normally_small_non_negative_whole_number()
     }
 
-    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.9.4
+    /// ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 11.9.4
     #[inline]
     #[allow(clippy::redundant_pattern_matching)] // allow for const_*!
     fn read_length_determinant(
@@ -185,7 +185,7 @@ impl<T: BitRead> PackedRead for T {
         }
     }
 
-    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 16
+    /// ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 16
     #[inline]
     #[allow(clippy::suspicious_else_formatting)] // for 16.9 else-if comment block
     #[allow(clippy::redundant_pattern_matching)] // allow for const_*!
@@ -253,7 +253,7 @@ impl<T: BitRead> PackedRead for T {
         Ok((buffer, bit_len))
     }
 
-    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 17
+    /// ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 17
     #[inline]
     #[allow(clippy::suspicious_else_formatting)] // for 17.6 else-if comment block
     #[allow(clippy::redundant_pattern_matching)] // allow for const_*!
@@ -353,13 +353,13 @@ pub trait BitWrite {
 }
 
 impl<T: BitWrite> PackedWrite for T {
-    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 12
+    /// ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 12
     #[inline]
     fn write_boolean(&mut self, boolean: bool) -> Result<(), Error> {
         self.write_bit(boolean)
     }
 
-    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.3
+    /// ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 11.3
     #[inline]
     fn write_non_negative_binary_integer(
         &mut self,
@@ -390,7 +390,7 @@ impl<T: BitWrite> PackedWrite for T {
         }
     }
 
-    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.4
+    /// ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 11.4
     #[inline]
     fn write_2s_compliment_binary_integer(
         &mut self,
@@ -402,7 +402,7 @@ impl<T: BitWrite> PackedWrite for T {
         self.write_bits_with_offset(&bytes[..], bits_offset)
     }
 
-    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.5
+    /// ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 11.5
     #[inline]
     fn write_constrained_whole_number(
         &mut self,
@@ -426,7 +426,7 @@ impl<T: BitWrite> PackedWrite for T {
         }
     }
 
-    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.6
+    /// ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 11.6
     #[inline]
     fn write_normally_small_non_negative_whole_number(&mut self, value: u64) -> Result<(), Error> {
         let greater_or_equal_to_64 = value >= SMALL_NON_NEGATIVE_NUMBER;
@@ -441,7 +441,7 @@ impl<T: BitWrite> PackedWrite for T {
         }
     }
 
-    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.7
+    /// ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 11.7
     #[inline]
     fn write_semi_constrained_whole_number(
         &mut self,
@@ -455,7 +455,7 @@ impl<T: BitWrite> PackedWrite for T {
         }
     }
 
-    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.8
+    /// ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 11.8
     #[inline]
     fn write_unconstrained_whole_number(&mut self, value: i64) -> Result<(), Error> {
         let prefix_len = if value.is_negative() {
@@ -469,13 +469,13 @@ impl<T: BitWrite> PackedWrite for T {
         self.write_2s_compliment_binary_integer(octet_len * BYTE_LEN as u64, value)
     }
 
-    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.9.3
+    /// ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 11.9.3
     #[inline]
     fn write_normally_small_length(&mut self, value: u64) -> Result<(), Error> {
         self.write_normally_small_non_negative_whole_number(value)
     }
 
-    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 11.9.4
+    /// ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 11.9.4
     #[inline]
     #[allow(clippy::redundant_pattern_matching)] // allow for const_*!
     fn write_length_determinant(
@@ -531,7 +531,7 @@ impl<T: BitWrite> PackedWrite for T {
         }
     }
 
-    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 16
+    /// ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 16
     #[inline]
     #[allow(clippy::suspicious_else_formatting)] // for 16.9 else-if comment block
     #[allow(clippy::redundant_pattern_matching)] // allow for const_*!
@@ -608,7 +608,7 @@ impl<T: BitWrite> PackedWrite for T {
         Ok(())
     }
 
-    /// ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 17
+    /// ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 17
     #[inline]
     #[allow(clippy::suspicious_else_formatting)] // for 17.6 else-if comment block
     #[allow(clippy::redundant_pattern_matching)] // allow for const_*!

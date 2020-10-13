@@ -16,7 +16,7 @@ use std::ops::Range;
 pub enum Scope {
     OptBitField(Range<usize>),
     AllBitField(Range<usize>),
-    /// According to ITU-TX.691 | ISO/IEC 8825-2:2015, an extensible struct is built as
+    /// According to ITU-T X.691 | ISO/IEC 8825-2:2015, an extensible struct is built as
     ///  - part1
     ///    - `eo`: flag for whether the struct serializes/has payload with extended fields
     ///    - flags for optional fields (only for the non-extended fields!)
@@ -458,7 +458,7 @@ impl Writer for UperWriter {
                 }
             }
 
-            // ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 30.3
+            // ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 30.3
             // For 'known-multiplier character string types' there is no min/max in the encoding
             w.buffer
                 .write_octetstring(None, None, false, value.as_bytes())
@@ -784,7 +784,7 @@ impl Reader for UperReader {
     fn read_utf8string<C: utf8string::Constraint>(&mut self) -> Result<String, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
         self.with_buffer(|r| {
-            // ITU-TX.691 | ISO/IEC 8825-2:2015, chapter 30.3
+            // ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 30.3
             // For 'known-multiplier character string types' there is no min/max in the encoding
             let octets = r.buffer.read_octetstring(None, None, false)?;
             String::from_utf8(octets).map_err(|_| Self::Error::InvalidUtf8String)
