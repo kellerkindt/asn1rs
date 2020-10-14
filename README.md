@@ -90,50 +90,72 @@ The following example generates Rust, Protobuf and SQL files for all ```.asn1```
 While the generated Rust code is written to the ```src/``` directory, the Protobuf files are written to ```proto/``` and the SQL files are written to ```sql/ ```.
 Additionally, in this example each generated Rust-Type also receives ```Serialize``` and ```Deserialize``` derive directives (```#[derive(Serialize, Deserialize)]```) for automatic [serde](https://crates.io/crates/serde) integration.
 
-File ```build.rs```:
+Sample ```build.rs``` file:
 
 ```rust
-extern crate asn1rs;
-
-use std::fs;
-
-use asn1rs::converter::convert_to_proto;
-use asn1rs::converter::convert_to_rust;
-use asn1rs::converter::convert_to_sql;
+use asn1rs::converter::Converter;
 use asn1rs::gen::rust::RustCodeGenerator;
+use asn1rs::gen::sql::SqlDefGenerator;
 
 pub fn main() {
-    for entry in fs::read_dir("asn").unwrap().into_iter() {
-        let entry = entry.unwrap();
-        let file_name = entry.file_name().into_string().unwrap();
-        if file_name.ends_with(".asn1") {
-            if let Err(e) = convert_to_rust(
-                entry.path().to_str().unwrap(),
-                "src/",
-                |generator: &mut RustCodeGenerator| {
-                    generator.add_global_derive("Serialize");
-                    generator.add_global_derive("Deserialize");
-                },
-            ) {
-                panic!("Conversion to rust failed for {}: {:?}", file_name, e);
+    let mut converter = Converter::default();
+
+    // collecting all relevant .asn1 files
+    std::fs::read_dir("../protocol/asn")
+        .into_iter()
+        .flat_map(|read_dir| {
+            read_dir
+                .into_iter()
+                .flat_map(|dir_entry| dir_entry.into_iter())
+                .flat_map(|entry| {
+                    entry
+                        .path()
+                        .as_os_str()
+                        .to_os_string()
+                        .into_string()
+                        .into_iter()
+                })
+                .filter(|entry| entry.ends_with(".asn1"))
+        })
+        .for_each(|path| {
+            if let Err(e) = converter.load_file(&path) {
+                println!("cargo:rerun-if-changed={}", path);
+                panic!("Loading of .asn1 file failed {}: {:?}", path, e);
             }
-            if let Err(e) = convert_to_proto(entry.path().to_str().unwrap(), "proto/") {
-                panic!("Conversion to proto failed for {}: {:?}", file_name, e);
-            }
-            if let Err(e) = convert_to_sql(entry.path().to_str().unwrap(), "sql/") {
-                panic!("Conversion to sql failed for {}: {:?}", file_name, e);
-            }
-        }
+        });
+
+    // writing the .rs files into src with serde_derive support
+    // feature flags decide whether additional code for protobuf and (async) psql is generated
+    if let Err(e) = converter.to_rust("src/", |generator: &mut RustCodeGenerator| {
+        generator.add_global_derive("Serialize"); // Adds serde_derive support: #[derive(Serialize)]
+        generator.add_global_derive("Deserialize"); // Adds serde_derive support: #[derive(Deserialize)]
+    }) {
+        panic!("Conversion to rust failed: {:?}", e);
+    }
+
+    // OPTIONAL: writing the .proto representation to ../protocol/proto
+    if let Err(e) = converter.to_protobuf("../protocol/proto/") {
+        panic!("Conversion to proto failed: {:?}", e);
+    }
+
+    // OPTIONAL: writing the .sql schema files to ../protocol/sql
+    if let Err(e) = converter.to_sql_with(
+        "../protocol/sql/",
+        SqlDefGenerator::default() // optional parameter, alternatively see Converter::to_sql(&self, &str)
+            .optimize_tables_for_write_performance() // optional
+            .wrap_primary_key_on_overflow(), // optional
+    ) {
+        panic!("Conversion to sql failed: {:?}", e);
     }
 }
+
 ```
 
 #### Inlining ASN.1 with procedural macros
 
-Useful for tests or very small definitions. See ```tests/``` for more examples.
+Minimal example by inlining the ASN.1 definition. For more examples, see ```tests/```.
 ```rust
-use asn1rs::io::buffer::BitBuffer;
-use asn1rs::macros::asn_to_rust;
+use asn1rs::prelude::*;
 
 asn_to_rust!(
     r"BasicInteger DEFINITIONS AUTOMATIC TAGS ::=
@@ -147,17 +169,39 @@ asn_to_rust!(
 );
 
 #[test]
-fn test_default_range() {
-    assert_eq!(RangedMax::value_min(), NotRanged::value_min());
-    assert_eq!(RangedMax::value_max(), NotRanged::value_max());
-    let _ = NotRanged(123_u64); // does not compile if the inner type is not u64
+fn test_write_read() {
+    // inner INTEGER identified as u64
+    let value = NotRanged(123_u64);
+
+    let mut writer = UperWriter::default();
+    writer.write(&value).expect("Failed to serialize");
+
+    let mut reader = writer.into_reader();
+    let value2 = reader.read::<NotRanged>().expect("Failed to deserialize");
+    
+    assert_eq!(value, value2);
+}
+
+#[test]
+fn test_constraint_eq() {
+    // these types should normally not be accessed, but in this exampled they show
+    // the way the ASN.1 constraints are encoded in to the struct type constraints.
+    use asn1rs::syn::numbers::Constraint;
+    assert_eq!(
+        ___asn1rs_RangedMaxField0Constraint::MIN,
+        ___asn1rs_NotRangedField0Constraint::MIN,
+    );
+    assert_eq!(
+        ___asn1rs_RangedMaxField0Constraint::MAX,
+        ___asn1rs_NotRangedField0Constraint::MAX,
+    );
 }
 ```
 
 
 #### Example ASN.1-Definition to Rust, Protobuf and SQL
 
-Input ```input.asn1```
+Minimal example showcasing what is being generated from an ASN.1 definition:
 
 ```asn
 MyMessages DEFINITIONS AUTOMATIC TAGS ::=
@@ -170,7 +214,7 @@ Header ::= SEQUENCE {
 END
 ```
 
-Output ```my_messages.rs```:
+The generated Rust file:
 
 ```rust
 use asn1rs::prelude::*;
@@ -181,36 +225,25 @@ pub struct Header {
     #[asn(integer(0..1209600000))] pub timestamp: u32,
 }
 
+// OPTIONAL: Insert and query functions for async PostgreSQL
 impl Header {
-    pub fn timestamp_min() -> u32 {
-        0
-    }
-
-    pub fn timestamp_max() -> u32 {
-        1_209_600_000
-    }
-
-    // Insert and query functions for Async PostgreSQL
     pub async fn apsql_retrieve_many(context: &apsql::Context<'_>, ids: &[i32]) -> Result<Vec<Self>, apsql::Error> { /*..*/ }
     pub async fn apsql_retrieve(context: &apsql::Context<'_>, id: i32) -> Result<Self, apsql::Error> { /*..*/ }
     pub async fn apsql_load(context: &apsql::Context<'_>, row: &apsql::Row) -> Result<Self, apsql::Error> { /*..*/ }
     pub async fn apsql_insert(&self, context: &apsql::Context<'_>) -> Result<i32, apsql::PsqlError> { /*..*/ }
 }
 
-// Serialize and deserialize functions for ASN.1 UPER
-impl Uper for Header { /*..*/ }
-
-// Serialize and deserialize functions for protobuf
+// OPTIONAL: Serialize and deserialize functions for protobuf
 impl ProtobufEq for Header { /*..*/ }
 impl Protobuf for Header { /*..*/ }
 
-// Insert and query functions for PostgreSQL
+// OPTIONAL: Insert and query functions for non-async PostgreSQL
 impl PsqlRepresentable for Header { /*..*/ }
 impl PsqlInsertable for Header { /*..*/ }
 impl PsqlQueryable for Header { /*..*/ }
 ```
 
-Output ```my_messages.proto```:
+OPTIONAL: The generated protobuf file:
 
 ```proto
 syntax = 'proto3';
@@ -221,7 +254,7 @@ message Header {
 }
 ```
 
-Output ```my_messages.sql```:
+OPTIONAL: The generated (p)sql file:
 
 ```sql
 DROP TABLE IF EXISTS Header CASCADE;
@@ -303,8 +336,8 @@ async fn main() {
 }
 ```
 
-#### Good to know
-The module ```asn1rs::io``` exposes (de-)serializers and helpers for direct usage without ASN.1 definitons:
+#### Raw uPER usage
+The module ```asn1rs::io``` exposes (de-)serializers and helpers for direct usage without ASN.1 definition:
 ```rust
 use asn1rs::prelude::*;
 use asn1rs::io::per::unaligned::buffer::BitBuffer;
@@ -315,6 +348,9 @@ buffer.write_utf8_string("My UTF8 Text").unwrap();
 
 send_to_another_host(buffer.into::<Vec<u8>>()):
 ```
+
+#### Raw Protobuf usage
+The module ```asn1rs::io::protobuf``` exposes (de-)serializers for protobuf usage:
 ```rust
 use asn1rs::io::protobuf::*;
 
@@ -329,10 +365,11 @@ send_to_another_host(buffer):
 #### TODO
 Things to do at some point in time (PRs are welcome)
 
-  - generate a proper module hierarchy from the modules' object-identifier
+  - generate a proper rust module hierarchy from the modules' object-identifier
   - remove legacy rust+uper code generator (probably in 0.3)
   - support ```#![no_std]```
   - refactor / clean-up (rust) code-generators
+  - support more encoding formats of ASN.1
 
 
 #### License
