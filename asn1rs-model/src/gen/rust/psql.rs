@@ -142,7 +142,7 @@ impl PsqlInserter {
                 } else {
                     "_"
                 },
-                "&Transaction",
+                "&mut Transaction",
             )
             .ret(&format!("Result<i32, {}>", ERROR_TYPE))
     }
@@ -233,22 +233,25 @@ impl PsqlInserter {
                 ));
             };
         }
-        function.line("let statement = transaction.prepare_cached(self.insert_statement())?;");
+        function.line("let statement = transaction.prepare(self.insert_statement())?;");
         function.line(format!(
-            "let result = statement.query(&[{}])?;",
+            "let result = transaction.query(&statement, &[{}])?;",
             variables.join(", ")
         ));
         if vecs.is_empty() {
-            function.line(&format!("{}::expect_returned_index(&result)", ERROR_TYPE));
+            function.line(&format!(
+                "{}::expect_returned_index_in_rows(&result)",
+                ERROR_TYPE
+            ));
         } else {
             function.line(&format!(
-                "let index = {}::expect_returned_index(&result)?;",
+                "let index = {}::expect_returned_index_in_rows(&result)?;",
                 ERROR_TYPE
             ));
             for (name, field) in vecs {
                 let mut block = Block::new("");
                 block.line(&format!(
-                    "let statement = transaction.prepare_cached(\"{}\")?;",
+                    "let statement = transaction.prepare(\"{}\")?;",
                     &struct_list_entry_insert_statement(struct_name, &name),
                 ));
                 block.push_block(Self::list_insert_for_each(&name, &field, "index"));
@@ -330,12 +333,15 @@ impl PsqlInserter {
             block_if.after(" else { None };");
             function.push_block(block_if);
         }
-        function.line("let statement = transaction.prepare_cached(self.insert_statement())?;");
+        function.line("let statement = transaction.prepare(self.insert_statement())?;");
         function.line(format!(
-            "let result = statement.query(&[{}])?;",
+            "let result = transaction.query(&statement, &[{}])?;",
             variables.join(", ")
         ));
-        function.line(&format!("{}::expect_returned_index(&result)", ERROR_TYPE));
+        function.line(&format!(
+            "{}::expect_returned_index_in_rows(&result)",
+            ERROR_TYPE
+        ));
     }
 
     fn impl_enum_insert_fn(function: &mut Function) {
@@ -343,14 +349,14 @@ impl PsqlInserter {
     }
 
     fn impl_tuple_insert_fn(function: &mut Function, name: &str, rust: &RustType) {
-        function.line("let statement = transaction.prepare_cached(self.insert_statement())?;");
-        function.line("let result = statement.query(&[])?;");
+        function.line("let statement = transaction.prepare(self.insert_statement())?;");
+        function.line("let result = transaction.query(&statement, &[])?;");
         function.line(&format!(
-            "let list = {}::expect_returned_index(&result)?;",
+            "let list = {}::expect_returned_index_in_rows(&result)?;",
             ERROR_TYPE
         ));
         function.line(format!(
-            "let statement = transaction.prepare_cached(\"{}\")?;",
+            "let statement = transaction.prepare(\"{}\")?;",
             list_entry_insert_statement(name)
         ));
         function.push_block(Self::list_insert_for_each("0", rust, "list"));
@@ -392,7 +398,10 @@ impl PsqlInserter {
         } else {
             block_for.line("let value = value.insert_with(transaction)?;");
         }
-        block_for.line(format!("statement.execute(&[&{}, &value])?;", list));
+        block_for.line(format!(
+            "transaction.execute(&statement, &[&{}, &value])?;",
+            list
+        ));
         block_for
     }
 
@@ -461,10 +470,10 @@ impl PsqlInserter {
     }
 
     fn impl_struct_query_fn(func: &mut Function, name: &str) {
-        func.line("let statement = transaction.prepare_cached(Self::query_statement())?;");
-        func.line("let rows = statement.query(&[&id])?;");
+        func.line("let statement = transaction.prepare(Self::query_statement())?;");
+        func.line("let rows = transaction.query(&statement, &[&id])?;");
         func.line(&format!(
-            "Ok({}::load_from(transaction, &rows.iter().next().ok_or_else({}::no_result)?)?)",
+            "Ok({}::load_from(transaction, rows.get(0).ok_or_else({}::no_result)?)?)",
             name, ERROR_TYPE,
         ));
     }
@@ -496,20 +505,18 @@ impl PsqlInserter {
                 load_block.line("let mut vec = Vec::default();");
 
                 load_block.line(&format!(
-                        "let rows = transaction.prepare_cached(\"{}\")?.query(&[&row.get_opt::<usize, i32>(0).ok_or_else(PsqlError::no_result)??])?;",
-
-                        if let RustType::Complex(complex, _tag) = rust.clone().into_inner_type() {
-                            struct_list_entry_select_referenced_value_statement(
-                                struct_name,
-                                name,
-                                &complex
-                            )
-                        } else {
-                            struct_list_entry_select_value_statement(
-                                struct_name, name
-                            )
-                        }
-                    ));
+                    "let rows = transaction.query(\"{}\", &[&{}::expect_returned_index(&row)?])?;",
+                    if let RustType::Complex(complex, _tag) = rust.clone().into_inner_type() {
+                        struct_list_entry_select_referenced_value_statement(
+                            struct_name,
+                            name,
+                            &complex,
+                        )
+                    } else {
+                        struct_list_entry_select_value_statement(struct_name, name)
+                    },
+                    ERROR_TYPE
+                ));
                 let mut rows_foreach = Block::new("for row in rows.iter()");
                 if let RustType::Complex(complex, _tag) = rust.clone().into_inner_type() {
                     rows_foreach.line(&format!(
@@ -520,9 +527,9 @@ impl PsqlInserter {
                     let rust = rust.clone().into_inner_type();
                     let sql = rust.to_sql();
                     rows_foreach.line(&format!(
-                        "let value = row.get_opt::<usize, {}>(0).ok_or_else({}::no_result)??;",
-                        sql.to_rust().to_string(),
+                        "let value = {}::value_at_column::<{}>(&row, 0)?;",
                         ERROR_TYPE,
+                        sql.to_rust().to_string(),
                     ));
                     if rust < sql.to_rust() {
                         rows_foreach.line(&format!("let value = value as {};", rust.to_string()));
@@ -540,10 +547,10 @@ impl PsqlInserter {
                 block.push_block(load_block);
             } else if Model::<Sql>::is_primitive(rust) {
                 let load = format!(
-                    "row.get_opt::<usize, {}>({}).ok_or_else({}::no_result)??",
+                    "{}::value_at_column::<{}>(&row, {})?",
+                    ERROR_TYPE,
                     rust.to_sql().to_rust().to_string(),
                     index + 1,
-                    ERROR_TYPE,
                 );
                 block.line(&format!(
                     "{}: {},",
@@ -554,21 +561,18 @@ impl PsqlInserter {
                 let inner = rust.clone().into_inner_type();
                 let load = if let RustType::Option(_) = rust {
                     format!(
-                        "if let Some(id) = row.get_opt::<usize, Option<i32>>({}).ok_or_else({}::no_result)?? {{\
-                         Some({}::query_with(transaction, id)?)\
-                         }} else {{\
-                         None\
-                         }}",
-                        index + 1,
+                        "{}::value_at_column::<Option<i32>>(&row, {})?\
+                        .map(|id| {}::query_with(transaction, id)).transpose()?",
                         ERROR_TYPE,
+                        index + 1,
                         inner.to_string(),
                     )
                 } else {
                     format!(
-                        "{}::query_with(transaction, row.get_opt({}).ok_or_else({}::no_result)??)?",
+                        "{}::query_with(transaction, {}::value_at_column::<i32>(&row, {})?)?",
                         inner.to_string(),
-                        index + 1,
                         ERROR_TYPE,
+                        index + 1,
                     )
                 };
                 block.line(&format!(
@@ -584,10 +588,10 @@ impl PsqlInserter {
     }
 
     fn impl_data_enum_query_fn(func: &mut Function, name: &str) {
-        func.line("let statement = transaction.prepare_cached(Self::query_statement())?;");
-        func.line("let rows = statement.query(&[&id])?;");
+        func.line("let statement = transaction.prepare(Self::query_statement())?;");
+        func.line("let rows = transaction.query(&statement, &[&id])?;");
         func.line(&format!(
-            "Ok({}::load_from(transaction, &rows.iter().next().ok_or_else({}::no_result)?)?)",
+            "Ok({}::load_from(transaction, rows.get(0).ok_or_else({}::no_result)?)?)",
             name, ERROR_TYPE
         ));
     }
@@ -616,7 +620,8 @@ impl PsqlInserter {
                     Self::wrap_for_query_in_as_or_from_if_required("", variant.r#type())
                 {
                     block_case.line(format!(
-                        "row.get_opt::<_, {}>({}).ok_or_else({}::no_result)??{}",
+                        "{}::value_at_column::<{}>(&row, {})?{}",
+                        ERROR_TYPE,
                         variant
                             .r#type()
                             .as_inner_type()
@@ -624,20 +629,19 @@ impl PsqlInserter {
                             .to_rust()
                             .to_string(),
                         index + 1,
-                        ERROR_TYPE,
                         wrap
                     ));
                 } else {
                     block_case.line(format!(
-                        "row.get_opt::<_, {}>({}).ok_or_else({}::no_result)??",
+                        "{}::value_at_column::<{}>(&row, {})?",
+                        ERROR_TYPE,
                         variant
                             .r#type()
                             .as_inner_type()
                             .to_sql()
                             .to_rust()
                             .to_string(),
-                        index + 1,
-                        ERROR_TYPE
+                        index + 1
                     ));
                 }
             } else {
@@ -666,22 +670,22 @@ impl PsqlInserter {
 
     fn impl_enum_load_fn(func: &mut Function, name: &str) {
         func.line(&format!(
-            "Ok({}::query_with(transaction, row.get_opt::<usize, i32>(0).ok_or_else({}::no_result)??)?)",
+            "Ok({}::query_with(transaction, {}::expect_returned_index(&row)?)?)",
             name, ERROR_TYPE,
         ));
     }
 
     fn impl_tupl_struct_query_fn(func: &mut Function, name: &str, rust: &RustType) {
-        func.line("let statement = transaction.prepare_cached(Self::query_statement())?;");
-        func.line("let rows = statement.query(&[&id])?;");
+        func.line("let statement = transaction.prepare(Self::query_statement())?;");
+        func.line("let rows = transaction.query(&statement, &[&id])?;");
         let inner = rust.clone().into_inner_type();
         if Model::<Sql>::is_primitive(&inner) {
             let from_sql = inner.to_sql().to_rust();
 
             let load = format!(
-                "row.get_opt::<usize, {}>(0).ok_or_else({}::no_result)??",
-                from_sql.to_string(),
+                "{}::value_at_column::<{}>(&row, 0)?",
                 ERROR_TYPE,
+                from_sql.to_string(),
             );
             let load_wrapped =
                 Self::wrap_for_query_in_as_or_from_if_required(&load, rust).unwrap_or(load);
@@ -693,7 +697,7 @@ impl PsqlInserter {
                 func.push_block(block);
             } else {
                 func.line(format!(
-                    "let row = rows.iter().next().ok_or_else({}::no_result)?;",
+                    "let row = rows.get(0).ok_or_else({}::no_result)?;",
                     ERROR_TYPE
                 ));
                 func.line(format!("let values = {};", load_wrapped));
@@ -708,7 +712,7 @@ impl PsqlInserter {
             func.push_block(block);
         } else {
             func.line(format!(
-                "let row = rows.iter().next().ok_or_else({}::no_result)?;",
+                "let row = rows.get(0).ok_or_else({}::no_result)?;",
                 ERROR_TYPE
             ));
             func.line(format!(
@@ -721,7 +725,7 @@ impl PsqlInserter {
 
     fn impl_tupl_struct_load_fn(func: &mut Function, name: &str) {
         func.line(&format!(
-            "Ok({}::query_with(transaction, row.get_opt(0).ok_or_else({}::no_result)??)?)",
+            "Ok({}::query_with(transaction, {}::expect_returned_index(&row)?)?)",
             name, ERROR_TYPE,
         ));
     }
@@ -739,7 +743,7 @@ impl PsqlInserter {
                 } else {
                     "_"
                 },
-                "&Transaction",
+                "&mut Transaction",
             )
             .arg("id", "i32")
             .ret(&format!("Result<Self, {}>", ERROR_TYPE))
@@ -754,7 +758,7 @@ impl PsqlInserter {
                 } else {
                     "_"
                 },
-                "&Transaction",
+                "&mut Transaction",
             )
             .arg("row", &format!("&{}", ROW_TYPE))
             .ret(&format!("Result<Self, {}>", ERROR_TYPE))

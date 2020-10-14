@@ -17,8 +17,6 @@ use tokio_postgres::{
 };
 use tokio_postgres::{ToStatement, Transaction};
 
-pub mod bit_vec_impl;
-
 #[derive(Clone)]
 pub enum StatementState {
     Awaiting(Arc<Mutex<()>>),

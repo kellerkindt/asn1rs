@@ -1,9 +1,6 @@
 #![deny(broken_intra_doc_links)]
 #![warn(unused_extern_crates)]
 
-#[cfg(feature = "psql")]
-extern crate postgres;
-
 #[cfg(feature = "macros")]
 pub extern crate asn1rs_macros as macros;
 
