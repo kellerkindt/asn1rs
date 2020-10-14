@@ -2,7 +2,7 @@ pub mod octet_aligned;
 
 // in the long term, this Error type should be moved - maybe to crate::io::err::Error ?
 pub use super::per::Error;
-use crate::io::der::octet_aligned::{PC, Length};
+use crate::io::der::octet_aligned::{Length, PC};
 use crate::model::Tag;
 
 /// According to ITU-TX.690 | ISO/IEC 8825-1:2015

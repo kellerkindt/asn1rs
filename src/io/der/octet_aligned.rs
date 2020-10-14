@@ -6,13 +6,13 @@ use crate::model::Tag;
 #[derive(Debug)]
 pub enum PC {
     Primitive = 0,
-    Constructed
+    Constructed,
 }
 impl From<bool> for PC {
     fn from(v: bool) -> Self {
         match v {
             false => Self::Primitive,
-            true => Self::Constructed
+            true => Self::Constructed,
         }
     }
 }
@@ -21,11 +21,10 @@ impl From<bool> for PC {
 pub enum Length {
     Indefinite,
     Definite(usize),
-    Reserved
+    Reserved,
 }
 
 impl DistinguishedRead for OctetBuffer {
-
     fn read_octet(&mut self) -> Result<u8, Error> {
         if self.read_position > self.buffer.len() {
             return Err(Error::EndOfStream);
@@ -39,7 +38,9 @@ impl DistinguishedRead for OctetBuffer {
         if self.read_position + dst_len > self.buffer.len() {
             return Err(Error::EndOfStream);
         }
-        dst.copy_from_slice(&self.buffer[self.read_position..(self.read_position + dst_len) as usize]);
+        dst.copy_from_slice(
+            &self.buffer[self.read_position..(self.read_position + dst_len) as usize],
+        );
         // dst[..dst_len] = self.buffer[self.read_position..self.read_position + dst_len];
         self.read_position += dst_len;
         Ok(())
@@ -51,11 +52,10 @@ impl DistinguishedRead for OctetBuffer {
     }
 
     fn read_identifier(&mut self) -> Result<(Tag, PC), Error> {
-
         let octet = self.read_octet()?;
-        let class_bits = (octet>>6)&0x3;
+        let class_bits = (octet >> 6) & 0x3;
 
-        let pc_bit = (octet>>5)&0x1 == 1;
+        let pc_bit = (octet >> 5) & 0x1 == 1;
         let pc = PC::from(pc_bit);
 
         let tag_number = (octet & 0x1F) as usize;
@@ -69,21 +69,20 @@ impl DistinguishedRead for OctetBuffer {
             1 => Tag::Application(tag_number),
             2 => Tag::ContextSpecific(tag_number),
             3 => Tag::Private(tag_number),
-            _ => return Err(Error::UnsupportedOperation("Unsupported tag".to_string()))
+            _ => return Err(Error::UnsupportedOperation("Unsupported tag".to_string())),
         };
 
         Ok((tag, pc))
     }
 
     fn read_length(&mut self) -> Result<Length, Error> {
-
         let octet = self.read_octet()?;
-        let msb = (octet>>7)&0x1==1;
+        let msb = (octet >> 7) & 0x1 == 1;
 
-        let length_number = (octet&0x7f) as usize;
+        let length_number = (octet & 0x7f) as usize;
 
         if !msb {
-            return Ok(Length::Definite(length_number))
+            return Ok(Length::Definite(length_number));
         }
 
         match length_number {
@@ -91,7 +90,7 @@ impl DistinguishedRead for OctetBuffer {
             127 => Ok(Length::Reserved),
             _ => {
                 let mut length_bits = [0u8; std::mem::size_of::<usize>()];
-                let offset = &length_bits.len()-length_number;
+                let offset = &length_bits.len() - length_number;
                 self.read_octets(&mut length_bits[offset..])?;
                 Ok(Length::Definite(usize::from_be_bytes(length_bits)))
             }
@@ -110,7 +109,6 @@ impl DistinguishedRead for OctetBuffer {
         self.read_octets(&mut buffer[..])?;
         Ok(buffer)
     }
-
 }
 
 impl DistinguishedWrite for OctetBuffer {}

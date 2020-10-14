@@ -1,11 +1,14 @@
 use crate::io::buf::OctetBuffer;
+use crate::io::der::octet_aligned::{Length, PC};
 use crate::io::der::DistinguishedRead;
 use crate::io::der::DistinguishedWrite;
 use crate::io::der::Error;
-use crate::prelude::*;
-use crate::io::der::octet_aligned::{Length, PC};
-use crate::syn::{sequence, sequenceof, set, setof, enumerated, choice, numbers, utf8string, ia5string, octetstring, bitstring, boolean};
 use crate::model::Tag;
+use crate::prelude::*;
+use crate::syn::{
+    bitstring, boolean, choice, enumerated, ia5string, numbers, octetstring, sequence, sequenceof,
+    set, setof, utf8string,
+};
 
 #[derive(Default)]
 pub struct DerWriter {
@@ -51,11 +54,17 @@ impl Writer for DerWriter {
         unimplemented!()
     }
 
-    fn write_set<C: set::Constraint, F: Fn(&mut Self) -> Result<(), Self::Error>>(&mut self, f: F) -> Result<(), Self::Error> {
+    fn write_set<C: set::Constraint, F: Fn(&mut Self) -> Result<(), Self::Error>>(
+        &mut self,
+        f: F,
+    ) -> Result<(), Self::Error> {
         unimplemented!()
     }
 
-    fn write_set_of<C: setof::Constraint, T: WritableType>(&mut self, slice: &[<T as WritableType>::Type]) -> Result<(), Self::Error> {
+    fn write_set_of<C: setof::Constraint, T: WritableType>(
+        &mut self,
+        slice: &[<T as WritableType>::Type],
+    ) -> Result<(), Self::Error> {
         unimplemented!()
     }
 
@@ -160,11 +169,16 @@ impl Reader for DerReader {
         let length = self.buffer.read_length()?;
 
         match (&tag, &pc) {
-            (Tag::Application(_), _) | (Tag::Universal(16), PC::Constructed) | (Tag::Universal(17), PC::Constructed) => {},
-            _ => return Err(Error::InvalidType)
+            (Tag::Application(_), _)
+            | (Tag::Universal(16), PC::Constructed)
+            | (Tag::Universal(17), PC::Constructed) => {}
+            _ => return Err(Error::InvalidType),
         }
 
-        eprintln!("[sequence] Tag = {:#?}, PC = {:#?}, Length = {:#?}", tag, pc, length);
+        eprintln!(
+            "[sequence] Tag = {:#?}, PC = {:#?}, Length = {:#?}",
+            tag, pc, length
+        );
 
         // TODO: Why?!
         if matches!(tag, Tag::Application(_)) {
@@ -172,13 +186,15 @@ impl Reader for DerReader {
         }
 
         let range = match length {
-            Length::Definite(l) => Some(self.buffer.read_position..self.buffer.read_position + l as usize),
+            Length::Definite(l) => {
+                Some(self.buffer.read_position..self.buffer.read_position + l as usize)
+            }
             Length::Indefinite => Some(self.buffer.read_position..self.buffer.write_position),
-            _ => None
+            _ => None,
         };
 
         if let Some(ref range1) = range {
-            if self.buffer.byte_len()*8 < range1.end {
+            if self.buffer.byte_len() * 8 < range1.end {
                 return Err(Error::EndOfStream);
             }
         }
@@ -193,10 +209,13 @@ impl Reader for DerReader {
         let (tag, pc) = self.buffer.read_identifier()?;
         let length = self.buffer.read_length()?;
 
-        eprintln!("[sequence of] Tag = {:#?}, PC = {:#?}, Length = {:#?}", tag, pc, length);
+        eprintln!(
+            "[sequence of] Tag = {:#?}, PC = {:#?}, Length = {:#?}",
+            tag, pc, length
+        );
 
         if !matches!(tag, Tag::Universal(16)) {
-            return Err(Error::InvalidType)
+            return Err(Error::InvalidType);
         }
 
         let mut last_read_position = self.buffer.read_position;
@@ -204,7 +223,9 @@ impl Reader for DerReader {
         if let Length::Definite(l) = &length {
             last_read_position += l;
         } else {
-            return Err(Error::UnsupportedOperation("Indefinite range is not supported in DER".to_string()))
+            return Err(Error::UnsupportedOperation(
+                "Indefinite range is not supported in DER".to_string(),
+            ));
         }
 
         let mut vec = Vec::new();
@@ -214,11 +235,16 @@ impl Reader for DerReader {
         Ok(vec)
     }
 
-    fn read_set<C: set::Constraint, S: Sized, F: Fn(&mut Self) -> Result<S, Self::Error>>(&mut self, f: F) -> Result<S, Self::Error> {
+    fn read_set<C: set::Constraint, S: Sized, F: Fn(&mut Self) -> Result<S, Self::Error>>(
+        &mut self,
+        f: F,
+    ) -> Result<S, Self::Error> {
         self.read_sequence::<C, S, F>(f)
     }
 
-    fn read_set_of<C: setof::Constraint, T: ReadableType>(&mut self) -> Result<Vec<<T as ReadableType>::Type>, Self::Error> {
+    fn read_set_of<C: setof::Constraint, T: ReadableType>(
+        &mut self,
+    ) -> Result<Vec<<T as ReadableType>::Type>, Self::Error> {
         self.read_sequence_of::<C, T>()
     }
 
@@ -227,13 +253,19 @@ impl Reader for DerReader {
         let (tag, pc) = self.buffer.read_identifier()?;
         let length = self.buffer.read_length()?;
 
-        eprintln!("[enumerated] Tag = {:#?}, PC = {:#?}, Length = {:#?}", tag, pc, length);
+        eprintln!(
+            "[enumerated] Tag = {:#?}, PC = {:#?}, Length = {:#?}",
+            tag, pc, length
+        );
 
         if let Length::Definite(l) = length {
             let index = self.buffer.read_i64_number(l)? as u64;
-            C::from_choice_index(index).ok_or(Error::InvalidChoiceIndex(index, C::STD_VARIANT_COUNT))
+            C::from_choice_index(index)
+                .ok_or(Error::InvalidChoiceIndex(index, C::STD_VARIANT_COUNT))
         } else {
-            Err(Error::UnsupportedOperation("Indefinite range is not supported in DER".to_string()))
+            Err(Error::UnsupportedOperation(
+                "Indefinite range is not supported in DER".to_string(),
+            ))
         }
     }
 
@@ -242,16 +274,19 @@ impl Reader for DerReader {
         let (tag, pc) = self.buffer.read_identifier()?;
         let length = self.buffer.read_length()?;
 
-        eprintln!("[choice] Tag = {:#?}, PC = {:#?}, Length = {:#?}", tag, pc, length);
+        eprintln!(
+            "[choice] Tag = {:#?}, PC = {:#?}, Length = {:#?}",
+            tag, pc, length
+        );
 
         let index = if let Tag::ContextSpecific(num) = tag {
             num as u64
         } else {
-            return Err(Error::InvalidType)
+            return Err(Error::InvalidType);
         };
 
         if index >= C::STD_VARIANT_COUNT {
-            return Err(Error::InvalidChoiceIndex(index, C::VARIANT_COUNT))
+            return Err(Error::InvalidChoiceIndex(index, C::VARIANT_COUNT));
         }
 
         Ok((index, C::read_content(index, self)?)).and_then(|(index, content)| {
@@ -269,8 +304,8 @@ impl Reader for DerReader {
             Err(Error::InvalidType) => {
                 self.buffer.read_position = read_position;
                 Ok(None)
-            },
-            Err(err) => Err(err)
+            }
+            Err(err) => Err(err),
         }
     }
 
@@ -282,15 +317,20 @@ impl Reader for DerReader {
         let length = self.buffer.read_length()?;
 
         if !(matches!(tag, Tag::Universal(2)) && matches!(pc, PC::Primitive)) {
-            return Err(Error::InvalidType)
+            return Err(Error::InvalidType);
         }
 
-        eprintln!("[number] Tag = {:#?}, PC = {:#?}, Length = {:#?}", tag, pc, length);
+        eprintln!(
+            "[number] Tag = {:#?}, PC = {:#?}, Length = {:#?}",
+            tag, pc, length
+        );
 
         if let Length::Definite(l) = length {
             self.buffer.read_i64_number(l).map(T::from_i64)
         } else {
-            Err(Error::UnsupportedOperation("Indefinite range is not supported in DER".to_string()))
+            Err(Error::UnsupportedOperation(
+                "Indefinite range is not supported in DER".to_string(),
+            ))
         }
     }
 
@@ -299,17 +339,22 @@ impl Reader for DerReader {
         let (tag, pc) = self.buffer.read_identifier()?;
         let length = self.buffer.read_length()?;
 
-        eprintln!("[utf8string] Tag = {:#?}, PC = {:#?}, Length = {:#?}", tag, pc, length);
+        eprintln!(
+            "[utf8string] Tag = {:#?}, PC = {:#?}, Length = {:#?}",
+            tag, pc, length
+        );
 
         if !matches!(tag, Tag::Universal(12)) {
-            return Err(Error::InvalidType)
+            return Err(Error::InvalidType);
         }
 
         if let Length::Definite(l) = length {
             let octets = self.buffer.read_octet_string(l)?;
             String::from_utf8(octets).map_err(|_| Self::Error::InvalidUtf8String)
         } else {
-            Err(Error::UnsupportedOperation("Indefinite range is not supported in DER".to_string()))
+            Err(Error::UnsupportedOperation(
+                "Indefinite range is not supported in DER".to_string(),
+            ))
         }
     }
 
@@ -318,17 +363,22 @@ impl Reader for DerReader {
         let (tag, pc) = self.buffer.read_identifier()?;
         let length = self.buffer.read_length()?;
 
-        eprintln!("[ia5string] Tag = {:#?}, PC = {:#?}, Length = {:#?}", tag, pc, length);
+        eprintln!(
+            "[ia5string] Tag = {:#?}, PC = {:#?}, Length = {:#?}",
+            tag, pc, length
+        );
 
         if !matches!(tag, Tag::Universal(22)) {
-            return Err(Error::InvalidType)
+            return Err(Error::InvalidType);
         }
 
         if let Length::Definite(l) = length {
             let octets = self.buffer.read_octet_string(l)?;
             String::from_utf8(octets).map_err(|_| Self::Error::InvalidUtf8String)
         } else {
-            Err(Error::UnsupportedOperation("Indefinite range is not supported in DER".to_string()))
+            Err(Error::UnsupportedOperation(
+                "Indefinite range is not supported in DER".to_string(),
+            ))
         }
     }
 
@@ -337,16 +387,21 @@ impl Reader for DerReader {
         let (tag, pc) = self.buffer.read_identifier()?;
         let length = self.buffer.read_length()?;
 
-        eprintln!("[octet string] Tag = {:#?}, PC = {:#?}, Length = {:#?}", tag, pc, length);
+        eprintln!(
+            "[octet string] Tag = {:#?}, PC = {:#?}, Length = {:#?}",
+            tag, pc, length
+        );
 
         if !matches!(tag, Tag::Universal(4)) {
-            return Err(Error::InvalidType)
+            return Err(Error::InvalidType);
         }
 
         if let Length::Definite(l) = length {
             self.buffer.read_octet_string(l)
         } else {
-            Err(Error::UnsupportedOperation("Indefinite range is not supported in DER".to_string()))
+            Err(Error::UnsupportedOperation(
+                "Indefinite range is not supported in DER".to_string(),
+            ))
         }
     }
 
@@ -355,14 +410,19 @@ impl Reader for DerReader {
         let (tag, pc) = self.buffer.read_identifier()?;
         let length = self.buffer.read_length()?;
 
-        eprintln!("[bit string] Tag = {:#?}, PC = {:#?}, Length = {:#?}", tag, pc, length);
+        eprintln!(
+            "[bit string] Tag = {:#?}, PC = {:#?}, Length = {:#?}",
+            tag, pc, length
+        );
 
         if let Length::Definite(l) = length {
             let octets = self.buffer.read_octet_string(l)?;
             let size = (&octets.len() * 8) as u64;
             Ok((octets, size))
         } else {
-            Err(Error::UnsupportedOperation("Indefinite range is not supported in DER".to_string()))
+            Err(Error::UnsupportedOperation(
+                "Indefinite range is not supported in DER".to_string(),
+            ))
         }
     }
 
@@ -371,10 +431,13 @@ impl Reader for DerReader {
         let (tag, pc) = self.buffer.read_identifier()?;
         let length = self.buffer.read_length()?;
 
-        eprintln!("[boolean] Tag = {:#?}, PC = {:#?}, Length = {:#?}", tag, pc, length);
+        eprintln!(
+            "[boolean] Tag = {:#?}, PC = {:#?}, Length = {:#?}",
+            tag, pc, length
+        );
 
         if !(matches!(tag, Tag::Universal(1)) && matches!(length, Length::Definite(1))) {
-            return Err(Error::InvalidType)
+            return Err(Error::InvalidType);
         }
 
         Ok(self.buffer.read_octet()? == 0u8)
