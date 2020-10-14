@@ -1,3 +1,21 @@
+# 0.2.0-alpha3 (Oct 14, 2020)
+
+### Fixes
+- Missing CI checks on non-default features
+
+### Added
+- Support for `SET`s and `SET OF`s\*
+- Support for extensible `SET`s
+- Support for `SIZE` constraints for `SET OF`s
+- `TagResolver` to properly resolve Tags of ASN.1 types 
+- `syn::common::Constraint` which has `const TAG: Tag` and implementation for all generated constraint types 
+
+\* For `SET OF` only BASIC-PER encoding is supported currently, see [#20](https://github.com/kellerkindt/asn1rs/issues/20)
+
+### Changes
+- The ASN.1 `OPTIONAL` type is now represented as `optional` instead of `option` in `#[asn(..)]`
+- The protobuf serializer is now optional and can be enabled with the `protobuf` feature flag
+
 # 0.2.0-alpha2 (Sep 03, 2020)
 
 This release includes a lot of refactoring and new features.

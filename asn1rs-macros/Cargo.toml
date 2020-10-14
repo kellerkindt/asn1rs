@@ -1,6 +1,6 @@
 [package]
 name = "asn1rs-macros"
-version = "0.2.0-alpha2"
+version = "0.2.0-alpha3"
 authors = ["Michael Watzko <michael@watzko.de>"]
 edition = "2018"
 description = "Macros for asn1rs"
@@ -20,6 +20,6 @@ debug-proc-macro = []
 
 
 [dependencies]
-asn1rs-model =  { version = "0.2.0-alpha2", path = "../asn1rs-model" }
+asn1rs-model =  { version = "0.2.0-alpha3", path = "../asn1rs-model" }
 syn = {version = "1.0.17", features = ["full"] }
 quote = "1.0.3"
