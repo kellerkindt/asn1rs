@@ -1,3 +1,4 @@
+#![allow(unused)]
 use crate::io::buf::OctetBuffer;
 use crate::io::der::octet_aligned::{Length, PC};
 use crate::io::der::DistinguishedRead;
@@ -214,7 +215,7 @@ impl Reader for DerReader {
             tag, pc, length
         );
 
-        if !matches!(tag, Tag::Universal(16)) {
+        if matches!(tag, Tag::Universal(n) if n != 16) {
             return Err(Error::InvalidType);
         }
 
@@ -316,7 +317,7 @@ impl Reader for DerReader {
         let (tag, pc) = self.buffer.read_identifier()?;
         let length = self.buffer.read_length()?;
 
-        if !(matches!(tag, Tag::Universal(2)) && matches!(pc, PC::Primitive)) {
+        if matches!(tag, Tag::Universal(n) if (n != 2 || !matches!(pc, PC::Primitive))) {
             return Err(Error::InvalidType);
         }
 
@@ -344,7 +345,7 @@ impl Reader for DerReader {
             tag, pc, length
         );
 
-        if !matches!(tag, Tag::Universal(12)) {
+        if matches!(tag, Tag::Universal(n) if n != 12) {
             return Err(Error::InvalidType);
         }
 
@@ -368,7 +369,7 @@ impl Reader for DerReader {
             tag, pc, length
         );
 
-        if !matches!(tag, Tag::Universal(22)) {
+        if matches!(tag, Tag::Universal(n) if n != 22) {
             return Err(Error::InvalidType);
         }
 
@@ -392,7 +393,7 @@ impl Reader for DerReader {
             tag, pc, length
         );
 
-        if !matches!(tag, Tag::Universal(4)) {
+        if matches!(tag, Tag::Universal(n) if n != 4) {
             return Err(Error::InvalidType);
         }
 
@@ -436,7 +437,7 @@ impl Reader for DerReader {
             tag, pc, length
         );
 
-        if !(matches!(tag, Tag::Universal(1)) && matches!(length, Length::Definite(1))) {
+        if matches!(tag, Tag::Universal(n) if (n != 1 || !matches!(length, Length::Definite(1)))) {
             return Err(Error::InvalidType);
         }
 

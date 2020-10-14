@@ -90,7 +90,7 @@ impl DistinguishedRead for OctetBuffer {
             127 => Ok(Length::Reserved),
             _ => {
                 let mut length_bits = [0u8; std::mem::size_of::<usize>()];
-                let offset = &length_bits.len() - length_number;
+                let offset = length_bits.len() - length_number;
                 self.read_octets(&mut length_bits[offset..])?;
                 Ok(Length::Definite(usize::from_be_bytes(length_bits)))
             }
