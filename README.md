@@ -16,7 +16,7 @@ The crate can be used as standalone CLI binary or used as library through its AP
 
 #### Support Table
 
-| Feature             | Parses  | UPER    | Protobuf    | PSQL        | Async PSQL | UPER Legacy       |
+| Feature             | Parses  | UPER    | Protobuf    | PSQL        | Async PSQL | UPER Legacy\*     |
 | --------------------|:--------|:--------|:------------|:------------|:-----------|------------------:|
 | `SEQUENCE`          | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             | 
 | ...extensible       | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | 🔶 not serialized  | 
@@ -62,6 +62,7 @@ The crate can be used as standalone CLI binary or used as library through its AP
  - ❌ ub: undefined behavior - whatever seems reasonable to prevent compiler errors and somehow transmit the value
  - 🟥 error: fails to compile / translate
 
+\*The legacy UPER Reader/Writer is deprecated and will be removed in or before v0.3.0
 
 ##### Supported standards
  - ```itu-t(0) identified-organization(4) etsi(0) itsDomain(5) wg1(1) ts(102894) cdd(2) version(1)``` (ITS-Container)
