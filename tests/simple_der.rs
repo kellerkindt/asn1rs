@@ -1,36 +1,39 @@
 pub use asn1rs::prelude::*;
 
 asn_to_rust!(
-    r"World-Schema DEFINITIONS ::=
+    r"Data-Structures DEFINITIONS ::=
 BEGIN
-  Rocket ::= SEQUENCE
+  DataStructures ::= SEQUENCE
   {
-     range     INTEGER, -- huge (see a special directive above)
-     name      UTF8String (SIZE(1..16)),
-     message   UTF8String OPTIONAL ,
-     fuel      ENUMERATED {solid, liquid, gas},
-     speed     CHOICE
+     int              INTEGER,
+     limitedString    UTF8String (SIZE(1..16)),
+     optionalString   UTF8String OPTIONAL,
+     enumerated       ENUMERATED {value1, value2, value3},
+     optionalChoice   CHOICE
      {
-        mph    [0] INTEGER,
-        kmph   [1] INTEGER
+        int1   [0] INTEGER,
+        int2   [1] INTEGER
      }  OPTIONAL,
-     payload   SEQUENCE OF UTF8String
+     sequenceOfString SEQUENCE OF UTF8String
   }
 END"
 );
 
 #[test]
 fn simple_der() {
-    let der_content = b"0$\x02\x05\x07\xec=\xaf\x94\x0c\x06Falcon\n\x01\x00\xa0\x04\x02\x02FP0\n\x0c\x03Car\x0c\x03GPS".to_vec();
+    let der_content = b"0'\x02\x0209\x0c\tSomething\n\x01\x00\xa1\x05\x02\x03\x00\xd410\x0c\x0c\x04abcd\x0c\x04efgh".to_vec();
     let mut reader = DerReader::from_bits(der_content);
-    let result = reader.read::<Rocket>().unwrap();
+    let result = reader.read::<DataStructures>().unwrap();
     println!("Decoded:");
     println!("{:#?}", result);
 
-    assert_eq!(result.range, 34028236692u64);
-    assert_eq!(result.name, "Falcon");
-    assert_eq!(result.message, None);
-    assert_eq!(result.fuel, RocketFuel::Solid);
-    assert_eq!(result.speed, Some(RocketSpeed::Mph(18000)));
-    assert_eq!(result.payload, vec!["Car", "GPS"]);
+    assert_eq!(result.int, 12345u64);
+    assert_eq!(result.limited_string, "Something");
+    assert_eq!(result.optional_string, None);
+    assert_eq!(result.enumerated, DataStructuresEnumerated::Value1);
+    assert_eq!(
+        result.optional_choice,
+        Some(DataStructuresOptionalChoice::Int2(54321))
+    );
+    assert_eq!(result.sequence_of_string, vec!["abcd", "efgh"]);
 }

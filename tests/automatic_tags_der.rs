@@ -1,38 +1,41 @@
 pub use asn1rs::prelude::*;
 
 asn_to_rust!(
-    r"World-Schema DEFINITIONS AUTOMATIC TAGS ::=
+    r"Data-Structures DEFINITIONS AUTOMATIC TAGS ::=
 BEGIN
-  Rocket ::= SEQUENCE
+  DataStructures ::= SEQUENCE
   {
-     range     INTEGER, -- huge (see a special directive above)
-     name      UTF8String (SIZE(1..16)),
-     message   UTF8String OPTIONAL,
-     fuel      ENUMERATED {solid, liquid, gas},
-     speed     CHOICE
+     int              INTEGER,
+     limitedString    UTF8String (SIZE(1..16)),
+     optionalString   UTF8String OPTIONAL,
+     enumerated       ENUMERATED {value1, value2, value3},
+     optionalChoice   CHOICE
      {
-        mph    INTEGER,
-        kmph   INTEGER
+        int1   INTEGER,
+        int2   INTEGER
      }  OPTIONAL,
-     payload   SEQUENCE OF UTF8String
+     sequenceOfString SEQUENCE OF UTF8String
   }
 END"
 );
 
 #[test]
 fn automatic_tags_der() {
-    let der_content = b"0$\x80\x05\x07\xec=\xaf\x94\x81\x06Falcon\x83\x01\x00\xa4\x04\x80\x02FP\xa5\n\x0c\x03Car\x0c\x03GPS".to_vec();
+    let der_content = b"0'\x80\x0209\x81\tSomething\x83\x01\x00\xa4\x05\x81\x03\x00\xd41\xa5\x0c\x0c\x04abcd\x0c\x04efgh".to_vec();
     let mut reader = DerReader::from_bits(der_content);
-    if let Ok(result) = reader.read::<Rocket>() {
+    if let Ok(result) = reader.read::<DataStructures>() {
         println!("Decoded:");
         println!("{:#?}", result);
 
-        assert_eq!(result.range, 34028236692u64);
-        assert_eq!(result.name, "Falcon");
-        assert_eq!(result.message, None);
-        assert_eq!(result.fuel, RocketFuel::Solid);
-        assert_eq!(result.speed, Some(RocketSpeed::Mph(18000)));
-        assert_eq!(result.payload, vec!["Car", "GPS"]);
+        assert_eq!(result.int, 12345u64);
+        assert_eq!(result.limited_string, "Something");
+        assert_eq!(result.optional_string, None);
+        assert_eq!(result.enumerated, DataStructuresEnumerated::Value1);
+        assert_eq!(
+            result.optional_choice,
+            Some(DataStructuresOptionalChoice::Int2(54321))
+        );
+        assert_eq!(result.sequence_of_string, vec!["abcd", "efgh"]);
     } else {
         eprintln!("Automatic tags has bugs for now")
     }
