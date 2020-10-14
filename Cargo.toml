@@ -35,7 +35,7 @@ serde = "1.0.115"
 serde_derive = "1.0.115"
 
 # feature postgres
-postgres = { version = "0.17.5", optional = true }
+postgres = { version = "0.17.4", optional = true }
 
 # feature async-psql
 tokio = { version = "0.2.11", optional = true, features = ["macros"]  }
@@ -55,7 +55,7 @@ proc-macro2 = "1.0.10"
 
 [features]
 default = ["macros", "model"]
-psql = ["asn1rs-model/psql", "postgres"]
+psql = ["asn1rs-model/psql", "postgres", "bytes"]
 async-psql = ["asn1rs-model/async-psql", "tokio", "tokio-postgres", "futures", "bytes"]
 protobuf = ["asn1rs-model/protobuf"]
 macros = ["asn1rs-macros"]
