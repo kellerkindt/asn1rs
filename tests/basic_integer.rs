@@ -13,10 +13,36 @@ asn_to_rust!(
 );
 
 #[test]
+fn test_whether_it_compiles_at_all() {}
+
+#[test]
 fn test_default_range() {
     assert_eq!(RangedMax::value_min(), NotRanged::value_min());
     assert_eq!(RangedMax::value_max(), NotRanged::value_max());
     let _ = NotRanged(123_u64); // does not compile if the inner type differs
+}
+
+#[test]
+fn test_readme_sample() {
+    use asn1rs::syn::numbers::Constraint;
+    assert_eq!(
+        ___asn1rs_RangedMaxField0Constraint::MIN,
+        ___asn1rs_NotRangedField0Constraint::MIN,
+    );
+    assert_eq!(
+        ___asn1rs_RangedMaxField0Constraint::MAX,
+        ___asn1rs_NotRangedField0Constraint::MAX,
+    );
+
+    let value = NotRanged(123_u64); // does not compile if the inner type is not u64
+
+    let mut writer = NewUperWriter::default();
+    writer.write(&value).expect("Failed to serialize");
+
+    let mut reader = writer.into_reader();
+    let value2 = reader.read::<NotRanged>().expect("Failed to deserialize");
+
+    assert_eq!(value, value2);
 }
 
 #[test]
