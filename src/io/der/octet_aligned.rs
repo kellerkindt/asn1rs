@@ -1,25 +1,7 @@
 use crate::io::buf::OctetBuffer;
 use crate::io::der::Error;
 use crate::io::der::{DistinguishedRead, DistinguishedWrite};
-
-#[derive(Debug)]
-pub enum Class {
-    Universal = 0,
-    Application,
-    ContextSpecific,
-    Private
-}
-impl From<u8> for Class {
-    fn from(v: u8) -> Self {
-        match v {
-            x if x == Self::Universal as u8 => Self::Universal,
-            x if x == Self::Application as u8 => Self::Application,
-            x if x == Self::ContextSpecific as u8 => Self::ContextSpecific,
-            x if x == Self::Private as u8 => Self::Private,
-            _ => Self::Universal
-        }
-    }
-}
+use crate::model::Tag;
 
 #[derive(Debug)]
 pub enum PC {
@@ -68,22 +50,29 @@ impl DistinguishedRead for OctetBuffer {
         self.read_octets_with_len(dst, dst_len)
     }
 
-    fn read_identifier(&mut self) -> Result<(Class, PC, u8), Error> {
+    fn read_identifier(&mut self) -> Result<(Tag, PC), Error> {
 
         let octet = self.read_octet()?;
         let class_bits = (octet>>6)&0x3;
-        let class = Class::from(class_bits);
 
         let pc_bit = (octet>>5)&0x1 == 1;
         let pc = PC::from(pc_bit);
 
-        let tag_number = octet&0x1F;
+        let tag_number = (octet & 0x1F) as usize;
 
         // TODO: Support for log tags
 
         // TODO: Parse tag as type : https://en.wikipedia.org/wiki/X.690#Types
 
-        Ok((class, pc, tag_number))
+        let tag = match class_bits {
+            0 => Tag::Universal(tag_number),
+            1 => Tag::Application(tag_number),
+            2 => Tag::ContextSpecific(tag_number),
+            3 => Tag::Private(tag_number),
+            _ => return Err(Error::UnsupportedOperation("Unsupported tag".to_string()))
+        };
+
+        Ok((tag, pc))
     }
 
     fn read_length(&mut self) -> Result<Length, Error> {

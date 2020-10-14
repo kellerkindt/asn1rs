@@ -3,7 +3,9 @@ use crate::io::der::DistinguishedRead;
 use crate::io::der::DistinguishedWrite;
 use crate::io::der::Error;
 use crate::prelude::*;
-use crate::io::der::octet_aligned::{Length, Class, PC};
+use crate::io::der::octet_aligned::{Length, PC};
+use crate::syn::{sequence, sequenceof, set, setof, enumerated, choice, numbers, utf8string, ia5string, octetstring, bitstring, boolean};
+use crate::model::Tag;
 
 #[derive(Default)]
 pub struct DerWriter {
@@ -154,18 +156,18 @@ impl Reader for DerReader {
         &mut self,
         f: F,
     ) -> Result<S, Self::Error> {
-        let (class, pc, tag) = self.buffer.read_identifier()?;
+        let (tag, pc) = self.buffer.read_identifier()?;
         let length = self.buffer.read_length()?;
 
-        match (&class, &pc, &tag) {
-            (Class::Application, _, _) | (Class::Universal, PC::Constructed, 16) | (Class::Universal, PC::Constructed, 17) => {},
+        match (&tag, &pc) {
+            (Tag::Application(_), _) | (Tag::Universal(16), PC::Constructed) | (Tag::Universal(17), PC::Constructed) => {},
             _ => return Err(Error::InvalidType)
         }
 
-        eprintln!("[sequence] Class = {:#?}, PC = {:#?}, Tag = {:#?}, Length = {:#?}", class, pc, tag, length);
+        eprintln!("[sequence] Tag = {:#?}, PC = {:#?}, Length = {:#?}", tag, pc, length);
 
         // TODO: Why?!
-        if let Class::Application = class {
+        if matches!(tag, Tag::Application(_)) {
             return self.read_sequence::<C, S, F>(f);
         }
 
@@ -188,16 +190,13 @@ impl Reader for DerReader {
     fn read_sequence_of<C: sequenceof::Constraint, T: ReadableType>(
         &mut self,
     ) -> Result<Vec<T::Type>, Self::Error> {
-        let (class, pc, tag) = self.buffer.read_identifier()?;
+        let (tag, pc) = self.buffer.read_identifier()?;
         let length = self.buffer.read_length()?;
 
-        eprintln!("[sequence of] Class = {:#?}, PC = {:#?}, Tag = {:#?}, Length = {:#?}", class, pc, tag, length);
+        eprintln!("[sequence of] Tag = {:#?}, PC = {:#?}, Length = {:#?}", tag, pc, length);
 
-        if let Class::Universal = &class {
-            if let 16 = &tag {
-            } else {
-                return Err(Error::InvalidType)
-            }
+        if !matches!(tag, Tag::Universal(16)) {
+            return Err(Error::InvalidType)
         }
 
         let mut last_read_position = self.buffer.read_position;
@@ -225,10 +224,10 @@ impl Reader for DerReader {
 
     #[inline]
     fn read_enumerated<C: enumerated::Constraint>(&mut self) -> Result<C, Self::Error> {
-        let (class, pc, tag) = self.buffer.read_identifier()?;
+        let (tag, pc) = self.buffer.read_identifier()?;
         let length = self.buffer.read_length()?;
 
-        eprintln!("[enumerated] Class = {:#?}, PC = {:#?}, Tag = {:#?}, Length = {:#?}", class, pc, tag, length);
+        eprintln!("[enumerated] Tag = {:#?}, PC = {:#?}, Length = {:#?}", tag, pc, length);
 
         if let Length::Definite(l) = length {
             let index = self.buffer.read_i64_number(l)? as u64;
@@ -240,17 +239,16 @@ impl Reader for DerReader {
 
     #[inline]
     fn read_choice<C: choice::Constraint>(&mut self) -> Result<C, Self::Error> {
-        let (class, pc, tag) = self.buffer.read_identifier()?;
+        let (tag, pc) = self.buffer.read_identifier()?;
         let length = self.buffer.read_length()?;
 
-        eprintln!("[choice] Class = {:#?}, PC = {:#?}, Tag = {:#?}, Length = {:#?}", class, pc, tag, length);
+        eprintln!("[choice] Tag = {:#?}, PC = {:#?}, Length = {:#?}", tag, pc, length);
 
-        let index = tag as u64;
-
-        if let Class::ContextSpecific = &class {
+        let index = if let Tag::ContextSpecific(num) = tag {
+            num as u64
         } else {
             return Err(Error::InvalidType)
-        }
+        };
 
         if index >= C::STD_VARIANT_COUNT {
             return Err(Error::InvalidChoiceIndex(index, C::VARIANT_COUNT))
@@ -280,16 +278,14 @@ impl Reader for DerReader {
     fn read_number<T: numbers::Number, C: numbers::Constraint<T>>(
         &mut self,
     ) -> Result<T, Self::Error> {
-        let (class, pc, tag) = self.buffer.read_identifier()?;
+        let (tag, pc) = self.buffer.read_identifier()?;
         let length = self.buffer.read_length()?;
 
-        if let Class::Universal = &class {
-            if let (PC::Primitive, 2) = (&pc, &tag) {} else {
-                return Err(Error::InvalidType)
-            }
+        if !(matches!(tag, Tag::Universal(2)) && matches!(pc, PC::Primitive)) {
+            return Err(Error::InvalidType)
         }
 
-        eprintln!("[number] Class = {:#?}, PC = {:#?}, Tag = {:#?}, Length = {:#?}", class, pc, tag, length);
+        eprintln!("[number] Tag = {:#?}, PC = {:#?}, Length = {:#?}", tag, pc, length);
 
         if let Length::Definite(l) = length {
             self.buffer.read_i64_number(l).map(T::from_i64)
@@ -300,16 +296,13 @@ impl Reader for DerReader {
 
     #[inline]
     fn read_utf8string<C: utf8string::Constraint>(&mut self) -> Result<String, Self::Error> {
-        let (class, pc, tag) = self.buffer.read_identifier()?;
+        let (tag, pc) = self.buffer.read_identifier()?;
         let length = self.buffer.read_length()?;
 
-        eprintln!("[utf8string] Class = {:#?}, PC = {:#?}, Tag = {:#?}, Length = {:#?}", class, pc, tag, length);
+        eprintln!("[utf8string] Tag = {:#?}, PC = {:#?}, Length = {:#?}", tag, pc, length);
 
-        if let Class::Universal = &class {
-            if let 12 = &tag {
-            } else {
-                return Err(Error::InvalidType)
-            }
+        if !matches!(tag, Tag::Universal(12)) {
+            return Err(Error::InvalidType)
         }
 
         if let Length::Definite(l) = length {
@@ -322,16 +315,13 @@ impl Reader for DerReader {
 
     #[inline]
     fn read_ia5string<C: ia5string::Constraint>(&mut self) -> Result<String, Self::Error> {
-        let (class, pc, tag) = self.buffer.read_identifier()?;
+        let (tag, pc) = self.buffer.read_identifier()?;
         let length = self.buffer.read_length()?;
 
-        eprintln!("[ia5string] Class = {:#?}, PC = {:#?}, Tag = {:#?}, Length = {:#?}", class, pc, tag, length);
+        eprintln!("[ia5string] Tag = {:#?}, PC = {:#?}, Length = {:#?}", tag, pc, length);
 
-        if let Class::Universal = &class {
-            if let 22 = &tag {
-            } else {
-                return Err(Error::InvalidType)
-            }
+        if !matches!(tag, Tag::Universal(22)) {
+            return Err(Error::InvalidType)
         }
 
         if let Length::Definite(l) = length {
@@ -344,16 +334,13 @@ impl Reader for DerReader {
 
     #[inline]
     fn read_octet_string<C: octetstring::Constraint>(&mut self) -> Result<Vec<u8>, Self::Error> {
-        let (class, pc, tag) = self.buffer.read_identifier()?;
+        let (tag, pc) = self.buffer.read_identifier()?;
         let length = self.buffer.read_length()?;
 
-        eprintln!("[octet string] Class = {:#?}, PC = {:#?}, Tag = {:#?}, Length = {:#?}", class, pc, tag, length);
+        eprintln!("[octet string] Tag = {:#?}, PC = {:#?}, Length = {:#?}", tag, pc, length);
 
-        if let Class::Universal = &class {
-            if let 4 = &tag {
-            } else {
-                return Err(Error::InvalidType)
-            }
+        if !matches!(tag, Tag::Universal(4)) {
+            return Err(Error::InvalidType)
         }
 
         if let Length::Definite(l) = length {
@@ -365,10 +352,10 @@ impl Reader for DerReader {
 
     #[inline]
     fn read_bit_string<C: bitstring::Constraint>(&mut self) -> Result<(Vec<u8>, u64), Self::Error> {
-        let (class, pc, tag) = self.buffer.read_identifier()?;
+        let (tag, pc) = self.buffer.read_identifier()?;
         let length = self.buffer.read_length()?;
 
-        eprintln!("[bit string] Class = {:#?}, PC = {:#?}, Tag = {:#?}, Length = {:#?}", class, pc, tag, length);
+        eprintln!("[bit string] Tag = {:#?}, PC = {:#?}, Length = {:#?}", tag, pc, length);
 
         if let Length::Definite(l) = length {
             let octets = self.buffer.read_octet_string(l)?;
@@ -381,16 +368,13 @@ impl Reader for DerReader {
 
     #[inline]
     fn read_boolean<C: boolean::Constraint>(&mut self) -> Result<bool, Self::Error> {
-        let (class, pc, tag) = self.buffer.read_identifier()?;
+        let (tag, pc) = self.buffer.read_identifier()?;
         let length = self.buffer.read_length()?;
 
-        eprintln!("[boolean] Class = {:#?}, PC = {:#?}, Tag = {:#?}, Length = {:#?}", class, pc, tag, length);
+        eprintln!("[boolean] Tag = {:#?}, PC = {:#?}, Length = {:#?}", tag, pc, length);
 
-        if let Class::Universal = &class {
-            if let (PC::Primitive, 1, Length::Definite(1)) = (&pc, &tag, &length) {
-            } else {
-                return Err(Error::InvalidType)
-            }
+        if !(matches!(tag, Tag::Universal(1)) && matches!(length, Length::Definite(1))) {
+            return Err(Error::InvalidType)
         }
 
         Ok(self.buffer.read_octet()? == 0u8)
