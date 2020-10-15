@@ -113,7 +113,7 @@ impl Model<Protobuf> {
         let mut model = Model {
             name: rust_model.name.clone(),
             oid: rust_model.oid.clone(),
-            automatic_tags: rust_model.automatic_tags.clone(),
+            automatic_tags: rust_model.automatic_tags,
             imports: rust_model.imports.clone(),
             definitions: Vec::with_capacity(rust_model.definitions.len()),
         };

@@ -134,7 +134,7 @@ impl Model<Sql> {
         let mut model = Model {
             name: rust_model.name.clone(),
             oid: rust_model.oid.clone(),
-            automatic_tags: rust_model.automatic_tags.clone(),
+            automatic_tags: rust_model.automatic_tags,
             imports: Default::default(), // ignored in SQL
             definitions: Vec::with_capacity(rust_model.definitions.len()),
         };
