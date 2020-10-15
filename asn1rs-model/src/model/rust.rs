@@ -553,6 +553,7 @@ impl Model<Rust> {
         let mut model = Model {
             name: rust_module_name(&asn_model.name),
             oid: asn_model.oid.clone(),
+            automatic_tags: asn_model.automatic_tags,
             imports: asn_model
                 .imports
                 .iter()

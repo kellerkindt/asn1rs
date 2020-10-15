@@ -20,6 +20,7 @@ END"
 );
 
 #[test]
+// #[should_panic(expected = "Got unexpected tag INTEGER instead of ContextSpecific(0)")]
 fn simple_der() {
     let der_content = [
         0x30, 0x27, 0x02, 0x02, 0x30, 0x39, 0x0C, 0x09, 0x53, 0x6F, 0x6D, 0x65, 0x74, 0x68, 0x69,
@@ -27,7 +28,9 @@ fn simple_der() {
         0x04, 0x61, 0x62, 0x63, 0x64, 0x0C, 0x04, 0x65, 0x66, 0x67, 0x68,
     ];
     let mut reader = DerReader::from_bits(der_content);
-    let result = reader.read::<DataStructures>().unwrap();
+    let result = reader
+        .read::<DataStructures>()
+        .unwrap_or_else(|err| panic!(err.to_string()));
     println!("Decoded:");
     println!("{:#?}", result);
 
