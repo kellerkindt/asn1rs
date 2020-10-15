@@ -71,7 +71,7 @@ impl std::fmt::Display for Error {
             ),
             Error::InvalidType(invalid_tag, valid_tag) => write!(
                 f,
-                "Got unexpected tag {:?} instead of {:?}",
+                "Got unexpected tag {} instead of {}",
                 invalid_tag, valid_tag
             ),
         }
