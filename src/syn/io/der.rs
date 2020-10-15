@@ -173,7 +173,7 @@ impl Reader for DerReader {
             (Tag::Application(_), _)
             | (Tag::Universal(16), PC::Constructed)
             | (Tag::Universal(17), PC::Constructed) => {}
-            _ => return Err(Error::InvalidType),
+            _ => return Err(Error::InvalidType(C::TAG, tag)),
         }
 
         eprintln!(
@@ -216,7 +216,7 @@ impl Reader for DerReader {
         );
 
         if matches!(tag, Tag::Universal(n) if n != 16) {
-            return Err(Error::InvalidType);
+            return Err(Error::InvalidType(C::TAG, tag));
         }
 
         let mut last_read_position = self.buffer.read_position;
@@ -283,7 +283,7 @@ impl Reader for DerReader {
         let index = if let Tag::ContextSpecific(num) = tag {
             num as u64
         } else {
-            return Err(Error::InvalidType);
+            return Err(Error::InvalidType(C::TAG, tag));
         };
 
         if index >= C::STD_VARIANT_COUNT {
@@ -302,7 +302,7 @@ impl Reader for DerReader {
         let read_position = self.buffer.read_position;
         match T::read_value(self) {
             Ok(result) => Ok(Some(result)),
-            Err(Error::InvalidType) => {
+            Err(Error::InvalidType(_, _)) => {
                 self.buffer.read_position = read_position;
                 Ok(None)
             }
@@ -318,7 +318,7 @@ impl Reader for DerReader {
         let length = self.buffer.read_length()?;
 
         if matches!(tag, Tag::Universal(n) if (n != 2 || !matches!(pc, PC::Primitive))) {
-            return Err(Error::InvalidType);
+            return Err(Error::InvalidType(C::TAG, tag));
         }
 
         eprintln!(
@@ -346,7 +346,7 @@ impl Reader for DerReader {
         );
 
         if matches!(tag, Tag::Universal(n) if n != 12) {
-            return Err(Error::InvalidType);
+            return Err(Error::InvalidType(C::TAG, tag));
         }
 
         if let Length::Definite(l) = length {
@@ -370,7 +370,7 @@ impl Reader for DerReader {
         );
 
         if matches!(tag, Tag::Universal(n) if n != 22) {
-            return Err(Error::InvalidType);
+            return Err(Error::InvalidType(C::TAG, tag));
         }
 
         if let Length::Definite(l) = length {
@@ -394,7 +394,7 @@ impl Reader for DerReader {
         );
 
         if matches!(tag, Tag::Universal(n) if n != 4) {
-            return Err(Error::InvalidType);
+            return Err(Error::InvalidType(C::TAG, tag));
         }
 
         if let Length::Definite(l) = length {
@@ -438,7 +438,7 @@ impl Reader for DerReader {
         );
 
         if matches!(tag, Tag::Universal(n) if (n != 1 || !matches!(length, Length::Definite(1)))) {
-            return Err(Error::InvalidType);
+            return Err(Error::InvalidType(C::TAG, tag));
         }
 
         Ok(self.buffer.read_octet()? == 0u8)

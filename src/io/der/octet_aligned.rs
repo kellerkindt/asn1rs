@@ -69,7 +69,7 @@ impl DistinguishedRead for OctetBuffer {
             1 => Tag::Application(tag_number),
             2 => Tag::ContextSpecific(tag_number),
             3 => Tag::Private(tag_number),
-            _ => return Err(Error::UnsupportedOperation("Unsupported tag".to_string())),
+            _ => unreachable!(),
         };
 
         Ok((tag, pc))
