@@ -1077,6 +1077,7 @@ pub enum Tag {
 }
 
 impl Tag {
+    pub const DEFAULT_END_OF_CONTENT: Tag = Tag::Universal(0);
     pub const DEFAULT_BOOLEAN: Tag = Tag::Universal(1);
     pub const DEFAULT_INTEGER: Tag = Tag::Universal(2);
     pub const DEFAULT_BIT_STRING: Tag = Tag::Universal(3);
@@ -1119,6 +1120,7 @@ impl Tag {
 impl Display for Tag {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
+            Tag::Universal(0) => f.write_str("END_OF_CONTENT"),
             Tag::Universal(1) => f.write_str("BOOLEAN"),
             Tag::Universal(2) => f.write_str("INTEGER"),
             Tag::Universal(3) => f.write_str("BIT_STRING"),
