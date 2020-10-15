@@ -267,6 +267,7 @@ pub enum ObjectIdentifierComponent {
 pub struct Model<T> {
     pub name: String,
     pub oid: Option<ObjectIdentifier>,
+    pub automatic_tags: bool,
     pub imports: Vec<Import>,
     pub definitions: Vec<Definition<T>>,
 }
@@ -276,6 +277,7 @@ impl<T> Default for Model<T> {
         Model {
             name: Default::default(),
             oid: None,
+            automatic_tags: false,
             imports: Default::default(),
             definitions: Default::default(),
         }
@@ -289,6 +291,8 @@ impl Model<Asn> {
 
         model.name = Self::read_name(&mut iter)?;
         model.oid = Self::maybe_read_oid(&mut iter)?;
+        Self::skip_until_after_text_ignore_ascii_case(&mut iter, "DEFINITIONS")?;
+        model.automatic_tags = Self::maybe_read_automatic_tags(&mut iter)?;
         Self::skip_until_after_text_ignore_ascii_case(&mut iter, "BEGIN")?;
 
         while let Some(token) = iter.next() {
@@ -323,6 +327,27 @@ impl Model<Asn> {
             Ok(Some(Self::read_oid(iter)?))
         } else {
             Ok(None)
+        }
+    }
+
+    fn maybe_read_automatic_tags(iter: &mut Peekable<IntoIter<Token>>) -> Result<bool, Error> {
+        if iter
+            .peek()
+            .map(|t| t.eq_text_ignore_ascii_case("AUTOMATIC"))
+            .unwrap_or(false)
+        {
+            iter.next().ok_or_else(Error::unexpected_end_of_stream)?;
+            if let Some(t) = iter.next() {
+                if t.eq_text_ignore_ascii_case("TAGS") {
+                    Ok(true)
+                } else {
+                    Err(Error::unexpected_token(t))
+                }
+            } else {
+                Err(Error::unexpected_end_of_stream())
+            }
+        } else {
+            Ok(false)
         }
     }
 

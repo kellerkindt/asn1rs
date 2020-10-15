@@ -134,6 +134,7 @@ impl Model<Sql> {
         let mut model = Model {
             name: rust_model.name.clone(),
             oid: rust_model.oid.clone(),
+            automatic_tags: rust_model.automatic_tags.clone(),
             imports: Default::default(), // ignored in SQL
             definitions: Vec::with_capacity(rust_model.definitions.len()),
         };
@@ -481,6 +482,7 @@ mod tests {
         let model = Model {
             name: "Manfred".into(),
             oid: None,
+            automatic_tags: false,
             imports: vec![Import {
                 what: vec!["a".into(), "b".into()],
                 from: "to_be_ignored".into(),
@@ -551,6 +553,7 @@ mod tests {
         let model = Model {
             name: "Hurray".into(),
             oid: None,
+            automatic_tags: false,
             imports: vec![Import {
                 what: vec!["a".into(), "b".into()],
                 from: "to_be_ignored".into(),
@@ -630,6 +633,7 @@ mod tests {
         let model = Model {
             name: "Alfred".into(),
             oid: None,
+            automatic_tags: false,
             imports: vec![Import {
                 what: vec!["a".into(), "b".into()],
                 from: "to_be_ignored".into(),
@@ -663,6 +667,7 @@ mod tests {
         let model = Model {
             name: "Bernhard".into(),
             oid: None,
+            automatic_tags: false,
             imports: vec![],
             definitions: vec![Definition(
                 "SomeStruct".into(),
@@ -798,6 +803,7 @@ mod tests {
         let model = Model {
             name: "Hurray".into(),
             oid: None,
+            automatic_tags: false,
             imports: vec![Import {
                 what: vec!["a".into(), "b".into()],
                 from: "to_be_ignored".into(),
@@ -959,6 +965,7 @@ mod tests {
         let model = Model {
             name: "Alfred".into(),
             oid: None,
+            automatic_tags: false,
             imports: vec![Import {
                 what: vec!["a".into(), "b".into()],
                 from: "to_be_ignored".into(),

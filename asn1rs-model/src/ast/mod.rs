@@ -65,6 +65,7 @@ pub fn expand(definition: Option<Definition<AsnModelType>>) -> Vec<TokenStream> 
     let mut model: Model<AsnModelType> = Model {
         name: "__proc_macro".to_string(),
         oid: None,
+        automatic_tags: false,
         imports: vec![],
         definitions: vec![],
     };
