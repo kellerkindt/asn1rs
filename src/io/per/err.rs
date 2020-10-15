@@ -1,3 +1,5 @@
+use asn1rs_model::model::Tag;
+
 #[derive(Debug, PartialOrd, PartialEq)]
 pub enum Error {
     InvalidUtf8String,
@@ -13,6 +15,7 @@ pub enum Error {
     SizeNotInRange(u64, u64, u64),
     OptFlagsExhausted,
     EndOfStream,
+    InvalidType(Tag, Tag),
 }
 
 impl std::fmt::Display for Error {
@@ -65,6 +68,11 @@ impl std::fmt::Display for Error {
             Error::EndOfStream => write!(
                 f,
                 "Can no longer read or write any bytes from the underlying dataset"
+            ),
+            Error::InvalidType(invalid_tag, valid_tag) => write!(
+                f,
+                "Got unexpected tag {:?} instead of {:?}",
+                invalid_tag, valid_tag
             ),
         }
     }
