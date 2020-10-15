@@ -51,7 +51,7 @@ impl DistinguishedRead for OctetBuffer {
         self.read_octets_with_len(dst, dst_len)
     }
 
-    fn read_identifier(&mut self) -> Result<(Tag, PC), Error> {
+    fn read_identifier(&mut self, expected_tag: Tag) -> Result<(Tag, PC), Error> {
         let octet = self.read_octet()?;
         let class_bits = (octet >> 6) & 0x3;
 
@@ -71,6 +71,10 @@ impl DistinguishedRead for OctetBuffer {
             3 => Tag::Private(tag_number),
             _ => unreachable!(),
         };
+
+        if tag != expected_tag {
+            return Err(Error::InvalidType(tag, expected_tag));
+        }
 
         Ok((tag, pc))
     }

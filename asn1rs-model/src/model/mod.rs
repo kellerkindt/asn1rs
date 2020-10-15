@@ -1081,13 +1081,82 @@ impl Tag {
     pub const DEFAULT_INTEGER: Tag = Tag::Universal(2);
     pub const DEFAULT_BIT_STRING: Tag = Tag::Universal(3);
     pub const DEFAULT_OCTET_STRING: Tag = Tag::Universal(4);
+    pub const DEFAULT_NULL: Tag = Tag::Universal(5);
+    pub const DEFAULT_OBJECT_IDENTIFIER: Tag = Tag::Universal(6);
+    pub const DEFAULT_OBJECT_DESCRIPTOR: Tag = Tag::Universal(7);
+    pub const DEFAULT_EXTERNAL: Tag = Tag::Universal(8);
+    pub const DEFAULT_REAL: Tag = Tag::Universal(9);
     pub const DEFAULT_ENUMERATED: Tag = Tag::Universal(10);
+    pub const DEFAULT_EMBEDDED_PDV: Tag = Tag::Universal(11);
     pub const DEFAULT_UTF8_STRING: Tag = Tag::Universal(12);
+    pub const DEFAULT_RELATIVE_OBJECT_IDENTIFIER: Tag = Tag::Universal(13);
+    pub const DEFAULT_TIME: Tag = Tag::Universal(14);
     pub const DEFAULT_SEQUENCE: Tag = Tag::Universal(16);
     pub const DEFAULT_SEQUENCE_OF: Tag = Tag::Universal(16);
     pub const DEFAULT_SET: Tag = Tag::Universal(17);
     pub const DEFAULT_SET_OF: Tag = Tag::Universal(17);
+    pub const DEFAULT_NUMERIC_STRING: Tag = Tag::Universal(18);
+    pub const DEFAULT_PRINTABLE_STRING: Tag = Tag::Universal(19);
+    pub const DEFAULT_T61_STRING: Tag = Tag::Universal(20);
+    pub const DEFAULT_VIDEOTEX_STRING: Tag = Tag::Universal(21);
     pub const DEFAULT_IA5_STRING: Tag = Tag::Universal(22);
+    pub const DEFAULT_UTC_TIME: Tag = Tag::Universal(23);
+    pub const DEFAULT_GENERALIZED_TIME: Tag = Tag::Universal(24);
+    pub const DEFAULT_GRAPHIC_STRING: Tag = Tag::Universal(25);
+    pub const DEFAULT_VISIBLE_STRING: Tag = Tag::Universal(26);
+    pub const DEFAULT_GENERAL_STRING: Tag = Tag::Universal(27);
+    pub const DEFAULT_UNIVERSAL_STRING: Tag = Tag::Universal(28);
+    pub const DEFAULT_CHARACTER_STRING: Tag = Tag::Universal(29);
+    pub const DEFAULT_BMP_STRING: Tag = Tag::Universal(30);
+    pub const DEFAULT_DATE: Tag = Tag::Universal(31);
+    pub const DEFAULT_TIME_OF_DAY: Tag = Tag::Universal(32);
+    pub const DEFAULT_DATE_TIME: Tag = Tag::Universal(33);
+    pub const DEFAULT_DURATION: Tag = Tag::Universal(34);
+    pub const DEFAULT_OBJECT_IDENTIFIER_IRI: Tag = Tag::Universal(35);
+    pub const DEFAULT_RELATIVE_OBJECT_IDENTIFIER_IRI: Tag = Tag::Universal(36);
+}
+
+impl Display for Tag {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Tag::Universal(1) => f.write_str("BOOLEAN"),
+            Tag::Universal(2) => f.write_str("INTEGER"),
+            Tag::Universal(3) => f.write_str("BIT_STRING"),
+            Tag::Universal(4) => f.write_str("OCTET_STRING"),
+            Tag::Universal(5) => f.write_str("NULL"),
+            Tag::Universal(6) => f.write_str("OBJECT_IDENTIFIER"),
+            Tag::Universal(7) => f.write_str("OBJECT_DESCRIPTOR"),
+            Tag::Universal(8) => f.write_str("EXTERNAL"),
+            Tag::Universal(9) => f.write_str("REAL"),
+            Tag::Universal(10) => f.write_str("ENUMERATED"),
+            Tag::Universal(11) => f.write_str("EMBEDDED_PDV"),
+            Tag::Universal(12) => f.write_str("UTF8_STRING"),
+            Tag::Universal(13) => f.write_str("RELATIVE_OBJECT_IDENTIFIER"),
+            Tag::Universal(14) => f.write_str("TIME"),
+            Tag::Universal(16) => f.write_str("SEQUENCE"),
+            Tag::Universal(17) => f.write_str("SET"),
+            Tag::Universal(18) => f.write_str("NUMERIC_STRING"),
+            Tag::Universal(19) => f.write_str("PRINTABLE_STRING"),
+            Tag::Universal(20) => f.write_str("T61_STRING"),
+            Tag::Universal(21) => f.write_str("VIDEOTEX_STRING"),
+            Tag::Universal(22) => f.write_str("IA5_STRING"),
+            Tag::Universal(23) => f.write_str("UTC_TIME"),
+            Tag::Universal(24) => f.write_str("GENERALIZED_TIME"),
+            Tag::Universal(25) => f.write_str("GRAPHIC_STRING"),
+            Tag::Universal(26) => f.write_str("VISIBLE_STRING"),
+            Tag::Universal(27) => f.write_str("GENERAL_STRING"),
+            Tag::Universal(28) => f.write_str("UNIVERSAL_STRING"),
+            Tag::Universal(29) => f.write_str("CHARACTER_STRING"),
+            Tag::Universal(30) => f.write_str("BMP_STRING"),
+            Tag::Universal(31) => f.write_str("DATE"),
+            Tag::Universal(32) => f.write_str("TIME_OF_DAY"),
+            Tag::Universal(33) => f.write_str("DATE_TIME"),
+            Tag::Universal(34) => f.write_str("DURATION"),
+            Tag::Universal(35) => f.write_str("OBJECT_IDENTIFIER_IRI"),
+            Tag::Universal(36) => f.write_str("RELATIVE_OBJECT_IDENTIFIER_IRI"),
+            _ => f.write_str(&*format!("{:?}", self)),
+        }
+    }
 }
 
 impl TryFrom<&mut Peekable<IntoIter<Token>>> for Tag {
@@ -1121,7 +1190,7 @@ impl TryFrom<&mut Peekable<IntoIter<Token>>> for Tag {
     }
 }
 
-pub trait TagProperty {
+pub trait TagProperty: Sized {
     fn tag(&self) -> Option<Tag>;
 
     fn set_tag(&mut self, tag: Tag);

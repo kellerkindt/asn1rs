@@ -27,7 +27,9 @@ fn simple_der() {
         0x04, 0x61, 0x62, 0x63, 0x64, 0x0C, 0x04, 0x65, 0x66, 0x67, 0x68,
     ];
     let mut reader = DerReader::from_bits(der_content);
-    let result = reader.read::<DataStructures>().unwrap();
+    let result = reader
+        .read::<DataStructures>()
+        .unwrap_or_else(|err| panic!(err.to_string()));
     println!("Decoded:");
     println!("{:#?}", result);
 
