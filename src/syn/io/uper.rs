@@ -556,9 +556,13 @@ impl<'a> UperReader<'a> {
     pub fn scope_pushed<R, F: FnOnce(&mut Self) -> R>(&mut self, scope: Scope, f: F) -> R {
         let original = core::mem::replace(&mut self.scope, Some(scope));
         let result = f(self);
-        let scope = core::mem::replace(&mut self.scope, original);
-        let scope = scope.unwrap(); // save because this is the original from above
-        debug_assert!(scope.exhausted());
+        if cfg!(debug_assertions) {
+            let scope = core::mem::replace(&mut self.scope, original);
+            // save because this is the original from above
+            debug_assert!(scope.unwrap().exhausted());
+        } else {
+            self.scope = original;
+        }
         result
     }
 
