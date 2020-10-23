@@ -32,7 +32,7 @@ fn serialize_uper(to_uper: impl Writable) -> (usize, Vec<u8>) {
 }
 
 fn deserialize_uper<T: Readable>(data: &[u8], bits: usize) -> T {
-    let mut reader = NewUperReader::from_bits(data, bits);
+    let mut reader = NewUperReader::from_bits((data, bits));
     reader.read::<T>().unwrap()
 }
 

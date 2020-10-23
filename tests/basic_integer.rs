@@ -39,7 +39,7 @@ fn test_readme_sample() {
     let mut writer = NewUperWriter::default();
     writer.write(&value).expect("Failed to serialize");
 
-    let mut reader = writer.into_reader();
+    let mut reader = writer.as_reader();
     let value2 = reader.read::<NotRanged>().expect("Failed to deserialize");
 
     assert_eq!(value, value2);

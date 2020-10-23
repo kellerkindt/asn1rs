@@ -1,7 +1,7 @@
 use crate::io::per::err::Error;
-use crate::io::per::unaligned::buffer::BitBuffer;
-use crate::io::per::unaligned::BitRead;
+use crate::io::per::unaligned::buffer::{BitBuffer, Bits};
 use crate::io::per::unaligned::BitWrite;
+use crate::io::per::unaligned::{BitRead, BYTE_LEN};
 use crate::io::per::PackedRead;
 use crate::io::per::PackedWrite;
 use crate::syn::*;
@@ -123,7 +123,7 @@ impl Scope {
     #[inline]
     pub fn read_from_field(
         &mut self,
-        buffer: &mut BitBuffer,
+        buffer: &mut Bits,
         is_opt: bool,
     ) -> Result<Option<bool>, Error> {
         match self {
@@ -156,8 +156,8 @@ impl Scope {
                             number_of_ext_fields, read_number_of_ext_fields
                         )));
                     }
-                    let range = buffer.read_position..buffer.read_position + *number_of_ext_fields;
-                    buffer.read_position = range.end; // skip bit-field
+                    let range = buffer.pos..buffer.pos + *number_of_ext_fields;
+                    buffer.pos = range.end; // skip bit-field
                     *self = Scope::AllBitField(range);
                     self.read_from_field(buffer, is_opt)
                 } else {
@@ -204,10 +204,8 @@ impl UperWriter {
         self.buffer.into()
     }
 
-    pub fn into_reader(self) -> UperReader {
-        let bits = self.bit_len();
-        let bytes = self.into_bytes_vec();
-        UperReader::from_bits(bytes, bits)
+    pub fn as_reader(&self) -> UperReader {
+        UperReader::from_bits((self.byte_content(), self.bit_len()))
     }
 
     #[inline]
@@ -536,22 +534,22 @@ impl Writer for UperWriter {
     }
 }
 
-pub struct UperReader {
-    buffer: BitBuffer,
+pub struct UperReader<'a> {
+    bits: Bits<'a>,
     scope: Option<Scope>,
 }
 
-impl UperReader {
-    pub fn from_bits<I: Into<Vec<u8>>>(bytes: I, bit_len: usize) -> Self {
+impl<'a> UperReader<'a> {
+    pub fn from_bits<I: Into<Bits<'a>>>(bits: I) -> Self {
         Self {
-            buffer: BitBuffer::from_bits(bytes.into(), bit_len),
+            bits: bits.into(),
             scope: Default::default(),
         }
     }
 
     #[inline]
     pub const fn bits_remaining(&self) -> usize {
-        self.buffer.write_position - self.buffer.read_position
+        self.bits.len - self.bits.pos
     }
 
     #[inline]
@@ -578,14 +576,14 @@ impl UperReader {
         length_bytes: usize,
         f: F,
     ) -> Result<T, E> {
-        let write_position = self.buffer.read_position + (length_bytes * 8);
-        let write_original = core::mem::replace(&mut self.buffer.write_position, write_position);
+        let write_position = self.bits.pos + (length_bytes * BYTE_LEN);
+        let write_original = core::mem::replace(&mut self.bits.len, write_position);
         let result = f(self);
         // extend to original position
-        self.buffer.write_position = write_original;
+        self.bits.len = write_original;
         if result.is_ok() {
             // on successful read, skip the slice
-            self.buffer.read_position = write_position;
+            self.bits.pos = write_position;
         }
         result
     }
@@ -593,9 +591,9 @@ impl UperReader {
     #[inline]
     pub fn read_bit_field_entry(&mut self, is_opt: bool) -> Result<Option<bool>, Error> {
         if let Some(scope) = &mut self.scope {
-            scope.read_from_field(&mut self.buffer, is_opt)
+            scope.read_from_field(&mut self.bits, is_opt)
         } else if is_opt {
-            Some(self.buffer.read_bit()).transpose()
+            Some(self.bits.read_bit()).transpose()
         } else {
             Ok(None)
         }
@@ -612,7 +610,7 @@ impl UperReader {
             .map(Scope::encode_as_open_type_field)
             .unwrap_or(false)
         {
-            let len = self.buffer.read_length_determinant(None, None)?;
+            let len = self.bits.read_length_determinant(None, None)?;
             self.read_whole_sub_slice(len as usize, f)
         } else {
             f(self)
@@ -620,11 +618,11 @@ impl UperReader {
     }
 
     pub fn reset_read_position(&mut self) {
-        self.buffer.reset_read_position()
+        self.bits.reset_read_position()
     }
 }
 
-impl Reader for UperReader {
+impl Reader for UperReader<'_> {
     type Error = Error;
 
     #[inline]
@@ -639,7 +637,7 @@ impl Reader for UperReader {
         let _ = self.read_bit_field_entry(false);
         self.with_buffer(|r| {
             if let Some(extension_after) = C::EXTENDED_AFTER_FIELD {
-                let has_extension = r.buffer.read_bit()?;
+                let has_extension = r.bits.read_bit()?;
                 let expects_extension = C::FIELD_COUNT > extension_after;
                 if has_extension != expects_extension {
                     return Err(Error::InvalidExtensionConstellation(
@@ -652,12 +650,11 @@ impl Reader for UperReader {
             // In UPER the values for all OPTIONAL flags are written before any field
             // value is written. This remembers their position, so a later call of `read_opt`
             // can retrieve them from the buffer
-            let range =
-                r.buffer.read_position..r.buffer.read_position + C::STD_OPTIONAL_FIELDS as usize;
-            if r.buffer.bit_len() < range.end {
+            let range = r.bits.pos..r.bits.pos + C::STD_OPTIONAL_FIELDS as usize;
+            if r.bits.bit_len() < range.end {
                 return Err(Error::EndOfStream);
             }
-            r.buffer.read_position = range.end; // skip optional
+            r.bits.pos = range.end; // skip optional
 
             if let Some(extension_after) = C::EXTENDED_AFTER_FIELD {
                 r.scope_pushed(
@@ -680,10 +677,10 @@ impl Reader for UperReader {
     ) -> Result<Vec<T::Type>, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
         self.with_buffer(|r| {
-            let len = if C::EXTENSIBLE && r.buffer.read_bit()? {
-                r.buffer.read_length_determinant(None, None)?
+            let len = if C::EXTENSIBLE && r.bits.read_bit()? {
+                r.bits.read_length_determinant(None, None)?
             } else {
-                r.buffer.read_length_determinant(C::MIN, C::MAX)?
+                r.bits.read_length_determinant(C::MIN, C::MAX)?
             };
             r.scope_stashed(|r| {
                 let mut vec = Vec::with_capacity(len as usize);
@@ -714,7 +711,7 @@ impl Reader for UperReader {
     fn read_enumerated<C: enumerated::Constraint>(&mut self) -> Result<C, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
         self.with_buffer(|r| {
-            r.buffer
+            r.bits
                 .read_enumeration_index(C::STD_VARIANT_COUNT, C::EXTENSIBLE)
         })
         .and_then(|index| {
@@ -728,10 +725,10 @@ impl Reader for UperReader {
         let _ = self.read_bit_field_entry(false)?;
         self.scope_stashed(|r| {
             let index = r
-                .buffer
+                .bits
                 .read_choice_index(C::STD_VARIANT_COUNT, C::EXTENSIBLE)?;
             if index >= C::STD_VARIANT_COUNT {
-                let length = r.buffer.read_length_determinant(None, None)?;
+                let length = r.bits.read_length_determinant(None, None)?;
                 r.read_whole_sub_slice(length as usize, |r| Ok((index, C::read_content(index, r)?)))
             } else {
                 Ok((index, C::read_content(index, r)?))
@@ -762,15 +759,15 @@ impl Reader for UperReader {
         let _ = self.read_bit_field_entry(false)?;
         self.with_buffer(|r| {
             let unconstrained = if C::EXTENSIBLE {
-                r.buffer.read_bit()?
+                r.bits.read_bit()?
             } else {
                 const_is_none!(C::MIN) && const_is_none!(C::MAX)
             };
 
             if unconstrained {
-                r.buffer.read_unconstrained_whole_number().map(T::from_i64)
+                r.bits.read_unconstrained_whole_number().map(T::from_i64)
             } else {
-                r.buffer
+                r.bits
                     .read_constrained_whole_number(
                         const_unwrap_or!(C::MIN, 0),
                         const_unwrap_or!(C::MAX, i64::MAX),
@@ -786,7 +783,7 @@ impl Reader for UperReader {
         self.with_buffer(|r| {
             // ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 30.3
             // For 'known-multiplier character string types' there is no min/max in the encoding
-            let octets = r.buffer.read_octetstring(None, None, false)?;
+            let octets = r.bits.read_octetstring(None, None, false)?;
             String::from_utf8(octets).map_err(|_| Self::Error::InvalidUtf8String)
         })
     }
@@ -795,15 +792,15 @@ impl Reader for UperReader {
     fn read_ia5string<C: ia5string::Constraint>(&mut self) -> Result<String, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
         self.with_buffer(|r| {
-            let len = if C::EXTENSIBLE && r.buffer.read_bit()? {
-                r.buffer.read_length_determinant(None, None)?
+            let len = if C::EXTENSIBLE && r.bits.read_bit()? {
+                r.bits.read_length_determinant(None, None)?
             } else {
-                r.buffer.read_length_determinant(C::MIN, C::MAX)?
+                r.bits.read_length_determinant(C::MIN, C::MAX)?
             };
 
             let mut buffer = vec![0u8; len as usize];
             for i in 0..len as usize {
-                r.buffer.read_bits_with_offset(&mut buffer[i..i + 1], 1)?;
+                r.bits.read_bits_with_offset(&mut buffer[i..i + 1], 1)?;
             }
 
             String::from_utf8(buffer).map_err(|_| Error::InvalidIa5String)
@@ -813,18 +810,18 @@ impl Reader for UperReader {
     #[inline]
     fn read_octet_string<C: octetstring::Constraint>(&mut self) -> Result<Vec<u8>, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|r| r.buffer.read_octetstring(C::MIN, C::MAX, C::EXTENSIBLE))
+        self.with_buffer(|r| r.bits.read_octetstring(C::MIN, C::MAX, C::EXTENSIBLE))
     }
 
     #[inline]
     fn read_bit_string<C: bitstring::Constraint>(&mut self) -> Result<(Vec<u8>, u64), Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|r| r.buffer.read_bitstring(C::MIN, C::MAX, C::EXTENSIBLE))
+        self.with_buffer(|r| r.bits.read_bitstring(C::MIN, C::MAX, C::EXTENSIBLE))
     }
 
     #[inline]
     fn read_boolean<C: boolean::Constraint>(&mut self) -> Result<bool, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|r| r.buffer.read_boolean())
+        self.with_buffer(|r| r.bits.read_boolean())
     }
 }

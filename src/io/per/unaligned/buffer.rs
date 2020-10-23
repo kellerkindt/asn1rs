@@ -229,6 +229,91 @@ impl BitWrite for BitBuffer {
     }
 }
 
+pub struct Bits<'a> {
+    slice: &'a [u8],
+    pub(crate) pos: usize,
+    pub(crate) len: usize,
+}
+
+impl Bits<'_> {
+    pub fn bit_len(&self) -> usize {
+        self.slice.len() * BYTE_LEN
+    }
+
+    pub fn reset_read_position(&mut self) {
+        self.pos = 0;
+    }
+
+    /// Changes the read-position to the given position for the closure call.
+    /// Restores the original read-position after the call.
+    ///
+    /// # Panics
+    /// Positions beyond the current write-position will result in panics.
+    #[inline]
+    pub fn with_read_position_at<T, F: Fn(&mut Self) -> T>(&mut self, position: usize, f: F) -> T {
+        debug_assert!(position < self.len);
+        let mut bits = Bits {
+            slice: self.slice,
+            pos: position,
+            len: self.len,
+        };
+        f(&mut bits)
+    }
+}
+
+impl<'a> From<&'a [u8]> for Bits<'a> {
+    fn from(slice: &'a [u8]) -> Self {
+        Self {
+            slice,
+            pos: 0,
+            len: slice.len() * BYTE_LEN,
+        }
+    }
+}
+
+impl<'a> From<(&'a [u8], usize)> for Bits<'a> {
+    fn from((slice, len): (&'a [u8], usize)) -> Self {
+        debug_assert!(len <= slice.len() * BYTE_LEN);
+        Self { slice, pos: 0, len }
+    }
+}
+
+impl BitRead for Bits<'_> {
+    fn read_bit(&mut self) -> Result<bool, Error> {
+        BitRead::read_bit(&mut (self.slice, &mut self.pos))
+    }
+
+    fn read_bits(&mut self, dst: &mut [u8]) -> Result<(), Error> {
+        BitRead::read_bits(&mut (self.slice, &mut self.pos), dst)
+    }
+
+    fn read_bits_with_offset(
+        &mut self,
+        dst: &mut [u8],
+        dst_bit_offset: usize,
+    ) -> Result<(), Error> {
+        BitRead::read_bits_with_offset(&mut (self.slice, &mut self.pos), dst, dst_bit_offset)
+    }
+
+    fn read_bits_with_len(&mut self, dst: &mut [u8], dst_bit_len: usize) -> Result<(), Error> {
+        BitRead::read_bits_with_len(&mut (self.slice, &mut self.pos), dst, dst_bit_len)
+    }
+
+    fn read_bits_with_offset_len(
+        &mut self,
+        dst: &mut [u8],
+        dst_bit_offset: usize,
+        dst_bit_len: usize,
+    ) -> Result<(), Error> {
+        BitRead::read_bits_with_offset_len(
+            &mut (self.slice, &mut self.pos),
+            dst,
+            dst_bit_offset,
+            dst_bit_len,
+        )
+    }
+}
+
 #[cfg(test)]
 pub mod tests {
     use super::*;

@@ -78,7 +78,7 @@ fn uper_proof() {
     // read into the plain type to prove they behave the same
     use what_is_being_generated as g;
 
-    let mut reader = writer.into_reader();
+    let mut reader = writer.as_reader();
     let read = reader.read::<g::WhatToEat>().expect("Failed to read");
 
     assert_eq!(

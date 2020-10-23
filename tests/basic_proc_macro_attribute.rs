@@ -46,14 +46,14 @@ fn test_serialize_with_uper() {
 
 #[test]
 fn test_deserialize_with_uper() {
-    let mut uper = UperReader::from_bits(
-        vec![
+    let mut uper = UperReader::from_bits((
+        &[
             // https://asn1.io/asn1playground/
             0x01, 0x7B, 0x02, 0x04, 0xD2, 0xE8, 0x28, 0xEE, 0xD0, 0xCA, 0xE4, 0xCA, 0x40, 0xD2,
             0xE6, 0x40, 0xE8, 0xD0, 0xCA, 0x40, 0xC6, 0xDE, 0xDC, 0xE8, 0xCA, 0xDC, 0xE8,
-        ],
+        ][..],
         26 * 8 + 7,
-    );
+    ));
     let p = uper.read::<Potato>().unwrap();
     assert_eq!(
         Potato {
@@ -86,7 +86,7 @@ fn topping_test_serialize_with_uper() {
 
 #[test]
 fn topping_test_deserialize_with_uper() {
-    let mut uper = UperReader::from_bits(vec![0x00_u8 | 0x40 >> 2 | 0x80 >> 4], 6);
+    let mut uper = UperReader::from_bits((&[0x00_u8 | 0x40 >> 2 | 0x80 >> 4][..], 6));
     assert_eq!(Topping::NotPineapple, uper.read::<Topping>().unwrap());
     assert_eq!(Topping::EvenLessPineapple, uper.read::<Topping>().unwrap());
     assert_eq!(Topping::NoPineappleAtAll, uper.read::<Topping>().unwrap());
@@ -112,7 +112,7 @@ fn pizza_test_uper_1() {
     // https://asn1.io/asn1playground/
     assert_eq!(&[0x40], uper.byte_content());
     assert_eq!(4, uper.bit_len());
-    let mut uper = uper.into_reader();
+    let mut uper = uper.as_reader();
     assert_eq!(pizza, uper.read::<Pizza>().unwrap());
     assert_eq!(0, uper.bits_remaining());
 }
@@ -128,7 +128,7 @@ fn pizza_test_uper_2() {
     // https://asn1.io/asn1playground/
     assert_eq!(&[0x20], uper.byte_content());
     assert_eq!(4, uper.bit_len());
-    let mut uper = uper.into_reader();
+    let mut uper = uper.as_reader();
     assert_eq!(pizza, uper.read::<Pizza>().unwrap());
     assert_eq!(0, uper.bits_remaining());
 }
@@ -144,7 +144,7 @@ fn pizza_test_uper_3() {
     // https://asn1.io/asn1playground/
     assert_eq!(&[0x90], uper.byte_content());
     assert_eq!(4, uper.bit_len());
-    let mut uper = uper.into_reader();
+    let mut uper = uper.as_reader();
     assert_eq!(pizza, uper.read::<Pizza>().unwrap());
     assert_eq!(0, uper.bits_remaining());
 }
@@ -169,7 +169,7 @@ fn what_to_eat_test_uper_1() {
     // https://asn1.io/asn1playground/
     assert_eq!(&[0xC8], uper.byte_content());
     assert_eq!(5, uper.bit_len());
-    let mut uper = uper.into_reader();
+    let mut uper = uper.as_reader();
     assert_eq!(what, uper.read::<WhatToEat>().unwrap());
     assert_eq!(0, uper.bits_remaining());
 }
@@ -193,7 +193,7 @@ fn what_to_eat_test_uper_2() {
         uper.byte_content()
     );
     assert_eq!(23 * 8, uper.bit_len());
-    let mut uper = uper.into_reader();
+    let mut uper = uper.as_reader();
     assert_eq!(what, uper.read::<WhatToEat>().unwrap());
     assert_eq!(0, uper.bits_remaining());
 }
@@ -245,7 +245,7 @@ fn are_we_binary_yet_uper() {
     // https://asn1.io/asn1playground/
     assert_eq!(&[02, 0x13, 0x37], uper.byte_content());
     assert_eq!(3 * 8, uper.bit_len());
-    let mut uper = uper.into_reader();
+    let mut uper = uper.as_reader();
     assert_eq!(are_we, uper.read::<AreWeBinaryYet>().unwrap());
     assert_eq!(0, uper.bits_remaining());
 }
@@ -265,7 +265,7 @@ fn test_optional_uper() {
     // https://asn1.io/asn1playground/
     assert_eq!(&[0x81, 0x02, 0x9C, 0x80], uper.byte_content());
     assert_eq!(3 * 8 + 1, uper.bit_len());
-    let mut uper = uper.into_reader();
+    let mut uper = uper.as_reader();
     assert_eq!(v, uper.read::<Optional>().unwrap());
     assert_eq!(0, uper.bits_remaining());
 }
@@ -358,7 +358,7 @@ fn test_crazy_list_uper() {
         uper.byte_content()
     );
     assert_eq!(7 * 8 + 7, uper.bit_len());
-    let mut uper = uper.into_reader();
+    let mut uper = uper.as_reader();
     assert_eq!(list, uper.read::<CrazyList>().unwrap());
     assert_eq!(0, uper.bits_remaining());
 }
@@ -390,7 +390,7 @@ fn test_flat_list_uper() {
         uper.byte_content()
     );
     assert_eq!(7 * 8, uper.bit_len());
-    let mut uper = uper.into_reader();
+    let mut uper = uper.as_reader();
     assert_eq!(v, uper.read::<FlatList>().unwrap());
     assert_eq!(0, uper.bits_remaining());
 }
@@ -433,7 +433,7 @@ fn test_transparent_important_uper_some() {
     );
 
     assert_eq!(2 * 8 + 1, uper.bit_len());
-    let mut uper = uper.into_reader();
+    let mut uper = uper.as_reader();
     assert_eq!(v, uper.read::<Important>().unwrap());
     assert_eq!(0, uper.bits_remaining());
 }
@@ -448,7 +448,7 @@ fn test_transparent_important_uper_none() {
     assert_eq!(&[0b0 << 7], uper.byte_content());
 
     assert_eq!(1, uper.bit_len());
-    let mut uper = uper.into_reader();
+    let mut uper = uper.as_reader();
     assert_eq!(v, uper.read::<Important>().unwrap());
     assert_eq!(0, uper.bits_remaining());
 }
@@ -476,7 +476,7 @@ fn test_bool_container_uper() {
     assert_eq!(&[0b011_0_0000], uper.byte_content());
     assert_eq!(3, uper.bit_len());
 
-    let mut uper = uper.into_reader();
+    let mut uper = uper.as_reader();
     assert_eq!(v, uper.read::<BoolContainer>().unwrap());
     assert_eq!(0, uper.bits_remaining());
 }
@@ -518,7 +518,7 @@ fn test_extensible_struct() {
     );
     assert_eq!(34 * 8, uper.bit_len());
 
-    let mut uper = uper.into_reader();
+    let mut uper = uper.as_reader();
     assert_eq!(v, uper.read::<ExtensibleStruct>().unwrap());
     assert_eq!(0, uper.bits_remaining());
 }
@@ -598,7 +598,7 @@ fn test_nested_extensible_struct() {
     );
     assert_eq!(37 * 8 + 1, uper.bit_len());
 
-    let mut uper = uper.into_reader();
+    let mut uper = uper.as_reader();
     assert_eq!(v, uper.read::<NestedExtensibleStruct>().unwrap());
     assert_eq!(0, uper.bits_remaining());
 }
