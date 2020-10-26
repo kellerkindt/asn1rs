@@ -3,18 +3,21 @@
 
 extern crate test;
 
+#[allow(deprecated)]
 use asn1rs::io::buffer::legacy::*;
 use test::Bencher;
 
 macro_rules! bench_stuff {
     ($name_legacy: ident, $name_new: ident, $offset: expr, $pos: expr) => {
         #[bench]
+        #[allow(deprecated)]
         fn $name_legacy(b: &mut Bencher) {
             b.iter(|| legacy_bit_buffer(SIZE_BITS, $offset, $pos));
             legacy_bit_buffer_with_check(SIZE_BITS, $offset, $pos)
         }
 
         #[bench]
+        #[allow(deprecated)]
         fn $name_new(b: &mut Bencher) {
             b.iter(|| new_bit_buffer(SIZE_BITS, $offset, $pos));
             new_bit_buffer_with_check(SIZE_BITS, $offset, $pos)
