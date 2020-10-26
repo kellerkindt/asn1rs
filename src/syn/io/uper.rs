@@ -182,28 +182,32 @@ impl Scope {
 
 #[derive(Default)]
 pub struct UperWriter {
-    buffer: BitBuffer,
+    bits: BitBuffer,
     scope: Option<Scope>,
 }
 
 impl UperWriter {
     pub fn with_capacity(capacity_bytes: usize) -> Self {
         Self {
-            buffer: BitBuffer::with_capacity(capacity_bytes),
+            bits: BitBuffer::with_capacity(capacity_bytes),
             ..Default::default()
         }
     }
 
     pub fn byte_content(&self) -> &[u8] {
-        self.buffer.content()
+        self.bits.content()
     }
 
     pub const fn bit_len(&self) -> usize {
-        self.buffer.bit_len()
+        self.bits.bit_len()
     }
 
     pub fn into_bytes_vec(self) -> Vec<u8> {
-        self.buffer.into()
+        debug_assert_eq!(
+            (self.bit_len() + BYTE_LEN - 1) / BYTE_LEN,
+            self.bits.buffer.len()
+        );
+        self.bits.into()
     }
 
     pub fn as_reader(&self) -> UperReader<Bits> {
@@ -231,9 +235,9 @@ impl UperWriter {
     #[inline]
     pub fn write_bit_field_entry(&mut self, is_opt: bool, is_present: bool) -> Result<(), Error> {
         if let Some(scope) = &mut self.scope {
-            scope.write_into_field(&mut self.buffer, is_opt, is_present)
+            scope.write_into_field(&mut self.bits, is_opt, is_present)
         } else if is_opt {
-            self.buffer.write_bit(is_present)
+            self.bits.write_bit(is_present)
         } else {
             Ok(())
         }
@@ -248,8 +252,8 @@ impl UperWriter {
         if const_map_or!(self.scope, Scope::encode_as_open_type_field, false) {
             let mut writer = UperWriter::with_capacity(512);
             let result = f(&mut writer)?;
-            self.buffer
-                .write_octetstring(None, None, false, writer.buffer.content())?;
+            self.bits
+                .write_octetstring(None, None, false, writer.bits.content())?;
             Ok(result)
         } else {
             f(self)
@@ -268,19 +272,19 @@ impl Writer for UperWriter {
         self.write_bit_field_entry(false, true)?;
         self.with_buffer(|w| {
             if let Some(extension_after) = C::EXTENDED_AFTER_FIELD {
-                w.buffer.write_bit(C::FIELD_COUNT > extension_after)?;
+                w.bits.write_bit(C::FIELD_COUNT > extension_after)?;
             }
 
             // In UPER the values for all OPTIONAL flags are written before any field
             // value is written. This remembers their position, so a later call of `write_opt`
             // can write them to the buffer
-            let write_pos = w.buffer.write_position;
+            let write_pos = w.bits.write_position;
             let range = write_pos..write_pos + C::STD_OPTIONAL_FIELDS as usize;
             for _ in 0..C::STD_OPTIONAL_FIELDS {
                 // insert in reverse order so that a simple pop() in `write_opt` retrieves
                 // the relevant position
-                if let Err(e) = w.buffer.write_bit(false) {
-                    w.buffer.write_position = write_pos; // undo write_bits
+                if let Err(e) = w.bits.write_bit(false) {
+                    w.bits.write_position = write_pos; // undo write_bits
                     return Err(e);
                 }
             }
@@ -315,17 +319,17 @@ impl Writer for UperWriter {
             let out_of_range = len < min || len > max;
 
             if C::EXTENSIBLE {
-                w.buffer.write_bit(out_of_range)?;
+                w.bits.write_bit(out_of_range)?;
             }
 
             if out_of_range {
                 if !C::EXTENSIBLE {
                     return Err(Error::SizeNotInRange(len, min, max));
                 } else {
-                    w.buffer.write_length_determinant(None, None, len)?;
+                    w.bits.write_length_determinant(None, None, len)?;
                 }
             } else {
-                w.buffer.write_length_determinant(C::MIN, C::MAX, len)?;
+                w.bits.write_length_determinant(C::MIN, C::MAX, len)?;
             }
             w.scope_stashed(|w| {
                 for value in slice {
@@ -359,7 +363,7 @@ impl Writer for UperWriter {
     ) -> Result<(), Self::Error> {
         self.write_bit_field_entry(false, true)?;
         self.with_buffer(|w| {
-            w.buffer.write_enumeration_index(
+            w.bits.write_enumeration_index(
                 C::STD_VARIANT_COUNT,
                 C::EXTENSIBLE,
                 enumerated.to_choice_index(),
@@ -374,14 +378,14 @@ impl Writer for UperWriter {
             let index = choice.to_choice_index();
 
             // this fails if the index is out of range
-            w.buffer
+            w.bits
                 .write_choice_index(C::STD_VARIANT_COUNT, C::EXTENSIBLE, index)?;
 
             if index >= C::STD_VARIANT_COUNT {
                 // TODO performance
                 let mut writer = UperWriter::with_capacity(512);
                 choice.write_content(&mut writer)?;
-                w.buffer
+                w.bits
                     .write_octetstring(None, None, false, writer.byte_content())
             } else {
                 choice.write_content(w)
@@ -423,16 +427,16 @@ impl Writer for UperWriter {
         if max_fn {
             self.with_buffer(|w| {
                 if C::EXTENSIBLE {
-                    w.buffer.write_bit(true)?;
+                    w.bits.write_bit(true)?;
                 }
-                w.buffer.write_unconstrained_whole_number(value)
+                w.bits.write_unconstrained_whole_number(value)
             })
         } else {
             self.with_buffer(|w| {
                 if C::EXTENSIBLE {
-                    w.buffer.write_bit(false)?;
+                    w.bits.write_bit(false)?;
                 }
-                w.buffer.write_constrained_whole_number(
+                w.bits.write_constrained_whole_number(
                     const_unwrap_or!(C::MIN, 0),
                     const_unwrap_or!(C::MAX, i64::MAX),
                     value,
@@ -460,7 +464,7 @@ impl Writer for UperWriter {
 
             // ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 30.3
             // For 'known-multiplier character string types' there is no min/max in the encoding
-            w.buffer
+            w.bits
                 .write_octetstring(None, None, false, value.as_bytes())
         })
     }
@@ -482,22 +486,22 @@ impl Writer for UperWriter {
             let out_of_range = chars < min || chars > max;
 
             if C::EXTENSIBLE {
-                w.buffer.write_bit(out_of_range)?;
+                w.bits.write_bit(out_of_range)?;
             }
 
             if out_of_range {
                 if !C::EXTENSIBLE {
                     return Err(Error::SizeNotInRange(chars, min, max));
                 } else {
-                    w.buffer.write_length_determinant(None, None, chars)?;
+                    w.bits.write_length_determinant(None, None, chars)?;
                 }
             } else {
-                w.buffer.write_length_determinant(C::MIN, C::MAX, chars)?;
+                w.bits.write_length_determinant(C::MIN, C::MAX, chars)?;
             }
 
             for char in value.chars().map(|c| c as u8) {
                 // 7 bits
-                w.buffer.write_bits_with_offset(&[char], 1)?;
+                w.bits.write_bits_with_offset(&[char], 1)?;
             }
 
             Ok(())
@@ -511,7 +515,7 @@ impl Writer for UperWriter {
     ) -> Result<(), Self::Error> {
         self.write_bit_field_entry(false, true)?;
         self.with_buffer(|w| {
-            w.buffer
+            w.bits
                 .write_octetstring(C::MIN, C::MAX, C::EXTENSIBLE, value)
         })
     }
@@ -524,7 +528,7 @@ impl Writer for UperWriter {
     ) -> Result<(), Self::Error> {
         self.write_bit_field_entry(false, true)?;
         self.with_buffer(|w| {
-            w.buffer
+            w.bits
                 .write_bitstring(C::MIN, C::MAX, C::EXTENSIBLE, value, 0, bit_len)
         })
     }
@@ -532,7 +536,7 @@ impl Writer for UperWriter {
     #[inline]
     fn write_boolean<C: boolean::Constraint>(&mut self, value: bool) -> Result<(), Self::Error> {
         self.write_bit_field_entry(false, true)?;
-        self.with_buffer(|w| w.buffer.write_bit(value))
+        self.with_buffer(|w| w.bits.write_bit(value))
     }
 }
 
