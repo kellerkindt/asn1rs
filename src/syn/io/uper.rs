@@ -731,8 +731,7 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
                 .read_enumeration_index(C::STD_VARIANT_COUNT, C::EXTENSIBLE)
         })
         .and_then(|index| {
-            C::from_choice_index(index)
-                .ok_or_else(|| Error::InvalidChoiceIndex(index, C::VARIANT_COUNT))
+            C::from_choice_index(index).ok_or(Error::InvalidChoiceIndex(index, C::VARIANT_COUNT))
         })
     }
 
@@ -750,7 +749,7 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
                 Ok((index, C::read_content(index, r)?))
             }
             .and_then(|(index, content)| {
-                content.ok_or_else(|| Error::InvalidChoiceIndex(index, C::VARIANT_COUNT))
+                content.ok_or(Error::InvalidChoiceIndex(index, C::VARIANT_COUNT))
             })
         })
     }

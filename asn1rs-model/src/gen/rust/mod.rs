@@ -760,7 +760,7 @@ impl RustCodeGenerator {
         if check_for_keywords {
             for keyword in &KEYWORDS {
                 if keyword.eq(&name) {
-                    name.push_str("_");
+                    name.push('_');
                     return name;
                 }
             }
