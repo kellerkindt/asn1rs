@@ -1,11 +1,14 @@
 use crate::io::per::err::Error;
-use crate::io::per::unaligned::buffer::{BitBuffer, Bits};
+use crate::io::per::unaligned::buffer::BitBuffer;
 use crate::io::per::unaligned::BitWrite;
-use crate::io::per::unaligned::{BitRead, BYTE_LEN};
+use crate::io::per::unaligned::BYTE_LEN;
 use crate::io::per::PackedRead;
 use crate::io::per::PackedWrite;
 use crate::syn::*;
 use std::ops::Range;
+
+pub use crate::io::per::unaligned::buffer::Bits;
+pub use crate::io::per::unaligned::ScopedBitRead;
 
 /// This ist enum is the main reason, the new impl is about ~10% slower (2020-09) than the previous/
 /// legacy implementation. This dynamic state tracking at runtime could be avoided by passing all
@@ -123,14 +126,14 @@ impl Scope {
     #[inline]
     pub fn read_from_field(
         &mut self,
-        buffer: &mut Bits,
+        bits: &mut impl ScopedBitRead,
         is_opt: bool,
     ) -> Result<Option<bool>, Error> {
         match self {
             Scope::OptBitField(range) => {
                 if is_opt {
                     let result =
-                        buffer.with_read_position_at(range.start, |buffer| buffer.read_bit());
+                        bits.with_read_position_at(range.start, |buffer| buffer.read_bit());
                     range.start += 1;
                     Some(result).transpose()
                 } else {
@@ -138,7 +141,7 @@ impl Scope {
                 }
             }
             Scope::AllBitField(range) => {
-                let result = buffer.with_read_position_at(range.start, |buffer| buffer.read_bit());
+                let result = bits.with_read_position_at(range.start, |buffer| buffer.read_bit());
                 range.start += 1;
                 Some(result).transpose()
             }
@@ -148,26 +151,25 @@ impl Scope {
                 number_of_ext_fields,
             } => {
                 if *calls_until_ext_bitfield == 0 {
-                    let read_number_of_ext_fields =
-                        buffer.read_normally_small_length()? as usize + 1;
+                    let read_number_of_ext_fields = bits.read_normally_small_length()? as usize + 1;
                     if read_number_of_ext_fields != *number_of_ext_fields {
                         return Err(Error::UnsupportedOperation(format!(
                             "Expected {} extended fields but got {}",
                             number_of_ext_fields, read_number_of_ext_fields
                         )));
                     }
-                    let range = buffer.pos..buffer.pos + *number_of_ext_fields;
-                    buffer.pos = range.end; // skip bit-field
+                    let range = bits.pos()..bits.pos() + *number_of_ext_fields;
+                    bits.set_pos(range.end); // skip bit-field
                     *self = Scope::AllBitField(range);
-                    self.read_from_field(buffer, is_opt)
+                    self.read_from_field(bits, is_opt)
                 } else {
                     *calls_until_ext_bitfield = calls_until_ext_bitfield.saturating_sub(1);
                     opt_bit_field
                         .as_mut()
                         .filter(|_| is_opt)
                         .map(|range| {
-                            let result = buffer
-                                .with_read_position_at(range.start, |buffer| buffer.read_bit());
+                            let result =
+                                bits.with_read_position_at(range.start, |buffer| buffer.read_bit());
                             range.start += 1;
                             result
                         })
@@ -204,8 +206,8 @@ impl UperWriter {
         self.buffer.into()
     }
 
-    pub fn as_reader(&self) -> UperReader {
-        UperReader::from_bits((self.byte_content(), self.bit_len()))
+    pub fn as_reader(&self) -> UperReader<Bits> {
+        UperReader::from(Bits::from((self.byte_content(), self.bit_len())))
     }
 
     #[inline]
@@ -534,22 +536,31 @@ impl Writer for UperWriter {
     }
 }
 
-pub struct UperReader<'a> {
-    bits: Bits<'a>,
+pub struct UperReader<B: ScopedBitRead> {
+    bits: B,
     scope: Option<Scope>,
 }
 
-impl<'a> UperReader<'a> {
-    pub fn from_bits<I: Into<Bits<'a>>>(bits: I) -> Self {
-        Self {
+/*
+impl<B: ScopedBitRead> From<B> for UperReader<B> {
+    fn from(bits: B) -> Self {
+        UperReader { bits, scope: None }
+    }
+}*/
+
+impl<'a, I: Into<Bits<'a>>> From<I> for UperReader<Bits<'a>> {
+    fn from(bits: I) -> Self {
+        UperReader {
             bits: bits.into(),
-            scope: Default::default(),
+            scope: None,
         }
     }
+}
 
+impl<B: ScopedBitRead> UperReader<B> {
     #[inline]
-    pub const fn bits_remaining(&self) -> usize {
-        self.bits.len - self.bits.pos
+    pub fn bits_remaining(&self) -> usize {
+        self.bits.remaining()
     }
 
     #[inline]
@@ -580,14 +591,15 @@ impl<'a> UperReader<'a> {
         length_bytes: usize,
         f: F,
     ) -> Result<T, E> {
-        let write_position = self.bits.pos + (length_bytes * BYTE_LEN);
-        let write_original = core::mem::replace(&mut self.bits.len, write_position);
+        let write_position = self.bits.pos() + (length_bytes * BYTE_LEN);
+        let write_original = core::mem::replace(&mut self.bits.len(), write_position);
         let result = f(self);
         // extend to original position
-        self.bits.len = write_original;
+        let len = self.bits.set_len(write_original);
+        debug_assert_eq!(write_original, len);
         if result.is_ok() {
             // on successful read, skip the slice
-            self.bits.pos = write_position;
+            self.bits.set_pos(write_position);
         }
         result
     }
@@ -620,13 +632,9 @@ impl<'a> UperReader<'a> {
             f(self)
         }
     }
-
-    pub fn reset_read_position(&mut self) {
-        self.bits.reset_read_position()
-    }
 }
 
-impl Reader for UperReader<'_> {
+impl<B: ScopedBitRead> Reader for UperReader<B> {
     type Error = Error;
 
     #[inline]
@@ -654,11 +662,11 @@ impl Reader for UperReader<'_> {
             // In UPER the values for all OPTIONAL flags are written before any field
             // value is written. This remembers their position, so a later call of `read_opt`
             // can retrieve them from the buffer
-            let range = r.bits.pos..r.bits.pos + C::STD_OPTIONAL_FIELDS as usize;
-            if r.bits.bit_len() < range.end {
+            if r.bits.remaining() < C::STD_OPTIONAL_FIELDS as usize {
                 return Err(Error::EndOfStream);
             }
-            r.bits.pos = range.end; // skip optional
+            let range = r.bits.pos()..r.bits.pos() + C::STD_OPTIONAL_FIELDS as usize;
+            r.bits.set_pos(range.end); // skip optional
 
             if let Some(extension_after) = C::EXTENDED_AFTER_FIELD {
                 r.scope_pushed(
@@ -827,5 +835,21 @@ impl Reader for UperReader<'_> {
     fn read_boolean<C: boolean::Constraint>(&mut self) -> Result<bool, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
         self.with_buffer(|r| r.bits.read_boolean())
+    }
+}
+
+pub trait UperDecodable<'a, I: Into<Bits<'a>> + 'a> {
+    fn decode_from_uper(bits: I) -> Result<Self, Error>
+    where
+        Self: Sized;
+}
+
+impl<'a, R: Readable, I: Into<Bits<'a>> + 'a> UperDecodable<'a, I> for R {
+    fn decode_from_uper(bits: I) -> Result<Self, Error>
+    where
+        Self: Sized,
+    {
+        let mut reader = UperReader::from(bits);
+        Self::read(&mut reader)
     }
 }

@@ -46,7 +46,7 @@ fn test_serialize_with_uper() {
 
 #[test]
 fn test_deserialize_with_uper() {
-    let mut uper = UperReader::from_bits((
+    let mut uper = UperReader::from((
         &[
             // https://asn1.io/asn1playground/
             0x01, 0x7B, 0x02, 0x04, 0xD2, 0xE8, 0x28, 0xEE, 0xD0, 0xCA, 0xE4, 0xCA, 0x40, 0xD2,
@@ -86,7 +86,7 @@ fn topping_test_serialize_with_uper() {
 
 #[test]
 fn topping_test_deserialize_with_uper() {
-    let mut uper = UperReader::from_bits((&[0x00_u8 | 0x40 >> 2 | 0x80 >> 4][..], 6));
+    let mut uper = UperReader::from((&[0x00_u8 | 0x40 >> 2 | 0x80 >> 4][..], 6));
     assert_eq!(Topping::NotPineapple, uper.read::<Topping>().unwrap());
     assert_eq!(Topping::EvenLessPineapple, uper.read::<Topping>().unwrap());
     assert_eq!(Topping::NoPineappleAtAll, uper.read::<Topping>().unwrap());

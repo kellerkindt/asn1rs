@@ -35,6 +35,42 @@ pub trait BitRead {
     ) -> Result<(), Error>;
 }
 
+pub trait ScopedBitRead: BitRead {
+    fn pos(&self) -> usize;
+
+    /// Tries to set the position to the given value and returns the actual new position value.
+    /// This might be clamped if the position tries to specify a value beyond [`ScopedBitRead::len()`].
+    fn set_pos(&mut self, position: usize) -> usize;
+
+    fn len(&self) -> usize;
+
+    /// Tries to set the visible length to the given value and returns the actual new value.
+    /// This might be clamped if the length tries to specify a value beyond the internal buffer.
+    fn set_len(&mut self, len: usize) -> usize;
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Remaining bits to read before [`Self::pos()`] reaches [`Self::len()`]
+    fn remaining(&self) -> usize;
+
+    /// Changes the read-position to the given position for the closure call.
+    /// Restores the original read-position after the call.
+    #[inline]
+    fn with_read_position_at<T, F: Fn(&mut Self) -> T>(&mut self, pos: usize, f: F) -> T {
+        let original_pos = self.pos();
+        debug_assert!(pos < self.len());
+        let pos_set = self.set_pos(pos);
+        debug_assert_eq!(pos, pos_set);
+        let result = f(self);
+        let pos_set = self.set_pos(original_pos);
+        debug_assert_eq!(original_pos, pos_set);
+        result
+    }
+}
+
 impl<T: BitRead> PackedRead for T {
     /// ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 12
     #[inline]

@@ -10,7 +10,7 @@ pub fn serialize_uper(to_uper: &impl Writable) -> (usize, Vec<u8>) {
 }
 
 pub fn deserialize_uper<T: Readable>(data: &[u8], bits: usize) -> T {
-    let mut reader = UperReader::from_bits((data, bits));
+    let mut reader = UperReader::from((data, bits));
     let result = reader.read::<T>().unwrap();
     assert_eq!(
         0,
