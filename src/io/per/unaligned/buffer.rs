@@ -339,7 +339,7 @@ impl ScopedBitRead for Bits<'_> {
 }
 
 #[cfg(test)]
-#[allow(clippy::identity_op)] // this makes various examples easier to understand
+#[allow(clippy::identity_op, clippy::inconsistent_digit_grouping)] // this makes various examples easier to understand
 pub mod tests {
     use super::*;
     use crate::io::per::unaligned::BitRead;
