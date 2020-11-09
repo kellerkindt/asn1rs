@@ -1,12 +1,13 @@
 /// Allows const expansion until https://github.com/rust-lang/rust/issues/67441
 /// Cannot be a function with generic type because of https://github.com/rust-lang/rust/issues/73255
 macro_rules! const_unwrap_or {
-    ($op:path, $def:expr) => {
+    ($op:path, $def:expr) => {{
+        #[allow(clippy::manual_unwrap_or)]
         match $op {
             Some(value) => value,
             None => $def,
         }
-    };
+    }};
 }
 
 /// Allows const expansion until https://github.com/rust-lang/rust/issues/67441
