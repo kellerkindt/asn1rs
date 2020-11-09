@@ -469,6 +469,7 @@ pub struct BoolContainer {
 }
 
 #[test]
+#[allow(clippy::inconsistent_digit_grouping)]
 fn test_bool_container_uper() {
     let mut uper = UperWriter::default();
     let v = BoolContainer {
