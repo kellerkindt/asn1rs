@@ -245,7 +245,7 @@ fn are_we_binary_yet_uper() {
     };
     uper.write(&are_we).unwrap();
     // https://asn1.io/asn1playground/
-    assert_eq!(&[02, 0x13, 0x37], uper.byte_content());
+    assert_eq!(&[0x02, 0x13, 0x37], uper.byte_content());
     assert_eq!(3 * 8, uper.bit_len());
     let mut uper = uper.as_reader();
     assert_eq!(are_we, uper.read::<AreWeBinaryYet>().unwrap());
