@@ -75,6 +75,7 @@ pub enum Topping {
 }
 
 #[test]
+#[allow(clippy::identity_op)] // to make the values easier to understand
 fn topping_test_serialize_with_uper() {
     let mut uper = UperWriter::default();
     uper.write(&Topping::NotPineapple).unwrap();
@@ -85,6 +86,7 @@ fn topping_test_serialize_with_uper() {
 }
 
 #[test]
+#[allow(clippy::identity_op)] // to make the values easier to understand
 fn topping_test_deserialize_with_uper() {
     let mut uper = UperReader::from((&[0x00_u8 | 0x40 >> 2 | 0x80 >> 4][..], 6));
     assert_eq!(Topping::NotPineapple, uper.read::<Topping>().unwrap());
@@ -319,6 +321,7 @@ fn test_crazy_list_println() {
 }
 
 #[test]
+#[allow(clippy::identity_op)] // to make the values easier to understand
 fn test_crazy_list_uper() {
     let mut uper = UperWriter::default();
     let list = CrazyList {
@@ -412,6 +415,7 @@ fn test_transparent_important_println() {
 }
 
 #[test]
+#[allow(clippy::identity_op)] // to make the values easier to understand
 fn test_transparent_important_uper_some() {
     let mut uper = UperWriter::default();
     let v = Important(Some(42));
