@@ -1,4 +1,4 @@
-//!
+//! ```text
 //! crate::io                       Utils, common io-root
 //!      ::io::per                  Generic Packed Encoding impls and traits
 //!      ::io::per::unaligned       UNALIGNED PER specialization
@@ -10,7 +10,7 @@
 //!      ::io::psql                 Blocking PSQL io-utils
 //!
 //!      ::io::uper                 Deprecated UNALIGNED PER decoder/encoder
-//!
+//! ```
 
 pub mod per;
 pub mod protobuf;
