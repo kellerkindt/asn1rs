@@ -17,7 +17,7 @@ syn = {version = "1.0.17", features = ["full"] }
 quote = "1.0.3"
 proc-macro2 = "1.0.10"
 strum = "0.19.2"
-strum_macros = "0.19.2"
+strum_macros = "0.20.1"
 
 [features]
 default = []
