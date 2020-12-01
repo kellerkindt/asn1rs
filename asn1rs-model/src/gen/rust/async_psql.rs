@@ -584,7 +584,7 @@ impl AsyncPsqlInserter {
 
     fn append_retrieve_enum(impl_scope: &mut Impl) {
         create_retrieve_fn(impl_scope, false).line(format!(
-            "Self::variant(id as usize).ok_or_else(|| {}::Error::UnexpectedVariant(id as usize))",
+            "Self::variant(id as usize).ok_or({}::Error::UnexpectedVariant(id as usize))",
             MODULE_NAME,
         ));
     }
@@ -611,7 +611,7 @@ impl AsyncPsqlInserter {
         ));
         fn_retrieve.line("let row = context.query_opt(&prepared, &[&id]).await?;");
         fn_retrieve.line(format!(
-            "let row = row.ok_or_else(|| {}::Error::NoEntryFoundForId(id))?;",
+            "let row = row.ok_or({}::Error::NoEntryFoundForId(id))?;",
             MODULE_NAME
         ));
         fn_retrieve.line(format!("Self::{}(context, &row).await", load_fn_name()));
