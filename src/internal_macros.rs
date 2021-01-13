@@ -3,7 +3,7 @@
 macro_rules! const_unwrap_or {
     ($op:path, $def:expr) => {{
         // not yet stable clippy lint
-        // #[allow(clippy::manual_unwrap_or)]
+        #[allow(clippy::manual_unwrap_or)]
         match $op {
             Some(value) => value,
             None => $def,
