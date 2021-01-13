@@ -113,19 +113,7 @@ impl RustType {
     }
 
     pub fn is_primitive(&self) -> bool {
-        #[allow(clippy::match_same_arms)] // to have the same order as the original enum
-        match self {
-            RustType::Bool => true,
-            RustType::U8(_) => true,
-            RustType::I8(_) => true,
-            RustType::U16(_) => true,
-            RustType::I16(_) => true,
-            RustType::U32(_) => true,
-            RustType::I32(_) => true,
-            RustType::U64(_) => true,
-            RustType::I64(_) => true,
-            _ => false,
-        }
+        matches!(self, RustType::Bool | RustType::U8(_) | RustType::I8(_) | RustType::U16(_) | RustType::I16(_) | RustType::U32(_) | RustType::I32(_) | RustType::U64(_) | RustType::I64(_))
     }
 
     pub fn integer_range_str(&self) -> Option<Range<String>> {
