@@ -18,7 +18,7 @@ use asn1rs::model::{Definition, Model, Rust};
 use asn1rs::parser::Tokenizer;
 use asn1rs_model::gen::RustCodeGenerator;
 use codegen::Scope;
-use syn::export::TokenStream2 as TokenStream;
+use proc_macro2::TokenStream;
 
 #[test]
 fn test_standard_enum() {
