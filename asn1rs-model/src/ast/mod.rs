@@ -11,10 +11,10 @@ use crate::model::{
 };
 use crate::model::{Choice, ChoiceVariant, Definition, Enumerated, Field, Model, Type};
 use attribute::AsnAttribute;
+use proc_macro2::TokenStream;
 use quote::quote;
 use std::convert::Infallible;
 use std::str::FromStr;
-use syn::export::TokenStream2 as TokenStream;
 use syn::spanned::Spanned;
 use syn::{Attribute, Item};
 
