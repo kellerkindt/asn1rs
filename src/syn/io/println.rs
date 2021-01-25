@@ -17,7 +17,7 @@ impl PrintlnWriter {
 }
 
 impl Writer for PrintlnWriter {
-    type Error = ();
+    type Error = core::convert::Infallible;
 
     fn write_sequence<C: sequence::Constraint, F: Fn(&mut Self) -> Result<(), Self::Error>>(
         &mut self,
