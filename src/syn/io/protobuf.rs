@@ -187,6 +187,9 @@ impl Writer for ProtobufWriter {
     ) -> Result<(), Self::Error> {
         let tag = self.state.tag_counter + 1;
 
+        // This way is clearer, that the first branch is for unsigned and the second branch for
+        // signed types, while the inner branches determine 32- or 64-bitness
+        #[allow(clippy::collapsible_if)]
         if const_unwrap_or!(C::MIN, 0) >= 0 {
             if const_unwrap_or!(C::MAX, i64::MAX) <= i64::from(u32::MAX) {
                 let value = value.to_i64() as u32; // safe cast because of check above
