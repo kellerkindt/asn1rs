@@ -798,7 +798,10 @@ impl Model<Rust> {
                                 //_ => panic!("This should never happen, since max (as u64 frm i64) cannot be greater than U64_MAX")
                             }
                         } else {
-                            let max_amplitude = (min - 1).abs().max(max);
+                            // i32 => -2147483648    to    2147483647  --\
+                            //        -2147483648 + 1   = -2147483647    | same
+                            //    abs(-2147483648 + 1)  =  2147483647  --/
+                            let max_amplitude = (min + 1).abs().max(max);
                             match max_amplitude {
                                 _ if max_amplitude <= I8_MAX => RustType::I8(Range::inclusive(min as i8, max as i8)),
                                 _ if max_amplitude <= I16_MAX => RustType::I16(Range::inclusive(min as i16, max as i16)),
