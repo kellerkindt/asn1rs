@@ -490,6 +490,8 @@ impl Model<Asn> {
             Ok(Type::Enumerated(Enumerated::try_from(iter)?))
         } else if text.eq_ignore_ascii_case("SEQUENCE") {
             Ok(Self::read_sequence_or_sequence_of(iter)?)
+        } else if text.eq_ignore_ascii_case("SET") {
+            Ok(Self::read_set_or_set_of(iter)?)
         } else {
             Ok(Type::TypeReference(text, None))
         }
