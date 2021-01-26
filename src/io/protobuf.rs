@@ -69,7 +69,7 @@ impl std::fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
-#[derive(Debug, PartialOrd, PartialEq)]
+#[derive(Debug, PartialOrd, PartialEq, Clone, Copy)]
 #[repr(u32)]
 pub enum Format {
     #[allow(unused)]
