@@ -1,5 +1,8 @@
-pub mod protobuf;
 pub mod walker;
+
+#[deprecated(note = "Use the Reader/-Writer with the Read-/Writable interface instead")]
+#[cfg(feature = "legacy-protobuf-codegen")]
+pub mod protobuf;
 
 #[deprecated(note = "Use the Reader/-Writer with the Read-/Writable interface instead")]
 #[cfg(feature = "legacy-uper-codegen")]
@@ -24,11 +27,13 @@ use crate::model::TagProperty;
 use crate::model::{Definition, Tag, Type as AsnType, Type};
 use codegen::Block;
 use codegen::Enum;
-use codegen::Function;
 use codegen::Impl;
 use codegen::Scope;
 use codegen::Struct;
 use std::borrow::Cow;
+
+#[cfg(feature = "legacy-codegen")]
+use codegen::Function;
 
 #[cfg(feature = "psql")]
 use self::psql::PsqlInserter;
@@ -36,7 +41,8 @@ use self::psql::PsqlInserter;
 #[cfg(feature = "async-psql")]
 use self::async_psql::AsyncPsqlInserter;
 
-#[cfg(feature = "protobuf")]
+#[cfg(feature = "legacy-protobuf-codegen")]
+#[cfg_attr(feature = "legacy-protobuf-codegen", allow(deprecated))]
 use self::protobuf::ProtobufSerializer;
 
 const KEYWORDS: [&str; 9] = [
@@ -102,7 +108,8 @@ impl Generator<Rust> for RustCodeGenerator {
                     #[cfg(feature = "legacy-uper-codegen")]
                     #[cfg_attr(feature = "legacy-uper-codegen", allow(deprecated))]
                     &uper::UperSerializer,
-                    #[cfg(feature = "protobuf")]
+                    #[cfg(feature = "legacy-protobuf-codegen")]
+                    #[cfg_attr(feature = "legacy-protobuf-codegen", allow(deprecated))]
                     &ProtobufSerializer,
                     #[cfg(feature = "psql")]
                     &PsqlInserter,
@@ -844,6 +851,8 @@ impl RustCodeGenerator {
         en_m
     }
 
+    #[cfg(feature = "legacy-codegen")]
+    #[cfg_attr(feature = "legacy-codegen", allow(deprecated))]
     fn new_serializable_impl<'a>(
         scope: &'a mut Scope,
         impl_for: &str,
@@ -852,6 +861,8 @@ impl RustCodeGenerator {
         scope.new_impl(impl_for).impl_trait(codec)
     }
 
+    #[cfg(feature = "legacy-codegen")]
+    #[cfg_attr(feature = "legacy-codegen", allow(deprecated))]
     fn new_read_fn<'a>(implementation: &'a mut Impl, codec: &str) -> &'a mut Function {
         implementation
             .new_fn(&format!("read_{}", codec.to_lowercase()))
@@ -860,6 +871,8 @@ impl RustCodeGenerator {
             .bound("Self", "Sized")
     }
 
+    #[cfg(feature = "legacy-codegen")]
+    #[cfg_attr(feature = "legacy-codegen", allow(deprecated))]
     fn new_write_fn<'a>(implementation: &'a mut Impl, codec: &str) -> &'a mut Function {
         implementation
             .new_fn(&format!("write_{}", codec.to_lowercase()))
