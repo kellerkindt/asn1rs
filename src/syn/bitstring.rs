@@ -92,7 +92,7 @@ impl BitVec {
     }
 
     pub fn to_vec_with_trailing_bit_len(&self) -> Vec<u8> {
-        let mut buffer = self.0.clone();
+        let mut buffer = (&self.0[..(self.1 as usize + (BYTE_LEN - 1)) / BYTE_LEN]).to_vec();
         self.1.to_be_bytes().iter().for_each(|b| buffer.push(*b));
         buffer
     }
