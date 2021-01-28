@@ -243,7 +243,7 @@ impl ProtobufSerializer {
             ));
         }
         block_match.line(format!(
-            "v => Err({}Error::invalid_variant(v as u32))",
+            "v => Err({}Error::invalid_variant(v))",
             Self::CODEC,
         ));
         function.push_block(block_match);

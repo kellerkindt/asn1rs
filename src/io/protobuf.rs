@@ -16,6 +16,7 @@ pub enum Error {
     MissingRequiredField(&'static str),
     InvalidTagReceived(Backtrace, u32),
     InvalidFormat(Backtrace, u32),
+    InvalidVariant(Backtrace, u64),
     UnexpectedFormat(Backtrace, Format),
     UnexpectedTag(Backtrace, (u32, Format)),
 }
@@ -27,8 +28,8 @@ impl Error {
     }
 
     #[allow(unused)]
-    pub fn invalid_variant(format: u32) -> Self {
-        Error::InvalidFormat(Backtrace::new(), format)
+    pub fn invalid_variant(variant: u64) -> Self {
+        Error::InvalidVariant(Backtrace::new(), variant)
     }
 
     #[allow(unused)]
@@ -57,6 +58,7 @@ impl std::fmt::Display for Error {
             }
             Error::InvalidTagReceived(b, tag) => write!(f, "Tag({}) is unknown\n{:?}", tag, b),
             Error::InvalidFormat(b, tag) => write!(f, "Format({}) is invalid\n{:?}", tag, b),
+            Error::InvalidVariant(b, var) => write!(f, "Variant({}) is invalid\n{:?}", var, b),
             Error::UnexpectedFormat(b, format) => {
                 write!(f, "Format({:?}) is unexpected\n{:?}", format, b)
             }
