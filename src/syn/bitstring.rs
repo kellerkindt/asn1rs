@@ -85,9 +85,8 @@ impl BitVec {
         const U64_SIZE: usize = std::mem::size_of::<u64>();
         let bytes_position = bytes.len() - U64_SIZE;
         let mut bit_len_buffer = [0u8; U64_SIZE];
-        for i in (0..U64_SIZE).rev() {
-            bit_len_buffer[i] = bytes.remove(bytes_position + i);
-        }
+        bit_len_buffer.copy_from_slice(&bytes[bytes_position..]);
+        bytes.truncate(bytes_position);
         Self(bytes, u64::from_be_bytes(bit_len_buffer))
     }
 
@@ -141,6 +140,10 @@ impl BitVec {
 
     pub fn as_byte_slice(&self) -> &[u8] {
         self.0.as_slice()
+    }
+
+    pub fn split(self) -> (Vec<u8>, u64) {
+        (self.0, self.1)
     }
 }
 

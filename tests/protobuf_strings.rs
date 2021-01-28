@@ -30,7 +30,7 @@ fn test_strings() {
             utf8string: "utf8string".into(),
             ia5string: "ia5string".into(),
             octetstring: vec![0xDE, 0xAD, 0xBE, 0xEF],
-            bitstring: BitVec::from_bytes(vec![0x13, 0x37, 0x42], 15),
+            bitstring: BitVec::from_bytes(vec![0x13, 0x36], 15),
         },
     )
 }

@@ -72,6 +72,20 @@ fn test_choice_c() {
 
 #[test]
 #[cfg(feature = "protobuf")]
+fn test_choice_ext_a() {
+    serialize_and_deserialize_protobuf(
+        // data is from the output of the legacy serializer
+        &[8, 0, 16, 8, 42, 24, 149, 6],
+        &ProtobufChoiceExt {
+            lone_bool: false,
+            some_choice: ProtobufChoiceExtSomeChoice::A(42),
+            lone_int: 789_u64,
+        },
+    )
+}
+
+#[test]
+#[cfg(feature = "protobuf")]
 fn test_choice_ext_b() {
     serialize_and_deserialize_protobuf(
         // data is from the output of the legacy serializer

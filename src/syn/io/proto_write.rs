@@ -1,10 +1,9 @@
 use crate::io::protobuf::Writer as _;
 use crate::io::protobuf::{Error, Format};
-use crate::syn::sequence;
 use crate::syn::*;
 
 #[derive(Default, Copy, Clone)]
-pub struct State {
+struct State {
     tag_counter: u32,
     format: Option<Format>,
 }
@@ -29,16 +28,12 @@ impl ProtobufWriter {
     pub fn into_bytes_vec(self) -> Vec<u8> {
         self.buffer
     }
-}
-
-impl Writer for ProtobufWriter {
-    type Error = Error;
 
     #[inline]
-    fn write_sequence<C: sequence::Constraint, F: Fn(&mut Self) -> Result<(), Self::Error>>(
+    fn write_set_or_sequence<F: Fn(&mut Self) -> Result<(), <Self as Writer>::Error>>(
         &mut self,
         f: F,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<(), <Self as Writer>::Error> {
         let root = core::mem::take(&mut self.is_root);
         let mut state = core::mem::take(&mut self.state);
 
@@ -68,51 +63,61 @@ impl Writer for ProtobufWriter {
         result
     }
 
+    #[inline]
+    fn write_set_or_sequence_of<T: WritableType>(
+        &mut self,
+        slice: &[<T as WritableType>::Type],
+    ) -> Result<(), <Self as Writer>::Error> {
+        let state = self.state;
+
+        for value in slice {
+            let result = T::write_value(self, value);
+            self.state = state;
+            result?;
+        }
+
+        self.state.tag_counter += 1;
+        //self.state.format = Some(Format::LengthDelimited);
+        Ok(())
+    }
+}
+
+impl Writer for ProtobufWriter {
+    type Error = Error;
+
+    #[inline]
+    fn write_sequence<C: sequence::Constraint, F: Fn(&mut Self) -> Result<(), Self::Error>>(
+        &mut self,
+        f: F,
+    ) -> Result<(), Self::Error> {
+        self.write_set_or_sequence(f)
+    }
+
+    #[inline]
     fn write_sequence_of<C: sequenceof::Constraint, T: WritableType>(
         &mut self,
         slice: &[<T as WritableType>::Type],
     ) -> Result<(), Self::Error> {
-        let state = self.state;
-
-        for value in slice {
-            let result = T::write_value(self, value);
-            self.state = state;
-            result?;
-        }
-
-        self.state.tag_counter += 1;
-        self.state.format = Some(Format::LengthDelimited);
-        Ok(())
+        self.write_set_or_sequence_of::<T>(slice)
     }
 
+    #[inline]
     fn write_set<C: set::Constraint, F: Fn(&mut Self) -> Result<(), Self::Error>>(
         &mut self,
         f: F,
     ) -> Result<(), Self::Error> {
-        let state = core::mem::take(&mut self.state);
-        let result = f(self);
-        self.state = state;
-        self.state.format = Some(Format::LengthDelimited);
-        result
+        self.write_set_or_sequence(f)
     }
 
+    #[inline]
     fn write_set_of<C: setof::Constraint, T: WritableType>(
         &mut self,
         slice: &[<T as WritableType>::Type],
     ) -> Result<(), Self::Error> {
-        let state = self.state;
-
-        for value in slice {
-            let result = T::write_value(self, value);
-            self.state = state;
-            result?;
-        }
-
-        self.state.tag_counter += 1;
-        self.state.format = Some(Format::LengthDelimited);
-        Ok(())
+        self.write_set_or_sequence_of::<T>(slice)
     }
 
+    #[inline]
     fn write_enumerated<C: enumerated::Constraint>(
         &mut self,
         enumerated: &C,
@@ -130,6 +135,7 @@ impl Writer for ProtobufWriter {
         Ok(())
     }
 
+    #[inline]
     fn write_choice<C: choice::Constraint>(&mut self, choice: &C) -> Result<(), Self::Error> {
         let root = core::mem::take(&mut self.is_root);
         let mut state = core::mem::take(&mut self.state);
@@ -168,6 +174,7 @@ impl Writer for ProtobufWriter {
         result
     }
 
+    #[inline]
     fn write_opt<T: WritableType>(
         &mut self,
         value: Option<&<T as WritableType>::Type>,
@@ -181,6 +188,7 @@ impl Writer for ProtobufWriter {
         Ok(())
     }
 
+    #[inline]
     fn write_number<T: numbers::Number, C: numbers::Constraint<T>>(
         &mut self,
         value: T,
@@ -218,6 +226,7 @@ impl Writer for ProtobufWriter {
         Ok(())
     }
 
+    #[inline]
     fn write_utf8string<C: utf8string::Constraint>(
         &mut self,
         value: &str,
@@ -229,6 +238,7 @@ impl Writer for ProtobufWriter {
         Ok(())
     }
 
+    #[inline]
     fn write_ia5string<C: ia5string::Constraint>(
         &mut self,
         value: &str,
@@ -240,6 +250,7 @@ impl Writer for ProtobufWriter {
         Ok(())
     }
 
+    #[inline]
     fn write_octet_string<C: octetstring::Constraint>(
         &mut self,
         value: &[u8],
@@ -251,6 +262,7 @@ impl Writer for ProtobufWriter {
         Ok(())
     }
 
+    #[inline]
     fn write_bit_string<C: bitstring::Constraint>(
         &mut self,
         value: &[u8],
@@ -266,6 +278,7 @@ impl Writer for ProtobufWriter {
         Ok(())
     }
 
+    #[inline]
     fn write_boolean<C: boolean::Constraint>(&mut self, value: bool) -> Result<(), Self::Error> {
         let tag = self.state.tag_counter + 1;
         self.buffer.write_tagged_bool(tag, value)?;

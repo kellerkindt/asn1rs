@@ -16,6 +16,12 @@ asn_to_rust!(
         another-string  UTF8String
     }
 
+    ProtobufSequenceOfExtOpt ::= SEQUENCE {
+        lone-bool       BOOLEAN,
+        many-sint32     SEQUENCE OF INTEGER (-2147483648..2147483647) OPTIONAL,
+        another-string  UTF8String
+    }
+
     END"
 );
 
@@ -95,6 +101,37 @@ fn test_sequence_of_multiple_ext() {
         &ProtobufSequenceOfExt {
             lone_bool: false,
             many_sint32: vec![-1_i32, 2, 3, 4, 1024, -1024_1024],
+            another_string: "multiple".into(),
+        },
+    )
+}
+
+#[test]
+#[cfg(feature = "protobuf")]
+fn test_sequence_of_multiple_ext_opt_some() {
+    serialize_and_deserialize_protobuf(
+        // data is from the output of the legacy serializer
+        &[
+            8, 0, 16, 1, 16, 4, 16, 6, 16, 8, 16, 128, 16, 16, 255, 143, 226, 9, 26, 8, 109, 117,
+            108, 116, 105, 112, 108, 101,
+        ],
+        &ProtobufSequenceOfExtOpt {
+            lone_bool: false,
+            many_sint32: Some(vec![-1_i32, 2, 3, 4, 1024, -1024_1024]),
+            another_string: "multiple".into(),
+        },
+    )
+}
+
+#[test]
+#[cfg(feature = "protobuf")]
+fn test_sequence_of_multiple_ext_opt_none() {
+    serialize_and_deserialize_protobuf(
+        // data is from the output of the legacy serializer
+        &[8, 0, 26, 8, 109, 117, 108, 116, 105, 112, 108, 101],
+        &ProtobufSequenceOfExtOpt {
+            lone_bool: false,
+            many_sint32: None,
             another_string: "multiple".into(),
         },
     )

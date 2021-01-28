@@ -46,8 +46,9 @@ pub fn serialize_protobuf(to_protobuf: &impl Writable) -> Vec<u8> {
 }
 
 #[cfg(feature = "protobuf")]
-pub fn deserialize_protobuf<T: Readable>(data: &[u8], bits: usize) -> T {
-    unimplemented!()
+pub fn deserialize_protobuf<T: Readable>(data: &[u8]) -> T {
+    let mut reader = ProtobufReader::from(data);
+    T::read(&mut reader).unwrap()
 }
 
 #[cfg(feature = "protobuf")]
@@ -67,11 +68,12 @@ pub fn serialize_and_deserialize_protobuf<
         &serialized[..],
         "Serialized binary data does not match"
     );
-    // assert_eq!(
-    //     proto,
-    //     &deserialize_uper::<T>(data, bits),
-    //     "Deserialized data struct does not match"
-    // );
+
+    assert_eq!(
+        proto,
+        &deserialize_protobuf::<T>(data),
+        "Deserialized data struct does not match"
+    );
 }
 
 #[cfg(all(feature = "protobuf", feature = "legacy-protobuf-codegen"))]
