@@ -1,6 +1,7 @@
-use crate::io::protobuf::Writer as _;
+use crate::io::protobuf::ProtoWrite as _;
 use crate::io::protobuf::{Error, Format};
 use crate::syn::*;
+use std::io::Write;
 
 #[derive(Default, Copy, Clone)]
 struct State {
@@ -8,25 +9,87 @@ struct State {
     format: Option<Format>,
 }
 
-pub struct ProtobufWriter {
-    buffer: Vec<u8>,
+enum SliceOrVec<'a> {
+    Vec(Vec<u8>),
+    Slice(usize, &'a mut [u8]),
+}
+
+impl SliceOrVec<'_> {
+    pub fn into_inner_vec(self) -> Option<Vec<u8>> {
+        match self {
+            Self::Vec(vec) => Some(vec),
+            Self::Slice(_, _) => None,
+        }
+    }
+}
+
+impl std::io::Write for SliceOrVec<'_> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        match self {
+            Self::Vec(vec) => vec.write(buf),
+            Self::Slice(_, slice) => slice.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        match self {
+            Self::Vec(vec) => vec.flush(),
+            Self::Slice(_, slice) => slice.flush(),
+        }
+    }
+
+    fn write_all(&mut self, buf: &[u8]) -> std::io::Result<()> {
+        match self {
+            Self::Vec(vec) => vec.write_all(buf),
+            Self::Slice(_, slice) => slice.write_all(buf),
+        }
+    }
+}
+impl Default for SliceOrVec<'_> {
+    fn default() -> Self {
+        Self::Vec(Vec::default())
+    }
+}
+
+pub struct ProtobufWriter<'a> {
+    buffer: SliceOrVec<'a>,
     state: State,
     is_root: bool,
 }
 
-impl Default for ProtobufWriter {
+impl Default for ProtobufWriter<'_> {
     fn default() -> Self {
         Self {
-            buffer: Vec::default(),
+            buffer: SliceOrVec::default(),
             state: State::default(),
             is_root: true,
         }
     }
 }
 
-impl ProtobufWriter {
+impl<'a> From<&'a mut [u8]> for ProtobufWriter<'a> {
+    fn from(slice: &'a mut [u8]) -> Self {
+        ProtobufWriter {
+            buffer: SliceOrVec::Slice(slice.len(), slice),
+            state: State::default(),
+            is_root: true,
+        }
+    }
+}
+
+impl<'a> ProtobufWriter<'a> {
     pub fn into_bytes_vec(self) -> Vec<u8> {
-        self.buffer
+        match self.buffer {
+            SliceOrVec::Vec(vec) => vec,
+            SliceOrVec::Slice(_, slice) => slice.to_vec(),
+        }
+    }
+
+    pub fn len_written(&self) -> usize {
+        match &self.buffer {
+            SliceOrVec::Vec(vec) => vec.len(),
+            SliceOrVec::Slice(before, slice) => before.saturating_sub(slice.len()),
+        }
     }
 
     #[inline]
@@ -45,9 +108,10 @@ impl ProtobufWriter {
             core::mem::swap(&mut content, &mut self.buffer);
 
             if result.is_ok() {
+                let content = content.into_inner_vec().unwrap(); // fine because take creates a vec
                 self.buffer.write_tag(tag, Format::LengthDelimited)?;
                 self.buffer.write_varint(content.len() as u64)?;
-                self.buffer.extend(content);
+                self.buffer.write_all(&content[..])?;
                 state.tag_counter = tag;
             }
 
@@ -82,7 +146,7 @@ impl ProtobufWriter {
     }
 }
 
-impl Writer for ProtobufWriter {
+impl Writer for ProtobufWriter<'_> {
     type Error = Error;
 
     #[inline]
@@ -152,6 +216,7 @@ impl Writer for ProtobufWriter {
             core::mem::swap(&mut state, &mut self.state);
 
             if result.is_ok() {
+                let buffer = buffer.into_inner_vec().unwrap(); // fine because take creates a vec
                 let format = state.format.unwrap();
                 let tag = self.state.tag_counter + 1;
                 self.buffer.write_tag(tag, format)?;
@@ -160,7 +225,7 @@ impl Writer for ProtobufWriter {
                 if format == Format::LengthDelimited {
                     self.buffer.write_bytes(&buffer[..])?;
                 } else {
-                    self.buffer.extend(buffer);
+                    self.buffer.write_all(&buffer[..])?;
                 }
             }
 

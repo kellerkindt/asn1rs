@@ -42,7 +42,19 @@ pub fn serialize_and_deserialize_uper<T: Readable + Writable + std::fmt::Debug +
 pub fn serialize_protobuf(to_protobuf: &impl Writable) -> Vec<u8> {
     let mut writer = ProtobufWriter::default();
     writer.write(to_protobuf).unwrap();
-    writer.into_bytes_vec()
+    let vec = writer.into_bytes_vec();
+
+    let mut vec2 = vec![0u8; vec.len()];
+    let mut writer2 = ProtobufWriter::from(&mut vec2[..]);
+    writer2.write(to_protobuf).unwrap();
+
+    assert_eq!(
+        &vec[..],
+        &vec2[..],
+        "ProtobufWriter output differs between Vec<u8> and &mut [u8] backend"
+    );
+
+    vec
 }
 
 #[cfg(feature = "protobuf")]

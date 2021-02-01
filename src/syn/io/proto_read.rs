@@ -1,4 +1,4 @@
-use crate::io::protobuf::Reader as _;
+use crate::io::protobuf::ProtoRead as _;
 use crate::io::protobuf::{Error, Format};
 use crate::syn::*;
 

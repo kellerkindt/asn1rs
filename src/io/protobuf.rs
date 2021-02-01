@@ -103,17 +103,7 @@ impl From<IoError> for Error {
     }
 }
 
-pub trait Protobuf: ProtobufEq {
-    fn protobuf_format(&self) -> Format;
-
-    fn read_protobuf(reader: &mut dyn Reader) -> Result<Self, Error>
-    where
-        Self: Sized;
-
-    fn write_protobuf(&self, writer: &mut dyn Writer) -> Result<(), Error>;
-}
-
-pub trait Writer {
+pub trait ProtoWrite {
     fn write_varint(&mut self, value: u64) -> Result<(), Error>;
 
     fn write_bool(&mut self, value: bool) -> Result<(), Error> {
@@ -209,7 +199,7 @@ pub trait Writer {
     }
 }
 
-impl<W: Write> Writer for W {
+impl<W: Write> ProtoWrite for W {
     fn write_varint(&mut self, mut value: u64) -> Result<(), Error> {
         while value > 0x7F {
             self.write_u8(((value as u8) & 0x7F) | 0x80)?;
@@ -236,7 +226,7 @@ impl<W: Write> Writer for W {
     }
 }
 
-pub trait Reader {
+pub trait ProtoRead {
     fn read_varint(&mut self) -> Result<u64, Error>;
 
     fn read_bool(&mut self) -> Result<bool, Error> {
@@ -289,7 +279,7 @@ pub trait Reader {
     fn read_string(&mut self) -> Result<String, Error>;
 }
 
-impl<R: Read> Reader for R {
+impl<R: Read> ProtoRead for R {
     fn read_varint(&mut self) -> Result<u64, Error> {
         let mut value = 0;
         let mut shift = 0_usize;
@@ -325,102 +315,127 @@ impl<R: Read> Reader for R {
     }
 }
 
-#[allow(clippy::module_name_repetitions)]
-pub trait ProtobufEq<Rhs: ?Sized = Self> {
-    fn protobuf_eq(&self, other: &Rhs) -> bool;
-}
+#[cfg(feature = "legacy-protobuf-codegen")]
+#[cfg_attr(feature = "legacy-protobuf-codegen", allow(deprecated))]
+pub use legacy::*;
 
-impl<T: ProtobufEq + Default + PartialEq> ProtobufEq<Option<T>> for Option<T> {
-    fn protobuf_eq(&self, other: &Option<T>) -> bool {
-        match self {
-            Some(ref v) => match other {
-                Some(ref v_other) => v.protobuf_eq(v_other),
-                None => v == &T::default(),
-            },
-            None => match other {
-                Some(ref v_other) => &T::default() == v_other,
-                None => true,
-            },
-        }
+#[cfg(feature = "legacy-protobuf-codegen")]
+#[deprecated(note = "Use the Reader/-Writer with the Read-/Writable interface instead")]
+pub mod legacy {
+    use super::*;
+
+    pub use super::ProtoRead as Reader;
+    pub use super::ProtoWrite as Writer;
+
+    pub trait Protobuf: ProtobufEq {
+        fn protobuf_format(&self) -> Format;
+
+        fn read_protobuf(reader: &mut dyn ProtoRead) -> Result<Self, Error>
+        where
+            Self: Sized;
+
+        fn write_protobuf(&self, writer: &mut dyn ProtoWrite) -> Result<(), Error>;
     }
-}
 
-impl<T: ProtobufEq> ProtobufEq<Vec<T>> for Vec<T> {
-    fn protobuf_eq(&self, other: &Vec<T>) -> bool {
-        if self.len() == other.len() {
-            for (i, v) in self.iter().enumerate() {
-                if !other[i].protobuf_eq(v) {
-                    return false;
-                }
+    #[allow(clippy::module_name_repetitions)]
+    #[deprecated(note = "Use the Reader/-Writer with the Read-/Writable interface instead")]
+    pub trait ProtobufEq<Rhs: ?Sized = Self> {
+        fn protobuf_eq(&self, other: &Rhs) -> bool;
+    }
+
+    impl<T: ProtobufEq + Default + PartialEq> ProtobufEq<Option<T>> for Option<T> {
+        fn protobuf_eq(&self, other: &Option<T>) -> bool {
+            match self {
+                Some(ref v) => match other {
+                    Some(ref v_other) => v.protobuf_eq(v_other),
+                    None => v == &T::default(),
+                },
+                None => match other {
+                    Some(ref v_other) => &T::default() == v_other,
+                    None => true,
+                },
             }
-            true
-        } else {
-            false
         }
     }
-}
-impl ProtobufEq<BitVec> for BitVec {
-    fn protobuf_eq(&self, other: &BitVec) -> bool {
-        self.eq(other)
-    }
-}
 
-impl ProtobufEq<bool> for bool {
-    fn protobuf_eq(&self, other: &Self) -> bool {
-        self == other
+    impl<T: ProtobufEq> ProtobufEq<Vec<T>> for Vec<T> {
+        fn protobuf_eq(&self, other: &Vec<T>) -> bool {
+            if self.len() == other.len() {
+                for (i, v) in self.iter().enumerate() {
+                    if !other[i].protobuf_eq(v) {
+                        return false;
+                    }
+                }
+                true
+            } else {
+                false
+            }
+        }
     }
-}
 
-impl ProtobufEq<u8> for u8 {
-    fn protobuf_eq(&self, other: &Self) -> bool {
-        self == other
+    impl ProtobufEq<BitVec> for BitVec {
+        fn protobuf_eq(&self, other: &BitVec) -> bool {
+            self.eq(other)
+        }
     }
-}
 
-impl ProtobufEq<u16> for u16 {
-    fn protobuf_eq(&self, other: &Self) -> bool {
-        self == other
+    impl ProtobufEq<bool> for bool {
+        fn protobuf_eq(&self, other: &Self) -> bool {
+            self == other
+        }
     }
-}
 
-impl ProtobufEq<u32> for u32 {
-    fn protobuf_eq(&self, other: &Self) -> bool {
-        self == other
+    impl ProtobufEq<u8> for u8 {
+        fn protobuf_eq(&self, other: &Self) -> bool {
+            self == other
+        }
     }
-}
 
-impl ProtobufEq<u64> for u64 {
-    fn protobuf_eq(&self, other: &Self) -> bool {
-        self == other
+    impl ProtobufEq<u16> for u16 {
+        fn protobuf_eq(&self, other: &Self) -> bool {
+            self == other
+        }
     }
-}
 
-impl ProtobufEq<i8> for i8 {
-    fn protobuf_eq(&self, other: &Self) -> bool {
-        self == other
+    impl ProtobufEq<u32> for u32 {
+        fn protobuf_eq(&self, other: &Self) -> bool {
+            self == other
+        }
     }
-}
 
-impl ProtobufEq<i16> for i16 {
-    fn protobuf_eq(&self, other: &Self) -> bool {
-        self == other
+    impl ProtobufEq<u64> for u64 {
+        fn protobuf_eq(&self, other: &Self) -> bool {
+            self == other
+        }
     }
-}
 
-impl ProtobufEq<i32> for i32 {
-    fn protobuf_eq(&self, other: &Self) -> bool {
-        self == other
+    impl ProtobufEq<i8> for i8 {
+        fn protobuf_eq(&self, other: &Self) -> bool {
+            self == other
+        }
     }
-}
 
-impl ProtobufEq<i64> for i64 {
-    fn protobuf_eq(&self, other: &Self) -> bool {
-        self == other
+    impl ProtobufEq<i16> for i16 {
+        fn protobuf_eq(&self, other: &Self) -> bool {
+            self == other
+        }
     }
-}
 
-impl ProtobufEq<String> for String {
-    fn protobuf_eq(&self, other: &Self) -> bool {
-        self == other
+    impl ProtobufEq<i32> for i32 {
+        fn protobuf_eq(&self, other: &Self) -> bool {
+            self == other
+        }
+    }
+
+    impl ProtobufEq<i64> for i64 {
+        fn protobuf_eq(&self, other: &Self) -> bool {
+            self == other
+        }
+    }
+
+    impl ProtobufEq<String> for String {
+        fn protobuf_eq(&self, other: &Self) -> bool {
+            self == other
+        }
     }
 }
