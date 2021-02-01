@@ -322,6 +322,7 @@ pub use legacy::*;
 #[cfg(feature = "legacy-protobuf-codegen")]
 #[deprecated(note = "Use the Reader/-Writer with the Read-/Writable interface instead")]
 pub mod legacy {
+    #![allow(deprecated)]
     use super::*;
 
     pub use super::ProtoRead as Reader;
