@@ -16,6 +16,11 @@ The crate can be used as standalone CLI binary or used as library through its AP
 
 #### Support Table
 
+**TLDR**
+  - The legacy UPER Reader/Writer does not support all features (pre v0.2.0)
+  - Protobuf, sync and async PSQL ignore most constraints
+  - The new (v0.2.0) UPER Reader/Writer supports all listed features
+
 | Feature             | Parses  | UPER    | Protobuf    | PSQL        | Async PSQL | UPER Legacy\*     |
 | --------------------|:--------|:--------|:------------|:------------|:-----------|------------------:|
 | `SEQUENCE`          | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             | 
