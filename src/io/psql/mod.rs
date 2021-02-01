@@ -4,8 +4,6 @@ pub use postgres::Error as PostgresError;
 pub use postgres::Transaction;
 use std::fmt::{Display, Formatter};
 
-pub mod bit_vec_impl;
-
 #[derive(Debug)]
 pub enum Error {
     Postgres(Backtrace, PostgresError),

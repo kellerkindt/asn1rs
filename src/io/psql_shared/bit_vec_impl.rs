@@ -1,7 +1,12 @@
 use crate::syn::bitstring::BitVec;
 use bytes::BytesMut;
-use postgres::types::{FromSql, IsNull, ToSql, Type};
 use std::error::Error;
+
+#[cfg(feature = "psql")]
+use postgres::types::{FromSql, IsNull, ToSql, Type};
+
+#[cfg(all(feature = "async-psql", not(feature = "psql")))]
+use tokio_postgres::types::{FromSql, IsNull, ToSql, Type};
 
 impl<'a> FromSql<'a> for BitVec {
     fn from_sql(ty: &Type, raw: &'a [u8]) -> Result<Self, Box<dyn Error + Sync + Send>> {
