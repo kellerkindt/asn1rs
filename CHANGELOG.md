@@ -1,34 +1,25 @@
-# 0.2.0-alpha3 (Oct 14, 2020)
-
-### Fixes
-- Missing CI checks on non-default features
-
-### Added
-- Support for `SET`s and `SET OF`s\*
-- Support for extensible `SET`s
-- Support for `SIZE` constraints for `SET OF`s
-- `TagResolver` to properly resolve Tags of ASN.1 types 
-- `syn::common::Constraint` which has `const TAG: Tag` and implementation for all generated constraint types 
-
-\* For `SET OF` only BASIC-PER encoding is supported currently, see [#20](https://github.com/kellerkindt/asn1rs/issues/20)
-
-### Changes
-- The ASN.1 `OPTIONAL` type is now represented as `optional` instead of `option` in `#[asn(..)]`
-- The protobuf serializer is now optional and can be enabled with the `protobuf` feature flag
-
-# 0.2.0-alpha2 (Sep 03, 2020)
+# Version 0.2.0 (2021-02-03)
 
 This release includes a lot of refactoring and new features.
 With these changes, it is now possible to use the following two ASN.1 standards:
 
- - 🎉 ```itu-t(0) identified-organization(4) etsi(0) itsDomain(5) wg1(1) ts(102894) cdd(2) version(1)``` (ITS-Container)
- - 🎉 ```itu-t(0) identified-organization(4) etsi(0) itsDomain(5) wg1(1) en(302637) cam(2) version(1)``` (CAM-PDU-Descriptions)
+- 🎉 ```itu-t(0) identified-organization(4) etsi(0) itsDomain(5) wg1(1) ts(102894) cdd(2) version(1)``` (ITS-Container)
+- 🎉 ```itu-t(0) identified-organization(4) etsi(0) itsDomain(5) wg1(1) en(302637) cam(2) version(1)``` (CAM-PDU-Descriptions)
 
+The serialization and deserialization process was completely revamped to replace the code generation that uses string concatenation and instead utilize (smaller) proc-macros and types for it.
+The previous - now called legacy codegen - is still available, but deprecated and hidden behind the `legacy-uper-codegen` and `legacy-protobuf-codegen` feature.
+It will be **removed in 0.3.0**.
+
+Feel free to visit [the tests](tests) to learn about the new usage. You might want to start with the [showcase].
 
 ### Fixes
+- lots of smaller and niche parsing errors
 - Implement the canonical order for tags (ITU-T X.680 | ISO/IEC 8824-1, 8.6)
+- Missing CI checks on non-default features
 
 ### Added
+- support for ASN-extensible `CHOICE` and `ENUMERATED` types
+- `Reader`, `Writer` traits to (de)serialize based on the visitor pattern, asn attribute annotation, see [showcase] and [proc_macro_attribute]. This will allow further ASN encodings to be implemented without further code generation (to be clear, this not on the roadmap for now, but PRs are welcome).
 - Support for `INTEGER` constants
 - Support for extensible `SEQUENCE`s
 - Support for extensible `INTEGER`s
@@ -36,29 +27,21 @@ With these changes, it is now possible to use the following two ASN.1 standards:
 - Support for `IA5String`, as well as the `SIZE` constraint, and the extensible flag
 - Support for `SIZE` constraints for `OCTET STRING`s
 - Support for `SIZE` constraints for `UTF8String`s
-- Support for `SIZE` constraints for `SEQUENCE OF`s
-- ASN.1 Support Overview to README
+- Support for `SIZE` constraints for `SEQUENCE OF`s 
+- Support for `SET`s and `SET OF`s\*
+- Support for extensible `SET`s
+- Support for `SIZE` constraints for `SET OF`s
+- `TagResolver` to properly resolve Tags of ASN.1 types 
+- `syn::common::Constraint` which has `const TAG: Tag` and implementation for all generated constraint types
+- CI checks for specific feature combinations
+
+
+
+\* For `SET OF` only BASIC-PER encoding is supported currently, see [#20](https://github.com/kellerkindt/asn1rs/issues/20)
 
 ### Changes
-- Parse/Accept ObjectIdentifier in `FROM` directives and module definitions
-- The whole module `crate::io::uper` is now **deprecated**
-- Reimplemented all low level uPER functions - this time strictly according to specification and using names mentioned there, see ```crate::io::per```
-- Better prepare for alternative encoding rules (especially aligned PER, although this is no specific goal)
-- Help the compiler in figuring out where const evaluations are possible (see `const_*!` macros)
-- Lots of `#[inline]` hinting 
-
-
-# 0.2.0-alpha1 (May 13, 2020)
-
-### Fixes
-- lots of smaller and niche parsing errors
-
-### Added
-- support for ASN-extensible `CHOICE` and `ENUMERATED` types  
-- `Reader`, `Writer` traits to (de)serialize based on the visitor pattern, asn attribute annotation, see [showcase] and [proc_macro_attribute]. This will allow further ASN encodings to be implemented without further code generation (to be clear, this not on the roadmap for now, but PRs are welcome).
-
-### Changes
-- deprecated `UperSerializer` which generates a lot of complex code for (uper-)serialization. Instead general purpose and less complex code that is based on the visitor pattern will be generated. See [showcase] and commits linked to [#11]. This also allows to write ASN serializable structures without writing ASN itself (see [proc_macro_attribute]):
+- Added ASN.1 Support Overview to README
+- Deprecated `UperSerializer` which generates a lot of complex code for (uper-)serialization. Instead general purpose and less complex code that is based on the visitor pattern will be generated. See [showcase] and commits linked to [#11]. This also allows to write ASN serializable structures without writing ASN itself (see [proc_macro_attribute]):
 
 ```rust
 #[asn(sequence)]
@@ -87,6 +70,15 @@ fn pizza_test_uper_1() {
 }
 
 ```
+- Parse/Accept ObjectIdentifier in `FROM` directives and module definitions
+- The module `crate::io::uper` is now **deprecated**
+- Reimplemented all low level uPER functions - this time strictly according to specification and using names mentioned there, see ```crate::io::per```
+- Better prepare for alternative encoding rules (especially aligned PER, although this is no specific goal)
+- Help the compiler in figuring out where const evaluations are possible (see `const_*!` macros)
+- Lots of `#[inline]` hinting
+- The ASN.1 `OPTIONAL` type is now represented as `optional` instead of `option` in `#[asn(..)]`
+- The protobuf serializer is now optional and can be enabled with the `protobuf` feature flag
+- Deprecated `Protobuf` trait which is replaced by `ProtobufReader` and `ProtobufWriter` that use the common `Readable` and `Writable` traits
 
 [showcase]: tests/showcase.rs
 [proc_macro_attribute]: tests/basic_proc_macro_attribute.rs

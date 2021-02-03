@@ -1,6 +1,6 @@
 [package]
 name = "asn1rs-model"
-version = "0.2.0-alpha3"
+version = "0.2.0"
 authors = ["Michael Watzko <michael@watzko.de>"]
 edition = "2018"
 description = "Rust, Protobuf and SQL model definitions for asn1rs"

@@ -1,6 +1,6 @@
 [package]
 name = "asn1rs"
-version = "0.2.0-alpha3"
+version = "0.2.0"
 authors = ["Michael Watzko <michael@watzko.de>"]
 edition = "2018"
 description = "ASN.1 to Rust, Protobuf and SQL compiler/code generator. Supports ASN.1 UPER"
@@ -44,8 +44,8 @@ futures = { version = "0.3.4", optional = true }
 bytes = { version = "0.5.4", optional = true }
 
 # feature asn1rs-*
-asn1rs-model =  { version = "0.2.0-alpha3", path = "asn1rs-model", optional = true }
-asn1rs-macros = { version = "0.2.0-alpha3", path = "asn1rs-macros", optional = true }
+asn1rs-model =  { version = "0.2.0", path = "asn1rs-model", optional = true }
+asn1rs-macros = { version = "0.2.0", path = "asn1rs-macros", optional = true }
 
 [dev-dependencies]
 syn = {version = "1.0.28", features = ["full"] }

@@ -1,9 +1,10 @@
 # asn1rs - ASN.1 Compiler for Rust
 
 This crate generates Rust Code and optionally compatible Protobuf and SQL schema files from ASN.1 definitions.
-Basic support for [serde](https://crates.io/crates/serde) integration is provided.
+Integration with [serde](https://crates.io/crates/serde) is supported.
+
 The crate can be used as standalone CLI binary or used as library through its API
-(for example inside the ```build.rs``` script).
+(for example inside your ```build.rs``` script).
 
 
 [![Build Status](https://github.com/kellerkindt/asn1rs/workflows/Rust/badge.svg)](https://github.com/kellerkindt/asn1rs/actions?query=workflow%3ARust)
@@ -14,12 +15,8 @@ The crate can be used as standalone CLI binary or used as library through its AP
 
 
 
-#### Support Table
+### Supported Features
 
-**TLDR**
-  - The legacy UPER Reader/Writer does not support all features (pre v0.2.0)
-  - Protobuf, sync and async PSQL ignore most constraints
-  - The new (v0.2.0) UPER Reader/Writer supports all listed features
 
 | Feature             | Parses  | UPER    | Protobuf    | PSQL        | Async PSQL | UPER Legacy\*     |
 | --------------------|:--------|:--------|:------------|:------------|:-----------|------------------:|
@@ -67,13 +64,20 @@ The crate can be used as standalone CLI binary or used as library through its AP
  - ❌ ub: undefined behavior - whatever seems reasonable to prevent compiler errors and somehow transmit the value
  - 🟥 error: fails to compile / translate
 
-\*The legacy UPER Reader/Writer is deprecated and will be removed in or before v0.3.0
+\*The legacy UPER Reader/Writer is deprecated and will be removed in version 0.3.0
 
-##### Supported standards
- - ```itu-t(0) identified-organization(4) etsi(0) itsDomain(5) wg1(1) ts(102894) cdd(2) version(1)``` (ITS-Container)
- - ```itu-t(0) identified-organization(4) etsi(0) itsDomain(5) wg1(1) en(302637) cam(2) version(1)``` (CAM-PDU-Descriptions)
+**TLDR**
+- The new (v0.2.0) UPER Reader/Writer supports all listed features
+- Protobuf, sync&async PSQL ignore most constraints
+- The legacy UPER Reader/Writer does not support all features (pre v0.2.0)
 
-#### CLI usage
+#### Supported standards
+ -  [ETSI TS 102 894-2 / ITS-Container](https://www.etsi.org/deliver/etsi_ts/102800_102899/10289402/01.02.01_60/ts_10289402v010201p.pdf): \
+    ```itu-t(0) identified-organization(4) etsi(0) itsDomain(5) wg1(1) ts(102894) cdd(2) version(1)```
+ -  [ETSI EN 302 637-2 / ITS-CAM](https://www.etsi.org/deliver/etsi_en/302600_302699/30263702/01.03.01_30/en_30263702v010301v.pdf): \
+    ```itu-t(0) identified-organization(4) etsi(0) itsDomain(5) wg1(1) en(302637) cam(2) version(1)```
+
+### CLI usage
 
 It is always helpful to check ```asn1rs --help``` in advance.
 The basic usage can be seen blow:
@@ -90,11 +94,11 @@ asn1rs -t proto directory/for/protobuf/files some.asn1 messages.asn1
 asn1rs -t sql directory/for/sql/schema/files some.asn1 messages.asn1
 ```
 
-#### API usage
+### Example: build.rs
 
-The following example generates Rust, Protobuf and SQL files for all ```.asn1```-files in the ```asn/``` directory of the project.
+The following example generates Rust, Protobuf and SQL files for all ```.asn1```-files in the ```asn/``` directory of a workspace.
 While the generated Rust code is written to the ```src/``` directory, the Protobuf files are written to ```proto/``` and the SQL files are written to ```sql/ ```.
-Additionally, in this example each generated Rust-Type also receives ```Serialize``` and ```Deserialize``` derive directives (```#[derive(Serialize, Deserialize)]```) for automatic [serde](https://crates.io/crates/serde) integration.
+Additionally, in this example each generated Rust-Type also receives ```Serialize``` and ```Deserialize``` derive directives (```#[derive(Serialize, Deserialize)]```) for [serde](https://crates.io/crates/serde) integration.
 
 Sample ```build.rs``` file:
 
@@ -124,8 +128,8 @@ pub fn main() {
                 .filter(|entry| entry.ends_with(".asn1"))
         })
         .for_each(|path| {
+            println!("cargo:rerun-if-changed={}", path);
             if let Err(e) = converter.load_file(&path) {
-                println!("cargo:rerun-if-changed={}", path);
                 panic!("Loading of .asn1 file failed {}: {:?}", path, e);
             }
         });
@@ -157,9 +161,9 @@ pub fn main() {
 
 ```
 
-#### Inlining ASN.1 with procedural macros
+### Example: Inlining ASN.1 with procedural macros
 
-Minimal example by inlining the ASN.1 definition. For more examples, see ```tests/```.
+Minimal example by inlining the ASN.1 definition. For more examples see [tests/](tests).
 ```rust
 use asn1rs::prelude::*;
 
@@ -191,7 +195,7 @@ fn test_write_read() {
 #[test]
 fn test_constraint_eq() {
     // these types should normally not be accessed, but in this exampled they show
-    // the way the ASN.1 constraints are encoded in to the struct type constraints.
+    // the way the ASN.1 constraints are encoded with the Rust type system.
     use asn1rs::syn::numbers::Constraint;
     assert_eq!(
         ___asn1rs_RangedMaxField0Constraint::MIN,
@@ -205,7 +209,7 @@ fn test_constraint_eq() {
 ```
 
 
-#### Example ASN.1-Definition to Rust, Protobuf and SQL
+### Example: ASN.1-Definition converted to Rust, Protobuf and SQL
 
 Minimal example showcasing what is being generated from an ASN.1 definition:
 
@@ -231,7 +235,7 @@ pub struct Header {
     #[asn(integer(0..1209600000))] pub timestamp: u32,
 }
 
-// OPTIONAL: Insert and query functions for async PostgreSQL
+// only with the feature "async-psql": Insert and query functions for async PostgreSQL
 impl Header {
     pub async fn apsql_retrieve_many(context: &apsql::Context<'_>, ids: &[i32]) -> Result<Vec<Self>, apsql::Error> { /*..*/ }
     pub async fn apsql_retrieve(context: &apsql::Context<'_>, id: i32) -> Result<Self, apsql::Error> { /*..*/ }
@@ -239,17 +243,13 @@ impl Header {
     pub async fn apsql_insert(&self, context: &apsql::Context<'_>) -> Result<i32, apsql::PsqlError> { /*..*/ }
 }
 
-// OPTIONAL: Serialize and deserialize functions for protobuf
-impl ProtobufEq for Header { /*..*/ }
-impl Protobuf for Header { /*..*/ }
-
-// OPTIONAL: Insert and query functions for non-async PostgreSQL
+// only with the feature "psql": Insert and query functions for non-async PostgreSQL
 impl PsqlRepresentable for Header { /*..*/ }
 impl PsqlInsertable for Header { /*..*/ }
 impl PsqlQueryable for Header { /*..*/ }
 ```
 
-OPTIONAL: The generated protobuf file:
+The generated protobuf file (optional):
 
 ```proto
 syntax = 'proto3';
@@ -260,7 +260,7 @@ message Header {
 }
 ```
 
-OPTIONAL: The generated (p)sql file:
+The generated SQL file (optional):
 
 ```sql
 DROP TABLE IF EXISTS Header CASCADE;
@@ -271,11 +271,11 @@ CREATE TABLE Header (
 );
 ```
 
-#### Example usage of async postgres
+#### Example: Usage of async postgres
 NOTE: This requires the `async-psql` feature.
 
-Using async postgres allows the message - or the batched messages - to take advantage of [`pipelining`] automatically.
-This can provide a speedup (personal experience: at around 26%) compared to the synchronous/blocking postgres implementation.
+Using async postgres allows the message - or the batched messages - to take advantage of [`pipelining`].
+This can provide a significant speedup for deep message types (personal experience this is around 26%) compared to the synchronous/blocking postgres implementation.
 
 ```rust
 use asn1rs::io::async_psql::*;
@@ -342,7 +342,7 @@ async fn main() {
 }
 ```
 
-#### Raw uPER usage
+#### Example: Raw uPER usage
 The module ```asn1rs::io``` exposes (de-)serializers and helpers for direct usage without ASN.1 definition:
 ```rust
 use asn1rs::prelude::*;
@@ -355,7 +355,7 @@ buffer.write_utf8_string("My UTF8 Text").unwrap();
 send_to_another_host(buffer.into::<Vec<u8>>()):
 ```
 
-#### Raw Protobuf usage
+#### Example: Raw Protobuf usage
 The module ```asn1rs::io::protobuf``` exposes (de-)serializers for protobuf usage:
 ```rust
 use asn1rs::io::protobuf::*;
@@ -372,10 +372,10 @@ send_to_another_host(buffer):
 Things to do at some point in time (PRs are welcome)
 
   - generate a proper rust module hierarchy from the modules' object-identifier
-  - remove legacy rust+uper code generator (probably in 0.3)
+  - remove legacy rust+uper code generator (v0.3.0)
   - support ```#![no_std]```
-  - refactor / clean-up (rust) code-generators
-  - support more encoding formats of ASN.1
+  - refactor / clean-up (rust) code-generators (most will be removed in v0.3.0)
+  - support more encoding formats of ASN.1 (help is welcome!)
 
 
 #### License
