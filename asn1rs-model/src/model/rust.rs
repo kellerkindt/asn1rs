@@ -113,7 +113,18 @@ impl RustType {
     }
 
     pub fn is_primitive(&self) -> bool {
-        matches!(self, RustType::Bool | RustType::U8(_) | RustType::I8(_) | RustType::U16(_) | RustType::I16(_) | RustType::U32(_) | RustType::I32(_) | RustType::U64(_) | RustType::I64(_))
+        matches!(
+            self,
+            RustType::Bool
+                | RustType::U8(_)
+                | RustType::I8(_)
+                | RustType::U16(_)
+                | RustType::I16(_)
+                | RustType::U32(_)
+                | RustType::I32(_)
+                | RustType::U64(_)
+                | RustType::I64(_)
+        )
     }
 
     pub fn integer_range_str(&self) -> Option<Range<String>> {
