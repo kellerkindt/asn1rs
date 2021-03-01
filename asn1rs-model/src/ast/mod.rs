@@ -340,8 +340,7 @@ fn parse_and_remove_first_asn_attribute_type<C: Context<Primary = Type>>(
     ty: &syn::Type,
     attrs: &mut Vec<Attribute>,
 ) -> Result<AsnModelType, TokenStream> {
-    parse_and_remove_first_asn_attribute::<C>(span, attrs)
-        .and_then(|asn| into_asn_or_err(span, &ty, asn))
+    parse_and_remove_first_asn_attribute::<C>(span, attrs).map(|asn| into_asn(&ty, asn))
 }
 
 fn parse_and_remove_first_asn_attribute<C: Context>(
@@ -355,19 +354,8 @@ fn parse_and_remove_first_asn_attribute<C: Context>(
     })
 }
 
-fn into_asn_or_err(
-    span: proc_macro2::Span,
-    ty: &syn::Type,
-    asn: AsnAttribute<impl Context<Primary = Type>>,
-) -> Result<AsnModelType, TokenStream> {
-    into_asn(ty, asn).ok_or_else(|| compile_error_ts(span, "Missing ASN-Type"))
-}
-
-fn into_asn<C: Context<Primary = Type>>(
-    ty: &syn::Type,
-    mut asn: AsnAttribute<C>,
-) -> Option<AsnModelType> {
-    Some(AsnModelType {
+fn into_asn<C: Context<Primary = Type>>(ty: &syn::Type, mut asn: AsnAttribute<C>) -> AsnModelType {
+    AsnModelType {
         tag: asn.tag,
         r#type: if let Type::TypeReference(_, empty_tag) = asn.primary {
             Type::TypeReference(quote! { #ty }.to_string(), empty_tag.or(asn.tag))
@@ -382,7 +370,7 @@ fn into_asn<C: Context<Primary = Type>>(
             }
             asn.primary
         },
-    })
+    }
 }
 
 fn compile_err_ts<T: std::fmt::Display>(
