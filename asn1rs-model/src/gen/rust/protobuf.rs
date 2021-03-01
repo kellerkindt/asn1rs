@@ -573,6 +573,14 @@ impl ProtobufSerializer {
                 tag: _,
                 extension_after: _,
                 ordering: _,
+            } if fields.is_empty() => {
+                function.line("true");
+            }
+            Rust::Struct {
+                fields,
+                tag: _,
+                extension_after: _,
+                ordering: _,
             } => {
                 for (num, field) in fields.iter().enumerate() {
                     if num > 0 {
