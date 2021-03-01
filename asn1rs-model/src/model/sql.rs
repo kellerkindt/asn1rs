@@ -124,7 +124,7 @@ pub enum Sql {
     Table(Vec<Column>, Vec<Constraint>),
     Enum(Vec<String>),
     Index(String, Vec<String>),
-    /// Table bein affected to ->
+    /// Table being affected to ->
     AbandonChildrenFunction(String, Vec<(String, String, String)>),
     SilentlyPreventAnyDelete(String),
 }
