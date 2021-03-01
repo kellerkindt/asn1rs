@@ -1344,7 +1344,10 @@ impl TryFrom<&mut Peekable<IntoIter<Token>>> for ComponentTypeList {
         };
 
         loop {
-            let continues = if Model::<Asn>::peek(iter)?.eq_separator('.') {
+            let continues = if Model::<Asn>::peek(iter)?.eq_separator('}') {
+                let _ = Model::<Asn>::next_separator_ignore_case(iter, '}')?;
+                false
+            } else if Model::<Asn>::peek(iter)?.eq_separator('.') {
                 let _ = Model::<Asn>::next_separator_ignore_case(iter, '.')?;
                 let _ = Model::<Asn>::next_separator_ignore_case(iter, '.')?;
                 let _ = Model::<Asn>::next_separator_ignore_case(iter, '.')?;
