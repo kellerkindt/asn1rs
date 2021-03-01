@@ -6,6 +6,7 @@ use crate::model::Rust;
 use crate::model::RustType;
 use crate::model::{Charset, Model};
 use crate::model::{Definition, Size};
+use std::collections::HashMap;
 
 const FOREIGN_KEY_DEFAULT_COLUMN: &str = "id";
 const TUPLE_LIST_ENTRY_PARENT_COLUMN: &str = "list";
@@ -44,6 +45,13 @@ impl ToString for Action {
 }
 
 impl SqlType {
+    pub fn as_nullable(&self) -> &Self {
+        match self {
+            SqlType::NotNull(inner) => &*inner,
+            other => other,
+        }
+    }
+
     pub fn nullable(self) -> Self {
         match self {
             SqlType::NotNull(inner) => *inner,
@@ -140,7 +148,55 @@ impl Model<Sql> {
         for Definition(name, rust) in &rust_model.definitions {
             Self::definition_to_sql(name, rust, &mut model.definitions);
         }
+        model.fix_table_declaration_occurrence();
         model
+    }
+
+    fn fix_table_declaration_occurrence(&mut self) {
+        let mut depth = HashMap::<String, usize>::default();
+        for i in 0..self.definitions.len() {
+            self.walk_graph(i, &mut depth, 0);
+        }
+        self.definitions
+            .sort_by_key(|key| usize::MAX - depth.get(key.name()).unwrap_or(&0_usize));
+    }
+
+    fn walk_graph(&self, current: usize, depths: &mut HashMap<String, usize>, depth: usize) {
+        let name = self.definitions[current].name();
+        let depth = if let Some(d) = depths.get(name) {
+            if depth > *d {
+                depths.insert(name.to_string(), depth);
+                depth
+            } else {
+                *d
+            }
+        } else {
+            depths.insert(name.to_string(), depth);
+            depth
+        };
+        let mut walk_from_name = |name: &str| {
+            for (index, def) in self.definitions.iter().enumerate() {
+                if def.name().eq(name) {
+                    self.walk_graph(index, depths, depth + 1);
+                    break;
+                }
+            }
+        };
+        match self.definitions[current].value() {
+            Sql::Table(columns, _constraints) => {
+                for column in columns {
+                    if let SqlType::References(other, _, _, _) = column.sql.as_nullable() {
+                        walk_from_name(other.as_str());
+                    }
+                }
+            }
+            Sql::Enum(_) => {}
+            Sql::Index(name, _)
+            | Sql::AbandonChildrenFunction(name, _)
+            | Sql::SilentlyPreventAnyDelete(name) => {
+                walk_from_name(name.as_str());
+            }
+        }
     }
 
     fn definition_to_sql(name: &str, rust: &Rust, definitions: &mut Vec<Definition<Sql>>) {
@@ -253,11 +309,15 @@ impl Model<Sql> {
         definitions: &mut Vec<Definition<Sql>>,
     ) {
         if let SqlType::References(..) = rust.to_sql().nullable() {
-            definitions.push(Definition(
-                String::default(),
-                Sql::Index(table.into(), vec![column.into()]),
-            ));
+            definitions.push(Self::index_def(table, column));
         }
+    }
+
+    fn index_def(table: &str, column: &str) -> Definition<Sql> {
+        Definition(
+            format!("{}_Index_{}", table, column),
+            Sql::Index(table.into(), vec![column.into()]),
+        )
     }
 
     pub fn rust_enum_to_sql_enum(
@@ -327,19 +387,13 @@ impl Model<Sql> {
                 ])],
             ),
         ));
-        definitions.push(Definition(
-            Default::default(),
-            Sql::Index(
-                list_entry_name.to_string(),
-                vec![TUPLE_LIST_ENTRY_PARENT_COLUMN.into()],
-            ),
+        definitions.push(Self::index_def(
+            list_entry_name,
+            TUPLE_LIST_ENTRY_PARENT_COLUMN,
         ));
-        definitions.push(Definition(
-            Default::default(),
-            Sql::Index(
-                list_entry_name.to_string(),
-                vec![TUPLE_LIST_ENTRY_VALUE_COLUMN.into()],
-            ),
+        definitions.push(Self::index_def(
+            list_entry_name,
+            TUPLE_LIST_ENTRY_VALUE_COLUMN,
         ));
         if let SqlType::References(other_table, other_column, ..) =
             value_sql_type.clone().nullable()
@@ -531,7 +585,7 @@ mod tests {
                     )
                 ),
                 Definition(
-                    String::default(),
+                    "Person_Index_birth".to_string(),
                     Sql::Index("Person".into(), vec!["birth".into()])
                 ),
                 Definition(
@@ -610,7 +664,7 @@ mod tests {
                     )
                 ),
                 Definition(
-                    String::default(),
+                    "PersonState_Index_alive".to_string(),
                     Sql::Index("PersonState".into(), vec!["alive".into()])
                 ),
                 Definition(
@@ -734,14 +788,6 @@ mod tests {
                     )
                 ),
                 Definition(
-                    String::default(),
-                    Sql::Index("SomeStruct_ListOfPrimitive".into(), vec!["list".into()])
-                ),
-                Definition(
-                    String::default(),
-                    Sql::Index("SomeStruct_ListOfPrimitive".into(), vec!["value".into()])
-                ),
-                Definition(
                     "SomeStruct_ListOfReference".into(),
                     Sql::Table(
                         vec![
@@ -775,11 +821,19 @@ mod tests {
                     )
                 ),
                 Definition(
-                    String::default(),
+                    "SomeStruct_ListOfPrimitive_Index_list".to_string(),
+                    Sql::Index("SomeStruct_ListOfPrimitive".into(), vec!["list".into()])
+                ),
+                Definition(
+                    "SomeStruct_ListOfPrimitive_Index_value".to_string(),
+                    Sql::Index("SomeStruct_ListOfPrimitive".into(), vec!["value".into()])
+                ),
+                Definition(
+                    "SomeStruct_ListOfReference_Index_list".to_string(),
                     Sql::Index("SomeStruct_ListOfReference".into(), vec!["list".into()])
                 ),
                 Definition(
-                    String::default(),
+                    "SomeStruct_ListOfReference_Index_value".to_string(),
                     Sql::Index("SomeStruct_ListOfReference".into(), vec!["value".into()])
                 ),
                 Definition(
@@ -834,6 +888,17 @@ mod tests {
                     )
                 ),
                 Definition(
+                    "Whatelse".into(),
+                    Sql::Table(
+                        vec![Column {
+                            name: "id".into(),
+                            sql: SqlType::Serial,
+                            primary_key: true
+                        },],
+                        vec![]
+                    )
+                ),
+                Definition(
                     "WhateverListEntry".into(),
                     Sql::Table(
                         vec![
@@ -860,31 +925,6 @@ mod tests {
                             "list".into(),
                             "value".into()
                         ])]
-                    )
-                ),
-                Definition(
-                    String::new(),
-                    Sql::Index(
-                        "WhateverListEntry".into(),
-                        vec![TUPLE_LIST_ENTRY_PARENT_COLUMN.into()]
-                    )
-                ),
-                Definition(
-                    String::new(),
-                    Sql::Index(
-                        "WhateverListEntry".into(),
-                        vec![TUPLE_LIST_ENTRY_VALUE_COLUMN.into()]
-                    )
-                ),
-                Definition(
-                    "Whatelse".into(),
-                    Sql::Table(
-                        vec![Column {
-                            name: "id".into(),
-                            sql: SqlType::Serial,
-                            primary_key: true
-                        },],
-                        vec![]
                     )
                 ),
                 Definition(
@@ -925,14 +965,28 @@ mod tests {
                     )
                 ),
                 Definition(
-                    String::new(),
+                    format!("WhateverListEntry_Index_{}", TUPLE_LIST_ENTRY_PARENT_COLUMN),
+                    Sql::Index(
+                        "WhateverListEntry".into(),
+                        vec![TUPLE_LIST_ENTRY_PARENT_COLUMN.into()]
+                    )
+                ),
+                Definition(
+                    format!("WhateverListEntry_Index_{}", TUPLE_LIST_ENTRY_VALUE_COLUMN),
+                    Sql::Index(
+                        "WhateverListEntry".into(),
+                        vec![TUPLE_LIST_ENTRY_VALUE_COLUMN.into()]
+                    )
+                ),
+                Definition(
+                    format!("WhatelseListEntry_Index_{}", TUPLE_LIST_ENTRY_PARENT_COLUMN),
                     Sql::Index(
                         "WhatelseListEntry".into(),
                         vec![TUPLE_LIST_ENTRY_PARENT_COLUMN.into()]
                     )
                 ),
                 Definition(
-                    String::new(),
+                    format!("WhatelseListEntry_Index_{}", TUPLE_LIST_ENTRY_VALUE_COLUMN),
                     Sql::Index(
                         "WhatelseListEntry".into(),
                         vec![TUPLE_LIST_ENTRY_VALUE_COLUMN.into()]
