@@ -2,6 +2,10 @@ use crate::syn::BitVec;
 
 pub trait ProtobufEq<Rhs: ?Sized = Self> {
     fn protobuf_eq(&self, other: &Rhs) -> bool;
+
+    fn protobuf_ne(&self, other: &Rhs) -> bool {
+        !self.protobuf_eq(other)
+    }
 }
 
 impl<T: ProtobufEq + Default + PartialEq> ProtobufEq<Option<T>> for Option<T> {
