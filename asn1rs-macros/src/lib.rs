@@ -46,18 +46,13 @@ pub fn asn(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 #[proc_macro_derive(ProtobufEq)]
 pub fn protobuf_eq(input: TokenStream) -> TokenStream {
-    // prevent conflicting implementations with the legacy codegen
-    if cfg!(not(feature = "legacy-protobuf-codegen")) {
-        let output = derive_protobuf_eq::expand(parse_macro_input!(input as DeriveInput));
+    let output = derive_protobuf_eq::expand(parse_macro_input!(input as DeriveInput));
 
-        if cfg!(feature = "debug-proc-macro") {
-            println!("-------- output start");
-            println!("{}", output);
-            println!("-------- output end");
-        }
-
-        output
-    } else {
-        TokenStream::new()
+    if cfg!(feature = "debug-proc-macro") {
+        println!("-------- output start");
+        println!("{}", output);
+        println!("-------- output end");
     }
+
+    output
 }

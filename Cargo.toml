@@ -62,7 +62,7 @@ macros = ["asn1rs-macros"]
 model = ["asn1rs-model"]
 legacy_bit_buffer = []
 legacy-uper-codegen = ["asn1rs-model/legacy-uper-codegen"]
-legacy-protobuf-codegen = ["asn1rs-model/legacy-protobuf-codegen", "asn1rs-macros/legacy-protobuf-codegen"]
+legacy-protobuf-codegen = ["asn1rs-model/legacy-protobuf-codegen"]
 debug-proc-macro = ["asn1rs-macros/debug-proc-macro", "asn1rs-model/debug-proc-macro"]
 
 [[bench]]

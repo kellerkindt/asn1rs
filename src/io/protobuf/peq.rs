@@ -5,7 +5,7 @@ use crate::syn::BitVec;
 /// while the strict implementations of [`PartialEq`] and [`Eq`] will consider them as not equal.
 ///
 /// ```rust
-/// use asn1rs::io::protobuf::ProtobufEq;
+/// use asn1rs::prelude::*;
 ///
 /// // behaviour is equal to (Partial-)Eq in non-optional scenarios
 /// assert_eq!(0_u64.protobuf_eq(&0_u64), 0_u64.eq(&0));

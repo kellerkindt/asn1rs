@@ -1,6 +1,5 @@
 #![recursion_limit = "512"]
 
-use asn1rs::io::protobuf::ProtobufEq;
 use asn1rs::prelude::*;
 
 #[derive(ProtobufEq)]
