@@ -1,8 +1,30 @@
 use crate::syn::BitVec;
 
+/// In protobuf default-ish-values - such as '0' for numbers - might be serialized as `null`/`None`
+/// if this is possible in the current context. [`ProtobufEq`] will consider these values as equal
+/// while the strict implementations of [`PartialEq`] and [`Eq`] will consider them as not equal.
+///
+/// ```rust
+/// use asn1rs::io::protobuf::ProtobufEq;
+///
+/// // behaviour is equal to (Partial-)Eq in non-optional scenarios
+/// assert_eq!(0_u64.protobuf_eq(&0_u64), 0_u64.eq(&0));
+/// assert_eq!(1_u64.protobuf_eq(&0), 1_u64.eq(&0));
+///
+/// // behaviour might differ from (Partial-)Eq in optional scenarios
+/// assert_ne!(Some(0_u64).protobuf_eq(&None), Some(0_u64).eq(&None));
+/// assert_ne!(Some(String::default()).protobuf_eq(&None), Some(String::default()).eq(&None));
+///
+/// // behaviour might not differ from (Partial-)Eq in optional scenarios
+/// assert_eq!(Some(0_u64).protobuf_eq(&Some(0)), Some(0_u64).eq(&Some(0)));
+/// assert_eq!(Some(1_u64).protobuf_eq(&None), Some(1_u64).eq(&None));
+/// ```
 pub trait ProtobufEq<Rhs: ?Sized = Self> {
+    /// Checks whether this and the other value are equal for the protobuf protocol, which considers
+    /// default-ish values and `null`/`None` as equal.
     fn protobuf_eq(&self, other: &Rhs) -> bool;
 
+    /// Inverse of [`ProtobufEq::protobuf_eq`]
     fn protobuf_ne(&self, other: &Rhs) -> bool {
         !self.protobuf_eq(other)
     }
