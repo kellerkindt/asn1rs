@@ -77,7 +77,10 @@ impl Default for RustCodeGenerator {
     fn default() -> Self {
         RustCodeGenerator {
             models: Default::default(),
-            global_derives: Default::default(),
+            global_derives: vec![
+                #[cfg(all(feature = "protobuf", not(feature = "legacy-protobuf-codegen")))]
+                "ProtobufEq".to_string(),
+            ],
             direct_field_access: true,
             getter_and_setter: false,
         }

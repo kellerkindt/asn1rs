@@ -8,7 +8,10 @@ use asn1rs_model::model::Model;
 use asn1rs_model::parser::Tokenizer;
 use proc_macro::TokenStream;
 use syn::parse_macro_input;
+use syn::DeriveInput;
 use syn::LitStr;
+
+mod derive_protobuf_eq;
 
 #[proc_macro]
 pub fn asn_to_rust(item: TokenStream) -> TokenStream {
@@ -39,4 +42,22 @@ pub fn asn_to_rust(item: TokenStream) -> TokenStream {
 #[proc_macro_attribute]
 pub fn asn(attr: TokenStream, item: TokenStream) -> TokenStream {
     TokenStream::from(ast::parse(attr.into(), item.into()))
+}
+
+#[proc_macro_derive(ProtobufEq)]
+pub fn protobuf_eq(input: TokenStream) -> TokenStream {
+    // prevent conflicting implementations with the legacy codegen
+    if cfg!(not(feature = "legacy-protobuf-codegen")) {
+        let output = derive_protobuf_eq::expand(parse_macro_input!(input as DeriveInput));
+
+        if cfg!(feature = "debug-proc-macro") {
+            println!("-------- output start");
+            println!("{}", output);
+            println!("-------- output end");
+        }
+
+        output
+    } else {
+        TokenStream::new()
+    }
 }
