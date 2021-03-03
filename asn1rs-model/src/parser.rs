@@ -20,7 +20,7 @@ impl Location {
     }
 }
 
-#[derive(Debug, PartialOrd, PartialEq)]
+#[derive(Debug, PartialOrd, PartialEq, Clone)]
 pub enum Token {
     Text(Location, String),
     Separator(Location, char),
@@ -88,6 +88,12 @@ impl Token {
 
     pub fn eq_separator(&self, separator: char) -> bool {
         self.separator().map(|s| s == separator).unwrap_or(false)
+    }
+
+    pub fn eq_separator_ignore_ascii_case(&self, separator: char) -> bool {
+        self.separator()
+            .map(|s| separator.eq_ignore_ascii_case(&s))
+            .unwrap_or(false)
     }
 
     pub fn text(&self) -> Option<&str> {

@@ -18,13 +18,10 @@ use std::vec::IntoIter;
 
 macro_rules! loop_ctrl_separator {
     ($token:expr) => {
-        let token = $token;
-        if token.eq_separator(',') {
-            continue;
-        } else if token.eq_separator('}') {
-            break;
-        } else {
-            return Err(Error::unexpected_token(token));
+        match $token {
+            t if t.eq_separator(',') => continue,
+            t if t.eq_separator('}') => break,
+            t => return Err(Error::unexpected_token(t)),
         }
     };
 }
@@ -263,12 +260,20 @@ pub enum ObjectIdentifierComponent {
     NameAndNumberForm(String, u64),
 }
 
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub struct ValueReference<T> {
+    name: String,
+    role: T,
+    value: String,
+}
+
 #[derive(Debug, Clone)]
 pub struct Model<T> {
     pub name: String,
     pub oid: Option<ObjectIdentifier>,
     pub imports: Vec<Import>,
     pub definitions: Vec<Definition<T>>,
+    pub value_references: Vec<ValueReference<T>>,
 }
 
 impl<T> Default for Model<T> {
@@ -278,6 +283,7 @@ impl<T> Default for Model<T> {
             oid: None,
             imports: Default::default(),
             definitions: Default::default(),
+            value_references: Vec::default(),
         }
     }
 }
@@ -318,8 +324,7 @@ impl Model<Asn> {
     fn maybe_read_oid(
         iter: &mut Peekable<IntoIter<Token>>,
     ) -> Result<Option<ObjectIdentifier>, Error> {
-        if iter.peek().map(|t| t.eq_separator('{')).unwrap_or(false) {
-            let _token_start = iter.next().ok_or_else(Error::unexpected_end_of_stream)?;
+        if iter.next_is_separator_and_eq('{') {
             Ok(Some(Self::read_oid(iter)?))
         } else {
             Ok(None)
@@ -338,13 +343,12 @@ impl Model<Asn> {
                             .parse()
                             .map_err(|_| Error::invalid_int_value(token))?,
                     ));
-                } else if iter.peek().map(|t| t.eq_separator('(')).unwrap_or(false) {
-                    Self::next_separator_ignore_case(iter, '(')?;
-                    let number = match Self::next_text(iter)?.parse::<u64>() {
+                } else if iter.next_is_separator_and_eq('(') {
+                    let number = match iter.next_text_or_err()?.parse::<u64>() {
                         Ok(number) => number,
                         Err(_) => return Err(Error::invalid_int_value(token)),
                     };
-                    Self::next_separator_ignore_case(iter, ')')?;
+                    iter.next_separator_eq_or_err(')')?;
                     vec.push(ObjectIdentifierComponent::NameAndNumberForm(
                         identifier.to_string(),
                         number,
@@ -380,11 +384,11 @@ impl Model<Asn> {
             } else {
                 let text = token.into_text_or_else(Error::unexpected_token)?;
                 import.what.push(text);
-                let token = Self::next(iter)?;
+                let token = iter.next_or_err()?;
                 if token.eq_separator(',') {
                     // ignore separator
                 } else if token.eq_text_ignore_ascii_case("FROM") {
-                    import.from = Self::next(iter)?.into_text_or_else(Error::unexpected_token)?;
+                    import.from = iter.next_text_or_err()?;
                     import.from_oid = Self::maybe_read_oid(iter)?;
                     imports.push(import);
                     import = Import::default();
@@ -397,9 +401,9 @@ impl Model<Asn> {
         iter: &mut Peekable<IntoIter<Token>>,
         name: String,
     ) -> Result<Definition<Asn>, Error> {
-        Self::next_separator_ignore_case(iter, ':')?;
-        Self::next_separator_ignore_case(iter, ':')?;
-        Self::next_separator_ignore_case(iter, '=')?;
+        iter.next_separator_eq_or_err(':')?;
+        iter.next_separator_eq_or_err(':')?;
+        iter.next_separator_eq_or_err('=')?;
 
         let (token, tag) = Self::next_with_opt_tag(iter)?;
 
@@ -436,11 +440,11 @@ impl Model<Asn> {
     fn next_with_opt_tag(
         iter: &mut Peekable<IntoIter<Token>>,
     ) -> Result<(Token, Option<Tag>), Error> {
-        let token = Self::next(iter)?;
+        let token = iter.next_or_err()?;
         if token.eq_separator('[') {
             let tag = Tag::try_from(&mut *iter)?;
-            Self::next_separator_ignore_case(iter, ']')?;
-            let token = Self::next(iter)?;
+            iter.next_separator_eq_or_err(']')?;
+            let token = iter.next_or_err()?;
             Ok((token, Some(tag)))
         } else {
             Ok((token, None))
@@ -448,7 +452,7 @@ impl Model<Asn> {
     }
 
     fn read_role(iter: &mut Peekable<IntoIter<Token>>) -> Result<Type, Error> {
-        let text = Self::next_text(iter)?;
+        let text = iter.next_text_or_err()?;
         Self::read_role_given_text(iter, text)
     }
 
@@ -456,66 +460,44 @@ impl Model<Asn> {
         iter: &mut Peekable<IntoIter<Token>>,
         text: String,
     ) -> Result<Type, Error> {
-        if text.eq_ignore_ascii_case("INTEGER") {
-            Ok(Type::Integer(Integer::try_from(iter)?))
-        } else if text.eq_ignore_ascii_case("BOOLEAN") {
-            Ok(Type::Boolean)
-        } else if text.eq_ignore_ascii_case("UTF8String") {
-            Ok(Type::String(
-                Model::<Asn>::maybe_read_size(iter)?,
-                Charset::Utf8,
-            ))
-        } else if text.eq_ignore_ascii_case("IA5STring") {
-            Ok(Type::String(
-                Model::<Asn>::maybe_read_size(iter)?,
-                Charset::Ia5,
-            ))
-        } else if text.eq_ignore_ascii_case("OCTET") {
-            let token = Self::next(iter)?;
-            if token.text().map_or(false, |t| t.eq("STRING")) {
-                Ok(Type::OctetString(Model::<Asn>::maybe_read_size(iter)?))
-            } else {
-                Err(Error::unexpected_token(token))
+        Ok(match text.to_ascii_lowercase().as_ref() {
+            "integer" => Type::Integer(Integer::try_from(iter)?),
+            "boolean" => Type::Boolean,
+            "utf8string" => Type::String(Self::maybe_read_size(iter)?, Charset::Utf8),
+            "ia5string" => Type::String(Self::maybe_read_size(iter)?, Charset::Ia5),
+            "octet" => {
+                iter.next_text_eq_ignore_case_or_err("STRING")?;
+                Type::OctetString(Self::maybe_read_size(iter)?)
             }
-        } else if text.eq_ignore_ascii_case("BIT") {
-            let token = Self::next(iter)?;
-            if token.text().map_or(false, |t| t.eq("STRING")) {
-                Ok(Type::BitString(BitString::try_from(iter)?))
-            } else {
-                Err(Error::unexpected_token(token))
+            "bit" => {
+                iter.next_text_eq_ignore_case_or_err("STRING")?;
+                Type::BitString(BitString::try_from(iter)?)
             }
-        } else if text.eq_ignore_ascii_case("CHOICE") {
-            Ok(Type::Choice(Choice::try_from(iter)?))
-        } else if text.eq_ignore_ascii_case("ENUMERATED") {
-            Ok(Type::Enumerated(Enumerated::try_from(iter)?))
-        } else if text.eq_ignore_ascii_case("SEQUENCE") {
-            Ok(Self::read_sequence_or_sequence_of(iter)?)
-        } else if text.eq_ignore_ascii_case("SET") {
-            Ok(Self::read_set_or_set_of(iter)?)
-        } else {
-            Ok(Type::TypeReference(text, None))
-        }
+            "enumerated" => Type::Enumerated(Enumerated::try_from(iter)?),
+            "choice" => Type::Choice(Choice::try_from(iter)?),
+            "sequence" => Self::read_sequence_or_sequence_of(iter)?,
+            "set" => Self::read_set_or_set_of(iter)?,
+            _ => Type::TypeReference(text, None),
+        })
     }
 
     fn read_number_range(
         iter: &mut Peekable<IntoIter<Token>>,
     ) -> Result<Range<Option<i64>>, Error> {
-        if Self::peek(iter)?.eq_separator('(') {
-            Self::next_separator_ignore_case(iter, '(')?;
-            let start = Self::next(iter)?;
-            Self::next_separator_ignore_case(iter, '.')?;
-            Self::next_separator_ignore_case(iter, '.')?;
-            let end = Self::next(iter)?;
-            let extensible = if Self::peek(iter)?.eq_separator(',') {
-                let _ = Self::next_separator_ignore_case(iter, ',')?;
-                Self::next_separator_ignore_case(iter, '.')?;
-                Self::next_separator_ignore_case(iter, '.')?;
-                Self::next_separator_ignore_case(iter, '.')?;
+        if iter.next_is_separator_and_eq('(') {
+            let start = iter.next_or_err()?;
+            iter.next_separator_eq_or_err('.')?;
+            iter.next_separator_eq_or_err('.')?;
+            let end = iter.next_or_err()?;
+            let extensible = if iter.next_is_separator_and_eq(',') {
+                iter.next_separator_eq_or_err('.')?;
+                iter.next_separator_eq_or_err('.')?;
+                iter.next_separator_eq_or_err('.')?;
                 true
             } else {
                 false
             };
-            Self::next_separator_ignore_case(iter, ')')?;
+            iter.next_separator_eq_or_err(')')?;
             let start = start
                 .text()
                 .filter(|txt| !txt.eq_ignore_ascii_case("MIN"))
@@ -540,12 +522,11 @@ impl Model<Asn> {
     }
 
     fn maybe_read_size(iter: &mut Peekable<IntoIter<Token>>) -> Result<Size, Error> {
-        if Self::peek(iter)?.eq_separator('(') {
-            Self::next_separator_ignore_case(iter, '(')?;
+        if iter.next_is_separator_and_eq('(') {
             let result = Self::read_size(iter)?;
-            Self::next_separator_ignore_case(iter, ')')?;
+            iter.next_separator_eq_or_err(')')?;
             Ok(result)
-        } else if Self::peek(iter)?.eq_text_ignore_ascii_case("SIZE") {
+        } else if iter.peek_is_text_eq_ignore_case("SIZE") {
             Self::read_size(iter)
         } else {
             Ok(Size::Any)
@@ -553,70 +534,66 @@ impl Model<Asn> {
     }
 
     fn read_size(iter: &mut Peekable<IntoIter<Token>>) -> Result<Size, Error> {
-        let size_token = Self::next(iter)?;
-        if size_token.eq_text_ignore_ascii_case("SIZE") {
-            Self::next_separator_ignore_case(iter, '(')?;
-            let start = Self::next(iter)?;
-            let start = start
-                .text()
-                .filter(|txt| !txt.eq_ignore_ascii_case("MIN"))
-                .map(|t| t.parse::<usize>())
-                .transpose()
-                .map_err(|_| Error::invalid_range_value(start))?;
+        iter.next_text_eq_ignore_case_or_err("SIZE")?;
+        iter.next_separator_eq_or_err('(')?;
 
-            if !Self::peek(iter)?.eq_separator('.') {
-                match Self::next(iter)? {
-                    t if t.eq_separator(')') => Ok(Size::Fix(start.unwrap_or_default(), false)),
-                    t if t.eq_separator(',') => {
-                        Self::next_separator_ignore_case(iter, '.')?;
-                        Self::next_separator_ignore_case(iter, '.')?;
-                        Self::next_separator_ignore_case(iter, '.')?;
-                        Ok(Size::Fix(start.unwrap_or_default(), true))
-                    }
-                    t => Err(Error::unexpected_token(t)),
+        let start = iter.next_or_err()?;
+        let start = start
+            .text()
+            .filter(|txt| !txt.eq_ignore_ascii_case("MIN"))
+            .map(|t| t.parse::<usize>())
+            .transpose()
+            .map_err(|_| Error::invalid_range_value(start))?;
+
+        if !iter.peek_is_separator_eq('.') {
+            match iter.next_or_err()? {
+                t if t.eq_separator(')') => Ok(Size::Fix(start.unwrap_or_default(), false)),
+                t if t.eq_separator(',') => {
+                    iter.next_separator_eq_or_err('.')?;
+                    iter.next_separator_eq_or_err('.')?;
+                    iter.next_separator_eq_or_err('.')?;
+                    Ok(Size::Fix(start.unwrap_or_default(), true))
                 }
-            } else {
-                Self::next_separator_ignore_case(iter, '.')?;
-                Self::next_separator_ignore_case(iter, '.')?;
-                let end = Self::next(iter)?;
-                let end = end
-                    .text()
-                    .filter(|txt| !txt.eq_ignore_ascii_case("MAX"))
-                    .map(|t| t.parse::<usize>())
-                    .transpose()
-                    .map_err(|_| Error::invalid_range_value(end))?;
-
-                const MAX: usize = i64::MAX as usize;
-                let any = matches!(
-                    (start, end),
-                    (None, None) | (Some(0), None) | (None, Some(MAX))
-                );
-
-                if any {
-                    Self::next_separator_ignore_case(iter, ')')?;
-                    Ok(Size::Any)
-                } else {
-                    let start = start.unwrap_or_default();
-                    let end = end.unwrap_or_else(|| i64::MAX as usize);
-                    let extensible = if Self::peek(iter)?.eq_separator(',') {
-                        let _ = Self::next_separator_ignore_case(iter, ',')?;
-                        Self::next_separator_ignore_case(iter, '.')?;
-                        Self::next_separator_ignore_case(iter, '.')?;
-                        Self::next_separator_ignore_case(iter, '.')?;
-                        true
-                    } else {
-                        false
-                    };
-                    Self::next_separator_ignore_case(iter, ')')?;
-                    if start == end {
-                        Ok(Size::Fix(start, extensible))
-                    } else {
-                        Ok(Size::Range(start, end, extensible))
-                    }
-                }
+                t => Err(Error::unexpected_token(t)),
             }
         } else {
-            Err(Error::unexpected_token(size_token))
+            iter.next_separator_eq_or_err('.')?;
+            iter.next_separator_eq_or_err('.')?;
+            let end = iter.next_or_err()?;
+            let end = end
+                .text()
+                .filter(|txt| !txt.eq_ignore_ascii_case("MAX"))
+                .map(|t| t.parse::<usize>())
+                .transpose()
+                .map_err(|_| Error::invalid_range_value(end))?;
+
+            const MAX: usize = i64::MAX as usize;
+            let any = matches!(
+                (start, end),
+                (None, None) | (Some(0), None) | (None, Some(MAX))
+            );
+
+            if any {
+                iter.next_separator_eq_or_err(')')?;
+                Ok(Size::Any)
+            } else {
+                let start = start.unwrap_or_default();
+                let end = end.unwrap_or_else(|| i64::MAX as usize);
+                let extensible = if iter.next_separator_eq_or_err(',').is_ok() {
+                    iter.next_separator_eq_or_err('.')?;
+                    iter.next_separator_eq_or_err('.')?;
+                    iter.next_separator_eq_or_err('.')?;
+                    true
+                } else {
+                    false
+                };
+                iter.next_separator_eq_or_err(')')?;
+                if start == end {
+                    Ok(Size::Fix(start, extensible))
+                } else {
+                    Ok(Size::Range(start, end, extensible))
+                }
+            }
         }
     }
 
@@ -635,17 +612,11 @@ impl Model<Asn> {
         parser: F,
     ) -> Result<Vec<(String, T)>, Error> {
         let mut constants = Vec::default();
-        if Self::peek(iter)?.eq_separator('{') {
-            Self::next_separator_ignore_case(iter, '{')?;
+        if iter.next_is_separator_and_eq('{') {
             loop {
                 constants.push(Self::read_constant(iter, |token| parser(token))?);
-                if !Self::peek(iter)?.eq_separator(',') {
-                    break;
-                } else {
-                    let _ = Self::next(iter)?;
-                }
+                loop_ctrl_separator!(iter.next_or_err()?);
             }
-            Self::next_separator_ignore_case(iter, '}')?;
         }
         Ok(constants)
     }
@@ -654,54 +625,51 @@ impl Model<Asn> {
         iter: &mut Peekable<IntoIter<Token>>,
         parser: F,
     ) -> Result<(String, T), Error> {
-        let name = Self::next_text(iter)?;
-        Self::next_separator_ignore_case(iter, '(')?;
-        let value = Self::next(iter)?;
-        Self::next_separator_ignore_case(iter, ')')?;
+        let name = iter.next_text_or_err()?;
+        iter.next_separator_eq_or_err('(')?;
+        let value = iter.next_or_err()?;
+        iter.next_separator_eq_or_err(')')?;
         Ok((name, parser(value)?))
     }
 
     fn read_sequence_or_sequence_of(iter: &mut Peekable<IntoIter<Token>>) -> Result<Type, Error> {
         let size = Self::maybe_read_size(iter)?;
-        let token = Self::peek(iter)?;
 
-        if token.eq_text_ignore_ascii_case("OF") {
-            let _ = Self::next(iter)?;
+        if iter.next_is_text_and_eq_ignore_case("OF") {
             Ok(Type::SequenceOf(Box::new(Self::read_role(iter)?), size))
-        } else if token.eq_separator('{') {
-            Ok(Type::Sequence(ComponentTypeList::try_from(iter)?))
         } else {
-            Err(Error::unexpected_token(Self::next(iter)?))
+            Ok(Type::Sequence(ComponentTypeList::try_from(iter)?))
         }
     }
 
     fn read_set_or_set_of(iter: &mut Peekable<IntoIter<Token>>) -> Result<Type, Error> {
         let size = Self::maybe_read_size(iter)?;
-        let token = Self::peek(iter)?;
 
-        if token.eq_text_ignore_ascii_case("OF") {
-            let _ = Self::next(iter)?;
+        if iter.next_is_text_and_eq_ignore_case("OF") {
             Ok(Type::SetOf(Box::new(Self::read_role(iter)?), size))
-        } else if token.eq_separator('{') {
-            Ok(Type::Set(ComponentTypeList::try_from(iter)?))
         } else {
-            Err(Error::unexpected_token(Self::next(iter)?))
+            Ok(Type::Set(ComponentTypeList::try_from(iter)?))
         }
     }
 
     fn read_field(iter: &mut Peekable<IntoIter<Token>>) -> Result<(Field<Asn>, bool), Error> {
-        let name = Self::next_text(iter)?;
+        let name = iter.next_text_or_err()?;
         let (token, tag) = Self::next_with_opt_tag(iter)?;
         let mut field = Field {
             name,
             role: Self::read_role_given_text(iter, token.into_text_or_else(Error::no_text)?)?
                 .opt_tagged(tag),
         };
-        let mut token = Self::next(iter)?;
-        if let Some(_optional_flag) = token.text().map(|s| s.eq_ignore_ascii_case("OPTIONAL")) {
-            field.role.optional();
-            token = Self::next(iter)?;
-        }
+
+        let token = {
+            let token = iter.next_or_err()?;
+            if token.eq_text_ignore_ascii_case("OPTIONAL") {
+                field.role.make_optional();
+                iter.next_or_err()?
+            } else {
+                token
+            }
+        };
 
         let (continues, ends) = token
             .separator()
@@ -712,31 +680,6 @@ impl Model<Asn> {
         } else {
             Err(Error::unexpected_token(token))
         }
-    }
-
-    fn next(iter: &mut Peekable<IntoIter<Token>>) -> Result<Token, Error> {
-        iter.next().ok_or_else(Error::unexpected_end_of_stream)
-    }
-
-    fn peek(iter: &mut Peekable<IntoIter<Token>>) -> Result<&Token, Error> {
-        iter.peek().ok_or_else(Error::unexpected_end_of_stream)
-    }
-
-    fn next_text(iter: &mut Peekable<IntoIter<Token>>) -> Result<String, Error> {
-        Self::next(iter)?.into_text_or_else(Error::no_text)
-    }
-
-    fn next_separator_ignore_case(
-        iter: &mut Peekable<IntoIter<Token>>,
-        separator: char,
-    ) -> Result<(), Error> {
-        let token = Self::next(iter)?;
-        if let Some(token) = token.separator() {
-            if token.eq_ignore_ascii_case(&separator) {
-                return Ok(());
-            }
-        }
-        Err(Error::expected_separator(separator, token))
     }
 
     pub fn make_names_nice(&mut self) {
@@ -763,6 +706,123 @@ impl Model<Asn> {
 
     pub fn to_rust_with_scope(&self, scope: &[&Self]) -> Model<rust::Rust> {
         Model::convert_asn_to_rust(self, scope)
+    }
+}
+
+trait PeekableTokens {
+    fn peek_or_err(&mut self) -> Result<&Token, Error>;
+
+    fn peek_is_text_eq(&mut self, text: &str) -> bool;
+
+    fn peek_is_text_eq_ignore_case(&mut self, text: &str) -> bool;
+
+    fn peek_is_separator_eq(&mut self, separator: char) -> bool;
+
+    fn next_or_err(&mut self) -> Result<Token, Error>;
+
+    fn next_text_or_err(&mut self) -> Result<String, Error>;
+
+    fn next_text_eq_ignore_case_or_err(&mut self, text: &str) -> Result<(), Error>;
+
+    #[inline]
+    fn next_is_text_and_eq_ignore_case(&mut self, text: &str) -> bool {
+        self.next_text_eq_ignore_case_or_err(text).is_ok()
+    }
+
+    fn next_if_separator_and_eq(&mut self, separator: char) -> Result<Token, Error>;
+
+    #[inline]
+    fn next_separator_eq_or_err(&mut self, separator: char) -> Result<(), Error> {
+        self.next_if_separator_and_eq(separator).map(drop)
+    }
+
+    #[inline]
+    fn next_is_separator_and_eq(&mut self, separator: char) -> bool {
+        self.next_separator_eq_or_err(separator).is_ok()
+    }
+
+    fn next_separator_eq_ignore_case_or_err(&mut self, separator: char) -> Result<(), Error>;
+
+    #[inline]
+    fn next_is_separator_and_eq_ignore_case(&mut self, separator: char) -> bool {
+        self.next_separator_eq_ignore_case_or_err(separator).is_ok()
+    }
+}
+
+impl<T: Iterator<Item = Token>> PeekableTokens for Peekable<T> {
+    fn peek_or_err(&mut self) -> Result<&Token, Error> {
+        self.peek().ok_or_else(Error::unexpected_end_of_stream)
+    }
+
+    fn peek_is_text_eq(&mut self, text: &str) -> bool {
+        self.peek()
+            .and_then(Token::text)
+            .map(|t| t.eq(text))
+            .unwrap_or(false)
+    }
+
+    fn peek_is_text_eq_ignore_case(&mut self, text: &str) -> bool {
+        self.peek()
+            .and_then(Token::text)
+            .map(|t| text.eq_ignore_ascii_case(t))
+            .unwrap_or(false)
+    }
+
+    fn peek_is_separator_eq(&mut self, separator: char) -> bool {
+        self.peek()
+            .map(|t| t.eq_separator(separator))
+            .unwrap_or(false)
+    }
+
+    fn next_or_err(&mut self) -> Result<Token, Error> {
+        self.next().ok_or_else(Error::unexpected_end_of_stream)
+    }
+
+    fn next_text_or_err(&mut self) -> Result<String, Error> {
+        let peeked = self.peek_or_err()?;
+        if peeked.text().is_some() {
+            let token = self.next_or_err()?;
+            debug_assert!(token.text().is_some());
+            match token {
+                Token::Separator(..) => unreachable!(),
+                Token::Text(_, text) => Ok(text),
+            }
+        } else {
+            Err(Error::no_text(peeked.clone()))
+        }
+    }
+
+    fn next_text_eq_ignore_case_or_err(&mut self, text: &str) -> Result<(), Error> {
+        let peeked = self.peek_or_err()?;
+        if peeked.eq_text_ignore_ascii_case(text) {
+            let token = self.next_or_err()?;
+            debug_assert!(token.eq_text_ignore_ascii_case(text));
+            Ok(())
+        } else {
+            Err(Error::expected_text(text.to_string(), peeked.clone()))
+        }
+    }
+
+    fn next_if_separator_and_eq(&mut self, separator: char) -> Result<Token, Error> {
+        let peeked = self.peek_or_err()?;
+        if peeked.eq_separator(separator) {
+            let token = self.next_or_err()?;
+            debug_assert!(token.eq_separator(separator));
+            Ok(token)
+        } else {
+            Err(Error::expected_separator(separator, peeked.clone()))
+        }
+    }
+
+    fn next_separator_eq_ignore_case_or_err(&mut self, separator: char) -> Result<(), Error> {
+        let peeked = self.peek_or_err()?;
+        if peeked.eq_separator_ignore_ascii_case(separator) {
+            let token = self.next_or_err()?;
+            debug_assert!(token.eq_separator_ignore_ascii_case(separator));
+            Ok(())
+        } else {
+            Err(Error::expected_separator(separator, peeked.clone()))
+        }
     }
 }
 
@@ -1098,7 +1158,7 @@ impl TryFrom<&mut Peekable<IntoIter<Token>>> for Tag {
     fn try_from(iter: &mut Peekable<IntoIter<Token>>) -> Result<Self, Self::Error> {
         macro_rules! parse_tag_number {
             () => {
-                parse_tag_number!(Model::<Asn>::next(iter)?)
+                parse_tag_number!(iter.next_or_err()?)
             };
             ($tag:expr) => {{
                 let tag = $tag;
@@ -1108,18 +1168,15 @@ impl TryFrom<&mut Peekable<IntoIter<Token>>> for Tag {
             }};
         }
 
-        let number_or_class = Model::<Asn>::next(iter)?;
-
-        if let Some(text) = number_or_class.text() {
-            Ok(match text {
-                "UNIVERSAL" => Tag::Universal(parse_tag_number!()),
-                "APPLICATION" => Tag::Application(parse_tag_number!()),
-                "PRIVATE" => Tag::Private(parse_tag_number!()),
-                _context_specific => Tag::ContextSpecific(parse_tag_number!(number_or_class)),
-            })
-        } else {
-            Err(Error::no_text(number_or_class))
-        }
+        Ok(match iter.next_or_err()? {
+            t if t.eq_text_ignore_ascii_case("UNIVERSAL") => Tag::Universal(parse_tag_number!()),
+            t if t.eq_text_ignore_ascii_case("APPLICATION") => {
+                Tag::Application(parse_tag_number!())
+            }
+            t if t.eq_text_ignore_ascii_case("PRIVATE") => Tag::Private(parse_tag_number!()),
+            t if t.text().is_some() => Tag::ContextSpecific(parse_tag_number!(t)),
+            t => return Err(Error::no_text(t)),
+        })
     }
 }
 
@@ -1165,7 +1222,7 @@ pub struct Asn {
 }
 
 impl Asn {
-    pub fn optional(&mut self) {
+    pub fn make_optional(&mut self) {
         let optional = self.r#type.clone().optional();
         self.r#type = optional;
     }
@@ -1337,29 +1394,25 @@ impl TryFrom<&mut Peekable<IntoIter<Token>>> for ComponentTypeList {
     type Error = Error;
 
     fn try_from(iter: &mut Peekable<IntoIter<Token>>) -> Result<Self, Self::Error> {
-        Model::<Asn>::next_separator_ignore_case(iter, '{')?;
+        iter.next_separator_eq_or_err('{')?;
         let mut sequence = Self {
             fields: Vec::default(),
             extension_after: None,
         };
 
         loop {
-            let continues = if Model::<Asn>::peek(iter)?.eq_separator('}') {
-                let _ = Model::<Asn>::next_separator_ignore_case(iter, '}')?;
+            let continues = if iter.next_is_separator_and_eq('}') {
                 false
-            } else if Model::<Asn>::peek(iter)?.eq_separator('.') {
-                let _ = Model::<Asn>::next_separator_ignore_case(iter, '.')?;
-                let _ = Model::<Asn>::next_separator_ignore_case(iter, '.')?;
-                let _ = Model::<Asn>::next_separator_ignore_case(iter, '.')?;
+            } else if iter.next_is_separator_and_eq('.') {
+                iter.next_separator_eq_or_err('.')?;
+                iter.next_separator_eq_or_err('.')?;
                 let field_len = sequence.fields.len();
                 sequence.extension_after = Some(field_len.saturating_sub(1));
-                let token = Model::<Asn>::next(iter)?;
-                if token.eq_separator(',') {
-                    true
-                } else if token.eq_separator('}') {
-                    false
-                } else {
-                    return Err(Error::unexpected_token(token));
+
+                match iter.next_or_err()? {
+                    token if token.eq_separator(',') => true,
+                    token if token.eq_separator('}') => false,
+                    token => return Err(Error::unexpected_token(token)),
                 }
             } else {
                 let (field, continues) = Model::<Asn>::read_field(iter)?;
@@ -1429,27 +1482,25 @@ impl TryFrom<&mut Peekable<IntoIter<Token>>> for Choice {
     type Error = Error;
 
     fn try_from(iter: &mut Peekable<IntoIter<Token>>) -> Result<Self, Self::Error> {
-        Model::<Asn>::next_separator_ignore_case(iter, '{')?;
+        iter.next_separator_eq_or_err('{')?;
         let mut choice = Choice {
             variants: Vec::new(),
             extension_after: None,
         };
 
         loop {
-            let name_or_extension_marker = Model::<Asn>::next(iter)?;
-            if name_or_extension_marker.eq_separator('.') {
-                Model::<Asn>::next_separator_ignore_case(iter, '.')?;
-                Model::<Asn>::next_separator_ignore_case(iter, '.')?;
-
+            if let Ok(extension_marker) = iter.next_if_separator_and_eq('.') {
                 if choice.variants.is_empty() || choice.extension_after.is_some() {
                     return Err(Error::invalid_position_for_extension_marker(
-                        name_or_extension_marker,
+                        extension_marker,
                     ));
                 } else {
+                    iter.next_separator_eq_or_err('.')?;
+                    iter.next_separator_eq_or_err('.')?;
                     choice.extension_after = Some(choice.variants.len() - 1);
                 }
             } else {
-                let name = name_or_extension_marker.into_text_or_else(Error::no_text)?;
+                let name = iter.next_text_or_err()?;
                 let (token, tag) = Model::<Asn>::next_with_opt_tag(iter)?;
                 let r#type = Model::<Asn>::read_role_given_text(
                     iter,
@@ -1458,15 +1509,7 @@ impl TryFrom<&mut Peekable<IntoIter<Token>>> for Choice {
                 choice.variants.push(ChoiceVariant { name, tag, r#type });
             }
 
-            let end_or_continuation_marker = Model::<Asn>::next(iter)?;
-
-            if end_or_continuation_marker.eq_separator(',') {
-                continue;
-            } else if end_or_continuation_marker.eq_separator('}') {
-                break;
-            } else {
-                return Err(Error::unexpected_token(end_or_continuation_marker));
-            }
+            loop_ctrl_separator!(iter.next_or_err()?);
         }
 
         Ok(choice)
@@ -1573,27 +1616,27 @@ impl TryFrom<&mut Peekable<IntoIter<Token>>> for Enumerated {
     type Error = Error;
 
     fn try_from(iter: &mut Peekable<IntoIter<Token>>) -> Result<Self, Self::Error> {
-        Model::<Asn>::next_separator_ignore_case(iter, '{')?;
+        iter.next_separator_eq_or_err('{')?;
         let mut enumerated = Self {
             variants: Vec::new(),
             extension_after: None,
         };
 
         loop {
-            let token = Model::<Asn>::next(iter)?;
-
-            if token.eq_separator('.') {
-                Model::<Asn>::next_separator_ignore_case(iter, '.')?;
-                Model::<Asn>::next_separator_ignore_case(iter, '.')?;
+            if let Ok(extension_marker) = iter.next_if_separator_and_eq('.') {
                 if enumerated.variants.is_empty() || enumerated.extension_after.is_some() {
-                    return Err(Error::invalid_position_for_extension_marker(token));
+                    return Err(Error::invalid_position_for_extension_marker(
+                        extension_marker,
+                    ));
                 } else {
+                    iter.next_separator_eq_or_err('.')?;
+                    iter.next_separator_eq_or_err('.')?;
                     enumerated.extension_after = Some(enumerated.variants.len() - 1);
-                    loop_ctrl_separator!(Model::<Asn>::next(iter)?);
+                    loop_ctrl_separator!(iter.next_or_err()?);
                 }
             } else {
-                let variant_name = token.into_text_or_else(Error::no_text)?;
-                let token = Model::<Asn>::next(iter)?;
+                let variant_name = iter.next_text_or_err()?;
+                let token = iter.next_or_err()?;
 
                 if token.eq_separator(',') || token.eq_separator('}') {
                     enumerated
@@ -1601,16 +1644,16 @@ impl TryFrom<&mut Peekable<IntoIter<Token>>> for Enumerated {
                         .push(EnumeratedVariant::from_name(variant_name));
                     loop_ctrl_separator!(token);
                 } else if token.eq_separator('(') {
-                    let token = Model::<Asn>::next(iter)?;
+                    let token = iter.next_or_err()?;
                     let number = token
                         .text()
                         .and_then(|t| t.parse::<usize>().ok())
                         .ok_or_else(|| Error::invalid_number_for_enum_variant(token))?;
-                    Model::<Asn>::next_separator_ignore_case(iter, ')')?;
+                    iter.next_separator_eq_or_err(')')?;
                     enumerated
                         .variants
                         .push(EnumeratedVariant::from_name_number(variant_name, number));
-                    loop_ctrl_separator!(Model::<Asn>::next(iter)?);
+                    loop_ctrl_separator!(iter.next_or_err()?);
                 } else {
                     loop_ctrl_separator!(token);
                 }

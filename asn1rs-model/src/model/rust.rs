@@ -562,6 +562,7 @@ impl Model<Rust> {
                 })
                 .collect(),
             definitions: Vec::with_capacity(asn_model.definitions.len()),
+            value_references: Vec::with_capacity(asn_model.definitions.len()),
         };
         for Definition(name, asn) in &asn_model.definitions {
             let rust_name = rust_struct_or_enum_name(name);

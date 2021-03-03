@@ -64,9 +64,7 @@ pub fn expand(definition: Option<Definition<AsnModelType>>) -> Vec<TokenStream> 
     let mut additional_impl: Vec<TokenStream> = Vec::default();
     let mut model: Model<AsnModelType> = Model {
         name: "__proc_macro".to_string(),
-        oid: None,
-        imports: vec![],
-        definitions: vec![],
+        ..Default::default()
     };
 
     if let Some(definition) = definition {

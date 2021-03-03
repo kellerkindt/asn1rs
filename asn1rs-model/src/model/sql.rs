@@ -144,6 +144,7 @@ impl Model<Sql> {
             oid: rust_model.oid.clone(),
             imports: Default::default(), // ignored in SQL
             definitions: Vec::with_capacity(rust_model.definitions.len()),
+            value_references: Vec::default(),
         };
         for Definition(name, rust) in &rust_model.definitions {
             Self::definition_to_sql(name, rust, &mut model.definitions);
@@ -534,7 +535,6 @@ mod tests {
     fn test_conversion_struct() {
         let model = Model {
             name: "Manfred".into(),
-            oid: None,
             imports: vec![Import {
                 what: vec!["a".into(), "b".into()],
                 from: "to_be_ignored".into(),
@@ -547,6 +547,7 @@ mod tests {
                     Field::from_name_type("birth", RustType::Complex("City".into(), None)),
                 ]),
             )],
+            ..Default::default()
         }
         .to_sql();
         assert_eq!("Manfred", &model.name);
@@ -604,7 +605,6 @@ mod tests {
     fn test_conversion_data_enum() {
         let model = Model {
             name: "Hurray".into(),
-            oid: None,
             imports: vec![Import {
                 what: vec!["a".into(), "b".into()],
                 from: "to_be_ignored".into(),
@@ -626,6 +626,7 @@ mod tests {
                     .into(),
                 ),
             )],
+            ..Default::default()
         }
         .to_sql();
         assert_eq!("Hurray", &model.name);
@@ -683,7 +684,6 @@ mod tests {
     fn test_conversion_enum() {
         let model = Model {
             name: "Alfred".into(),
-            oid: None,
             imports: vec![Import {
                 what: vec!["a".into(), "b".into()],
                 from: "to_be_ignored".into(),
@@ -693,6 +693,7 @@ mod tests {
                 "City".into(),
                 Rust::Enum(vec!["Esslingen".into(), "Stuttgart".into()].into()),
             )],
+            ..Default::default()
         }
         .to_sql();
         assert_eq!("Alfred", &model.name);
@@ -716,7 +717,6 @@ mod tests {
     fn test_conversion_struct_with_vec() {
         let model = Model {
             name: "Bernhard".into(),
-            oid: None,
             imports: vec![],
             definitions: vec![Definition(
                 "SomeStruct".into(),
@@ -742,6 +742,7 @@ mod tests {
                     ),
                 ]),
             )],
+            ..Default::default()
         }
         .to_sql();
         assert_eq!("Bernhard", &model.name);
@@ -851,7 +852,6 @@ mod tests {
     fn test_conversion_tuple_struct() {
         let model = Model {
             name: "Hurray".into(),
-            oid: None,
             imports: vec![Import {
                 what: vec!["a".into(), "b".into()],
                 from: "to_be_ignored".into(),
@@ -870,6 +870,7 @@ mod tests {
                     )),
                 ),
             ],
+            ..Default::default()
         }
         .to_sql();
         assert_eq!("Hurray", &model.name);
@@ -1012,7 +1013,6 @@ mod tests {
     fn test_conversion_on_first_level_name_clash() {
         let model = Model {
             name: "Alfred".into(),
-            oid: None,
             imports: vec![Import {
                 what: vec!["a".into(), "b".into()],
                 from: "to_be_ignored".into(),
@@ -1025,6 +1025,7 @@ mod tests {
                     RustType::String(Size::Any, Charset::Utf8),
                 )]),
             )],
+            ..Default::default()
         }
         .to_sql();
         assert_eq!("Alfred", &model.name);

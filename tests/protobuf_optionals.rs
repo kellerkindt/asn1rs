@@ -8,7 +8,7 @@ asn_to_rust!(
 
     ProtobufOptionals ::= SEQUENCE {
         optional-bool       BOOLEAN OPTIONAL,
-        optional-utf8string UTF8String OTPIONAL,
+        optional-utf8string UTF8String OPTIONAL,
         optional-sint32     INTEGER (-2147483648..2147483647) OPTIONAL
     }
 
