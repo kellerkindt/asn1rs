@@ -8,7 +8,7 @@ pub use self::rust::RustType;
 pub use self::protobuf::Protobuf;
 pub use self::protobuf::ProtobufType;
 
-use crate::parser::Token;
+use crate::parser::{Location, Token};
 use backtrace::Backtrace;
 use std::convert::TryFrom;
 use std::error::Error as StdError;
@@ -41,6 +41,7 @@ pub enum ErrorKind {
     InvalidTag(Token),
     InvalidPositionForExtensionMarker(Token),
     InvalidIntText(Token),
+    UnsupportedValueReferenceLiteral(Token, Type),
 }
 
 pub struct Error {
@@ -116,6 +117,10 @@ impl Error {
         ErrorKind::UnexpectedEndOfStream.into()
     }
 
+    pub fn unsupported_value_reference_literal(token: Token, r#type: Type) -> Self {
+        ErrorKind::UnsupportedValueReferenceLiteral(token, r#type).into()
+    }
+
     fn backtrace(&self) -> &Backtrace {
         &self.backtrace
     }
@@ -135,6 +140,7 @@ impl Error {
             ErrorKind::InvalidTag(t) => Some(t),
             ErrorKind::InvalidPositionForExtensionMarker(t) => Some(t),
             ErrorKind::InvalidIntText(t) => Some(t),
+            ErrorKind::UnsupportedValueReferenceLiteral(t, ..) => Some(t),
         }
     }
 }
@@ -233,7 +239,15 @@ impl Display for Error {
                 token.location().line(),
                 token.location().column(),
                 token
-            )
+            ),
+            ErrorKind::UnsupportedValueReferenceLiteral(token, r#type) => write!(
+                f,
+                "At line {}, column {} an (yet) unsupported value reference literal of type '{:?}' was discovered: {}",
+                token.location().line(),
+                token.location().column(),
+                r#type,
+                token
+            ),
         }
     }
 }
@@ -305,8 +319,13 @@ impl Model<Asn> {
                 Self::read_imports(&mut iter)?
                     .into_iter()
                     .for_each(|i| model.imports.push(i));
-            } else {
+            } else if iter.peek_is_separator_eq(':') {
                 model.definitions.push(Self::read_definition(
+                    &mut iter,
+                    token.into_text_or_else(Error::unexpected_token)?,
+                )?);
+            } else {
+                model.value_references.push(Self::read_value_reference(
                     &mut iter,
                     token.into_text_or_else(Error::unexpected_token)?,
                 )?);
@@ -435,6 +454,86 @@ impl Model<Asn> {
         } else {
             Err(Error::unexpected_token(token))
         }
+    }
+
+    fn read_value_reference(
+        iter: &mut Peekable<IntoIter<Token>>,
+        name: String,
+    ) -> Result<ValueReference<Asn>, Error> {
+        let r#type = Self::read_role(iter)?;
+        Ok(ValueReference {
+            name,
+            value: {
+                iter.next_separator_eq_or_err(':')?;
+                iter.next_separator_eq_or_err(':')?;
+                iter.next_separator_eq_or_err('=')?;
+                match r#type {
+                    Type::Boolean => iter.next_text_or_err()?,
+                    Type::Integer(_) => iter.next_text_or_err()?,
+                    Type::String(_, _) => Self::read_string_literal(iter, '"')?,
+                    Type::OctetString(_) => Self::read_hex_string_literal(iter)?,
+                    Type::BitString(_) => Self::read_hex_string_literal(iter)?,
+                    Type::Optional(_)
+                    | Type::Sequence(_)
+                    | Type::SequenceOf(_, _)
+                    | Type::Set(_)
+                    | Type::SetOf(_, _)
+                    | Type::Enumerated(_)
+                    | Type::Choice(_)
+                    | Type::TypeReference(_, _) => {
+                        return Err(Error::unsupported_value_reference_literal(
+                            iter.peek_or_err()?.clone(),
+                            r#type,
+                        ));
+                    }
+                }
+            },
+            role: Asn { tag: None, r#type },
+        })
+    }
+
+    fn read_string_literal<T: Iterator<Item = Token>>(
+        iter: &mut Peekable<T>,
+        delimiter: char,
+    ) -> Result<String, Error> {
+        iter.next_separator_eq_or_err(delimiter)?;
+        let token = iter.next_or_err()?;
+
+        let mut string = token.text().map(ToString::to_string).unwrap_or_default();
+        let mut prev_loc = Location::at(
+            token.location().line(),
+            token.location().column() + string.chars().count(),
+        );
+
+        loop {
+            match iter.next_or_err()? {
+                t if t.eq_separator(delimiter) => break,
+                Token::Text(loc, str) => {
+                    for _ in prev_loc.column()..loc.column() {
+                        string.push(' ');
+                    }
+                    string.push_str(&str);
+                    prev_loc = Location::at(loc.line(), loc.column() + str.chars().count())
+                }
+                Token::Separator(loc, char) => {
+                    for _ in prev_loc.column()..loc.column() {
+                        string.push(' ');
+                    }
+                    string.push(char);
+                    prev_loc = Location::at(loc.line(), loc.column() + 1)
+                }
+            }
+        }
+
+        Ok(string)
+    }
+
+    fn read_hex_string_literal<T: Iterator<Item = Token>>(
+        iter: &mut Peekable<T>,
+    ) -> Result<String, Error> {
+        let string = Self::read_string_literal(iter, '\'')?;
+        iter.next_text_eq_ignore_case_or_err("H")?;
+        Ok(string)
     }
 
     fn next_with_opt_tag(
@@ -2700,5 +2799,129 @@ pub(crate) mod tests {
         }
 
         assert_eq!(4, rust.definitions.len());
+    }
+
+    #[test]
+    pub fn test_value_reference_boolean() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r"SomeName DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+                
+                somethingYes BOOLEAN ::= TRUE
+                somethingNo BOOLEAN ::= FALSE
+                
+                END",
+        ))
+        .expect("Failed to load model");
+        assert_eq!(
+            &[
+                ValueReference {
+                    name: "somethingYes".to_string(),
+                    role: Type::Boolean.untagged(),
+                    value: "TRUE".to_string()
+                },
+                ValueReference {
+                    name: "somethingNo".to_string(),
+                    role: Type::Boolean.untagged(),
+                    value: "FALSE".to_string()
+                },
+            ],
+            &model.value_references[..]
+        )
+    }
+
+    #[test]
+    pub fn test_value_reference_integer() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r"SomeName DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+                
+                maxSomethingSomething INTEGER ::= 1337
+                
+                END",
+        ))
+        .expect("Failed to load model");
+        assert_eq!(
+            ValueReference {
+                name: "maxSomethingSomething".to_string(),
+                role: Type::Integer(Integer {
+                    range: Default::default(),
+                    constants: Vec::default()
+                })
+                .untagged(),
+                value: "1337".to_string()
+            },
+            model.value_references[0]
+        )
+    }
+
+    #[test]
+    pub fn test_value_reference_bit_string() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r"SomeName DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+                
+                magicFlags BIT STRING ::= '4711'h
+                
+                END",
+        ))
+        .expect("Failed to load model");
+        assert_eq!(
+            ValueReference {
+                name: "magicFlags".to_string(),
+                role: Type::BitString(BitString {
+                    size: Size::Any,
+                    constants: Vec::default()
+                })
+                .untagged(),
+                value: "4711".to_string()
+            },
+            model.value_references[0]
+        )
+    }
+
+    #[test]
+    pub fn test_value_reference_octet_string() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r"SomeName DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+                answers OCTET STRING ::= '42'h
+
+                END",
+        ))
+        .expect("Failed to load model");
+        assert_eq!(
+            ValueReference {
+                name: "answers".to_string(),
+                role: Type::OctetString(Size::Any).untagged(),
+                value: "42".to_string()
+            },
+            model.value_references[0]
+        )
+    }
+
+    #[test]
+    pub fn test_value_reference_string() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r#"SomeName DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+                utf8 UTF8String ::= "häw äre yöu .. .. doing"
+                ia5 IA5String ::= "how are you"
+
+                END"#,
+        ))
+        .expect("Failed to load model");
+        assert_eq!(
+            &[
+                ValueReference {
+                    name: "utf8".to_string(),
+                    role: Type::String(Size::Any, Charset::Utf8).untagged(),
+                    value: "häw äre yöu .. .. doing".to_string()
+                },
+                ValueReference {
+                    name: "ia5".to_string(),
+                    role: Type::String(Size::Any, Charset::Ia5).untagged(),
+                    value: "how are you".to_string()
+                }
+            ],
+            &model.value_references[..]
+        )
     }
 }

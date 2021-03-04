@@ -156,7 +156,8 @@ impl Tokenizer {
             for (column_0, char) in content.iter().map(|c| c.chars()).flatten().enumerate() {
                 match char {
                     // asn syntax
-                    ':' | ';' | '=' | '(' | ')' | '{' | '}' | '.' | ',' | '[' | ']' => {
+                    ':' | ';' | '=' | '(' | ')' | '{' | '}' | '.' | ',' | '[' | ']' | '\''
+                    | '"' => {
                         token = Some(Token::Separator(
                             Location::at(line_0 + 1, column_0 + 1),
                             char,
