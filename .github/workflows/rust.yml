@@ -101,16 +101,8 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: run
-          args: -- /tmp/ ITS-Container.asn
-      - run: cd ..
+          args: -- tests ITS-Container.asn
+      - run: bash -c "echo '#[test] fn does_it_compile() {}' >> tests/its_container.rs"
       - uses: actions-rs/cargo@v1
         with:
-          command: new
-          args: --lib etsi
-      - run: cd etsi
-      - run: bash -c "mv /tmp/*.rs src"
-      - run: bash -c "echo 'mod its_container;' >> src/lib.rs"
-      - run: bash -c "echo 'asn1rs = { path = \"../asn1rs\" }' >> Cargo.toml"
-      - uses: actions-rs/cargo@v1
-        with:
-          command: build
+          command: test its_container
