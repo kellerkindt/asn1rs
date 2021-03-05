@@ -101,8 +101,16 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: run
-          args: -- src/ ITS-Container.asn
-      - run: echo "mod its_container;" >> src/lib.rs
+          args: -- /tmp/ ITS-Container.asn
+      - run: cd ..
+      - uses: actions-rs/cargo@v1
+        with:
+          command: new
+          args: --lib etsi
+      - run: cd etsi
+      - run: bash -c "mv /tmp/*.rs src"
+      - run: bash -c "echo 'mod its_container;' >> src/lib.rs"
+      - run: bash -c "echo 'asn1rs = { path = \"../asn1rs\" }' >> Cargo.toml"
       - uses: actions-rs/cargo@v1
         with:
           command: build
