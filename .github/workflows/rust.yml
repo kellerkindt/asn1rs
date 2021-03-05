@@ -86,3 +86,23 @@ jobs:
         with:
           command: clippy
           args: --all-features -- -D warnings
+
+  etsi-standards:
+    name: ETSI
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+      - run: wget https://forge.etsi.org/rep/ITS/asn1/cdd_ts102894_2/raw/c934eeb9c82246399aebe31e8208f785f7757102/ITS-Container.asn
+      - uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: -- src/ ITS-Container.asn
+      - run: echo "mod its_container;" >> src/lib.rs
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
