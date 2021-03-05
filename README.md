@@ -72,10 +72,12 @@ The crate can be used as standalone CLI binary or used as library through its AP
 - The legacy UPER Reader/Writer does not support all features (pre v0.2.0)
 
 #### Supported standards
- -  [ETSI TS 102 894-2 / ITS-Container](https://www.etsi.org/deliver/etsi_ts/102800_102899/10289402/01.02.01_60/ts_10289402v010201p.pdf): \
+ -  [📜️ ETSI TS 102 894-2 (PDF)](https://www.etsi.org/deliver/etsi_ts/102800_102899/10289402/01.02.01_60/ts_10289402v010201p.pdf)
+    / [🧰 ITS-Container (GIT)](https://forge.etsi.org/rep/ITS/asn1/cdd_ts102894_2/blob/df1f3632c89893ee334b6e440e1666735794b701/ITS-Container.asn): \
     ```itu-t(0) identified-organization(4) etsi(0) itsDomain(5) wg1(1) ts(102894) cdd(2) version(1)```
- -  [ETSI EN 302 637-2 / ITS-CAM](https://www.etsi.org/deliver/etsi_en/302600_302699/30263702/01.03.01_30/en_30263702v010301v.pdf): \
-    ```itu-t(0) identified-organization(4) etsi(0) itsDomain(5) wg1(1) en(302637) cam(2) version(1)```
+ -  [📜️ ETSI EN 302 637-2 (PDF)](https://www.etsi.org/deliver/etsi_en/302600_302699/30263702/01.03.01_30/en_30263702v010301v.pdf)
+    / [🧰 CAM-PDU-Description (GIT)](https://forge.etsi.org/rep/ITS/asn1/cam_en302637_2/blob/7ae4195d48dd468754a50f1a3bb0c2ce976ae15a/CAM-PDU-Descriptions.asn): \
+    ```itu-t(0) identified-organization(4) etsi(0) itsDomain(5) wg1(1) en(302637) cam(2) version(2)```
 
 ### CLI usage
 
