@@ -273,10 +273,7 @@ impl RustType {
             | RustType::U64(_) => Tag::DEFAULT_INTEGER,
             RustType::BitVec(_) => Tag::DEFAULT_BIT_STRING,
             RustType::VecU8(_) => Tag::DEFAULT_OCTET_STRING,
-            RustType::String(_, charset) => match charset {
-                Charset::Utf8 => Tag::DEFAULT_UTF8_STRING,
-                Charset::Ia5 => Tag::DEFAULT_IA5_STRING,
-            },
+            RustType::String(_, charset) => charset.default_tag(),
             RustType::Vec(_, _, EncodingOrdering::Keep) => Tag::DEFAULT_SEQUENCE_OF,
             RustType::Vec(_, _, EncodingOrdering::Sort) => Tag::DEFAULT_SET_OF,
             RustType::Option(inner) => return inner.tag(),

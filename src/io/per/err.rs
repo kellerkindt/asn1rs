@@ -1,7 +1,10 @@
-#[derive(Debug, PartialOrd, PartialEq)]
+use crate::model::Charset;
+use std::string::FromUtf8Error;
+
+#[derive(Debug, PartialEq)]
 pub enum Error {
-    InvalidUtf8String,
-    InvalidIa5String,
+    FromUtf8Error(FromUtf8Error),
+    InvalidString(Charset, char, usize),
     UnsupportedOperation(String),
     InsufficientSpaceInDestinationBuffer,
     InsufficientDataInSourceBuffer,
@@ -15,14 +18,28 @@ pub enum Error {
     EndOfStream,
 }
 
+impl Error {
+    pub fn ensure_string_valid(charset: Charset, str: &str) -> Result<(), Self> {
+        match charset.find_invalid(str) {
+            None => Ok(()),
+            Some((index, char)) => Err(Self::InvalidString(charset, char, index)),
+        }
+    }
+}
+
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Error::InvalidUtf8String => {
-                write!(f, "The underlying dataset is not a valid UTF8-String")
+            Error::FromUtf8Error(err) => {
+                write!(f, "Failed to call String::from_utf8: ")?;
+                err.fmt(f)
             }
-            Error::InvalidIa5String => {
-                write!(f, "The underlying dataset is not a valid IA5-String")
+            Error::InvalidString(charset, char, index) => {
+                write!(
+                    f,
+                    "Invalid character for a string with the charset {:?} at index {}: {}",
+                    charset, index, char
+                )
             }
             Error::UnsupportedOperation(o) => write!(f, "The operation is not supported: {}", o),
             Error::InsufficientSpaceInDestinationBuffer => write!(

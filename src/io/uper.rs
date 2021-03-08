@@ -200,7 +200,7 @@ impl<T: BitRead + PackedRead> Reader for T {
     #[inline]
     fn read_utf8_string(&mut self) -> Result<String, Error> {
         let octets = <T as PackedRead>::read_octetstring(self, None, None, false)?;
-        String::from_utf8(octets).map_err(|_| Error::InvalidUtf8String)
+        String::from_utf8(octets).map_err(Error::FromUtf8Error)
     }
 
     #[inline]

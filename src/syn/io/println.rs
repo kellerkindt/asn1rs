@@ -189,6 +189,24 @@ impl Writer for PrintlnWriter {
         Ok(())
     }
 
+    fn write_numeric_string<C: numericstring::Constraint>(
+        &mut self,
+        value: &str,
+    ) -> Result<(), Self::Error> {
+        self.indented_println(&format!(
+            "Writing NumericString({}..{}), tag={:?}",
+            C::MIN
+                .map(|v| format!("{}", v))
+                .unwrap_or_else(|| String::from("MIN")),
+            C::MAX
+                .map(|v| format!("{}", v))
+                .unwrap_or_else(|| String::from("MAX")),
+            C::TAG
+        ));
+        self.with_increased_indentation(|w| w.indented_println(format!("{:?}", value)));
+        Ok(())
+    }
+
     fn write_octet_string<C: octetstring::Constraint>(
         &mut self,
         value: &[u8],

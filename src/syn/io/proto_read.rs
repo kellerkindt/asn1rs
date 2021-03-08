@@ -272,6 +272,15 @@ impl<'a> Reader for ProtobufReader<'a> {
     }
 
     #[inline]
+    fn read_numeric_string<C: numericstring::Constraint>(&mut self) -> Result<String, Self::Error> {
+        let tag = self.state.tag_counter + 1;
+        self.read_tag_format(tag, Format::LengthDelimited)?;
+        let string = self.state.source.read_string()?;
+        self.state.tag_counter = tag;
+        Ok(string)
+    }
+
+    #[inline]
     fn read_octet_string<C: octetstring::Constraint>(&mut self) -> Result<Vec<u8>, Self::Error> {
         let tag = self.state.tag_counter + 1;
         self.read_tag_format(tag, Format::VarInt)?;

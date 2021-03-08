@@ -9,6 +9,7 @@ use std::ops::Range;
 
 pub use crate::io::per::unaligned::buffer::Bits;
 pub use crate::io::per::unaligned::ScopedBitRead;
+use crate::model::Charset;
 
 /// This ist enum is the main reason, the new impl is about ~10% slower (2020-09) than the previous/
 /// legacy implementation. This dynamic state tracking at runtime could be avoided by passing all
@@ -259,6 +260,36 @@ impl UperWriter {
             f(self)
         }
     }
+
+    #[inline]
+    pub fn write_extensible_bit_and_length_or_err(
+        &mut self,
+        extensible: bool,
+        min: Option<u64>,
+        max: Option<u64>,
+        upper_limit: u64,
+        len: u64,
+    ) -> Result<bool, Error> {
+        let unwrapped_min = const_unwrap_or!(min, 0);
+        let unwrapped_max = const_unwrap_or!(max, upper_limit);
+        let out_of_range = len < unwrapped_min || len > unwrapped_max;
+
+        if extensible {
+            self.bits.write_bit(out_of_range)?;
+        }
+
+        if out_of_range {
+            if !extensible {
+                return Err(Error::SizeNotInRange(len, unwrapped_min, unwrapped_max));
+            } else {
+                self.bits.write_length_determinant(None, None, len)?;
+            }
+        } else {
+            self.bits.write_length_determinant(min, max, len)?;
+        }
+
+        Ok(out_of_range)
+    }
 }
 
 impl Writer for UperWriter {
@@ -312,25 +343,14 @@ impl Writer for UperWriter {
     ) -> Result<(), Self::Error> {
         self.write_bit_field_entry(false, true)?;
         self.scope_stashed(|w| {
-            const MAX: u64 = i64::MAX as u64;
-            let min = const_unwrap_or!(C::MIN, 0);
-            let max = const_unwrap_or!(C::MAX, MAX);
-            let len = slice.len() as u64;
-            let out_of_range = len < min || len > max;
+            w.write_extensible_bit_and_length_or_err(
+                C::EXTENSIBLE,
+                C::MIN,
+                C::MAX,
+                i64::MAX as u64,
+                slice.len() as u64,
+            )?;
 
-            if C::EXTENSIBLE {
-                w.bits.write_bit(out_of_range)?;
-            }
-
-            if out_of_range {
-                if !C::EXTENSIBLE {
-                    return Err(Error::SizeNotInRange(len, min, max));
-                } else {
-                    w.bits.write_length_determinant(None, None, len)?;
-                }
-            } else {
-                w.bits.write_length_determinant(C::MIN, C::MAX, len)?;
-            }
             w.scope_stashed(|w| {
                 for value in slice {
                     T::write_value(w, value)?;
@@ -476,32 +496,48 @@ impl Writer for UperWriter {
     ) -> Result<(), Self::Error> {
         self.write_bit_field_entry(false, true)?;
         self.with_buffer(|w| {
-            if value.chars().any(|c| c as u32 >= 128) {
-                return Err(Error::InvalidIa5String);
-            }
+            Error::ensure_string_valid(Charset::Ia5, value)?;
 
-            let chars = value.chars().count() as u64;
-            let min = const_unwrap_or!(C::MIN, 0);
-            let max = const_unwrap_or!(C::MAX, u64::MAX);
-            let out_of_range = chars < min || chars > max;
-
-            if C::EXTENSIBLE {
-                w.bits.write_bit(out_of_range)?;
-            }
-
-            if out_of_range {
-                if !C::EXTENSIBLE {
-                    return Err(Error::SizeNotInRange(chars, min, max));
-                } else {
-                    w.bits.write_length_determinant(None, None, chars)?;
-                }
-            } else {
-                w.bits.write_length_determinant(C::MIN, C::MAX, chars)?;
-            }
+            w.write_extensible_bit_and_length_or_err(
+                C::EXTENSIBLE,
+                C::MIN,
+                C::MAX,
+                u64::MAX,
+                value.chars().count() as u64,
+            )?;
 
             for char in value.chars().map(|c| c as u8) {
                 // 7 bits
                 w.bits.write_bits_with_offset(&[char], 1)?;
+            }
+
+            Ok(())
+        })
+    }
+
+    #[inline]
+    fn write_numeric_string<C: numericstring::Constraint>(
+        &mut self,
+        value: &str,
+    ) -> Result<(), Self::Error> {
+        self.write_bit_field_entry(false, true)?;
+        self.with_buffer(|w| {
+            Error::ensure_string_valid(Charset::Numeric, value)?;
+
+            w.write_extensible_bit_and_length_or_err(
+                C::EXTENSIBLE,
+                C::MIN,
+                C::MAX,
+                u64::MAX,
+                value.chars().count() as u64,
+            )?;
+
+            for char in value.chars().map(|c| c as u8) {
+                let char = match char - 32 {
+                    0 => 0,
+                    c => c - 15,
+                };
+                w.bits.write_bits_with_offset(&[char], 4)?;
             }
 
             Ok(())
@@ -799,7 +835,7 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
             // ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 30.3
             // For 'known-multiplier character string types' there is no min/max in the encoding
             let octets = r.bits.read_octetstring(None, None, false)?;
-            String::from_utf8(octets).map_err(|_| Self::Error::InvalidUtf8String)
+            String::from_utf8(octets).map_err(Self::Error::FromUtf8Error)
         })
     }
 
@@ -818,7 +854,30 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
                 r.bits.read_bits_with_offset(&mut buffer[i..i + 1], 1)?;
             }
 
-            String::from_utf8(buffer).map_err(|_| Error::InvalidIa5String)
+            String::from_utf8(buffer).map_err(Self::Error::FromUtf8Error)
+        })
+    }
+
+    #[inline]
+    fn read_numeric_string<C: numericstring::Constraint>(&mut self) -> Result<String, Self::Error> {
+        let _ = self.read_bit_field_entry(false)?;
+        self.with_buffer(|r| {
+            let len = if C::EXTENSIBLE && r.bits.read_bit()? {
+                r.bits.read_length_determinant(None, None)?
+            } else {
+                r.bits.read_length_determinant(C::MIN, C::MAX)?
+            };
+
+            let mut buffer = vec![0u8; len as usize];
+            for i in 0..len as usize {
+                r.bits.read_bits_with_offset(&mut buffer[i..i + 1], 4)?;
+                match buffer[i] {
+                    0_u8 => buffer[i] = 32_u8,
+                    c => buffer[i] = 32_u8 + 15 + c,
+                }
+            }
+
+            String::from_utf8(buffer).map_err(Self::Error::FromUtf8Error)
         })
     }
 

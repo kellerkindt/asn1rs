@@ -564,6 +564,7 @@ impl Model<Asn> {
             "boolean" => Type::Boolean,
             "utf8string" => Type::String(Self::maybe_read_size(iter)?, Charset::Utf8),
             "ia5string" => Type::String(Self::maybe_read_size(iter)?, Charset::Ia5),
+            "numericstring" => Type::String(Self::maybe_read_size(iter)?, Charset::Numeric),
             "octet" => {
                 iter.next_text_eq_ignore_case_or_err("STRING")?;
                 Type::OctetString(Self::maybe_read_size(iter)?)
@@ -987,6 +988,7 @@ impl TagResolver<'_> {
             Type::BitString(_) => Some(Tag::DEFAULT_BIT_STRING),
             Type::OctetString(_) => Some(Tag::DEFAULT_OCTET_STRING),
             Type::Enumerated(_) => Some(Tag::DEFAULT_ENUMERATED),
+            Type::String(_, Charset::Numeric) => Some(Tag::DEFAULT_NUMERIC_STRING),
             Type::String(_, Charset::Utf8) => Some(Tag::DEFAULT_UTF8_STRING),
             Type::String(_, Charset::Ia5) => Some(Tag::DEFAULT_IA5_STRING),
             Type::Optional(inner) => self.resolve_type_tag(&**inner),
@@ -1087,7 +1089,33 @@ impl Size {
 #[strum(serialize_all = "lowercase")]
 pub enum Charset {
     Utf8,
+    /// ITU-T X.680 | ISO/IEC 8824-1, 43.3
+    Numeric,
     Ia5,
+}
+
+impl Charset {
+    pub fn default_tag(self) -> Tag {
+        match self {
+            Charset::Utf8 => Tag::DEFAULT_UTF8_STRING,
+            Charset::Numeric => Tag::DEFAULT_NUMERIC_STRING,
+            Charset::Ia5 => Tag::DEFAULT_IA5_STRING,
+        }
+    }
+
+    pub fn find_invalid(self, str: &str) -> Option<(usize, char)> {
+        str.chars()
+            .enumerate()
+            .find(|(_index, char)| !self.is_valid(*char))
+    }
+
+    pub fn is_valid(self, char: char) -> bool {
+        match self {
+            Charset::Utf8 => true,
+            Charset::Numeric => matches!(char, ' ' | '0'..='9'),
+            Charset::Ia5 => (char as u32) < 128,
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone, Copy, PartialOrd, PartialEq)]
@@ -1248,6 +1276,10 @@ impl Tag {
     pub const DEFAULT_SEQUENCE_OF: Tag = Tag::Universal(16);
     pub const DEFAULT_SET: Tag = Tag::Universal(17);
     pub const DEFAULT_SET_OF: Tag = Tag::Universal(17);
+
+    /// ITU-T Rec. X.680, 41
+    pub const DEFAULT_NUMERIC_STRING: Tag = Tag::Universal(18);
+    /// ITU-T Rec. X.680, 41
     pub const DEFAULT_IA5_STRING: Tag = Tag::Universal(22);
 }
 

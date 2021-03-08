@@ -29,11 +29,7 @@ pub mod legacy {
             let len = self.read_length_determinant()?;
             let mut buffer = vec![0_u8; len];
             self.read_bit_string_till_end(&mut buffer[..len], 0)?;
-            if let Ok(string) = String::from_utf8(buffer) {
-                Ok(string)
-            } else {
-                Err(Error::InvalidUtf8String)
-            }
+            String::from_utf8(buffer).map_err(Error::FromUtf8Error)
         }
         fn read_choice_index_extensible(
             &mut self,

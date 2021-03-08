@@ -380,15 +380,13 @@ impl AsnDefWriter {
                 Self::write_common_constraint_type(
                     scope,
                     constraint_type_name,
-                    field.tag.unwrap_or(match charset {
-                        Charset::Ia5 => Tag::DEFAULT_IA5_STRING,
-                        Charset::Utf8 => Tag::DEFAULT_UTF8_STRING,
-                    }),
+                    field.tag.unwrap_or_else(|| charset.default_tag()),
                 );
                 Self::write_size_constraint(
                     match charset {
                         Charset::Utf8 => "utf8string",
                         Charset::Ia5 => "ia5string",
+                        Charset::Numeric => "numericstring",
                     },
                     scope,
                     constraint_type_name,
