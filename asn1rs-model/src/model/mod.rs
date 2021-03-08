@@ -41,7 +41,7 @@ pub enum ErrorKind {
     InvalidTag(Token),
     InvalidPositionForExtensionMarker(Token),
     InvalidIntText(Token),
-    UnsupportedValueReferenceLiteral(Token, Type),
+    UnsupportedValueReferenceLiteral(Token, Box<Type>),
 }
 
 pub struct Error {
@@ -118,7 +118,7 @@ impl Error {
     }
 
     pub fn unsupported_value_reference_literal(token: Token, r#type: Type) -> Self {
-        ErrorKind::UnsupportedValueReferenceLiteral(token, r#type).into()
+        ErrorKind::UnsupportedValueReferenceLiteral(token, Box::new(r#type)).into()
     }
 
     fn backtrace(&self) -> &Backtrace {
@@ -810,7 +810,7 @@ impl Model<Asn> {
 }
 
 trait PeekableTokens {
-    fn peek_or_err(&mut self) -> Result<&Token, Error>;
+    fn peek_or_err(&mut self) -> Result<&Token, ErrorKind>;
 
     fn peek_is_text_eq(&mut self, text: &str) -> bool;
 
@@ -818,21 +818,21 @@ trait PeekableTokens {
 
     fn peek_is_separator_eq(&mut self, separator: char) -> bool;
 
-    fn next_or_err(&mut self) -> Result<Token, Error>;
+    fn next_or_err(&mut self) -> Result<Token, ErrorKind>;
 
-    fn next_text_or_err(&mut self) -> Result<String, Error>;
+    fn next_text_or_err(&mut self) -> Result<String, ErrorKind>;
 
-    fn next_text_eq_ignore_case_or_err(&mut self, text: &str) -> Result<(), Error>;
+    fn next_text_eq_ignore_case_or_err(&mut self, text: &str) -> Result<(), ErrorKind>;
 
     #[inline]
     fn next_is_text_and_eq_ignore_case(&mut self, text: &str) -> bool {
         self.next_text_eq_ignore_case_or_err(text).is_ok()
     }
 
-    fn next_if_separator_and_eq(&mut self, separator: char) -> Result<Token, Error>;
+    fn next_if_separator_and_eq(&mut self, separator: char) -> Result<Token, ErrorKind>;
 
     #[inline]
-    fn next_separator_eq_or_err(&mut self, separator: char) -> Result<(), Error> {
+    fn next_separator_eq_or_err(&mut self, separator: char) -> Result<(), ErrorKind> {
         self.next_if_separator_and_eq(separator).map(drop)
     }
 
@@ -841,7 +841,7 @@ trait PeekableTokens {
         self.next_separator_eq_or_err(separator).is_ok()
     }
 
-    fn next_separator_eq_ignore_case_or_err(&mut self, separator: char) -> Result<(), Error>;
+    fn next_separator_eq_ignore_case_or_err(&mut self, separator: char) -> Result<(), ErrorKind>;
 
     #[inline]
     fn next_is_separator_and_eq_ignore_case(&mut self, separator: char) -> bool {
@@ -850,10 +850,12 @@ trait PeekableTokens {
 }
 
 impl<T: Iterator<Item = Token>> PeekableTokens for Peekable<T> {
-    fn peek_or_err(&mut self) -> Result<&Token, Error> {
-        self.peek().ok_or_else(Error::unexpected_end_of_stream)
+    #[inline]
+    fn peek_or_err(&mut self) -> Result<&Token, ErrorKind> {
+        self.peek().ok_or(ErrorKind::UnexpectedEndOfStream)
     }
 
+    #[inline]
     fn peek_is_text_eq(&mut self, text: &str) -> bool {
         self.peek()
             .and_then(Token::text)
@@ -861,6 +863,7 @@ impl<T: Iterator<Item = Token>> PeekableTokens for Peekable<T> {
             .unwrap_or(false)
     }
 
+    #[inline]
     fn peek_is_text_eq_ignore_case(&mut self, text: &str) -> bool {
         self.peek()
             .and_then(Token::text)
@@ -868,17 +871,20 @@ impl<T: Iterator<Item = Token>> PeekableTokens for Peekable<T> {
             .unwrap_or(false)
     }
 
+    #[inline]
     fn peek_is_separator_eq(&mut self, separator: char) -> bool {
         self.peek()
             .map(|t| t.eq_separator(separator))
             .unwrap_or(false)
     }
 
-    fn next_or_err(&mut self) -> Result<Token, Error> {
-        self.next().ok_or_else(Error::unexpected_end_of_stream)
+    #[inline]
+    fn next_or_err(&mut self) -> Result<Token, ErrorKind> {
+        self.next().ok_or(ErrorKind::UnexpectedEndOfStream)
     }
 
-    fn next_text_or_err(&mut self) -> Result<String, Error> {
+    #[inline]
+    fn next_text_or_err(&mut self) -> Result<String, ErrorKind> {
         let peeked = self.peek_or_err()?;
         if peeked.text().is_some() {
             let token = self.next_or_err()?;
@@ -888,40 +894,43 @@ impl<T: Iterator<Item = Token>> PeekableTokens for Peekable<T> {
                 Token::Text(_, text) => Ok(text),
             }
         } else {
-            Err(Error::no_text(peeked.clone()))
+            Err(ErrorKind::ExpectedText(peeked.clone()))
         }
     }
 
-    fn next_text_eq_ignore_case_or_err(&mut self, text: &str) -> Result<(), Error> {
+    #[inline]
+    fn next_text_eq_ignore_case_or_err(&mut self, text: &str) -> Result<(), ErrorKind> {
         let peeked = self.peek_or_err()?;
         if peeked.eq_text_ignore_ascii_case(text) {
             let token = self.next_or_err()?;
             debug_assert!(token.eq_text_ignore_ascii_case(text));
             Ok(())
         } else {
-            Err(Error::expected_text(text.to_string(), peeked.clone()))
+            Err(ErrorKind::ExpectedTextGot(text.to_string(), peeked.clone()))
         }
     }
 
-    fn next_if_separator_and_eq(&mut self, separator: char) -> Result<Token, Error> {
+    #[inline]
+    fn next_if_separator_and_eq(&mut self, separator: char) -> Result<Token, ErrorKind> {
         let peeked = self.peek_or_err()?;
         if peeked.eq_separator(separator) {
             let token = self.next_or_err()?;
             debug_assert!(token.eq_separator(separator));
             Ok(token)
         } else {
-            Err(Error::expected_separator(separator, peeked.clone()))
+            Err(ErrorKind::ExpectedSeparatorGot(separator, peeked.clone()))
         }
     }
 
-    fn next_separator_eq_ignore_case_or_err(&mut self, separator: char) -> Result<(), Error> {
+    #[inline]
+    fn next_separator_eq_ignore_case_or_err(&mut self, separator: char) -> Result<(), ErrorKind> {
         let peeked = self.peek_or_err()?;
         if peeked.eq_separator_ignore_ascii_case(separator) {
             let token = self.next_or_err()?;
             debug_assert!(token.eq_separator_ignore_ascii_case(separator));
             Ok(())
         } else {
-            Err(Error::expected_separator(separator, peeked.clone()))
+            Err(ErrorKind::ExpectedSeparatorGot(separator, peeked.clone()))
         }
     }
 }
