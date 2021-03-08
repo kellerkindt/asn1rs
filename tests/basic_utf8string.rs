@@ -113,3 +113,28 @@ fn test_extensible_extended() {
         },
     );
 }
+
+#[test]
+fn test_single_umlaut() {
+    serialize_and_deserialize_uper(
+        3 * 8,
+        &[0x02, 0xC3, 0xA4],
+        &Unconstrained {
+            abc: "ä".to_string(),
+        },
+    )
+}
+
+#[test]
+fn test_multiple_umlauts() {
+    serialize_and_deserialize_uper(
+        15 * 8,
+        &[
+            0x0E, 0xC3, 0xA4, 0xC3, 0xB6, 0xC3, 0xBC, 0xC3, 0x84, 0xC3, 0x96, 0xC3, 0x9C, 0xC3,
+            0x9F,
+        ],
+        &Unconstrained {
+            abc: "äöüÄÖÜß".to_string(),
+        },
+    )
+}
