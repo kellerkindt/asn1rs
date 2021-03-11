@@ -1155,12 +1155,14 @@ impl Charset {
             .find(|(_index, char)| !self.is_valid(*char))
     }
 
-    pub fn is_valid(self, char: char) -> bool {
+    pub const fn is_valid(self, char: char) -> bool {
         match self {
             Charset::Utf8 => true,
             Charset::Numeric => matches!(char, ' ' | '0'..='9'),
-            Charset::Printable => Self::PRINTABLE_STRING_CHARACTERS.contains(char),
-            Charset::Ia5 => (char as u32) < 128,
+            Charset::Printable => {
+                matches!(char, ' ' | '\'' ..= ')' | '+' ..= ':' | '=' | '?' | 'A'..='Z' | 'a'..='z'  )
+            }
+            Charset::Ia5 => matches!(char as u32, 0_u32..=128),
         }
     }
 }
