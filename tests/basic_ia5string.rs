@@ -28,6 +28,24 @@ asn_to_rust!(
 );
 
 #[test]
+fn detect_only_invalid_character() {
+    let mut writer = asn1rs::syn::io::UperWriter::default();
+    let result = Unconstrained {
+        abc: "\u{00}\u{01}\u{02}\u{03}\u{04}\u{05}\u{06}\u{07}\u{08}\u{09}\u{0A}\u{0B}\u{0C}\u{0D}\u{0E}\u{0F}\u{10}\u{11}\u{12}\u{13}\u{14}\u{15}\u{16}\u{17}\u{18}\u{19}\u{1A}\u{1B}\u{1C}\u{1D}\u{1E}\u{1F} !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\u{7F}\u{80}"
+            .to_string(),
+    }
+        .write(&mut writer);
+    assert_eq!(
+        Err(asn1rs::io::per::Error::InvalidString(
+            asn1rs::model::Charset::Ia5,
+            '\u{80}',
+            128
+        )),
+        result
+    )
+}
+
+#[test]
 fn test_unconstrained() {
     // from playground
     serialize_and_deserialize_uper(
