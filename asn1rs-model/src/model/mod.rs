@@ -565,6 +565,7 @@ impl Model<Asn> {
             "utf8string" => Type::String(Self::maybe_read_size(iter)?, Charset::Utf8),
             "ia5string" => Type::String(Self::maybe_read_size(iter)?, Charset::Ia5),
             "numericstring" => Type::String(Self::maybe_read_size(iter)?, Charset::Numeric),
+            "printablestring" => Type::String(Self::maybe_read_size(iter)?, Charset::Printable),
             "octet" => {
                 iter.next_text_eq_ignore_case_or_err("STRING")?;
                 Type::OctetString(Self::maybe_read_size(iter)?)
@@ -998,6 +999,7 @@ impl TagResolver<'_> {
             Type::OctetString(_) => Some(Tag::DEFAULT_OCTET_STRING),
             Type::Enumerated(_) => Some(Tag::DEFAULT_ENUMERATED),
             Type::String(_, Charset::Numeric) => Some(Tag::DEFAULT_NUMERIC_STRING),
+            Type::String(_, Charset::Printable) => Some(Tag::DEFAULT_PRINTABLE_STRING),
             Type::String(_, Charset::Utf8) => Some(Tag::DEFAULT_UTF8_STRING),
             Type::String(_, Charset::Ia5) => Some(Tag::DEFAULT_IA5_STRING),
             Type::Optional(inner) => self.resolve_type_tag(&**inner),
@@ -1100,14 +1102,23 @@ pub enum Charset {
     Utf8,
     /// ITU-T X.680 | ISO/IEC 8824-1, 43.3
     Numeric,
+    /// ITU-T X.680 | ISO/IEC 8824-1, 43.3
+    Printable,
+
+    /// Encoding as in ISO/IEC 646 (??)
     Ia5,
 }
 
 impl Charset {
+    /// Sorted according to ITU-T X.680, 43.6
+    pub const PRINTABLE_STRING_CHARACTERS: &'static str =
+        " '()+,-./0123456789:=?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+
     pub fn default_tag(self) -> Tag {
         match self {
             Charset::Utf8 => Tag::DEFAULT_UTF8_STRING,
             Charset::Numeric => Tag::DEFAULT_NUMERIC_STRING,
+            Charset::Printable => Tag::DEFAULT_PRINTABLE_STRING,
             Charset::Ia5 => Tag::DEFAULT_IA5_STRING,
         }
     }
@@ -1122,6 +1133,7 @@ impl Charset {
         match self {
             Charset::Utf8 => true,
             Charset::Numeric => matches!(char, ' ' | '0'..='9'),
+            Charset::Printable => Self::PRINTABLE_STRING_CHARACTERS.contains(char),
             Charset::Ia5 => (char as u32) < 128,
         }
     }
@@ -1288,6 +1300,8 @@ impl Tag {
 
     /// ITU-T Rec. X.680, 41
     pub const DEFAULT_NUMERIC_STRING: Tag = Tag::Universal(18);
+    /// ITU-T Rec. X.680, 41
+    pub const DEFAULT_PRINTABLE_STRING: Tag = Tag::Universal(19);
     /// ITU-T Rec. X.680, 41
     pub const DEFAULT_IA5_STRING: Tag = Tag::Universal(22);
 }

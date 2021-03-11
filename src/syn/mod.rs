@@ -10,6 +10,7 @@ pub mod numbers;
 pub mod numericstring;
 pub mod octetstring;
 pub mod optional;
+pub mod printablestring;
 pub mod sequence;
 pub mod sequenceof;
 pub mod set;
@@ -26,6 +27,7 @@ pub use ia5string::Ia5String;
 pub use numbers::Integer;
 pub use numericstring::NumericString;
 pub use octetstring::OctetString;
+pub use printablestring::PrintableString;
 pub use sequence::Sequence;
 pub use sequenceof::SequenceOf;
 pub use set::Set;
@@ -90,6 +92,10 @@ pub trait Reader {
     fn read_ia5string<C: ia5string::Constraint>(&mut self) -> Result<String, Self::Error>;
 
     fn read_numeric_string<C: numericstring::Constraint>(&mut self) -> Result<String, Self::Error>;
+
+    fn read_printable_string<C: printablestring::Constraint>(
+        &mut self,
+    ) -> Result<String, Self::Error>;
 
     fn read_octet_string<C: octetstring::Constraint>(&mut self) -> Result<Vec<u8>, Self::Error>;
 
@@ -176,6 +182,11 @@ pub trait Writer {
         -> Result<(), Self::Error>;
 
     fn write_numeric_string<C: numericstring::Constraint>(
+        &mut self,
+        value: &str,
+    ) -> Result<(), Self::Error>;
+
+    fn write_printable_string<C: printablestring::Constraint>(
         &mut self,
         value: &str,
     ) -> Result<(), Self::Error>;

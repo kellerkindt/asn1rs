@@ -328,6 +328,18 @@ impl Writer for ProtobufWriter<'_> {
     }
 
     #[inline]
+    fn write_printable_string<C: printablestring::Constraint>(
+        &mut self,
+        value: &str,
+    ) -> Result<(), Self::Error> {
+        let tag = self.state.tag_counter + 1;
+        self.buffer.write_tagged_string(tag, value)?;
+        self.state.tag_counter = tag;
+        self.state.format = Some(Format::LengthDelimited);
+        Ok(())
+    }
+
+    #[inline]
     fn write_octet_string<C: octetstring::Constraint>(
         &mut self,
         value: &[u8],

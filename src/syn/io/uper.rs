@@ -545,6 +545,31 @@ impl Writer for UperWriter {
     }
 
     #[inline]
+    fn write_printable_string<C: printablestring::Constraint>(
+        &mut self,
+        value: &str,
+    ) -> Result<(), Self::Error> {
+        self.write_bit_field_entry(false, true)?;
+        self.with_buffer(|w| {
+            Error::ensure_string_valid(Charset::Printable, value)?;
+
+            w.write_extensible_bit_and_length_or_err(
+                C::EXTENSIBLE,
+                C::MIN,
+                C::MAX,
+                u64::MAX,
+                value.chars().count() as u64,
+            )?;
+
+            for char in value.chars() {
+                w.bits.write_bits_with_offset(&[char as u8], 1)?;
+            }
+
+            Ok(())
+        })
+    }
+
+    #[inline]
     fn write_octet_string<C: octetstring::Constraint>(
         &mut self,
         value: &[u8],
@@ -876,6 +901,28 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
                     c => buffer[i] = 32_u8 + 15 + c,
                 }
             }
+
+            String::from_utf8(buffer).map_err(Self::Error::FromUtf8Error)
+        })
+    }
+
+    #[inline]
+    fn read_printable_string<C: printablestring::Constraint>(
+        &mut self,
+    ) -> Result<String, Self::Error> {
+        let _ = self.read_bit_field_entry(false)?;
+        self.with_buffer(|r| {
+            let len = if C::EXTENSIBLE && r.bits.read_bit()? {
+                r.bits.read_length_determinant(None, None)?
+            } else {
+                r.bits.read_length_determinant(C::MIN, C::MAX)?
+            };
+
+            let mut buffer = vec![0u8; len as usize];
+            buffer
+                .chunks_exact_mut(1)
+                .map(|chunk| r.bits.read_bits_with_offset(chunk, 1))
+                .collect::<Result<_, _>>()?;
 
             String::from_utf8(buffer).map_err(Self::Error::FromUtf8Error)
         })

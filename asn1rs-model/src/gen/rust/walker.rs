@@ -387,6 +387,7 @@ impl AsnDefWriter {
                         Charset::Utf8 => "utf8string",
                         Charset::Ia5 => "ia5string",
                         Charset::Numeric => "numericstring",
+                        Charset::Printable => "printablestring",
                     },
                     scope,
                     constraint_type_name,
