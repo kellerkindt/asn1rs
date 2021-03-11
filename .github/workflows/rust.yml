@@ -21,8 +21,8 @@ jobs:
           command: check
           args: --all-features
 
-  test:
-    name: Test Suite
+  test-default:
+    name: Test Suite (default)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -34,18 +34,62 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: test
+
+  test-protobuf:
+    name: Test Suite (protobuf)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
       - uses: actions-rs/cargo@v1
         with:
           command: test
           args: --features protobuf
+
+  test-psql:
+    name: Test Suite (psql)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
       - uses: actions-rs/cargo@v1
         with:
           command: test
           args: --features psql
+
+  test-async-psql:
+    name: Test Suite (async-psql)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
       - uses: actions-rs/cargo@v1
         with:
           command: test
           args: --features async-psql
+
+  test-all:
+    name: Test Suite (all)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
       - uses: actions-rs/cargo@v1
         with:
           command: test
