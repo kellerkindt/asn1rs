@@ -142,12 +142,20 @@ jobs:
           toolchain: stable
           override: true
       - run: wget https://forge.etsi.org/rep/ITS/asn1/cdd_ts102894_2/raw/151b191121d05c3b808f5dec14387339730db14f/ITS-Container.asn
+      - run: wget https://forge.etsi.org/rep/ITS/asn1/cam_en302637_2/raw/7ae4195d48dd468754a50f1a3bb0c2ce976ae15a/CAM-PDU-Descriptions.asn
       - uses: actions-rs/cargo@v1
         with:
           command: run
-          args: -- tests ITS-Container.asn
+          args: -- tests ITS-Container.asn CAM-PDU-Descriptions.asn
       - run: bash -c "echo '#[test] fn does_it_compile() { let _ = StationID(1); }' >> tests/its_container.rs"
+      - run: sed -i '1i mod its_container;' tests/cam_pdu_descriptions.rs
+      - run: cat tests/cam_pdu_descriptions.rs
+      - run: bash -c "echo '#[test] fn does_it_compile() { let _ = GenerationDeltaTime(1); }' >> tests/cam_pdu_descriptions.rs"
       - uses: actions-rs/cargo@v1
         with:
           command: test
           args: --test its_container does_it_compile
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --test cam_pdu_descriptions does_it_compile
