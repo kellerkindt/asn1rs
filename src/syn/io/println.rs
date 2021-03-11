@@ -212,7 +212,25 @@ impl Writer for PrintlnWriter {
         value: &str,
     ) -> Result<(), Self::Error> {
         self.indented_println(&format!(
-            "Writing Printable({}..{}), tag={:?}",
+            "Writing PrintableString({}..{}), tag={:?}",
+            C::MIN
+                .map(|v| format!("{}", v))
+                .unwrap_or_else(|| String::from("MIN")),
+            C::MAX
+                .map(|v| format!("{}", v))
+                .unwrap_or_else(|| String::from("MAX")),
+            C::TAG
+        ));
+        self.with_increased_indentation(|w| w.indented_println(format!("{:?}", value)));
+        Ok(())
+    }
+
+    fn write_visible_string<C: visiblestring::Constraint>(
+        &mut self,
+        value: &str,
+    ) -> Result<(), Self::Error> {
+        self.indented_println(&format!(
+            "Writing VisibleString({}..{}), tag={:?}",
             C::MIN
                 .map(|v| format!("{}", v))
                 .unwrap_or_else(|| String::from("MIN")),

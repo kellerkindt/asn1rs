@@ -16,6 +16,7 @@ pub mod sequenceof;
 pub mod set;
 pub mod setof;
 pub mod utf8string;
+pub mod visiblestring;
 
 pub use bitstring::BitString;
 pub use bitstring::BitVec;
@@ -33,6 +34,7 @@ pub use sequenceof::SequenceOf;
 pub use set::Set;
 pub use setof::SetOf;
 pub use utf8string::Utf8String;
+pub use visiblestring::VisibleString;
 
 pub mod prelude {
     pub use super::bitstring::BitVec;
@@ -92,6 +94,8 @@ pub trait Reader {
     fn read_ia5string<C: ia5string::Constraint>(&mut self) -> Result<String, Self::Error>;
 
     fn read_numeric_string<C: numericstring::Constraint>(&mut self) -> Result<String, Self::Error>;
+
+    fn read_visible_string<C: visiblestring::Constraint>(&mut self) -> Result<String, Self::Error>;
 
     fn read_printable_string<C: printablestring::Constraint>(
         &mut self,
@@ -182,6 +186,11 @@ pub trait Writer {
         -> Result<(), Self::Error>;
 
     fn write_numeric_string<C: numericstring::Constraint>(
+        &mut self,
+        value: &str,
+    ) -> Result<(), Self::Error>;
+
+    fn write_visible_string<C: visiblestring::Constraint>(
         &mut self,
         value: &str,
     ) -> Result<(), Self::Error>;

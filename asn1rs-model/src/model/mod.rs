@@ -566,6 +566,7 @@ impl Model<Asn> {
             "ia5string" => Type::String(Self::maybe_read_size(iter)?, Charset::Ia5),
             "numericstring" => Type::String(Self::maybe_read_size(iter)?, Charset::Numeric),
             "printablestring" => Type::String(Self::maybe_read_size(iter)?, Charset::Printable),
+            "visiblestring" => Type::String(Self::maybe_read_size(iter)?, Charset::Visible),
             "octet" => {
                 iter.next_text_eq_ignore_case_or_err("STRING")?;
                 Type::OctetString(Self::maybe_read_size(iter)?)
@@ -1000,6 +1001,7 @@ impl TagResolver<'_> {
             Type::Enumerated(_) => Some(Tag::DEFAULT_ENUMERATED),
             Type::String(_, Charset::Numeric) => Some(Tag::DEFAULT_NUMERIC_STRING),
             Type::String(_, Charset::Printable) => Some(Tag::DEFAULT_PRINTABLE_STRING),
+            Type::String(_, Charset::Visible) => Some(Tag::DEFAULT_VISIBLE_STRING),
             Type::String(_, Charset::Utf8) => Some(Tag::DEFAULT_UTF8_STRING),
             Type::String(_, Charset::Ia5) => Some(Tag::DEFAULT_IA5_STRING),
             Type::Optional(inner) => self.resolve_type_tag(&**inner),
@@ -1107,6 +1109,9 @@ pub enum Charset {
 
     /// Encoding as in ISO/IEC 646 (??)
     Ia5,
+    /// ITU-T X.680 | ISO/IEC 8824-1, 43.3
+    /// (Also ISO646String)
+    Visible,
 }
 
 impl Charset {
@@ -1117,6 +1122,7 @@ impl Charset {
     /// assert!(Charset::NUMERIC_STRING_CHARACTERS.chars().all(|c| Charset::Utf8.is_valid(c)));
     /// assert!(Charset::NUMERIC_STRING_CHARACTERS.chars().all(|c| Charset::Printable.is_valid(c)));
     /// assert!(Charset::NUMERIC_STRING_CHARACTERS.chars().all(|c| Charset::Ia5.is_valid(c)));
+    /// assert!(Charset::NUMERIC_STRING_CHARACTERS.chars().all(|c| Charset::Visible.is_valid(c)));
     /// assert_eq!(11, Charset::NUMERIC_STRING_CHARACTERS.chars().count());
     /// ```
     pub const NUMERIC_STRING_CHARACTERS: &'static str = " 0123456789";
@@ -1127,6 +1133,7 @@ impl Charset {
     /// assert!(Charset::PRINTABLE_STRING_CHARACTERS.chars().all(|c| Charset::Printable.is_valid(c)));
     /// assert!(Charset::PRINTABLE_STRING_CHARACTERS.chars().all(|c| Charset::Utf8.is_valid(c)));
     /// assert!(Charset::PRINTABLE_STRING_CHARACTERS.chars().all(|c| Charset::Ia5.is_valid(c)));
+    /// assert!(Charset::PRINTABLE_STRING_CHARACTERS.chars().all(|c| Charset::Visible.is_valid(c)));
     /// assert_eq!(74, Charset::PRINTABLE_STRING_CHARACTERS.chars().count());
     /// ```
     pub const PRINTABLE_STRING_CHARACTERS: &'static str =
@@ -1142,12 +1149,24 @@ impl Charset {
     pub const IA5_STRING_CHARACTERS: &'static str =
         "\u{00}\u{01}\u{02}\u{03}\u{04}\u{05}\u{06}\u{07}\u{08}\u{09}\u{0A}\u{0B}\u{0C}\u{0D}\u{0E}\u{0F}\u{10}\u{11}\u{12}\u{13}\u{14}\u{15}\u{16}\u{17}\u{18}\u{19}\u{1A}\u{1B}\u{1C}\u{1D}\u{1E}\u{1F} !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\u{7F}";
 
+    /// Sorted according to ITU-T X.680, 43.7
+    /// ```rust
+    /// use asn1rs_model::model::Charset;
+    /// assert!(Charset::VISIBLE_STRING_CHARACTERS.chars().all(|c| Charset::Visible.is_valid(c)));
+    /// assert!(Charset::VISIBLE_STRING_CHARACTERS.chars().all(|c| Charset::Ia5.is_valid(c)));
+    /// assert!(Charset::VISIBLE_STRING_CHARACTERS.chars().all(|c| Charset::Utf8.is_valid(c)));
+    /// assert_eq!(95, Charset::VISIBLE_STRING_CHARACTERS.chars().count());
+    /// ```
+    pub const VISIBLE_STRING_CHARACTERS: &'static str =
+        " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
+
     pub fn default_tag(self) -> Tag {
         match self {
             Charset::Utf8 => Tag::DEFAULT_UTF8_STRING,
             Charset::Numeric => Tag::DEFAULT_NUMERIC_STRING,
             Charset::Printable => Tag::DEFAULT_PRINTABLE_STRING,
             Charset::Ia5 => Tag::DEFAULT_IA5_STRING,
+            Charset::Visible => Tag::DEFAULT_VISIBLE_STRING,
         }
     }
 
@@ -1164,7 +1183,8 @@ impl Charset {
             Charset::Printable => {
                 matches!(char, ' ' | '\'' ..= ')' | '+' ..= ':' | '=' | '?' | 'A'..='Z' | 'a'..='z'  )
             }
-            Charset::Ia5 => matches!(char as u32, 0_u32..=128),
+            Charset::Ia5 => matches!(char as u32, 0_u32..=127),
+            Charset::Visible => matches!(char as u32, 32_u32..=126),
         }
     }
 }
@@ -1334,6 +1354,8 @@ impl Tag {
     pub const DEFAULT_PRINTABLE_STRING: Tag = Tag::Universal(19);
     /// ITU-T Rec. X.680, 41
     pub const DEFAULT_IA5_STRING: Tag = Tag::Universal(22);
+    /// ITU-T Rec. X.680, 41
+    pub const DEFAULT_VISIBLE_STRING: Tag = Tag::Universal(26);
 }
 
 impl TryFrom<&mut Peekable<IntoIter<Token>>> for Tag {
