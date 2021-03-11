@@ -29,7 +29,8 @@ pub fn serialize_and_deserialize_uper<T: Readable + Writable + std::fmt::Debug +
     assert_eq!(
         (bits, data),
         (serialized.0, &serialized.1[..]),
-        "Serialized binary data does not match"
+        "Serialized binary data does not match, bad-hex: {:02x?}",
+        &serialized.1[..]
     );
     assert_eq!(
         uper,
