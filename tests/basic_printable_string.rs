@@ -29,7 +29,7 @@ asn_to_rust!(
 
 #[test]
 fn detect_only_invalid_character() {
-    let mut writer = UperWriter::default();
+    let mut writer = asn1rs::syn::io::UperWriter::default();
     let result = Unconstrained {
         abc: " '()+,-./0123456789:=?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!"
             .to_string(),
