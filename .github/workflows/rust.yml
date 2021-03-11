@@ -150,4 +150,4 @@ jobs:
       - uses: actions-rs/cargo@v1
         with:
           command: test
-          args: its_container
+          args: --test its_container
