@@ -115,7 +115,7 @@ impl Model<Protobuf> {
             oid: rust_model.oid.clone(),
             imports: rust_model.imports.clone(),
             definitions: Vec::with_capacity(rust_model.definitions.len()),
-            value_references: Vec::with_capacity(rust_model.definitions.len()),
+            value_references: Vec::default(),
         };
         for Definition(name, rust) in &rust_model.definitions {
             let proto = Self::definition_to_protobuf(rust);
