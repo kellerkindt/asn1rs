@@ -149,6 +149,7 @@ jobs:
           args: -- tests ITS-Container.asn CAM-PDU-Descriptions.asn
       - run: bash -c "echo '#[test] fn does_it_compile() { let _ = StationID(1); }' >> tests/its_container.rs"
       - run: sed -i '1i mod its_container;' tests/cam_pdu_descriptions.rs
+      - run: sed -i 's/super::/crate::/g' tests/cam_pdu_descriptions.rs
       - run: cat tests/cam_pdu_descriptions.rs
       - run: bash -c "echo '#[test] fn does_it_compile() { let _ = GenerationDeltaTime(1); }' >> tests/cam_pdu_descriptions.rs"
       - uses: actions-rs/cargo@v1
