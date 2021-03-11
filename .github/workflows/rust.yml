@@ -141,7 +141,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - run: wget https://forge.etsi.org/rep/ITS/asn1/cdd_ts102894_2/raw/c934eeb9c82246399aebe31e8208f785f7757102/ITS-Container.asn
+      - run: wget https://forge.etsi.org/rep/ITS/asn1/cdd_ts102894_2/raw/151b191121d05c3b808f5dec14387339730db14f/ITS-Container.asn
       - uses: actions-rs/cargo@v1
         with:
           command: run
