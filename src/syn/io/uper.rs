@@ -921,8 +921,7 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
             let mut buffer = vec![0u8; len as usize];
             buffer
                 .chunks_exact_mut(1)
-                .map(|chunk| r.bits.read_bits_with_offset(chunk, 1))
-                .collect::<Result<_, _>>()?;
+                .try_for_each(|chunk| r.bits.read_bits_with_offset(chunk, 1))?;
 
             String::from_utf8(buffer).map_err(Self::Error::FromUtf8Error)
         })
