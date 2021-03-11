@@ -1117,6 +1117,7 @@ impl Charset {
     /// assert!(Charset::NUMERIC_STRING_CHARACTERS.chars().all(|c| Charset::Utf8.is_valid(c)));
     /// assert!(Charset::NUMERIC_STRING_CHARACTERS.chars().all(|c| Charset::Printable.is_valid(c)));
     /// assert!(Charset::NUMERIC_STRING_CHARACTERS.chars().all(|c| Charset::Ia5.is_valid(c)));
+    /// assert_eq!(11, Charset::NUMERIC_STRING_CHARACTERS.chars().count());
     /// ```
     pub const NUMERIC_STRING_CHARACTERS: &'static str = " 0123456789";
 
@@ -1126,6 +1127,7 @@ impl Charset {
     /// assert!(Charset::PRINTABLE_STRING_CHARACTERS.chars().all(|c| Charset::Printable.is_valid(c)));
     /// assert!(Charset::PRINTABLE_STRING_CHARACTERS.chars().all(|c| Charset::Utf8.is_valid(c)));
     /// assert!(Charset::PRINTABLE_STRING_CHARACTERS.chars().all(|c| Charset::Ia5.is_valid(c)));
+    /// assert_eq!(74, Charset::PRINTABLE_STRING_CHARACTERS.chars().count());
     /// ```
     pub const PRINTABLE_STRING_CHARACTERS: &'static str =
         " '()+,-./0123456789:=?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
@@ -1135,7 +1137,7 @@ impl Charset {
     /// use asn1rs_model::model::Charset;
     /// assert!(Charset::IA5_STRING_CHARACTERS.chars().all(|c| Charset::Ia5.is_valid(c)));
     /// assert!(Charset::IA5_STRING_CHARACTERS.chars().all(|c| Charset::Utf8.is_valid(c)));
-    /// assert_eq!(128, Charset::IA5_STRING_CHARACTERS.chars().count())
+    /// assert_eq!(128, Charset::IA5_STRING_CHARACTERS.chars().count());
     /// ```
     pub const IA5_STRING_CHARACTERS: &'static str =
         "\u{00}\u{01}\u{02}\u{03}\u{04}\u{05}\u{06}\u{07}\u{08}\u{09}\u{0A}\u{0B}\u{0C}\u{0D}\u{0E}\u{0F}\u{10}\u{11}\u{12}\u{13}\u{14}\u{15}\u{16}\u{17}\u{18}\u{19}\u{1A}\u{1B}\u{1C}\u{1D}\u{1E}\u{1F} !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\u{7F}";
