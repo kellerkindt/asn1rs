@@ -11,13 +11,13 @@ pub fn tokenizer_should_not_regress_noticeably_in_performance() {
         "Tokenizer::default().parse(..) took {:?}",
         tokenizer_parse_took
     );
-    assert!(tokenizer_parse_took < Duration::from_millis(100));
+    assert!(tokenizer_parse_took < Duration::from_secs(1));
 
     let before = Instant::now();
     let _ = Model::try_from(tokens).unwrap();
     let model_try_from_took = before.elapsed();
     println!("Model::try_from(..) took {:?}", model_try_from_took);
-    assert!(model_try_from_took < Duration::from_millis(100));
+    assert!(model_try_from_took < Duration::from_secs(1));
 }
 
 const TEXT: &str = r"BasicChoice DEFINITIONS AUTOMATIC TAGS ::=
