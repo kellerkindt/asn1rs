@@ -46,6 +46,15 @@ The crate can be used as standalone CLI binary or used as library through its AP
 | `IA5String`         | ✔️ yes  | ✔️ yes  | ✔️ yes¹   | ✔️ yes¹   | ✔️ yes¹  | ❌ ub              | 
 | ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ❌ ub              | 
 | ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ❌ ub              |   
+| `NumericString`     | ✔️ yes  | ✔️ yes  | ✔️ yes¹   | ✔️ yes¹   | ✔️ yes¹  | ❌ ub              | 
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ❌ ub              | 
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ❌ ub              |   
+| `PrintableString`   | ✔️ yes  | ✔️ yes  | ✔️ yes¹   | ✔️ yes¹   | ✔️ yes¹  | ❌ ub              | 
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ❌ ub              | 
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ❌ ub              |   
+| `VisibleString`     | ✔️ yes  | ✔️ yes  | ✔️ yes¹   | ✔️ yes¹   | ✔️ yes¹  | ❌ ub              | 
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ❌ ub              | 
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ❌ ub              |   
 | `INTEGER`           | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             |
 | ...`A..B`           | ✔️ yes  | ✔️ yes  | ✔️ yes²   | ✔️ yes²   | ✔️ yes²  | ✔️ yes             |
 | ...`A..B,...`       | ✔️ yes  | ✔️ yes  | ✔️ yes²   | ✔️ yes²   | ✔️ yes²  | ⚠️ ignored         |
