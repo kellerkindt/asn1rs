@@ -1107,8 +1107,13 @@ pub enum Charset {
     /// ITU-T X.680 | ISO/IEC 8824-1, 43.3
     Printable,
 
+    // /// (Also T61String)
+    // Teletext,
+    // Videotext,
     /// Encoding as in ISO/IEC 646 (??)
     Ia5,
+
+    // GraphicsString,
     /// ITU-T X.680 | ISO/IEC 8824-1, 43.3
     /// (Also ISO646String)
     Visible,
@@ -1353,9 +1358,21 @@ impl Tag {
     /// ITU-T Rec. X.680, 41
     pub const DEFAULT_PRINTABLE_STRING: Tag = Tag::Universal(19);
     /// ITU-T Rec. X.680, 41
+    pub const DEFAULT_TELETEXT_STRING: Tag = Tag::Universal(20);
+    /// ITU-T Rec. X.680, 41
+    pub const DEFAULT_VIDEOTEXT_STRING: Tag = Tag::Universal(21);
+    /// ITU-T Rec. X.680, 41
     pub const DEFAULT_IA5_STRING: Tag = Tag::Universal(22);
     /// ITU-T Rec. X.680, 41
+    pub const DEFAULT_GRAPHIC_STRING: Tag = Tag::Universal(25);
+    /// ITU-T Rec. X.680, 41
     pub const DEFAULT_VISIBLE_STRING: Tag = Tag::Universal(26);
+    /// ITU-T Rec. X.680, 41
+    pub const DEFAULT_GENERAL_STRING: Tag = Tag::Universal(27);
+    /// ITU-T Rec. X.680, 41
+    pub const DEFAULT_UNIVERSAL_STRING: Tag = Tag::Universal(28);
+    /// ITU-T Rec. X.680, 41
+    pub const DEFAULT_BMP_STRING: Tag = Tag::Universal(30);
 }
 
 impl TryFrom<&mut Peekable<IntoIter<Token>>> for Tag {
