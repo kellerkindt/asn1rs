@@ -1,6 +1,5 @@
 use crate::model::rust::Field as RustField;
 use crate::model::ComponentTypeList;
-use crate::model::Context;
 use crate::model::{Asn, ChoiceVariant};
 use crate::model::{Charset, Range};
 use crate::model::{Definition, Type};
@@ -564,10 +563,7 @@ impl Model<Rust> {
         for Definition(name, asn) in &asn_model.definitions {
             let rust_name = rust_struct_or_enum_name(name);
             let mut ctxt = Context {
-                resolver: TagResolver {
-                    model: asn_model,
-                    scope,
-                },
+                resolver: TagResolver::new(asn_model, scope),
                 target: &mut model.definitions,
             };
             Self::definition_to_rust(&rust_name, &asn.r#type, asn.tag, &mut ctxt);
@@ -582,7 +578,7 @@ impl Model<Rust> {
     /// and can therefore be used to be inserted in the parent element.
     ///
     /// The name is expected in a valid and rusty way
-    pub fn definition_to_rust(name: &str, asn: &AsnType, tag: Option<Tag>, ctxt: &mut Context<'_>) {
+    fn definition_to_rust(name: &str, asn: &AsnType, tag: Option<Tag>, ctxt: &mut Context<'_>) {
         match asn {
             AsnType::Boolean
             | AsnType::String(..)
@@ -738,7 +734,7 @@ impl Model<Rust> {
         rust_fields
     }
 
-    pub fn asn_constants_to_rust_constants(asn: &AsnType) -> Vec<(String, String)> {
+    fn asn_constants_to_rust_constants(asn: &AsnType) -> Vec<(String, String)> {
         match asn {
             AsnType::Integer(integer) => integer
                 .constants
@@ -765,7 +761,7 @@ impl Model<Rust> {
         }
     }
 
-    pub fn definition_type_to_rust_type(
+    fn definition_type_to_rust_type(
         name: &str,
         asn: &AsnType,
         tag: Option<Tag>,
@@ -870,6 +866,21 @@ impl Model<Rust> {
     }
 }
 
+struct Context<'a> {
+    resolver: TagResolver<'a>,
+    target: &'a mut Vec<Definition<Rust>>,
+}
+
+impl Context<'_> {
+    pub fn add_definition(&mut self, def: Definition<Rust>) {
+        self.target.push(def)
+    }
+
+    pub fn resolver(&self) -> &TagResolver<'_> {
+        &self.resolver
+    }
+}
+
 #[allow(clippy::module_name_repetitions)]
 pub fn rust_field_name(name: &str) -> String {
     rust_module_name(name)
@@ -931,10 +942,11 @@ pub fn rust_module_name(name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use crate::model::tests::*;
     use crate::model::{Choice, Enumerated, EnumeratedVariant, Field, Tag, Type};
     use crate::parser::Tokenizer;
+
+    use super::*;
 
     #[test]
     fn test_simple_asn_sequence_represented_correctly_as_rust_model() {
@@ -1499,14 +1511,14 @@ mod tests {
         model_asn.name = "ExtensibleEnum".to_string();
         model_asn.definitions.push(Definition(
             "Extensible".to_string(),
-            AsnType::Enumerated(Enumerated {
-                variants: vec![
+            AsnType::Enumerated(
+                Enumerated::from(vec![
                     "abc".into(),
                     "def".into(),
                     EnumeratedVariant::from_name_number("ghi", 42),
-                ],
-                extension_after: Some(2),
-            })
+                ])
+                .with_extension_after(2),
+            )
             .untagged(),
         ));
         let model_rust = model_asn.to_rust();
@@ -1530,8 +1542,8 @@ mod tests {
         model_asn.name = "ExtensibleChoice".to_string();
         model_asn.definitions.push(Definition(
             "Extensible".to_string(),
-            AsnType::Choice(Choice {
-                variants: vec![
+            AsnType::Choice(
+                Choice::from(vec![
                     ChoiceVariant::name_type("abc", Type::unconstrained_octetstring()),
                     ChoiceVariant::name_type("def", Type::unconstrained_integer()),
                     ChoiceVariant {
@@ -1539,9 +1551,9 @@ mod tests {
                         tag: Some(Tag::Universal(4)),
                         r#type: Type::Boolean,
                     },
-                ],
-                extension_after: Some(2),
-            })
+                ])
+                .with_extension_after(2),
+            )
             .untagged(),
         ));
 

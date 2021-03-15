@@ -4,12 +4,12 @@ use crate::io::per::unaligned::BitWrite;
 use crate::io::per::unaligned::BYTE_LEN;
 use crate::io::per::PackedRead;
 use crate::io::per::PackedWrite;
+use crate::model::Charset;
 use crate::syn::*;
 use std::ops::Range;
 
 pub use crate::io::per::unaligned::buffer::Bits;
 pub use crate::io::per::unaligned::ScopedBitRead;
-use crate::model::Charset;
 
 /// This ist enum is the main reason, the new impl is about ~10% slower (2020-09) than the previous/
 /// legacy implementation. This dynamic state tracking at runtime could be avoided by passing all

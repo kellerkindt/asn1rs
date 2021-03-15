@@ -239,7 +239,8 @@ fn parse_enumerated(
         .vec_result()?;
 
     let extension_after = find_extensible_index(asn, asn_span, variants.iter().map(|v| v.name()))?;
-    let enumerated = Enumerated::from_variants(variants).with_extension_after(extension_after);
+    let enumerated =
+        Enumerated::from_variants(variants).with_maybe_extension_after(extension_after);
 
     Ok((
         Some(Definition(
@@ -298,7 +299,7 @@ fn parse_choice(
         find_extensible_index(&asn, asn_span, variants.iter().map(|v| v.name()))?;
 
     let choice = Type::Choice(
-        Choice::from_variants(variants.into_iter()).with_extension_after(extensible_after),
+        Choice::from_variants(variants.into_iter()).with_maybe_extension_after(extensible_after),
     );
 
     let tag = asn.tag.or_else(|| TagResolver::resolve_default(&choice));

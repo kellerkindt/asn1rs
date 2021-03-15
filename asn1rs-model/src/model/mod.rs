@@ -9,10 +9,8 @@ pub use self::protobuf::Protobuf;
 pub use self::protobuf::ProtobufType;
 
 use crate::parser::{Location, Token};
-use backtrace::Backtrace;
 use std::convert::TryFrom;
-use std::error::Error as StdError;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::Debug;
 use std::iter::Peekable;
 use std::vec::IntoIter;
 
@@ -26,260 +24,42 @@ macro_rules! loop_ctrl_separator {
     };
 }
 
-#[derive(PartialOrd, PartialEq)]
-pub enum ErrorKind {
-    ExpectedText(Token),
-    ExpectedTextGot(String, Token),
-    ExpectedSeparator(Token),
-    ExpectedSeparatorGot(char, Token),
-    UnexpectedToken(Token),
-    MissingModuleName,
-    UnexpectedEndOfStream,
-    InvalidRangeValue(Token),
-    InvalidNumberForEnumVariant(Token),
-    InvalidValueForConstant(Token),
-    InvalidTag(Token),
-    InvalidPositionForExtensionMarker(Token),
-    InvalidIntText(Token),
-    UnsupportedValueReferenceLiteral(Token, Box<Type>),
-}
+mod asn;
+mod bit_string;
+mod charset;
+mod choice;
+mod components;
+mod definition;
+mod enumerated;
+mod err;
+mod int;
+mod oid;
+mod parse;
+mod range;
+mod size;
+mod tag;
+mod tag_resolver;
 
-pub struct Error {
-    kind: ErrorKind,
-    backtrace: Backtrace,
-}
-
-impl From<ErrorKind> for Error {
-    fn from(kind: ErrorKind) -> Self {
-        Error {
-            kind,
-            backtrace: Backtrace::new(),
-        }
-    }
-}
-
-impl PartialEq for Error {
-    fn eq(&self, other: &Self) -> bool {
-        self.kind.eq(&other.kind)
-    }
-}
-
-impl Error {
-    pub fn invalid_int_value(token: Token) -> Self {
-        ErrorKind::InvalidIntText(token).into()
-    }
-
-    pub fn invalid_position_for_extension_marker(token: Token) -> Self {
-        ErrorKind::InvalidPositionForExtensionMarker(token).into()
-    }
-
-    pub fn invalid_tag(token: Token) -> Self {
-        ErrorKind::InvalidTag(token).into()
-    }
-
-    pub fn invalid_value_for_constant(token: Token) -> Self {
-        ErrorKind::InvalidValueForConstant(token).into()
-    }
-
-    pub fn invalid_number_for_enum_variant(token: Token) -> Self {
-        ErrorKind::InvalidNumberForEnumVariant(token).into()
-    }
-
-    pub fn invalid_range_value(token: Token) -> Self {
-        ErrorKind::InvalidRangeValue(token).into()
-    }
-
-    pub fn no_text(token: Token) -> Self {
-        ErrorKind::ExpectedText(token).into()
-    }
-
-    pub fn expected_text(text: String, token: Token) -> Self {
-        ErrorKind::ExpectedTextGot(text, token).into()
-    }
-
-    pub fn no_separator(token: Token) -> Self {
-        ErrorKind::ExpectedSeparator(token).into()
-    }
-
-    pub fn expected_separator(separator: char, token: Token) -> Self {
-        ErrorKind::ExpectedSeparatorGot(separator, token).into()
-    }
-
-    pub fn missing_module_name() -> Self {
-        ErrorKind::MissingModuleName.into()
-    }
-
-    pub fn unexpected_token(token: Token) -> Self {
-        ErrorKind::UnexpectedToken(token).into()
-    }
-
-    pub fn unexpected_end_of_stream() -> Self {
-        ErrorKind::UnexpectedEndOfStream.into()
-    }
-
-    pub fn unsupported_value_reference_literal(token: Token, r#type: Type) -> Self {
-        ErrorKind::UnsupportedValueReferenceLiteral(token, Box::new(r#type)).into()
-    }
-
-    fn backtrace(&self) -> &Backtrace {
-        &self.backtrace
-    }
-
-    pub fn token(&self) -> Option<&Token> {
-        match &self.kind {
-            ErrorKind::ExpectedText(t) => Some(t),
-            ErrorKind::ExpectedTextGot(_, t) => Some(t),
-            ErrorKind::ExpectedSeparator(t) => Some(t),
-            ErrorKind::ExpectedSeparatorGot(_, t) => Some(t),
-            ErrorKind::UnexpectedToken(t) => Some(t),
-            ErrorKind::MissingModuleName => None,
-            ErrorKind::UnexpectedEndOfStream => None,
-            ErrorKind::InvalidRangeValue(t) => Some(t),
-            ErrorKind::InvalidNumberForEnumVariant(t) => Some(t),
-            ErrorKind::InvalidValueForConstant(t) => Some(t),
-            ErrorKind::InvalidTag(t) => Some(t),
-            ErrorKind::InvalidPositionForExtensionMarker(t) => Some(t),
-            ErrorKind::InvalidIntText(t) => Some(t),
-            ErrorKind::UnsupportedValueReferenceLiteral(t, ..) => Some(t),
-        }
-    }
-}
-
-impl StdError for Error {}
-
-impl Debug for Error {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        writeln!(f, "{}", self)?;
-        writeln!(f, "{:?}", self.backtrace())?;
-        Ok(())
-    }
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter) -> std::fmt::Result {
-        match &self.kind {
-            ErrorKind::ExpectedText(token) => write!(
-                f,
-                "At line {}, column {} expected text, but instead got: {}",
-                token.location().line(),
-                token.location().column(),
-                token,
-            ),
-            ErrorKind::ExpectedTextGot(text, token) => write!(
-                f,
-                "At line {}, column {} expected a text like \"{}\", but instead got: {}",
-                token.location().line(),
-                token.location().column(),
-                text,
-                token,
-            ),
-            ErrorKind::ExpectedSeparator(token) => write!(
-                f,
-                "At line {}, column {} expected separator, but instead got: {}",
-                token.location().line(),
-                token.location().column(),
-                token,
-            ),
-            ErrorKind::ExpectedSeparatorGot(separator, token) => write!(
-                f,
-                "At line {}, column {} expected a separator like '{}', but instead got: {}",
-                token.location().line(),
-                token.location().column(),
-                separator,
-                token,
-            ),
-            ErrorKind::UnexpectedToken(token) => write!(
-                f,
-                "At line {}, column {} an unexpected token was encountered: {}",
-                token.location().line(),
-                token.location().column(),
-                token,
-            ),
-            ErrorKind::MissingModuleName => {
-                writeln!(f, "The ASN definition is missing the module name")
-            }
-            ErrorKind::UnexpectedEndOfStream => write!(f, "Unexpected end of stream or file"),
-            ErrorKind::InvalidRangeValue(token) => write!(
-                f,
-                "At line {}, column {} an unexpected range value was encountered: {}",
-                token.location().line(),
-                token.location().column(),
-                token,
-            ),
-            ErrorKind::InvalidNumberForEnumVariant(token) => write!(
-                f,
-                "At line {}, column {} an invalid value for an enum variant was encountered: {}",
-                token.location().line(),
-                token.location().column(),
-                token,
-            ),
-            ErrorKind::InvalidValueForConstant(token) => write!(
-                f,
-                "At line {}, column {} an invalid value for an constant value was encountered: {}",
-                token.location().line(),
-                token.location().column(),
-                token,
-            ),
-            ErrorKind::InvalidTag(token) => write!(
-                f,
-                "At line {}, column {} an invalid value for a tag was encountered: {}",
-                token.location().line(),
-                token.location().column(),
-                token,
-            ),
-            ErrorKind::InvalidPositionForExtensionMarker(token) => write!(
-                f,
-                "At line {}, column {} an extension marker is present, which this is not allowed at that position",
-                token.location().line(),
-                token.location().column(),
-            ),
-            ErrorKind::InvalidIntText(token) => write!(
-                f,
-                "At line {}, column {} a number was expected but instead got: {}",
-                token.location().line(),
-                token.location().column(),
-                token
-            ),
-            ErrorKind::UnsupportedValueReferenceLiteral(token, r#type) => write!(
-                f,
-                "At line {}, column {} an (yet) unsupported value reference literal of type '{:?}' was discovered: {}",
-                token.location().line(),
-                token.location().column(),
-                r#type,
-                token
-            ),
-        }
-    }
-}
-
-/// The object-identifier is described in ITU-T X.680 | ISO/IEC 8824-1:2015
-/// in chapter 32. The XML-related definitions as well as'DefinedValue' is
-/// ignored by this implementation.
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub struct ObjectIdentifier(Vec<ObjectIdentifierComponent>);
-
-impl ObjectIdentifier {
-    pub fn iter(&self) -> impl Iterator<Item = &ObjectIdentifierComponent> {
-        self.0.iter()
-    }
-}
-
-/// The object-identifier is described in ITU-T X.680 | ISO/IEC 8824-1:2015
-/// in chapter 32. The XML-related definitions as well as'DefinedValue' is
-/// ignored by this implementation.
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub enum ObjectIdentifierComponent {
-    NameForm(String),
-    NumberForm(u64),
-    NameAndNumberForm(String, u64),
-}
-
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub struct ValueReference<T> {
-    name: String,
-    role: T,
-    value: String,
-}
+pub use asn::Asn;
+pub use asn::Type;
+pub use bit_string::BitString;
+pub use charset::Charset;
+pub use choice::Choice;
+pub use choice::ChoiceVariant;
+pub use components::ComponentTypeList;
+pub use definition::Definition;
+pub use enumerated::Enumerated;
+pub use enumerated::EnumeratedVariant;
+pub use err::Error;
+pub use err::ErrorKind;
+pub use int::Integer;
+pub use oid::{ObjectIdentifier, ObjectIdentifierComponent};
+pub use parse::PeekableTokens;
+pub use range::Range;
+pub use size::Size;
+pub use tag::Tag;
+pub use tag::TagProperty;
+pub use tag_resolver::TagResolver;
 
 #[derive(Debug, Clone)]
 pub struct Model<T> {
@@ -536,8 +316,8 @@ impl Model<Asn> {
         Ok(string)
     }
 
-    fn next_with_opt_tag(
-        iter: &mut Peekable<IntoIter<Token>>,
+    fn next_with_opt_tag<T: Iterator<Item = Token>>(
+        iter: &mut Peekable<T>,
     ) -> Result<(Token, Option<Tag>), Error> {
         let token = iter.next_or_err()?;
         if token.eq_separator('[') {
@@ -550,13 +330,13 @@ impl Model<Asn> {
         }
     }
 
-    fn read_role(iter: &mut Peekable<IntoIter<Token>>) -> Result<Type, Error> {
+    fn read_role<T: Iterator<Item = Token>>(iter: &mut Peekable<T>) -> Result<Type, Error> {
         let text = iter.next_text_or_err()?;
         Self::read_role_given_text(iter, text)
     }
 
-    fn read_role_given_text(
-        iter: &mut Peekable<IntoIter<Token>>,
+    fn read_role_given_text<T: Iterator<Item = Token>>(
+        iter: &mut Peekable<T>,
         text: String,
     ) -> Result<Type, Error> {
         Ok(match text.to_ascii_lowercase().as_ref() {
@@ -583,8 +363,8 @@ impl Model<Asn> {
         })
     }
 
-    fn read_number_range(
-        iter: &mut Peekable<IntoIter<Token>>,
+    fn read_number_range<T: Iterator<Item = Token>>(
+        iter: &mut Peekable<T>,
     ) -> Result<Range<Option<i64>>, Error> {
         if iter.next_is_separator_and_eq('(') {
             let start = iter.next_or_err()?;
@@ -623,7 +403,7 @@ impl Model<Asn> {
         }
     }
 
-    fn maybe_read_size(iter: &mut Peekable<IntoIter<Token>>) -> Result<Size, Error> {
+    fn maybe_read_size<T: Iterator<Item = Token>>(iter: &mut Peekable<T>) -> Result<Size, Error> {
         if iter.next_is_separator_and_eq('(') {
             let result = Self::read_size(iter)?;
             iter.next_separator_eq_or_err(')')?;
@@ -635,7 +415,7 @@ impl Model<Asn> {
         }
     }
 
-    fn read_size(iter: &mut Peekable<IntoIter<Token>>) -> Result<Size, Error> {
+    fn read_size<T: Iterator<Item = Token>>(iter: &mut Peekable<T>) -> Result<Size, Error> {
         iter.next_text_eq_ignore_case_or_err("SIZE")?;
         iter.next_separator_eq_or_err('(')?;
 
@@ -709,10 +489,10 @@ impl Model<Asn> {
         parsed.ok_or_else(|| Error::invalid_value_for_constant(token))
     }
 
-    fn maybe_read_constants<T, F: Fn(Token) -> Result<T, Error>>(
-        iter: &mut Peekable<IntoIter<Token>>,
+    fn maybe_read_constants<R, F: Fn(Token) -> Result<R, Error>, T: Iterator<Item = Token>>(
+        iter: &mut Peekable<T>,
         parser: F,
-    ) -> Result<Vec<(String, T)>, Error> {
+    ) -> Result<Vec<(String, R)>, Error> {
         let mut constants = Vec::default();
         if iter.next_is_separator_and_eq('{') {
             loop {
@@ -723,10 +503,10 @@ impl Model<Asn> {
         Ok(constants)
     }
 
-    fn read_constant<T, F: Fn(Token) -> Result<T, Error>>(
-        iter: &mut Peekable<IntoIter<Token>>,
+    fn read_constant<R, F: Fn(Token) -> Result<R, Error>, T: Iterator<Item = Token>>(
+        iter: &mut Peekable<T>,
         parser: F,
-    ) -> Result<(String, T), Error> {
+    ) -> Result<(String, R), Error> {
         let name = iter.next_text_or_err()?;
         iter.next_separator_eq_or_err('(')?;
         let value = iter.next_or_err()?;
@@ -734,7 +514,9 @@ impl Model<Asn> {
         Ok((name, parser(value)?))
     }
 
-    fn read_sequence_or_sequence_of(iter: &mut Peekable<IntoIter<Token>>) -> Result<Type, Error> {
+    fn read_sequence_or_sequence_of<T: Iterator<Item = Token>>(
+        iter: &mut Peekable<T>,
+    ) -> Result<Type, Error> {
         let size = Self::maybe_read_size(iter)?;
 
         if iter.next_is_text_and_eq_ignore_case("OF") {
@@ -744,7 +526,9 @@ impl Model<Asn> {
         }
     }
 
-    fn read_set_or_set_of(iter: &mut Peekable<IntoIter<Token>>) -> Result<Type, Error> {
+    fn read_set_or_set_of<T: Iterator<Item = Token>>(
+        iter: &mut Peekable<T>,
+    ) -> Result<Type, Error> {
         let size = Self::maybe_read_size(iter)?;
 
         if iter.next_is_text_and_eq_ignore_case("OF") {
@@ -754,7 +538,9 @@ impl Model<Asn> {
         }
     }
 
-    fn read_field(iter: &mut Peekable<IntoIter<Token>>) -> Result<(Field<Asn>, bool), Error> {
+    fn read_field<T: Iterator<Item = Token>>(
+        iter: &mut Peekable<T>,
+    ) -> Result<(Field<Asn>, bool), Error> {
         let name = iter.next_text_or_err()?;
         let (token, tag) = Self::next_with_opt_tag(iter)?;
         let mut field = Field {
@@ -811,130 +597,11 @@ impl Model<Asn> {
     }
 }
 
-trait PeekableTokens {
-    fn peek_or_err(&mut self) -> Result<&Token, ErrorKind>;
-
-    fn peek_is_text_eq(&mut self, text: &str) -> bool;
-
-    fn peek_is_text_eq_ignore_case(&mut self, text: &str) -> bool;
-
-    fn peek_is_separator_eq(&mut self, separator: char) -> bool;
-
-    fn next_or_err(&mut self) -> Result<Token, ErrorKind>;
-
-    fn next_text_or_err(&mut self) -> Result<String, ErrorKind>;
-
-    fn next_text_eq_ignore_case_or_err(&mut self, text: &str) -> Result<(), ErrorKind>;
-
-    #[inline]
-    fn next_is_text_and_eq_ignore_case(&mut self, text: &str) -> bool {
-        self.next_text_eq_ignore_case_or_err(text).is_ok()
-    }
-
-    fn next_if_separator_and_eq(&mut self, separator: char) -> Result<Token, ErrorKind>;
-
-    #[inline]
-    fn next_separator_eq_or_err(&mut self, separator: char) -> Result<(), ErrorKind> {
-        self.next_if_separator_and_eq(separator).map(drop)
-    }
-
-    #[inline]
-    fn next_is_separator_and_eq(&mut self, separator: char) -> bool {
-        self.next_separator_eq_or_err(separator).is_ok()
-    }
-
-    fn next_separator_eq_ignore_case_or_err(&mut self, separator: char) -> Result<(), ErrorKind>;
-
-    #[inline]
-    fn next_is_separator_and_eq_ignore_case(&mut self, separator: char) -> bool {
-        self.next_separator_eq_ignore_case_or_err(separator).is_ok()
-    }
-}
-
-impl<T: Iterator<Item = Token>> PeekableTokens for Peekable<T> {
-    #[inline]
-    fn peek_or_err(&mut self) -> Result<&Token, ErrorKind> {
-        self.peek().ok_or(ErrorKind::UnexpectedEndOfStream)
-    }
-
-    #[inline]
-    fn peek_is_text_eq(&mut self, text: &str) -> bool {
-        self.peek()
-            .and_then(Token::text)
-            .map(|t| t.eq(text))
-            .unwrap_or(false)
-    }
-
-    #[inline]
-    fn peek_is_text_eq_ignore_case(&mut self, text: &str) -> bool {
-        self.peek()
-            .and_then(Token::text)
-            .map(|t| text.eq_ignore_ascii_case(t))
-            .unwrap_or(false)
-    }
-
-    #[inline]
-    fn peek_is_separator_eq(&mut self, separator: char) -> bool {
-        self.peek()
-            .map(|t| t.eq_separator(separator))
-            .unwrap_or(false)
-    }
-
-    #[inline]
-    fn next_or_err(&mut self) -> Result<Token, ErrorKind> {
-        self.next().ok_or(ErrorKind::UnexpectedEndOfStream)
-    }
-
-    #[inline]
-    fn next_text_or_err(&mut self) -> Result<String, ErrorKind> {
-        let peeked = self.peek_or_err()?;
-        if peeked.text().is_some() {
-            let token = self.next_or_err()?;
-            debug_assert!(token.text().is_some());
-            match token {
-                Token::Separator(..) => unreachable!(),
-                Token::Text(_, text) => Ok(text),
-            }
-        } else {
-            Err(ErrorKind::ExpectedText(peeked.clone()))
-        }
-    }
-
-    #[inline]
-    fn next_text_eq_ignore_case_or_err(&mut self, text: &str) -> Result<(), ErrorKind> {
-        let peeked = self.peek_or_err()?;
-        if peeked.eq_text_ignore_ascii_case(text) {
-            let token = self.next_or_err()?;
-            debug_assert!(token.eq_text_ignore_ascii_case(text));
-            Ok(())
-        } else {
-            Err(ErrorKind::ExpectedTextGot(text.to_string(), peeked.clone()))
-        }
-    }
-
-    #[inline]
-    fn next_if_separator_and_eq(&mut self, separator: char) -> Result<Token, ErrorKind> {
-        let peeked = self.peek_or_err()?;
-        if peeked.eq_separator(separator) {
-            let token = self.next_or_err()?;
-            debug_assert!(token.eq_separator(separator));
-            Ok(token)
-        } else {
-            Err(ErrorKind::ExpectedSeparatorGot(separator, peeked.clone()))
-        }
-    }
-
-    #[inline]
-    fn next_separator_eq_ignore_case_or_err(&mut self, separator: char) -> Result<(), ErrorKind> {
-        let peeked = self.peek_or_err()?;
-        if peeked.eq_separator_ignore_ascii_case(separator) {
-            let token = self.next_or_err()?;
-            debug_assert!(token.eq_separator_ignore_ascii_case(separator));
-            Ok(())
-        } else {
-            Err(ErrorKind::ExpectedSeparatorGot(separator, peeked.clone()))
-        }
-    }
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub struct ValueReference<T> {
+    name: String,
+    role: T,
+    value: String,
 }
 
 #[derive(Debug, Default, Clone, PartialOrd, PartialEq)]
@@ -942,348 +609,6 @@ pub struct Import {
     pub what: Vec<String>,
     pub from: String,
     pub from_oid: Option<ObjectIdentifier>,
-}
-
-pub struct TagResolver<'a> {
-    model: &'a Model<Asn>,
-    scope: &'a [&'a Model<Asn>],
-}
-
-impl TagResolver<'_> {
-    pub fn resolve_default(ty: &Type) -> Option<Tag> {
-        let model = Model::<Asn>::default();
-        TagResolver {
-            model: &model,
-            scope: &[],
-        }
-        .resolve_type_tag(ty)
-    }
-
-    /// ITU-T X.680 | ISO/IEC 8824-1, 8.6
-    /// ITU-T X.680 | ISO/IEC 8824-1, 41, table 8
-    pub fn resolve_tag(&self, ty: &str) -> Option<Tag> {
-        self.model
-            .imports
-            .iter()
-            .find(|import| import.what.iter().any(|what| what.eq(ty)))
-            .map(|import| &import.from)
-            .and_then(|model_name| self.scope.iter().find(|model| model.name.eq(model_name)))
-            .and_then(|model| {
-                TagResolver {
-                    model,
-                    scope: self.scope,
-                }
-                .resolve_tag(ty)
-            })
-            .or_else(|| {
-                self.model.definitions.iter().find(|d| d.0.eq(ty)).and_then(
-                    |Definition(_name, asn)| asn.tag.or_else(|| self.resolve_type_tag(&asn.r#type)),
-                )
-            })
-    }
-
-    /// ITU-T X.680 | ISO/IEC 8824-1, 8.6
-    /// ITU-T X.680 | ISO/IEC 8824-1, 41, table 8
-    pub fn resolve_no_default(&self, ty: &Type) -> Option<Tag> {
-        let default = Self::resolve_default(ty);
-        let resolved = self.resolve_type_tag(ty);
-        resolved.filter(|r| default.ne(&Some(*r)))
-    }
-
-    /// ITU-T X.680 | ISO/IEC 8824-1, 8.6
-    /// ITU-T X.680 | ISO/IEC 8824-1, 41, table 8
-    pub fn resolve_type_tag(&self, ty: &Type) -> Option<Tag> {
-        match ty {
-            Type::Boolean => Some(Tag::DEFAULT_BOOLEAN),
-            Type::Integer(_) => Some(Tag::DEFAULT_INTEGER),
-            Type::BitString(_) => Some(Tag::DEFAULT_BIT_STRING),
-            Type::OctetString(_) => Some(Tag::DEFAULT_OCTET_STRING),
-            Type::Enumerated(_) => Some(Tag::DEFAULT_ENUMERATED),
-            Type::String(_, Charset::Numeric) => Some(Tag::DEFAULT_NUMERIC_STRING),
-            Type::String(_, Charset::Printable) => Some(Tag::DEFAULT_PRINTABLE_STRING),
-            Type::String(_, Charset::Visible) => Some(Tag::DEFAULT_VISIBLE_STRING),
-            Type::String(_, Charset::Utf8) => Some(Tag::DEFAULT_UTF8_STRING),
-            Type::String(_, Charset::Ia5) => Some(Tag::DEFAULT_IA5_STRING),
-            Type::Optional(inner) => self.resolve_type_tag(&**inner),
-            Type::Sequence(_) => Some(Tag::DEFAULT_SEQUENCE),
-            Type::SequenceOf(_, _) => Some(Tag::DEFAULT_SEQUENCE_OF),
-            Type::Set(_) => Some(Tag::DEFAULT_SET),
-            Type::SetOf(_, _) => Some(Tag::DEFAULT_SET_OF),
-            Type::Choice(choice) => {
-                let mut tags = choice
-                    .variants()
-                    .take(
-                        choice
-                            .extension_after
-                            .map(|extension_after| extension_after + 1)
-                            .unwrap_or(choice.variants.len()),
-                    )
-                    .map(|v| v.tag().or_else(|| self.resolve_type_tag(v.r#type())))
-                    .collect::<Option<Vec<Tag>>>()?;
-                tags.sort();
-                if cfg!(feature = "debug-proc-macro") {
-                    println!("resolved::::{:?}", tags);
-                }
-                tags.into_iter().next()
-            }
-            Type::TypeReference(inner, tag) => {
-                let tag = tag.clone().or_else(|| self.resolve_tag(inner.as_str()));
-                if cfg!(feature = "debug-proc-macro") {
-                    println!("resolved :: {}::Tag = {:?}", inner, tag);
-                }
-                tag
-            }
-        }
-    }
-}
-
-pub struct Context<'a> {
-    resolver: TagResolver<'a>,
-    target: &'a mut Vec<Definition<Rust>>,
-}
-
-impl Context<'_> {
-    pub fn add_definition(&mut self, def: Definition<Rust>) {
-        self.target.push(def)
-    }
-
-    pub fn resolver(&self) -> &TagResolver<'_> {
-        &self.resolver
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
-pub enum Size {
-    Any,
-    Fix(usize, bool),
-    Range(usize, usize, bool),
-}
-
-impl Size {
-    pub fn min(&self) -> Option<usize> {
-        match self {
-            Size::Any => None,
-            Size::Fix(min, _) => Some(*min),
-            Size::Range(min, _, _) => Some(*min),
-        }
-    }
-
-    pub fn max(&self) -> Option<usize> {
-        match self {
-            Size::Any => None,
-            Size::Fix(max, _) => Some(*max),
-            Size::Range(_, max, _) => Some(*max),
-        }
-    }
-
-    pub fn extensible(&self) -> bool {
-        match self {
-            Size::Any => false,
-            Size::Fix(_, extensible) => *extensible,
-            Size::Range(_, _, extensible) => *extensible,
-        }
-    }
-
-    pub fn to_constraint_string(&self) -> Option<String> {
-        if Size::Any != *self {
-            Some(format!(
-                "{}..{}{}",
-                self.min().unwrap_or_default(),
-                self.max().unwrap_or_else(|| i64::max_value() as usize),
-                if self.extensible() { ",..." } else { "" }
-            ))
-        } else {
-            None
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialOrd, PartialEq, EnumString)]
-#[strum(serialize_all = "lowercase")]
-pub enum Charset {
-    Utf8,
-    /// ITU-T X.680 | ISO/IEC 8824-1, 43.3
-    Numeric,
-    /// ITU-T X.680 | ISO/IEC 8824-1, 43.3
-    Printable,
-
-    // /// (Also T61String)
-    // Teletext,
-    // Videotext,
-    /// Encoding as in ISO/IEC 646 (??)
-    Ia5,
-
-    // GraphicsString,
-    /// ITU-T X.680 | ISO/IEC 8824-1, 43.3
-    /// (Also ISO646String)
-    Visible,
-}
-
-impl Charset {
-    /// Sorted according to ITU-T X.680, 43.5
-    /// ```rust
-    /// use asn1rs_model::model::Charset;
-    /// assert!(Charset::NUMERIC_STRING_CHARACTERS.chars().all(|c| Charset::Numeric.is_valid(c)));
-    /// assert!(Charset::NUMERIC_STRING_CHARACTERS.chars().all(|c| Charset::Utf8.is_valid(c)));
-    /// assert!(Charset::NUMERIC_STRING_CHARACTERS.chars().all(|c| Charset::Printable.is_valid(c)));
-    /// assert!(Charset::NUMERIC_STRING_CHARACTERS.chars().all(|c| Charset::Ia5.is_valid(c)));
-    /// assert!(Charset::NUMERIC_STRING_CHARACTERS.chars().all(|c| Charset::Visible.is_valid(c)));
-    /// assert_eq!(11, Charset::NUMERIC_STRING_CHARACTERS.chars().count());
-    /// ```
-    pub const NUMERIC_STRING_CHARACTERS: &'static str = " 0123456789";
-
-    /// Sorted according to ITU-T X.680, 43.6
-    /// ```rust
-    /// use asn1rs_model::model::Charset;
-    /// assert!(Charset::PRINTABLE_STRING_CHARACTERS.chars().all(|c| Charset::Printable.is_valid(c)));
-    /// assert!(Charset::PRINTABLE_STRING_CHARACTERS.chars().all(|c| Charset::Utf8.is_valid(c)));
-    /// assert!(Charset::PRINTABLE_STRING_CHARACTERS.chars().all(|c| Charset::Ia5.is_valid(c)));
-    /// assert!(Charset::PRINTABLE_STRING_CHARACTERS.chars().all(|c| Charset::Visible.is_valid(c)));
-    /// assert_eq!(74, Charset::PRINTABLE_STRING_CHARACTERS.chars().count());
-    /// ```
-    pub const PRINTABLE_STRING_CHARACTERS: &'static str =
-        " '()+,-./0123456789:=?ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-
-    /// Sorted according to ITU-T X.680, 43.8
-    /// ```rust
-    /// use asn1rs_model::model::Charset;
-    /// assert!(Charset::IA5_STRING_CHARACTERS.chars().all(|c| Charset::Ia5.is_valid(c)));
-    /// assert!(Charset::IA5_STRING_CHARACTERS.chars().all(|c| Charset::Utf8.is_valid(c)));
-    /// assert_eq!(128, Charset::IA5_STRING_CHARACTERS.chars().count());
-    /// ```
-    pub const IA5_STRING_CHARACTERS: &'static str =
-        "\u{00}\u{01}\u{02}\u{03}\u{04}\u{05}\u{06}\u{07}\u{08}\u{09}\u{0A}\u{0B}\u{0C}\u{0D}\u{0E}\u{0F}\u{10}\u{11}\u{12}\u{13}\u{14}\u{15}\u{16}\u{17}\u{18}\u{19}\u{1A}\u{1B}\u{1C}\u{1D}\u{1E}\u{1F} !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\u{7F}";
-
-    /// Sorted according to ITU-T X.680, 43.7
-    /// ```rust
-    /// use asn1rs_model::model::Charset;
-    /// assert!(Charset::VISIBLE_STRING_CHARACTERS.chars().all(|c| Charset::Visible.is_valid(c)));
-    /// assert!(Charset::VISIBLE_STRING_CHARACTERS.chars().all(|c| Charset::Ia5.is_valid(c)));
-    /// assert!(Charset::VISIBLE_STRING_CHARACTERS.chars().all(|c| Charset::Utf8.is_valid(c)));
-    /// assert_eq!(95, Charset::VISIBLE_STRING_CHARACTERS.chars().count());
-    /// ```
-    pub const VISIBLE_STRING_CHARACTERS: &'static str =
-        " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~";
-
-    pub fn default_tag(self) -> Tag {
-        match self {
-            Charset::Utf8 => Tag::DEFAULT_UTF8_STRING,
-            Charset::Numeric => Tag::DEFAULT_NUMERIC_STRING,
-            Charset::Printable => Tag::DEFAULT_PRINTABLE_STRING,
-            Charset::Ia5 => Tag::DEFAULT_IA5_STRING,
-            Charset::Visible => Tag::DEFAULT_VISIBLE_STRING,
-        }
-    }
-
-    pub fn find_invalid(self, str: &str) -> Option<(usize, char)> {
-        str.chars()
-            .enumerate()
-            .find(|(_index, char)| !self.is_valid(*char))
-    }
-
-    pub const fn is_valid(self, char: char) -> bool {
-        match self {
-            Charset::Utf8 => true,
-            Charset::Numeric => matches!(char, ' ' | '0'..='9'),
-            Charset::Printable => {
-                matches!(char, ' ' | '\'' ..= ')' | '+' ..= ':' | '=' | '?' | 'A'..='Z' | 'a'..='z'  )
-            }
-            Charset::Ia5 => matches!(char as u32, 0_u32..=127),
-            Charset::Visible => matches!(char as u32, 32_u32..=126),
-        }
-    }
-}
-
-#[derive(Debug, Default, Clone, Copy, PartialOrd, PartialEq)]
-pub struct Range<T>(pub T, pub T, bool);
-
-impl<T> Range<T> {
-    pub const fn inclusive(min: T, max: T) -> Self {
-        Self(min, max, false)
-    }
-
-    pub fn with_extensible(self, extensible: bool) -> Self {
-        let Range(min, max, _) = self;
-        Range(min, max, extensible)
-    }
-
-    pub const fn min(&self) -> &T {
-        &self.0
-    }
-
-    pub const fn max(&self) -> &T {
-        &self.1
-    }
-
-    pub const fn extensible(&self) -> bool {
-        self.2
-    }
-
-    pub fn wrap_opt(self) -> Range<Option<T>> {
-        let Range(min, max, extensible) = self;
-        Range(Some(min), Some(max), extensible)
-    }
-}
-
-impl<T: Copy> Range<Option<T>> {
-    pub fn none() -> Self {
-        Range(None, None, false)
-    }
-
-    pub fn min_max(&self, min_fn: impl Fn() -> T, max_fn: impl Fn() -> T) -> Option<(T, T)> {
-        match (self.0, self.1) {
-            (Some(min), Some(max)) => Some((min, max)),
-            (Some(min), None) => Some((min, max_fn())),
-            (None, Some(max)) => Some((min_fn(), max)),
-            (None, None) => None,
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub struct Definition<T>(pub String, pub T);
-
-impl<T> Definition<T> {
-    #[cfg(test)]
-    pub fn new<I: ToString>(name: I, value: T) -> Self {
-        Definition(name.to_string(), value)
-    }
-
-    pub fn name(&self) -> &str {
-        &self.0
-    }
-
-    pub fn value(&self) -> &T {
-        &self.1
-    }
-}
-
-impl TagProperty for Definition<Asn> {
-    fn tag(&self) -> Option<Tag> {
-        self.1.tag()
-    }
-
-    fn set_tag(&mut self, tag: Tag) {
-        self.1.set_tag(tag)
-    }
-
-    fn reset_tag(&mut self) {
-        self.1.reset_tag()
-    }
-}
-
-impl TagProperty for Definition<Rust> {
-    fn tag(&self) -> Option<Tag> {
-        self.1.tag()
-    }
-
-    fn set_tag(&mut self, tag: Tag) {
-        self.1.set_tag(tag)
-    }
-
-    fn reset_tag(&mut self) {
-        self.1.reset_tag()
-    }
 }
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
@@ -1306,637 +631,11 @@ impl<T: TagProperty> TagProperty for Field<T> {
     }
 }
 
-///ITU-T X.680 | ISO/IEC 8824-1, chapter 8
-///
-/// # Ordering
-/// According to ITU-T X.680 | ISO/IEC 8824-1, 8.6, the canonical order is
-/// a) Universal, Application, ContextSpecific and Private and
-/// b) within each class, the numbers shall be ordered ascending
-///
-/// ```rust
-/// use asn1rs_model::model::Tag;
-/// let mut tags = vec![
-///     Tag::Universal(1),
-///     Tag::Application(0),
-///     Tag::Private(7),
-///     Tag::ContextSpecific(107),
-///     Tag::ContextSpecific(32),
-///     Tag::Universal(0),
-/// ];
-/// tags.sort();
-/// assert_eq!(tags, vec![
-///     Tag::Universal(0),
-///     Tag::Universal(1),
-///     Tag::Application(0),
-///     Tag::ContextSpecific(32),
-///     Tag::ContextSpecific(107),
-///     Tag::Private(7),
-/// ]);
-/// ```
-#[derive(Debug, Clone, Copy, PartialOrd, PartialEq, Ord, Eq, Hash)]
-pub enum Tag {
-    Universal(usize),
-    Application(usize),
-    ContextSpecific(usize),
-    Private(usize),
-}
-
-impl Tag {
-    pub const DEFAULT_BOOLEAN: Tag = Tag::Universal(1);
-    pub const DEFAULT_INTEGER: Tag = Tag::Universal(2);
-    pub const DEFAULT_BIT_STRING: Tag = Tag::Universal(3);
-    pub const DEFAULT_OCTET_STRING: Tag = Tag::Universal(4);
-    pub const DEFAULT_ENUMERATED: Tag = Tag::Universal(10);
-    pub const DEFAULT_UTF8_STRING: Tag = Tag::Universal(12);
-    pub const DEFAULT_SEQUENCE: Tag = Tag::Universal(16);
-    pub const DEFAULT_SEQUENCE_OF: Tag = Tag::Universal(16);
-    pub const DEFAULT_SET: Tag = Tag::Universal(17);
-    pub const DEFAULT_SET_OF: Tag = Tag::Universal(17);
-
-    /// ITU-T Rec. X.680, 41
-    pub const DEFAULT_NUMERIC_STRING: Tag = Tag::Universal(18);
-    /// ITU-T Rec. X.680, 41
-    pub const DEFAULT_PRINTABLE_STRING: Tag = Tag::Universal(19);
-    /// ITU-T Rec. X.680, 41
-    pub const DEFAULT_TELETEXT_STRING: Tag = Tag::Universal(20);
-    /// ITU-T Rec. X.680, 41
-    pub const DEFAULT_VIDEOTEXT_STRING: Tag = Tag::Universal(21);
-    /// ITU-T Rec. X.680, 41
-    pub const DEFAULT_IA5_STRING: Tag = Tag::Universal(22);
-    /// ITU-T Rec. X.680, 41
-    pub const DEFAULT_GRAPHIC_STRING: Tag = Tag::Universal(25);
-    /// ITU-T Rec. X.680, 41
-    pub const DEFAULT_VISIBLE_STRING: Tag = Tag::Universal(26);
-    /// ITU-T Rec. X.680, 41
-    pub const DEFAULT_GENERAL_STRING: Tag = Tag::Universal(27);
-    /// ITU-T Rec. X.680, 41
-    pub const DEFAULT_UNIVERSAL_STRING: Tag = Tag::Universal(28);
-    /// ITU-T Rec. X.680, 41
-    pub const DEFAULT_BMP_STRING: Tag = Tag::Universal(30);
-}
-
-impl TryFrom<&mut Peekable<IntoIter<Token>>> for Tag {
-    type Error = Error;
-
-    fn try_from(iter: &mut Peekable<IntoIter<Token>>) -> Result<Self, Self::Error> {
-        macro_rules! parse_tag_number {
-            () => {
-                parse_tag_number!(iter.next_or_err()?)
-            };
-            ($tag:expr) => {{
-                let tag = $tag;
-                tag.text()
-                    .and_then(|t| t.parse().ok())
-                    .ok_or_else(|| Error::invalid_tag(tag))?
-            }};
-        }
-
-        Ok(match iter.next_or_err()? {
-            t if t.eq_text_ignore_ascii_case("UNIVERSAL") => Tag::Universal(parse_tag_number!()),
-            t if t.eq_text_ignore_ascii_case("APPLICATION") => {
-                Tag::Application(parse_tag_number!())
-            }
-            t if t.eq_text_ignore_ascii_case("PRIVATE") => Tag::Private(parse_tag_number!()),
-            t if t.text().is_some() => Tag::ContextSpecific(parse_tag_number!(t)),
-            t => return Err(Error::no_text(t)),
-        })
-    }
-}
-
-pub trait TagProperty {
-    fn tag(&self) -> Option<Tag>;
-
-    fn set_tag(&mut self, tag: Tag);
-
-    fn reset_tag(&mut self);
-
-    fn with_tag_opt(self, tag: Option<Tag>) -> Self
-    where
-        Self: Sized,
-    {
-        if let Some(tag) = tag {
-            self.with_tag(tag)
-        } else {
-            self.without_tag()
-        }
-    }
-
-    fn with_tag(mut self, tag: Tag) -> Self
-    where
-        Self: Sized,
-    {
-        self.set_tag(tag);
-        self
-    }
-
-    fn without_tag(mut self) -> Self
-    where
-        Self: Sized,
-    {
-        self.reset_tag();
-        self
-    }
-}
-
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub struct Asn {
-    pub tag: Option<Tag>,
-    pub r#type: Type,
-}
-
-impl Asn {
-    pub fn make_optional(&mut self) {
-        let optional = self.r#type.clone().optional();
-        self.r#type = optional;
-    }
-
-    pub const fn opt_tagged(tag: Option<Tag>, r#type: Type) -> Self {
-        Self { tag, r#type }
-    }
-
-    pub const fn untagged(r#type: Type) -> Self {
-        Self::opt_tagged(None, r#type)
-    }
-
-    pub const fn tagged(tag: Tag, r#type: Type) -> Self {
-        Self::opt_tagged(Some(tag), r#type)
-    }
-}
-
-impl From<Type> for Asn {
-    fn from(r#type: Type) -> Self {
-        Self::untagged(r#type)
-    }
-}
-
-impl TagProperty for Asn {
-    fn tag(&self) -> Option<Tag> {
-        self.tag
-    }
-
-    fn set_tag(&mut self, tag: Tag) {
-        self.tag = Some(tag)
-    }
-
-    fn reset_tag(&mut self) {
-        self.tag = None
-    }
-}
-
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub enum Type {
-    Boolean,
-    Integer(Integer),
-    String(Size, Charset),
-    OctetString(Size),
-    BitString(BitString),
-
-    Optional(Box<Type>),
-
-    Sequence(ComponentTypeList),
-    SequenceOf(Box<Type>, Size),
-    Set(ComponentTypeList),
-    SetOf(Box<Type>, Size),
-    Enumerated(Enumerated),
-    Choice(Choice),
-    TypeReference(String, Option<Tag>),
-}
-
-impl Type {
-    pub const fn unconstrained_utf8string() -> Self {
-        Self::String(Size::Any, Charset::Utf8)
-    }
-
-    pub const fn unconstrained_octetstring() -> Self {
-        Self::OctetString(Size::Any)
-    }
-
-    pub fn unconstrained_integer() -> Self {
-        Self::integer_with_range_opt(Range::none())
-    }
-
-    pub const fn integer_with_range(range: Range<Option<i64>>) -> Self {
-        Self::Integer(Integer {
-            range,
-            constants: Vec::new(),
-        })
-    }
-
-    pub const fn integer_with_range_opt(range: Range<Option<i64>>) -> Self {
-        Self::Integer(Integer {
-            range,
-            constants: Vec::new(),
-        })
-    }
-
-    pub const fn bit_vec_with_size(size: Size) -> Self {
-        Self::BitString(BitString {
-            size,
-            constants: Vec::new(),
-        })
-    }
-
-    pub const fn sequence_from_fields(fields: Vec<Field<Asn>>) -> Self {
-        Self::Sequence(ComponentTypeList {
-            fields,
-            extension_after: None,
-        })
-    }
-
-    pub fn choice_from_variants(variants: Vec<ChoiceVariant>) -> Self {
-        Self::Choice(Choice::from(variants))
-    }
-
-    pub fn optional(self) -> Self {
-        Self::Optional(Box::new(self))
-    }
-
-    pub const fn opt_tagged(self, tag: Option<Tag>) -> Asn {
-        Asn::opt_tagged(tag, self)
-    }
-
-    pub const fn tagged(self, tag: Tag) -> Asn {
-        Asn::tagged(tag, self)
-    }
-
-    pub const fn untagged(self) -> Asn {
-        Asn::untagged(self)
-    }
-
-    pub fn no_optional_mut(&mut self) -> &mut Self {
-        if let Self::Optional(inner) = self {
-            inner.no_optional_mut()
-        } else {
-            self
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub struct Integer {
-    pub range: Range<Option<i64>>,
-    pub constants: Vec<(String, i64)>,
-}
-
-impl TryFrom<&mut Peekable<IntoIter<Token>>> for Integer {
-    type Error = Error;
-
-    fn try_from(iter: &mut Peekable<IntoIter<Token>>) -> Result<Self, Self::Error> {
-        let constants =
-            Model::<Asn>::maybe_read_constants(iter, Model::<Asn>::constant_i64_parser)?;
-        let range = Model::<Asn>::read_number_range(iter)?;
-        Ok(Self { range, constants })
-    }
-}
-
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub struct BitString {
-    pub size: Size,
-    pub constants: Vec<(String, u64)>,
-}
-
-impl TryFrom<&mut Peekable<IntoIter<Token>>> for BitString {
-    type Error = Error;
-
-    fn try_from(iter: &mut Peekable<IntoIter<Token>>) -> Result<Self, Self::Error> {
-        let constants =
-            Model::<Asn>::maybe_read_constants(iter, Model::<Asn>::constant_u64_parser)?;
-        let size = Model::<Asn>::maybe_read_size(iter)?;
-        Ok(Self { size, constants })
-    }
-}
-
-/// ITU-T X.680 | ISO/IEC 8824-1:2015, Annex L
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub struct ComponentTypeList {
-    pub fields: Vec<Field<Asn>>,
-    pub extension_after: Option<usize>,
-}
-
-impl TryFrom<&mut Peekable<IntoIter<Token>>> for ComponentTypeList {
-    type Error = Error;
-
-    fn try_from(iter: &mut Peekable<IntoIter<Token>>) -> Result<Self, Self::Error> {
-        iter.next_separator_eq_or_err('{')?;
-        let mut sequence = Self {
-            fields: Vec::default(),
-            extension_after: None,
-        };
-
-        loop {
-            let continues = if iter.next_is_separator_and_eq('}') {
-                false
-            } else if iter.next_is_separator_and_eq('.') {
-                iter.next_separator_eq_or_err('.')?;
-                iter.next_separator_eq_or_err('.')?;
-                let field_len = sequence.fields.len();
-                sequence.extension_after = Some(field_len.saturating_sub(1));
-
-                match iter.next_or_err()? {
-                    token if token.eq_separator(',') => true,
-                    token if token.eq_separator('}') => false,
-                    token => return Err(Error::unexpected_token(token)),
-                }
-            } else {
-                let (field, continues) = Model::<Asn>::read_field(iter)?;
-                sequence.fields.push(field);
-                continues
-            };
-
-            if !continues {
-                break;
-            }
-        }
-
-        Ok(sequence)
-    }
-}
-
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub struct Choice {
-    variants: Vec<ChoiceVariant>,
-    extension_after: Option<usize>,
-}
-
-impl From<Vec<ChoiceVariant>> for Choice {
-    fn from(variants: Vec<ChoiceVariant>) -> Self {
-        Self {
-            variants,
-            extension_after: None,
-        }
-    }
-}
-
-impl Choice {
-    pub fn from_variants(variants: impl Iterator<Item = ChoiceVariant>) -> Self {
-        Self {
-            variants: variants.collect(),
-            extension_after: None,
-        }
-    }
-
-    pub const fn with_extension_after(mut self, extension_after: Option<usize>) -> Self {
-        self.extension_after = extension_after;
-        self
-    }
-
-    pub fn len(&self) -> usize {
-        self.variants.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.variants.is_empty()
-    }
-
-    pub fn variants(&self) -> impl Iterator<Item = &ChoiceVariant> {
-        self.variants.iter()
-    }
-
-    pub fn is_extensible(&self) -> bool {
-        self.extension_after.is_some()
-    }
-
-    pub fn extension_after_index(&self) -> Option<usize> {
-        self.extension_after
-    }
-}
-
-impl TryFrom<&mut Peekable<IntoIter<Token>>> for Choice {
-    type Error = Error;
-
-    fn try_from(iter: &mut Peekable<IntoIter<Token>>) -> Result<Self, Self::Error> {
-        iter.next_separator_eq_or_err('{')?;
-        let mut choice = Choice {
-            variants: Vec::new(),
-            extension_after: None,
-        };
-
-        loop {
-            if let Ok(extension_marker) = iter.next_if_separator_and_eq('.') {
-                if choice.variants.is_empty() || choice.extension_after.is_some() {
-                    return Err(Error::invalid_position_for_extension_marker(
-                        extension_marker,
-                    ));
-                } else {
-                    iter.next_separator_eq_or_err('.')?;
-                    iter.next_separator_eq_or_err('.')?;
-                    choice.extension_after = Some(choice.variants.len() - 1);
-                }
-            } else {
-                let name = iter.next_text_or_err()?;
-                let (token, tag) = Model::<Asn>::next_with_opt_tag(iter)?;
-                let r#type = Model::<Asn>::read_role_given_text(
-                    iter,
-                    token.into_text_or_else(Error::no_text)?,
-                )?;
-                choice.variants.push(ChoiceVariant { name, tag, r#type });
-            }
-
-            loop_ctrl_separator!(iter.next_or_err()?);
-        }
-
-        Ok(choice)
-    }
-}
-
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub struct ChoiceVariant {
-    pub name: String,
-    pub tag: Option<Tag>,
-    pub r#type: Type,
-}
-
-impl ChoiceVariant {
-    #[cfg(test)]
-    pub fn name_type<I: ToString>(name: I, r#type: Type) -> Self {
-        ChoiceVariant {
-            name: name.to_string(),
-            tag: None,
-            r#type,
-        }
-    }
-
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn r#type(&self) -> &Type {
-        &self.r#type
-    }
-}
-
-impl TagProperty for ChoiceVariant {
-    fn tag(&self) -> Option<Tag> {
-        self.tag
-    }
-
-    fn set_tag(&mut self, tag: Tag) {
-        self.tag = Some(tag)
-    }
-
-    fn reset_tag(&mut self) {
-        self.tag = None
-    }
-}
-
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub struct Enumerated {
-    variants: Vec<EnumeratedVariant>,
-    extension_after: Option<usize>,
-}
-
-impl From<Vec<EnumeratedVariant>> for Enumerated {
-    fn from(variants: Vec<EnumeratedVariant>) -> Self {
-        Self {
-            variants,
-            extension_after: None,
-        }
-    }
-}
-
-impl Enumerated {
-    pub fn from_variants(variants: impl Into<Vec<EnumeratedVariant>>) -> Self {
-        Self {
-            variants: variants.into(),
-            extension_after: None,
-        }
-    }
-
-    pub fn from_names<I: ToString>(variants: impl Iterator<Item = I>) -> Self {
-        Self {
-            variants: variants.map(EnumeratedVariant::from_name).collect(),
-            extension_after: None,
-        }
-    }
-
-    pub const fn with_extension_after(mut self, extension_after: Option<usize>) -> Self {
-        self.extension_after = extension_after;
-        self
-    }
-
-    pub fn len(&self) -> usize {
-        self.variants.len()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.variants.is_empty()
-    }
-
-    pub fn variants(&self) -> impl Iterator<Item = &EnumeratedVariant> {
-        self.variants.iter()
-    }
-
-    pub fn is_extensible(&self) -> bool {
-        self.extension_after.is_some()
-    }
-
-    pub fn extension_after_index(&self) -> Option<usize> {
-        self.extension_after
-    }
-}
-
-impl TryFrom<&mut Peekable<IntoIter<Token>>> for Enumerated {
-    type Error = Error;
-
-    fn try_from(iter: &mut Peekable<IntoIter<Token>>) -> Result<Self, Self::Error> {
-        iter.next_separator_eq_or_err('{')?;
-        let mut enumerated = Self {
-            variants: Vec::new(),
-            extension_after: None,
-        };
-
-        loop {
-            if let Ok(extension_marker) = iter.next_if_separator_and_eq('.') {
-                if enumerated.variants.is_empty() || enumerated.extension_after.is_some() {
-                    return Err(Error::invalid_position_for_extension_marker(
-                        extension_marker,
-                    ));
-                } else {
-                    iter.next_separator_eq_or_err('.')?;
-                    iter.next_separator_eq_or_err('.')?;
-                    enumerated.extension_after = Some(enumerated.variants.len() - 1);
-                    loop_ctrl_separator!(iter.next_or_err()?);
-                }
-            } else {
-                let variant_name = iter.next_text_or_err()?;
-                let token = iter.next_or_err()?;
-
-                if token.eq_separator(',') || token.eq_separator('}') {
-                    enumerated
-                        .variants
-                        .push(EnumeratedVariant::from_name(variant_name));
-                    loop_ctrl_separator!(token);
-                } else if token.eq_separator('(') {
-                    let token = iter.next_or_err()?;
-                    let number = token
-                        .text()
-                        .and_then(|t| t.parse::<usize>().ok())
-                        .ok_or_else(|| Error::invalid_number_for_enum_variant(token))?;
-                    iter.next_separator_eq_or_err(')')?;
-                    enumerated
-                        .variants
-                        .push(EnumeratedVariant::from_name_number(variant_name, number));
-                    loop_ctrl_separator!(iter.next_or_err()?);
-                } else {
-                    loop_ctrl_separator!(token);
-                }
-            }
-        }
-
-        Ok(enumerated)
-    }
-}
-
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub struct EnumeratedVariant {
-    pub(crate) name: String,
-    pub(crate) number: Option<usize>,
-}
-
-#[cfg(test)]
-impl<S: ToString> From<S> for EnumeratedVariant {
-    fn from(s: S) -> Self {
-        EnumeratedVariant::from_name(s)
-    }
-}
-
-impl EnumeratedVariant {
-    pub fn from_name<I: ToString>(name: I) -> Self {
-        Self {
-            name: name.to_string(),
-            number: None,
-        }
-    }
-
-    pub fn from_name_number<I: ToString>(name: I, number: usize) -> Self {
-        Self {
-            name: name.to_string(),
-            number: Some(number),
-        }
-    }
-
-    pub const fn with_number(self, number: usize) -> Self {
-        self.with_number_opt(Some(number))
-    }
-
-    pub const fn with_number_opt(mut self, number: Option<usize>) -> Self {
-        self.number = number;
-        self
-    }
-
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn number(&self) -> Option<usize> {
-        self.number
-    }
-}
-
 #[cfg(test)]
 pub(crate) mod tests {
-    use super::*;
     use crate::parser::{Location, Tokenizer};
+
+    use super::*;
 
     pub(crate) const SIMPLE_INTEGER_STRUCT_ASN: &str = r"
         SimpleSchema DEFINITIONS AUTOMATIC TAGS ::=
@@ -2382,36 +1081,33 @@ pub(crate) mod tests {
                 ),
                 Definition(
                     "WithExplicitNumber".to_string(),
-                    Type::Enumerated(Enumerated {
-                        variants: vec![
-                            EnumeratedVariant::from_name_number("abc", 1),
-                            EnumeratedVariant::from_name_number("def", 9)
-                        ],
-                        extension_after: None,
-                    })
+                    Type::Enumerated(Enumerated::from(vec![
+                        EnumeratedVariant::from_name_number("abc", 1),
+                        EnumeratedVariant::from_name_number("def", 9)
+                    ]))
                     .untagged(),
                 ),
                 Definition(
                     "WithExplicitNumberAndDefaultMark".to_string(),
-                    Type::Enumerated(Enumerated {
-                        variants: vec![
+                    Type::Enumerated(
+                        Enumerated::from(vec![
                             EnumeratedVariant::from_name_number("abc", 4),
                             EnumeratedVariant::from_name_number("def", 7),
-                        ],
-                        extension_after: Some(1),
-                    })
+                        ],)
+                        .with_extension_after(1)
+                    )
                     .untagged(),
                 ),
                 Definition(
                     "WithExplicitNumberAndDefaultMarkV2".to_string(),
-                    Type::Enumerated(Enumerated {
-                        variants: vec![
+                    Type::Enumerated(
+                        Enumerated::from(vec![
                             EnumeratedVariant::from_name_number("abc", 8),
                             EnumeratedVariant::from_name_number("def", 1),
                             EnumeratedVariant::from_name_number("v2", 11)
-                        ],
-                        extension_after: Some(1),
-                    })
+                        ],)
+                        .with_extension_after(1)
+                    )
                     .untagged(),
                 )
             ][..],
@@ -2574,36 +1270,33 @@ pub(crate) mod tests {
             &[
                 Definition::new(
                     "WithoutMarker",
-                    Type::Choice(Choice {
-                        variants: vec![
-                            ChoiceVariant::name_type("abc", Type::unconstrained_utf8string()),
-                            ChoiceVariant::name_type("def", Type::unconstrained_utf8string()),
-                        ],
-                        extension_after: None,
-                    })
+                    Type::Choice(Choice::from(vec![
+                        ChoiceVariant::name_type("abc", Type::unconstrained_utf8string()),
+                        ChoiceVariant::name_type("def", Type::unconstrained_utf8string()),
+                    ]))
                     .untagged(),
                 ),
                 Definition::new(
                     "WithoutExtensionPresent",
-                    Type::Choice(Choice {
-                        variants: vec![
+                    Type::Choice(
+                        Choice::from(vec![
                             ChoiceVariant::name_type("abc", Type::unconstrained_utf8string()),
                             ChoiceVariant::name_type("def", Type::unconstrained_utf8string()),
-                        ],
-                        extension_after: Some(1),
-                    })
+                        ])
+                        .with_extension_after(1),
+                    )
                     .untagged(),
                 ),
                 Definition::new(
                     "WithExtensionPresent",
-                    Type::Choice(Choice {
-                        variants: vec![
+                    Type::Choice(
+                        Choice::from(vec![
                             ChoiceVariant::name_type("abc", Type::unconstrained_utf8string()),
                             ChoiceVariant::name_type("def", Type::unconstrained_utf8string()),
                             ChoiceVariant::name_type("ghi", Type::unconstrained_utf8string()),
-                        ],
-                        extension_after: Some(1),
-                    })
+                        ])
+                        .with_extension_after(1),
+                    )
                     .untagged(),
                 )
             ][..],
