@@ -7,7 +7,7 @@ use syn::Token;
 impl Parse for Size {
     fn parse<'a>(input: ParseStream) -> syn::Result<Self> {
         let min = value(input)?.ok_or_else(|| input.error("invalid min"))?;
-        if input.peek(syn::token::Paren) {
+        if input.is_empty() {
             Ok(Size::Fix(min, false))
         } else if input.peek(Token![,]) {
             let _ = input.parse::<Token![,]>()?;
@@ -48,7 +48,10 @@ fn value(input: ParseStream) -> syn::Result<Option<usize>> {
         if lc == "min" || lc == "max" {
             Ok(None)
         } else {
-            Err(input.error("Invalid identifier, accepted identifiers are: min, max"))
+            Err(input.error(format!(
+                "Invalid identifier, accepted identifiers are: min, max but got: {}",
+                lc
+            )))
         }
     } else {
         Err(input.error("Cannot parse token"))

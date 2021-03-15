@@ -85,11 +85,14 @@ impl<C: Context> Parse for AsnAttribute<C> {
 }
 
 fn parse_type<'a>(input: &'a ParseBuffer<'a>) -> syn::Result<Type> {
-    let ident = input
-        .step(|c| c.ident().ok_or_else(|| c.error("Expected ASN-Type")))?
-        .to_string()
-        .to_lowercase();
+    let ident = parse_ident(input, "Expected ASN-Type")?.to_lowercase();
     parse_type_pre_stepped(&ident, input)
+}
+
+fn parse_ident<T: Display>(content: &ParseBuffer, err: T) -> syn::Result<String> {
+    Ok(content
+        .step(|c| c.ident().ok_or_else(|| c.error(err)))?
+        .to_string())
 }
 
 fn parse_type_pre_stepped<'a>(
@@ -150,16 +153,24 @@ fn parse_type_pre_stepped<'a>(
         "sequence_of" | "set_of" => {
             let content;
             parenthesized!(content in input);
-            let size = if content.peek2(Token![.])
-                || (content.peek(Token![-]) && content.peek3(Token![.]))
-            {
-                let size = Size::parse(&content)?;
+
+            let ident = parse_ident(&content, "Expected size or ASN-Type")?.to_lowercase();
+
+            let (size, ident) = if "size".eq(&ident) {
+                let size_content;
+                parenthesized!(size_content in content);
+
+                let size = Size::parse(&size_content)?;
                 let _ = content.parse::<token::Comma>()?;
-                size
+                let ident = parse_ident(&content, "Expected ASN-Type")?.to_lowercase();
+
+                (size, ident)
             } else {
-                Size::Any
+                (Size::Any, ident)
             };
-            let inner = parse_type(&content)?;
+
+            let inner = parse_type_pre_stepped(&ident, &content)?;
+
             if lowercase_ident == "sequence_of" {
                 Ok(Type::SequenceOf(Box::new(inner), size))
             } else {
@@ -180,7 +191,18 @@ fn parse_opt_size_or_any(input: ParseStream) -> syn::Result<Size> {
         if content.is_empty() {
             Ok(Size::Any)
         } else {
-            Size::parse(&content)
+            let ident = parse_ident(&content, "Expected size or ASN-Type")?.to_lowercase();
+
+            if "size".eq(&ident) {
+                let size_content;
+                parenthesized!(size_content in content);
+                Size::parse(&size_content)
+            } else {
+                Err(input.error(format!(
+                    "Invalid identifier, expected none or size but got: {}",
+                    ident
+                )))
+            }
         }
     }
 }
@@ -297,9 +319,6 @@ impl Deref for DefinitionHeader {
 }
 impl PrimaryContext for DefinitionHeader {
     fn parse(input: &ParseBuffer<'_>) -> syn::Result<Self> {
-        input
-            .step(|c| c.ident().ok_or_else(|| c.error("Expected type identifier")))
-            .map(|ident| ident.to_string())
-            .map(DefinitionHeader)
+        parse_ident(input, "Expected type identifier for DefinitionHeader").map(DefinitionHeader)
     }
 }

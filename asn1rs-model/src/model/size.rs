@@ -1,24 +1,26 @@
-#[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
-pub enum Size {
+use std::fmt::{Debug, Display};
+
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub enum Size<T: Display + Debug + Clone = usize> {
     Any,
-    Fix(usize, bool),
-    Range(usize, usize, bool),
+    Fix(T, bool),
+    Range(T, T, bool),
 }
 
-impl Size {
-    pub fn min(&self) -> Option<usize> {
+impl<T: Display + Debug + Clone> Size<T> {
+    pub fn min(&self) -> Option<&T> {
         match self {
             Size::Any => None,
-            Size::Fix(min, _) => Some(*min),
-            Size::Range(min, _, _) => Some(*min),
+            Size::Fix(min, _) => Some(min),
+            Size::Range(min, _, _) => Some(min),
         }
     }
 
-    pub fn max(&self) -> Option<usize> {
+    pub fn max(&self) -> Option<&T> {
         match self {
             Size::Any => None,
-            Size::Fix(max, _) => Some(*max),
-            Size::Range(_, max, _) => Some(*max),
+            Size::Fix(max, _) => Some(max),
+            Size::Range(_, max, _) => Some(max),
         }
     }
 
@@ -31,15 +33,19 @@ impl Size {
     }
 
     pub fn to_constraint_string(&self) -> Option<String> {
-        if Size::Any != *self {
-            Some(format!(
-                "{}..{}{}",
-                self.min().unwrap_or_default(),
-                self.max().unwrap_or_else(|| i64::max_value() as usize),
-                if self.extensible() { ",..." } else { "" }
-            ))
-        } else {
-            None
+        match self {
+            Size::Any => None,
+            Size::Fix(min, extensible) => Some(format!(
+                "size({}{})",
+                min,
+                if *extensible { ",..." } else { "" }
+            )),
+            Size::Range(min, max, extensible) => Some(format!(
+                "size({}..{}{})",
+                min,
+                max,
+                if *extensible { ",..." } else { "" }
+            )),
         }
     }
 }

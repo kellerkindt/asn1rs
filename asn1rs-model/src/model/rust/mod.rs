@@ -656,7 +656,7 @@ impl Model<Rust> {
             AsnType::SequenceOf(asn, size) => {
                 let inner = RustType::Vec(
                     Box::new(Self::definition_type_to_rust_type(name, asn, tag, ctxt)),
-                    *size,
+                    size.clone(),
                     EncodingOrdering::Keep,
                 );
                 ctxt.add_definition(Definition(name.into(), Rust::tuple_struct_from_type(inner)));
@@ -665,7 +665,7 @@ impl Model<Rust> {
             AsnType::SetOf(asn, size) => {
                 let inner = RustType::Vec(
                     Box::new(Self::definition_type_to_rust_type(name, asn, tag, ctxt)),
-                    *size,
+                    size.clone(),
                     EncodingOrdering::Sort,
                 );
                 ctxt.add_definition(Definition(
@@ -819,9 +819,9 @@ impl Model<Rust> {
                 }
             }
 
-            AsnType::String(size, charset) => RustType::String(*size, *charset),
-            AsnType::OctetString(size) => RustType::VecU8(*size),
-            AsnType::BitString(bitstring) => RustType::BitVec(bitstring.size),
+            AsnType::String(size, charset) => RustType::String(size.clone(), *charset),
+            AsnType::OctetString(size) => RustType::VecU8(size.clone()),
+            AsnType::BitString(bitstring) => RustType::BitVec(bitstring.size.clone()),
             Type::Optional(inner) => {
                 RustType::Option(Box::new(Self::definition_type_to_rust_type(
                     name,
@@ -837,7 +837,7 @@ impl Model<Rust> {
                     tag.or_else(|| ctxt.resolver().resolve_no_default(&**asn)),
                     ctxt,
                 )),
-                *size,
+                size.clone(),
                 EncodingOrdering::Keep,
             ),
             AsnType::SetOf(asn, size) => RustType::Vec(
@@ -847,7 +847,7 @@ impl Model<Rust> {
                     tag.or_else(|| ctxt.resolver().resolve_no_default(&**asn)),
                     ctxt,
                 )),
-                *size,
+                size.clone(),
                 EncodingOrdering::Sort,
             ),
             ty @ AsnType::Sequence(_)

@@ -23,7 +23,10 @@ impl MMV {
             if lc == "min" || lc == "max" {
                 Ok(Some(MMV::MinMax))
             } else {
-                Err(input.error("Invalid identifier, accepted identifiers are: min, max"))
+                Err(input.error(format!(
+                    "Invalid identifier, accepted identifiers are: min, max but got: {}",
+                    lc
+                )))
             }
         } else {
             Err(input.error("Cannot parse token"))
