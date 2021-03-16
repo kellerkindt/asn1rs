@@ -33,6 +33,7 @@ mod definition;
 mod enumerated;
 mod err;
 mod int;
+mod lor;
 mod oid;
 mod parse;
 mod range;
@@ -53,6 +54,7 @@ pub use enumerated::EnumeratedVariant;
 pub use err::Error;
 pub use err::ErrorKind;
 pub use int::Integer;
+pub use lor::LitOrRef;
 pub use oid::{ObjectIdentifier, ObjectIdentifierComponent};
 pub use parse::PeekableTokens;
 pub use range::Range;
@@ -599,9 +601,9 @@ impl Model<Asn> {
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub struct ValueReference<T> {
-    name: String,
-    role: T,
-    value: String,
+    pub name: String,
+    pub role: T,
+    pub value: String,
 }
 
 #[derive(Debug, Default, Clone, PartialOrd, PartialEq)]

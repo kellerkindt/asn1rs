@@ -1,29 +1,31 @@
+use crate::model::lor::{ResolveState, Resolved};
 use crate::model::{
     BitString, Charset, Choice, ChoiceVariant, ComponentTypeList, Enumerated, Field, Integer,
     Range, Size, Tag, TagProperty,
 };
+use std::fmt::Debug;
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub struct Asn {
+pub struct Asn<RS: ResolveState = Resolved> {
     pub tag: Option<Tag>,
-    pub r#type: Type,
+    pub r#type: Type<RS>,
 }
 
-impl Asn {
+impl<RS: ResolveState> Asn<RS> {
     pub fn make_optional(&mut self) {
         let optional = self.r#type.clone().optional();
         self.r#type = optional;
     }
 
-    pub const fn opt_tagged(tag: Option<Tag>, r#type: Type) -> Self {
+    pub fn opt_tagged(tag: Option<Tag>, r#type: Type<RS>) -> Self {
         Self { tag, r#type }
     }
 
-    pub const fn untagged(r#type: Type) -> Self {
+    pub fn untagged(r#type: Type<RS>) -> Self {
         Self::opt_tagged(None, r#type)
     }
 
-    pub const fn tagged(tag: Tag, r#type: Type) -> Self {
+    pub fn tagged(tag: Tag, r#type: Type<RS>) -> Self {
         Self::opt_tagged(Some(tag), r#type)
     }
 }
@@ -49,62 +51,64 @@ impl TagProperty for Asn {
 }
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub enum Type {
+pub enum Type<RS: ResolveState = Resolved> {
     Boolean,
-    Integer(Integer),
-    String(Size, Charset),
-    OctetString(Size),
-    BitString(BitString),
+    Integer(Integer<RS::RangeType>),
+    String(Size<RS::SizeType>, Charset),
+    OctetString(Size<RS::SizeType>),
+    BitString(BitString<RS::SizeType>),
 
-    Optional(Box<Type>),
+    Optional(Box<Type<RS>>),
 
     Sequence(ComponentTypeList),
-    SequenceOf(Box<Type>, Size),
+    SequenceOf(Box<Type<RS>>, Size<RS::SizeType>),
     Set(ComponentTypeList),
-    SetOf(Box<Type>, Size),
+    SetOf(Box<Type<RS>>, Size<RS::SizeType>),
     Enumerated(Enumerated),
     Choice(Choice),
     TypeReference(String, Option<Tag>),
 }
 
 impl Type {
-    pub const fn unconstrained_utf8string() -> Self {
-        Self::String(Size::Any, Charset::Utf8)
-    }
-
-    pub const fn unconstrained_octetstring() -> Self {
-        Self::OctetString(Size::Any)
-    }
-
     pub fn unconstrained_integer() -> Self {
         Self::integer_with_range_opt(Range::none())
-    }
-
-    pub const fn integer_with_range(range: Range<Option<i64>>) -> Self {
-        Self::Integer(Integer {
-            range,
-            constants: Vec::new(),
-        })
-    }
-
-    pub const fn integer_with_range_opt(range: Range<Option<i64>>) -> Self {
-        Self::Integer(Integer {
-            range,
-            constants: Vec::new(),
-        })
-    }
-
-    pub const fn bit_vec_with_size(size: Size) -> Self {
-        Self::BitString(BitString {
-            size,
-            constants: Vec::new(),
-        })
     }
 
     pub const fn sequence_from_fields(fields: Vec<Field<Asn>>) -> Self {
         Self::Sequence(ComponentTypeList {
             fields,
             extension_after: None,
+        })
+    }
+}
+
+impl<RS: ResolveState> Type<RS> {
+    pub fn unconstrained_utf8string() -> Self {
+        Self::String(Size::Any, Charset::Utf8)
+    }
+
+    pub fn unconstrained_octetstring() -> Self {
+        Self::OctetString(Size::Any)
+    }
+
+    pub fn integer_with_range(range: Range<Option<RS::RangeType>>) -> Self {
+        Self::Integer(Integer {
+            range,
+            constants: Vec::new(),
+        })
+    }
+
+    pub fn integer_with_range_opt(range: Range<Option<RS::RangeType>>) -> Self {
+        Self::Integer(Integer {
+            range,
+            constants: Vec::new(),
+        })
+    }
+
+    pub fn bit_vec_with_size(size: Size<RS::SizeType>) -> Self {
+        Self::BitString(BitString {
+            size,
+            constants: Vec::new(),
         })
     }
 
@@ -116,15 +120,15 @@ impl Type {
         Self::Optional(Box::new(self))
     }
 
-    pub const fn opt_tagged(self, tag: Option<Tag>) -> Asn {
+    pub fn opt_tagged(self, tag: Option<Tag>) -> Asn<RS> {
         Asn::opt_tagged(tag, self)
     }
 
-    pub const fn tagged(self, tag: Tag) -> Asn {
+    pub fn tagged(self, tag: Tag) -> Asn<RS> {
         Asn::tagged(tag, self)
     }
 
-    pub const fn untagged(self) -> Asn {
+    pub fn untagged(self) -> Asn<RS> {
         Asn::untagged(self)
     }
 
