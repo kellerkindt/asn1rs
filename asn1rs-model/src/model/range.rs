@@ -29,12 +29,15 @@ impl<T> Range<T> {
     }
 }
 
-impl<T: Copy> Range<Option<T>> {
+impl<T> Range<Option<T>> {
     pub fn none() -> Self {
         Range(None, None, false)
     }
 
-    pub fn min_max(&self, min_fn: impl Fn() -> T, max_fn: impl Fn() -> T) -> Option<(T, T)> {
+    pub fn min_max(&self, min_fn: impl Fn() -> T, max_fn: impl Fn() -> T) -> Option<(T, T)>
+    where
+        T: Copy,
+    {
         match (self.0, self.1) {
             (Some(min), Some(max)) => Some((min, max)),
             (Some(min), None) => Some((min, max_fn())),

@@ -1,11 +1,12 @@
 use crate::model::{Asn, Error, Model, Size};
 use crate::parser::Token;
 use std::convert::TryFrom;
+use std::fmt::{Debug, Display};
 use std::iter::Peekable;
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub struct BitString {
-    pub size: Size,
+pub struct BitString<T: Display + Debug + Clone = usize> {
+    pub size: Size<T>,
     pub constants: Vec<(String, u64)>,
 }
 

@@ -1,12 +1,22 @@
 use crate::model::{Asn, Error, Model, Range};
 use crate::parser::Token;
 use std::convert::TryFrom;
+use std::fmt::{Debug, Display};
 use std::iter::Peekable;
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub struct Integer {
-    pub range: Range<Option<i64>>,
+pub struct Integer<T: Display + Debug + Clone = i64> {
+    pub range: Range<Option<T>>,
     pub constants: Vec<(String, i64)>,
+}
+
+impl<T: Display + Debug + Clone> Default for Integer<T> {
+    fn default() -> Self {
+        Self {
+            range: Range::none(),
+            constants: Vec::default(),
+        }
+    }
 }
 
 impl<T: Iterator<Item = Token>> TryFrom<&mut Peekable<T>> for Integer {
