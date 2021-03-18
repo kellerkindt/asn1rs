@@ -33,7 +33,7 @@ mod definition;
 mod enumerated;
 mod err;
 mod int;
-mod lor;
+pub mod lor;
 mod oid;
 mod parse;
 mod range;
@@ -41,6 +41,7 @@ mod size;
 mod tag;
 mod tag_resolver;
 
+use crate::model::lor::{ResolveState, Resolved, Resolver, Unresolved};
 pub use asn::Asn;
 pub use asn::Type;
 pub use bit_string::BitString;
@@ -54,6 +55,7 @@ pub use enumerated::EnumeratedVariant;
 pub use err::Error;
 pub use err::ErrorKind;
 pub use int::Integer;
+pub use lor::Error as ResolveError;
 pub use lor::LitOrRef;
 pub use oid::{ObjectIdentifier, ObjectIdentifierComponent};
 pub use parse::PeekableTokens;
@@ -84,7 +86,7 @@ impl<T> Default for Model<T> {
     }
 }
 
-impl Model<Asn> {
+impl Model<Asn<Unresolved>> {
     pub fn try_from(value: Vec<Token>) -> Result<Self, Error> {
         let mut model = Model::default();
         let mut iter = value.into_iter().peekable();
@@ -201,7 +203,7 @@ impl Model<Asn> {
     fn read_definition(
         iter: &mut Peekable<IntoIter<Token>>,
         name: String,
-    ) -> Result<Definition<Asn>, Error> {
+    ) -> Result<Definition<Asn<Unresolved>>, Error> {
         iter.next_separator_eq_or_err(':')?;
         iter.next_separator_eq_or_err(':')?;
         iter.next_separator_eq_or_err('=')?;
@@ -241,7 +243,7 @@ impl Model<Asn> {
     fn read_value_reference(
         iter: &mut Peekable<IntoIter<Token>>,
         name: String,
-    ) -> Result<ValueReference<Asn>, Error> {
+    ) -> Result<ValueReference<Asn<Unresolved>>, Error> {
         let r#type = Self::read_role(iter)?;
         Ok(ValueReference {
             name,
@@ -332,7 +334,9 @@ impl Model<Asn> {
         }
     }
 
-    fn read_role<T: Iterator<Item = Token>>(iter: &mut Peekable<T>) -> Result<Type, Error> {
+    fn read_role<T: Iterator<Item = Token>>(
+        iter: &mut Peekable<T>,
+    ) -> Result<Type<Unresolved>, Error> {
         let text = iter.next_text_or_err()?;
         Self::read_role_given_text(iter, text)
     }
@@ -340,7 +344,7 @@ impl Model<Asn> {
     fn read_role_given_text<T: Iterator<Item = Token>>(
         iter: &mut Peekable<T>,
         text: String,
-    ) -> Result<Type, Error> {
+    ) -> Result<Type<Unresolved>, Error> {
         Ok(match text.to_ascii_lowercase().as_ref() {
             "integer" => Type::Integer(Integer::try_from(iter)?),
             "boolean" => Type::Boolean,
@@ -365,160 +369,23 @@ impl Model<Asn> {
         })
     }
 
-    fn read_number_range<T: Iterator<Item = Token>>(
+    fn maybe_read_size<T: Iterator<Item = Token>>(
         iter: &mut Peekable<T>,
-    ) -> Result<Range<Option<i64>>, Error> {
+    ) -> Result<Size<<Unresolved as ResolveState>::SizeType>, Error> {
         if iter.next_is_separator_and_eq('(') {
-            let start = iter.next_or_err()?;
-            iter.next_separator_eq_or_err('.')?;
-            iter.next_separator_eq_or_err('.')?;
-            let end = iter.next_or_err()?;
-            let extensible = if iter.next_is_separator_and_eq(',') {
-                iter.next_separator_eq_or_err('.')?;
-                iter.next_separator_eq_or_err('.')?;
-                iter.next_separator_eq_or_err('.')?;
-                true
-            } else {
-                false
-            };
-            iter.next_separator_eq_or_err(')')?;
-            let start = start
-                .text()
-                .filter(|txt| !txt.eq_ignore_ascii_case("MIN"))
-                .map(|t| t.parse::<i64>())
-                .transpose()
-                .map_err(|_| Error::invalid_range_value(start))?;
-
-            let end = end
-                .text()
-                .filter(|txt| !txt.eq_ignore_ascii_case("MAX"))
-                .map(|t| t.parse::<i64>())
-                .transpose()
-                .map_err(|_| Error::invalid_range_value(end))?;
-
-            match (start, end) {
-                (Some(0), None) => Ok(Range(None, None, extensible)),
-                (start, end) => Ok(Range(start, end, extensible)),
-            }
-        } else {
-            Ok(Range(None, None, false))
-        }
-    }
-
-    fn maybe_read_size<T: Iterator<Item = Token>>(iter: &mut Peekable<T>) -> Result<Size, Error> {
-        if iter.next_is_separator_and_eq('(') {
-            let result = Self::read_size(iter)?;
+            let result = Size::try_from(&mut *iter)?;
             iter.next_separator_eq_or_err(')')?;
             Ok(result)
         } else if iter.peek_is_text_eq_ignore_case("SIZE") {
-            Self::read_size(iter)
+            Size::try_from(iter)
         } else {
             Ok(Size::Any)
         }
     }
 
-    fn read_size<T: Iterator<Item = Token>>(iter: &mut Peekable<T>) -> Result<Size, Error> {
-        iter.next_text_eq_ignore_case_or_err("SIZE")?;
-        iter.next_separator_eq_or_err('(')?;
-
-        let start = iter.next_or_err()?;
-        let start = start
-            .text()
-            .filter(|txt| !txt.eq_ignore_ascii_case("MIN"))
-            .map(|t| t.parse::<usize>())
-            .transpose()
-            .map_err(|_| Error::invalid_range_value(start))?;
-
-        if !iter.peek_is_separator_eq('.') {
-            match iter.next_or_err()? {
-                t if t.eq_separator(')') => Ok(Size::Fix(start.unwrap_or_default(), false)),
-                t if t.eq_separator(',') => {
-                    iter.next_separator_eq_or_err('.')?;
-                    iter.next_separator_eq_or_err('.')?;
-                    iter.next_separator_eq_or_err('.')?;
-                    Ok(Size::Fix(start.unwrap_or_default(), true))
-                }
-                t => Err(Error::unexpected_token(t)),
-            }
-        } else {
-            iter.next_separator_eq_or_err('.')?;
-            iter.next_separator_eq_or_err('.')?;
-            let end = iter.next_or_err()?;
-            let end = end
-                .text()
-                .filter(|txt| !txt.eq_ignore_ascii_case("MAX"))
-                .map(|t| t.parse::<usize>())
-                .transpose()
-                .map_err(|_| Error::invalid_range_value(end))?;
-
-            const MAX: usize = i64::MAX as usize;
-            let any = matches!(
-                (start, end),
-                (None, None) | (Some(0), None) | (None, Some(MAX))
-            );
-
-            if any {
-                iter.next_separator_eq_or_err(')')?;
-                Ok(Size::Any)
-            } else {
-                let start = start.unwrap_or_default();
-                let end = end.unwrap_or_else(|| i64::MAX as usize);
-                let extensible = if iter.next_separator_eq_or_err(',').is_ok() {
-                    iter.next_separator_eq_or_err('.')?;
-                    iter.next_separator_eq_or_err('.')?;
-                    iter.next_separator_eq_or_err('.')?;
-                    true
-                } else {
-                    false
-                };
-                iter.next_separator_eq_or_err(')')?;
-                if start == end {
-                    Ok(Size::Fix(start, extensible))
-                } else {
-                    Ok(Size::Range(start, end, extensible))
-                }
-            }
-        }
-    }
-
-    fn constant_i64_parser(token: Token) -> Result<i64, Error> {
-        let parsed = token.text().and_then(|s| s.parse().ok());
-        parsed.ok_or_else(|| Error::invalid_value_for_constant(token))
-    }
-
-    fn constant_u64_parser(token: Token) -> Result<u64, Error> {
-        let parsed = token.text().and_then(|s| s.parse().ok());
-        parsed.ok_or_else(|| Error::invalid_value_for_constant(token))
-    }
-
-    fn maybe_read_constants<R, F: Fn(Token) -> Result<R, Error>, T: Iterator<Item = Token>>(
-        iter: &mut Peekable<T>,
-        parser: F,
-    ) -> Result<Vec<(String, R)>, Error> {
-        let mut constants = Vec::default();
-        if iter.next_is_separator_and_eq('{') {
-            loop {
-                constants.push(Self::read_constant(iter, |token| parser(token))?);
-                loop_ctrl_separator!(iter.next_or_err()?);
-            }
-        }
-        Ok(constants)
-    }
-
-    fn read_constant<R, F: Fn(Token) -> Result<R, Error>, T: Iterator<Item = Token>>(
-        iter: &mut Peekable<T>,
-        parser: F,
-    ) -> Result<(String, R), Error> {
-        let name = iter.next_text_or_err()?;
-        iter.next_separator_eq_or_err('(')?;
-        let value = iter.next_or_err()?;
-        iter.next_separator_eq_or_err(')')?;
-        Ok((name, parser(value)?))
-    }
-
     fn read_sequence_or_sequence_of<T: Iterator<Item = Token>>(
         iter: &mut Peekable<T>,
-    ) -> Result<Type, Error> {
+    ) -> Result<Type<Unresolved>, Error> {
         let size = Self::maybe_read_size(iter)?;
 
         if iter.next_is_text_and_eq_ignore_case("OF") {
@@ -530,7 +397,7 @@ impl Model<Asn> {
 
     fn read_set_or_set_of<T: Iterator<Item = Token>>(
         iter: &mut Peekable<T>,
-    ) -> Result<Type, Error> {
+    ) -> Result<Type<Unresolved>, Error> {
         let size = Self::maybe_read_size(iter)?;
 
         if iter.next_is_text_and_eq_ignore_case("OF") {
@@ -542,7 +409,7 @@ impl Model<Asn> {
 
     fn read_field<T: Iterator<Item = Token>>(
         iter: &mut Peekable<T>,
-    ) -> Result<(Field<Asn>, bool), Error> {
+    ) -> Result<(Field<Asn<Unresolved>>, bool), Error> {
         let name = iter.next_text_or_err()?;
         let (token, tag) = Self::next_with_opt_tag(iter)?;
         let mut field = Field {
@@ -571,7 +438,20 @@ impl Model<Asn> {
             Err(Error::unexpected_token(token))
         }
     }
+}
 
+impl Model<Asn<Resolved>> {
+    pub fn to_rust(&self) -> Model<rust::Rust> {
+        let scope: &[&Self] = &[];
+        Model::convert_asn_to_rust(self, scope)
+    }
+
+    pub fn to_rust_with_scope(&self, scope: &[&Self]) -> Model<rust::Rust> {
+        Model::convert_asn_to_rust(self, scope)
+    }
+}
+
+impl<RS: ResolveState> Model<Asn<RS>> {
     pub fn make_names_nice(&mut self) {
         Self::make_name_nice(&mut self.name);
         for import in &mut self.imports {
@@ -589,13 +469,39 @@ impl Model<Asn> {
         }
     }
 
-    pub fn to_rust(&self) -> Model<rust::Rust> {
-        let scope: &[&Self] = &[];
-        Model::convert_asn_to_rust(self, scope)
+    fn maybe_read_constants<R, F: Fn(Token) -> Result<R, Error>, T: Iterator<Item = Token>>(
+        iter: &mut Peekable<T>,
+        parser: F,
+    ) -> Result<Vec<(String, R)>, Error> {
+        let mut constants = Vec::default();
+        if iter.next_is_separator_and_eq('{') {
+            loop {
+                constants.push(Self::read_constant(iter, |token| parser(token))?);
+                loop_ctrl_separator!(iter.next_or_err()?);
+            }
+        }
+        Ok(constants)
     }
 
-    pub fn to_rust_with_scope(&self, scope: &[&Self]) -> Model<rust::Rust> {
-        Model::convert_asn_to_rust(self, scope)
+    fn read_constant<R, F: Fn(Token) -> Result<R, Error>, T: Iterator<Item = Token>>(
+        iter: &mut Peekable<T>,
+        parser: F,
+    ) -> Result<(String, R), Error> {
+        let name = iter.next_text_or_err()?;
+        iter.next_separator_eq_or_err('(')?;
+        let value = iter.next_or_err()?;
+        iter.next_separator_eq_or_err(')')?;
+        Ok((name, parser(value)?))
+    }
+
+    fn constant_i64_parser(token: Token) -> Result<i64, Error> {
+        let parsed = token.text().and_then(|s| s.parse().ok());
+        parsed.ok_or_else(|| Error::invalid_value_for_constant(token))
+    }
+
+    fn constant_u64_parser(token: Token) -> Result<u64, Error> {
+        let parsed = token.text().and_then(|s| s.parse().ok());
+        parsed.ok_or_else(|| Error::invalid_value_for_constant(token))
     }
 }
 
@@ -633,6 +539,21 @@ impl<T: TagProperty> TagProperty for Field<T> {
     }
 }
 
+impl Field<Asn<Unresolved>> {
+    pub fn try_resolve<
+        R: Resolver<<Resolved as ResolveState>::SizeType>
+            + Resolver<<Resolved as ResolveState>::RangeType>,
+    >(
+        &self,
+        resolver: &R,
+    ) -> Result<Field<Asn<Resolved>>, ResolveError> {
+        Ok(Field {
+            name: self.name.clone(),
+            role: self.role.try_resolve(resolver)?,
+        })
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use crate::parser::{Location, Tokenizer};
@@ -654,7 +575,10 @@ pub(crate) mod tests {
 
     #[test]
     fn test_simple_asn_sequence_represented_correctly_as_asn_model() {
-        let model = Model::try_from(Tokenizer::default().parse(SIMPLE_INTEGER_STRUCT_ASN)).unwrap();
+        let model = Model::try_from(Tokenizer::default().parse(SIMPLE_INTEGER_STRUCT_ASN))
+            .unwrap()
+            .try_resolve()
+            .unwrap();
 
         assert_eq!("SimpleSchema", model.name);
         assert_eq!(true, model.imports.is_empty());
@@ -707,7 +631,10 @@ pub(crate) mod tests {
 
     #[test]
     fn test_inline_asn_enumerated_represented_correctly_as_asn_model() {
-        let model = Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_ENUM)).unwrap();
+        let model = Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_ENUM))
+            .unwrap()
+            .try_resolve()
+            .unwrap();
 
         assert_eq!("SimpleSchema", model.name);
         assert_eq!(true, model.imports.is_empty());
@@ -747,8 +674,10 @@ pub(crate) mod tests {
 
     #[test]
     fn test_inline_asn_sequence_of_represented_correctly_as_asn_model() {
-        let model =
-            Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_SEQUENCE_OF)).unwrap();
+        let model = Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_SEQUENCE_OF))
+            .unwrap()
+            .try_resolve()
+            .unwrap();
 
         assert_eq!("SimpleSchema", model.name);
         assert_eq!(true, model.imports.is_empty());
@@ -848,7 +777,10 @@ pub(crate) mod tests {
 
     #[test]
     fn test_inline_asn_choice_represented_correctly_as_asn_model() {
-        let model = Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_CHOICE)).unwrap();
+        let model = Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_CHOICE))
+            .unwrap()
+            .try_resolve()
+            .unwrap();
 
         assert_eq!("SimpleSchema", model.name);
         assert_eq!(true, model.imports.is_empty());
@@ -922,7 +854,10 @@ pub(crate) mod tests {
 
     #[test]
     fn test_inline_asn_sequence_represented_correctly_as_asn_model() {
-        let model = Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_SEQUENCE)).unwrap();
+        let model = Model::try_from(Tokenizer::default().parse(INLINE_ASN_WITH_SEQUENCE))
+            .unwrap()
+            .try_resolve()
+            .unwrap();
 
         assert_eq!("SimpleSchema", model.name);
         assert_eq!(true, model.imports.is_empty());
@@ -1004,7 +939,9 @@ pub(crate) mod tests {
             END
         ",
         ))
-        .expect("Failed to parse");
+        .expect("Failed to parse")
+        .try_resolve()
+        .expect("Failed to resolve");
 
         assert_eq!("SimpleSchema", &model.name);
         assert_eq!(
@@ -1028,7 +965,9 @@ pub(crate) mod tests {
             END
         ",
         ))
-        .expect("Failed to parse");
+        .expect("Failed to parse")
+        .try_resolve()
+        .expect("Failed to resolve");
 
         assert_eq!("SimpleSchema", &model.name);
         assert_eq!(
@@ -1072,7 +1011,9 @@ pub(crate) mod tests {
             END
         ",
         ))
-        .expect("Failed to parse");
+        .expect("Failed to parse")
+        .try_resolve()
+        .expect("Failed to resolve");
 
         assert_eq!("SimpleSchema", &model.name);
         assert_eq!(
@@ -1146,7 +1087,9 @@ pub(crate) mod tests {
             END
         ",
         ))
-        .expect("Failed to parse");
+        .expect("Failed to parse")
+        .try_resolve()
+        .expect("Failed to resolve");
 
         assert_eq!("SimpleSchema", &model.name);
         assert_eq!(
@@ -1199,7 +1142,9 @@ pub(crate) mod tests {
             END
         ",
         ))
-        .expect("Failed to parse");
+        .expect("Failed to parse")
+        .try_resolve()
+        .expect("Failed to resolve");
 
         assert_eq!("SimpleSchema", &model.name);
         assert_eq!(
@@ -1265,7 +1210,9 @@ pub(crate) mod tests {
             END
         ",
         ))
-        .expect("Failed to parse");
+        .expect("Failed to parse")
+        .try_resolve()
+        .expect("Failed to resolve");
 
         assert_eq!("SimpleSchema", model.name.as_str());
         assert_eq!(
@@ -1435,7 +1382,9 @@ pub(crate) mod tests {
                 OhAlias ::= [APPLICATION 9] INTEGER { oh(1), lul(2) } (0..255)
                 END",
         ))
-        .expect("Failed to load model");
+        .expect("Failed to load model")
+        .try_resolve()
+        .expect("Failed to resolve");
         assert_eq!(
             vec![
                 Definition(
@@ -1515,7 +1464,9 @@ pub(crate) mod tests {
                 
                 END",
         ))
-        .expect("Failed to load model");
+        .expect("Failed to load model")
+        .try_resolve()
+        .expect("Failed to resolve");
         assert_eq!(
             vec![Definition(
                 "RangedOptional".to_string(),
@@ -1546,7 +1497,9 @@ pub(crate) mod tests {
             END
             ",
         ))
-        .expect("Failed to parse module");
+        .expect("Failed to parse module")
+        .try_resolve()
+        .expect("Failed to resolve");
         let model = Model::try_from(Tokenizer::default().parse(
             r"InternalModul DEFINITIONS AUTOMATIC TAGS ::= BEGIN
                 IMPORTS
@@ -1575,7 +1528,9 @@ pub(crate) mod tests {
                 
                 END",
         ))
-        .expect("Failed to load model");
+        .expect("Failed to load model")
+        .try_resolve()
+        .expect("Failed to resolve");
         let rust = model.to_rust_with_scope(&[&external]);
 
         if let Rust::Struct {
@@ -1741,6 +1696,129 @@ pub(crate) mod tests {
                 }
             ],
             &model.value_references[..]
-        )
+        );
+    }
+
+    #[test]
+    pub fn test_value_reference_in_size() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r#"SomeName DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+                se_min INTEGER ::= 42
+                se_max INTEGER ::= 1337
+                
+                seq-fix         ::= SEQUENCE (SIZE(se_min)) OF INTEGER
+                seq-min-max     ::= SEQUENCE (SIZE(se_min..se_max)) OF INTEGER
+                seq-min-max-ext ::= SEQUENCE (SIZE(se_min..se_max,...)) OF INTEGER
+                
+                mixed-min-max     ::= SEQUENCE (SIZE(se_min..4711)) OF INTEGER
+                mixed-min-max-ext ::= SEQUENCE (SIZE(420..se_max,...)) OF INTEGER
+
+                END"#,
+        ))
+        .expect("Failed to load model")
+        .try_resolve()
+        .expect("Failed to resolve");
+        assert_eq!(
+            &[
+                Definition(
+                    "seq-fix".to_string(),
+                    Type::<Resolved>::SequenceOf(
+                        Box::new(Type::Integer(Integer::default())),
+                        Size::Fix(42_usize, false)
+                    )
+                    .untagged()
+                ),
+                Definition(
+                    "seq-min-max".to_string(),
+                    Type::<Resolved>::SequenceOf(
+                        Box::new(Type::Integer(Integer::default())),
+                        Size::Range(42_usize, 1337, false)
+                    )
+                    .untagged()
+                ),
+                Definition(
+                    "seq-min-max-ext".to_string(),
+                    Type::<Resolved>::SequenceOf(
+                        Box::new(Type::Integer(Integer::default())),
+                        Size::Range(42_usize, 1337, true)
+                    )
+                    .untagged()
+                ),
+                Definition(
+                    "mixed-min-max".to_string(),
+                    Type::<Resolved>::SequenceOf(
+                        Box::new(Type::Integer(Integer::default())),
+                        Size::Range(42_usize, 4711, false)
+                    )
+                    .untagged()
+                ),
+                Definition(
+                    "mixed-min-max-ext".to_string(),
+                    Type::<Resolved>::SequenceOf(
+                        Box::new(Type::Integer(Integer::default())),
+                        Size::Range(420_usize, 1337, true)
+                    )
+                    .untagged()
+                )
+            ],
+            &model.definitions[..]
+        );
+    }
+
+    #[test]
+    pub fn test_value_reference_in_range() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r#"SomeName DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+                se_min INTEGER ::= 42
+                se_max INTEGER ::= 1337
+                
+                seq-min-max     ::= INTEGER(se_min..se_max)
+                seq-min-max-ext ::= INTEGER(se_min..se_max,...)
+                
+                mixed-min-max     ::= INTEGER(se_min..4711)
+                mixed-min-max-ext ::= INTEGER(-42069..se_max,...)
+
+                END"#,
+        ))
+        .expect("Failed to load model")
+        .try_resolve()
+        .expect("Failed to resolve");
+        assert_eq!(
+            &[
+                Definition(
+                    "seq-min-max".to_string(),
+                    Type::<Resolved>::Integer(Integer::with_range(Range::inclusive(
+                        Some(42),
+                        Some(1337)
+                    )))
+                    .untagged()
+                ),
+                Definition(
+                    "seq-min-max-ext".to_string(),
+                    Type::<Resolved>::Integer(Integer::with_range(
+                        Range::inclusive(Some(42), Some(1337)).with_extensible(true)
+                    ))
+                    .untagged()
+                ),
+                Definition(
+                    "mixed-min-max".to_string(),
+                    Type::<Resolved>::Integer(Integer::with_range(Range::inclusive(
+                        Some(42),
+                        Some(4711)
+                    )))
+                    .untagged()
+                ),
+                Definition(
+                    "mixed-min-max-ext".to_string(),
+                    Type::<Resolved>::Integer(Integer::with_range(
+                        Range::inclusive(Some(-42069), Some(1337)).with_extensible(true)
+                    ))
+                    .untagged()
+                )
+            ],
+            &model.definitions[..]
+        );
     }
 }

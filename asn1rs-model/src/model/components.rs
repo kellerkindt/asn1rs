@@ -1,3 +1,5 @@
+use crate::model::lor::{Error as ResolveError, Resolved, Resolver};
+use crate::model::lor::{ResolveState, Unresolved};
 use crate::model::{Asn, Error, Field, Model, PeekableTokens};
 use crate::parser::Token;
 use std::convert::TryFrom;
@@ -5,12 +7,12 @@ use std::iter::Peekable;
 
 /// ITU-T X.680 | ISO/IEC 8824-1:2015, Annex L
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub struct ComponentTypeList {
-    pub fields: Vec<Field<Asn>>,
+pub struct ComponentTypeList<RS: ResolveState = Unresolved> {
+    pub fields: Vec<Field<Asn<RS>>>,
     pub extension_after: Option<usize>,
 }
 
-impl<T: Iterator<Item = Token>> TryFrom<&mut Peekable<T>> for ComponentTypeList {
+impl<T: Iterator<Item = Token>> TryFrom<&mut Peekable<T>> for ComponentTypeList<Unresolved> {
     type Error = Error;
 
     fn try_from(iter: &mut Peekable<T>) -> Result<Self, Self::Error> {
@@ -35,7 +37,7 @@ impl<T: Iterator<Item = Token>> TryFrom<&mut Peekable<T>> for ComponentTypeList 
                     token => return Err(Error::unexpected_token(token)),
                 }
             } else {
-                let (field, continues) = Model::<Asn>::read_field(iter)?;
+                let (field, continues) = Model::<Asn<Unresolved>>::read_field(iter)?;
                 sequence.fields.push(field);
                 continues
             };
@@ -46,5 +48,24 @@ impl<T: Iterator<Item = Token>> TryFrom<&mut Peekable<T>> for ComponentTypeList 
         }
 
         Ok(sequence)
+    }
+}
+
+impl ComponentTypeList<Unresolved> {
+    pub fn try_resolve<
+        R: Resolver<<Resolved as ResolveState>::SizeType>
+            + Resolver<<Resolved as ResolveState>::RangeType>,
+    >(
+        &self,
+        resolver: &R,
+    ) -> Result<ComponentTypeList<Resolved>, ResolveError> {
+        Ok(ComponentTypeList {
+            fields: self
+                .fields
+                .iter()
+                .map(|f| f.try_resolve(resolver))
+                .collect::<Result<Vec<_>, _>>()?,
+            extension_after: self.extension_after,
+        })
     }
 }

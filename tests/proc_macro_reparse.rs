@@ -158,7 +158,7 @@ fn parse_asn_map_to_rust_map_to_stringify_with_proc_macro_annotation_re_parse_ch
     asn: &str,
 ) {
     let tokens = Tokenizer::default().parse(asn);
-    let asn_model = Model::try_from(tokens).unwrap();
+    let asn_model = Model::try_from(tokens).unwrap().try_resolve().unwrap();
     let rust_model = asn_model.to_rust();
 
     for definition in rust_model.definitions {

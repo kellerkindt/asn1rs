@@ -1,4 +1,4 @@
-use crate::model::{Asn, BitString, Definition, Integer, Model, Range, Size, Type, ValueReference};
+use crate::model::{Asn, Definition, Model, ValueReference};
 use std::fmt::{Debug, Display, Formatter};
 
 pub trait ResolveState: Clone {
@@ -89,96 +89,18 @@ impl Model<Asn<Unresolved>> {
         for vr in &self.value_references {
             model.value_references.push(ValueReference {
                 name: vr.name.clone(),
-                role: Asn {
-                    tag: vr.role.tag,
-                    r#type: vr.role.r#type.try_resolve(self)?,
-                },
+                role: vr.role.try_resolve(self)?,
                 value: vr.value.clone(),
             })
         }
 
         for Definition(name, asn) in &self.definitions {
-            model.definitions.push(Definition(
-                name.clone(),
-                Asn {
-                    tag: asn.tag,
-                    r#type: asn.r#type.try_resolve(self)?,
-                },
-            ))
+            model
+                .definitions
+                .push(Definition(name.clone(), asn.try_resolve(self)?))
         }
 
         Ok(model)
-    }
-}
-
-impl Type<Unresolved> {
-    pub fn try_resolve<R: Resolver<i64> + Resolver<usize>>(
-        &self,
-        resolver: &R,
-    ) -> Result<Type<Resolved>, Error> {
-        Ok(match self {
-            Type::Boolean => Type::Boolean,
-            Type::Integer(integer) => Type::Integer(integer.try_resolve(resolver)?),
-            Type::String(size, charset) => Type::String(size.try_resolve(resolver)?, *charset),
-            Type::OctetString(size) => Type::OctetString(size.try_resolve(resolver)?),
-            Type::BitString(string) => Type::BitString(string.try_resolve(resolver)?),
-            Type::Optional(inner) => Type::Optional(Box::new(inner.try_resolve(resolver)?)),
-            Type::Sequence(seq) => Type::Sequence(seq.clone()),
-            Type::SequenceOf(inner, size) => Type::SequenceOf(
-                Box::new(inner.try_resolve(resolver)?),
-                size.try_resolve(resolver)?,
-            ),
-            Type::Set(set) => Type::Set(set.clone()),
-            Type::SetOf(inner, size) => Type::SetOf(
-                Box::new(inner.try_resolve(resolver)?),
-                size.try_resolve(resolver)?,
-            ),
-            Type::Enumerated(e) => Type::Enumerated(e.clone()),
-            Type::Choice(c) => Type::Choice(c.clone()),
-            Type::TypeReference(name, tag) => Type::TypeReference(name.clone(), *tag),
-        })
-    }
-}
-
-impl<T: Display + Debug + Clone + Sized> TryResolve<T, Integer<T>> for Integer<LitOrRef<T>> {
-    fn try_resolve(&self, resolver: &impl Resolver<T>) -> Result<Integer<T>, Error> {
-        Ok(Integer {
-            range: Range(
-                self.range
-                    .0
-                    .as_ref()
-                    .map(|lor| resolver.resolve(&lor))
-                    .transpose()?,
-                self.range
-                    .1
-                    .as_ref()
-                    .map(|lor| resolver.resolve(&lor))
-                    .transpose()?,
-                self.range.2,
-            ),
-            constants: self.constants.clone(),
-        })
-    }
-}
-
-impl<T: Display + Debug + Clone + Sized> TryResolve<T, Size<T>> for Size<LitOrRef<T>> {
-    fn try_resolve(&self, resolver: &impl Resolver<T>) -> Result<Size<T>, Error> {
-        Ok(match self {
-            Size::Any => Size::Any,
-            Size::Fix(len, ext) => Size::Fix(resolver.resolve(len)?, *ext),
-            Size::Range(min, max, ext) => {
-                Size::Range(resolver.resolve(min)?, resolver.resolve(max)?, *ext)
-            }
-        })
-    }
-}
-
-impl<T: Display + Debug + Clone + Sized> TryResolve<T, BitString<T>> for BitString<LitOrRef<T>> {
-    fn try_resolve(&self, resolver: &impl Resolver<T>) -> Result<BitString<T>, Error> {
-        Ok(BitString {
-            size: self.size.try_resolve(resolver)?,
-            constants: self.constants.clone(),
-        })
     }
 }
 
@@ -227,6 +149,9 @@ impl Resolver<i64> for Model<Asn<Unresolved>> {
 #[cfg(test)]
 pub mod tests {
     use super::*;
+    use crate::model::Integer;
+    use crate::model::Range;
+    use crate::model::Type;
 
     #[test]
     fn test_simple_resolve() {

@@ -1,16 +1,18 @@
+use crate::model::lor::{Error as ResolveError, ResolveState, Resolved, Resolver, Unresolved};
 use crate::model::{Asn, Error, Model, PeekableTokens, Tag, TagProperty, Type};
 use crate::parser::Token;
 use std::convert::TryFrom;
+
 use std::iter::Peekable;
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub struct Choice {
-    variants: Vec<ChoiceVariant>,
+pub struct Choice<RS: ResolveState = Resolved> {
+    variants: Vec<ChoiceVariant<RS>>,
     extension_after: Option<usize>,
 }
 
-impl From<Vec<ChoiceVariant>> for Choice {
-    fn from(variants: Vec<ChoiceVariant>) -> Self {
+impl<RS: ResolveState> From<Vec<ChoiceVariant<RS>>> for Choice<RS> {
+    fn from(variants: Vec<ChoiceVariant<RS>>) -> Self {
         Self {
             variants,
             extension_after: None,
@@ -18,20 +20,20 @@ impl From<Vec<ChoiceVariant>> for Choice {
     }
 }
 
-impl Choice {
-    pub fn from_variants(variants: impl Iterator<Item = ChoiceVariant>) -> Self {
+impl<RS: ResolveState> Choice<RS> {
+    pub fn from_variants(variants: impl Iterator<Item = ChoiceVariant<RS>>) -> Self {
         Self {
             variants: variants.collect(),
             extension_after: None,
         }
     }
 
-    pub const fn with_extension_after(mut self, extension_after: usize) -> Self {
+    pub fn with_extension_after(mut self, extension_after: usize) -> Self {
         self.extension_after = Some(extension_after);
         self
     }
 
-    pub const fn with_maybe_extension_after(mut self, extension_after: Option<usize>) -> Self {
+    pub fn with_maybe_extension_after(mut self, extension_after: Option<usize>) -> Self {
         self.extension_after = extension_after;
         self
     }
@@ -44,7 +46,7 @@ impl Choice {
         self.variants.is_empty()
     }
 
-    pub fn variants(&self) -> impl Iterator<Item = &ChoiceVariant> {
+    pub fn variants(&self) -> impl Iterator<Item = &ChoiceVariant<RS>> {
         self.variants.iter()
     }
 
@@ -57,7 +59,7 @@ impl Choice {
     }
 }
 
-impl<T: Iterator<Item = Token>> TryFrom<&mut Peekable<T>> for Choice {
+impl<T: Iterator<Item = Token>> TryFrom<&mut Peekable<T>> for Choice<Unresolved> {
     type Error = Error;
 
     fn try_from(iter: &mut Peekable<T>) -> Result<Self, Self::Error> {
@@ -80,8 +82,8 @@ impl<T: Iterator<Item = Token>> TryFrom<&mut Peekable<T>> for Choice {
                 }
             } else {
                 let name = iter.next_text_or_err()?;
-                let (token, tag) = Model::<Asn>::next_with_opt_tag(iter)?;
-                let r#type = Model::<Asn>::read_role_given_text(
+                let (token, tag) = Model::<Asn<Unresolved>>::next_with_opt_tag(iter)?;
+                let r#type = Model::<Asn<Unresolved>>::read_role_given_text(
                     iter,
                     token.into_text_or_else(Error::no_text)?,
                 )?;
@@ -95,16 +97,35 @@ impl<T: Iterator<Item = Token>> TryFrom<&mut Peekable<T>> for Choice {
     }
 }
 
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
-pub struct ChoiceVariant {
-    pub name: String,
-    pub tag: Option<Tag>,
-    pub r#type: Type,
+impl Choice<Unresolved> {
+    pub fn try_resolve<
+        R: Resolver<<Resolved as ResolveState>::SizeType>
+            + Resolver<<Resolved as ResolveState>::RangeType>,
+    >(
+        &self,
+        resolver: &R,
+    ) -> Result<Choice<Resolved>, ResolveError> {
+        Ok(Choice {
+            variants: self
+                .variants
+                .iter()
+                .map(|v| v.try_resolve(resolver))
+                .collect::<Result<Vec<_>, _>>()?,
+            extension_after: self.extension_after,
+        })
+    }
 }
 
-impl ChoiceVariant {
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub struct ChoiceVariant<RS: ResolveState = Resolved> {
+    pub name: String,
+    pub tag: Option<Tag>,
+    pub r#type: Type<RS>,
+}
+
+impl<RS: ResolveState> ChoiceVariant<RS> {
     #[cfg(test)]
-    pub fn name_type<I: ToString>(name: I, r#type: Type) -> Self {
+    pub fn name_type<I: ToString>(name: I, r#type: Type<RS>) -> Self {
         ChoiceVariant {
             name: name.to_string(),
             tag: None,
@@ -116,12 +137,12 @@ impl ChoiceVariant {
         &self.name
     }
 
-    pub fn r#type(&self) -> &Type {
+    pub fn r#type(&self) -> &Type<RS> {
         &self.r#type
     }
 }
 
-impl TagProperty for ChoiceVariant {
+impl<RS: ResolveState> TagProperty for ChoiceVariant<RS> {
     fn tag(&self) -> Option<Tag> {
         self.tag
     }
@@ -132,5 +153,21 @@ impl TagProperty for ChoiceVariant {
 
     fn reset_tag(&mut self) {
         self.tag = None
+    }
+}
+
+impl ChoiceVariant<Unresolved> {
+    pub fn try_resolve<
+        R: Resolver<<Resolved as ResolveState>::SizeType>
+            + Resolver<<Resolved as ResolveState>::RangeType>,
+    >(
+        &self,
+        resolver: &R,
+    ) -> Result<ChoiceVariant<Resolved>, ResolveError> {
+        Ok(ChoiceVariant {
+            name: self.name.clone(),
+            tag: self.tag,
+            r#type: self.r#type.try_resolve(resolver)?,
+        })
     }
 }

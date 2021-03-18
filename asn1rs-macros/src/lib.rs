@@ -17,7 +17,10 @@ mod derive_protobuf_eq;
 pub fn asn_to_rust(item: TokenStream) -> TokenStream {
     let input = parse_macro_input!(item as LitStr).value();
     let tokens = Tokenizer::default().parse(&input);
-    let model = Model::try_from(tokens).unwrap();
+    let model = Model::try_from(tokens)
+        .expect("Failed to parse tokens")
+        .try_resolve()
+        .expect("Failed to resolve value references");
 
     let mut generator = RustGenerator::default();
     generator.add_model(model.to_rust());

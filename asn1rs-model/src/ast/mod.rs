@@ -6,10 +6,9 @@ mod tag;
 
 use crate::ast::attribute::{Context, DefinitionHeader, Transparent};
 use crate::ast::constants::ConstLit;
-use crate::model::{
-    Asn as AsnModelType, ComponentTypeList, EnumeratedVariant, TagProperty, TagResolver,
-};
+use crate::model::lor::Resolved;
 use crate::model::{Choice, ChoiceVariant, Definition, Enumerated, Field, Model, Type};
+use crate::model::{ComponentTypeList, EnumeratedVariant, TagProperty, TagResolver};
 use attribute::AsnAttribute;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -17,6 +16,8 @@ use std::convert::Infallible;
 use std::str::FromStr;
 use syn::spanned::Spanned;
 use syn::{Attribute, Item};
+
+type AsnModelType = crate::model::Asn<crate::model::lor::Resolved>;
 
 pub fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
     if cfg!(feature = "debug-proc-macro") {
@@ -125,7 +126,7 @@ pub fn parse_asn_definition(
     }
 }
 
-fn parse_sequence_or_set<F: Fn(ComponentTypeList) -> Type>(
+fn parse_sequence_or_set<F: Fn(ComponentTypeList<Resolved>) -> Type>(
     mut strct: syn::ItemStruct,
     asn: &AsnAttribute<DefinitionHeader>,
     asn_span: proc_macro2::Span,

@@ -1158,6 +1158,8 @@ pub mod tests {
         "#,
         ))
         .unwrap()
+        .try_resolve()
+        .unwrap()
         .to_rust();
 
         let mut scope = Scope::new();
@@ -1188,6 +1190,8 @@ pub mod tests {
             END
         "#,
         ))
+        .unwrap()
+        .try_resolve()
         .unwrap()
         .to_rust();
 

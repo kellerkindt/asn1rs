@@ -3,6 +3,7 @@ use std::fmt::{Debug, Display, Formatter};
 
 use backtrace::Backtrace;
 
+use crate::model::lor::Unresolved;
 use crate::model::Type;
 use crate::parser::Token;
 
@@ -21,7 +22,7 @@ pub enum ErrorKind {
     InvalidTag(Token),
     InvalidPositionForExtensionMarker(Token),
     InvalidIntText(Token),
-    UnsupportedValueReferenceLiteral(Token, Box<Type>),
+    UnsupportedValueReferenceLiteral(Token, Box<Type<Unresolved>>),
 }
 
 pub struct Error {
@@ -97,7 +98,7 @@ impl Error {
         ErrorKind::UnexpectedEndOfStream.into()
     }
 
-    pub fn unsupported_value_reference_literal(token: Token, r#type: Type) -> Self {
+    pub fn unsupported_value_reference_literal(token: Token, r#type: Type<Unresolved>) -> Self {
         ErrorKind::UnsupportedValueReferenceLiteral(token, Box::new(r#type)).into()
     }
 

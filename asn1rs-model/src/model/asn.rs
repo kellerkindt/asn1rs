@@ -1,4 +1,5 @@
-use crate::model::lor::{ResolveState, Resolved};
+use crate::model::lor::{Error as ResolveError, TryResolve, Unresolved};
+use crate::model::lor::{ResolveState, Resolved, Resolver};
 use crate::model::{
     BitString, Charset, Choice, ChoiceVariant, ComponentTypeList, Enumerated, Field, Integer,
     Range, Size, Tag, TagProperty,
@@ -50,6 +51,21 @@ impl TagProperty for Asn {
     }
 }
 
+impl Asn<Unresolved> {
+    pub fn try_resolve<
+        R: Resolver<<Resolved as ResolveState>::SizeType>
+            + Resolver<<Resolved as ResolveState>::RangeType>,
+    >(
+        &self,
+        resolver: &R,
+    ) -> Result<Asn<Resolved>, ResolveError> {
+        Ok(Asn {
+            tag: self.tag,
+            r#type: self.r#type.try_resolve(resolver)?,
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
 pub enum Type<RS: ResolveState = Resolved> {
     Boolean,
@@ -60,12 +76,12 @@ pub enum Type<RS: ResolveState = Resolved> {
 
     Optional(Box<Type<RS>>),
 
-    Sequence(ComponentTypeList),
+    Sequence(ComponentTypeList<RS>),
     SequenceOf(Box<Type<RS>>, Size<RS::SizeType>),
-    Set(ComponentTypeList),
+    Set(ComponentTypeList<RS>),
     SetOf(Box<Type<RS>>, Size<RS::SizeType>),
     Enumerated(Enumerated),
-    Choice(Choice),
+    Choice(Choice<RS>),
     TypeReference(String, Option<Tag>),
 }
 
@@ -112,7 +128,7 @@ impl<RS: ResolveState> Type<RS> {
         })
     }
 
-    pub fn choice_from_variants(variants: Vec<ChoiceVariant>) -> Self {
+    pub fn choice_from_variants(variants: Vec<ChoiceVariant<RS>>) -> Self {
         Self::Choice(Choice::from(variants))
     }
 
@@ -138,5 +154,37 @@ impl<RS: ResolveState> Type<RS> {
         } else {
             self
         }
+    }
+}
+
+impl Type<Unresolved> {
+    pub fn try_resolve<
+        R: Resolver<<Resolved as ResolveState>::SizeType>
+            + Resolver<<Resolved as ResolveState>::RangeType>,
+    >(
+        &self,
+        resolver: &R,
+    ) -> Result<Type<Resolved>, ResolveError> {
+        Ok(match self {
+            Type::Boolean => Type::Boolean,
+            Type::Integer(integer) => Type::Integer(integer.try_resolve(resolver)?),
+            Type::String(size, charset) => Type::String(size.try_resolve(resolver)?, *charset),
+            Type::OctetString(size) => Type::OctetString(size.try_resolve(resolver)?),
+            Type::BitString(string) => Type::BitString(string.try_resolve(resolver)?),
+            Type::Optional(inner) => Type::Optional(Box::new(inner.try_resolve(resolver)?)),
+            Type::Sequence(seq) => Type::Sequence(seq.try_resolve(resolver)?),
+            Type::SequenceOf(inner, size) => Type::SequenceOf(
+                Box::new(inner.try_resolve(resolver)?),
+                size.try_resolve(resolver)?,
+            ),
+            Type::Set(set) => Type::Set(set.try_resolve(resolver)?),
+            Type::SetOf(inner, size) => Type::SetOf(
+                Box::new(inner.try_resolve(resolver)?),
+                size.try_resolve(resolver)?,
+            ),
+            Type::Enumerated(e) => Type::Enumerated(e.clone()),
+            Type::Choice(c) => Type::Choice(c.try_resolve(resolver)?),
+            Type::TypeReference(name, tag) => Type::TypeReference(name.clone(), *tag),
+        })
     }
 }

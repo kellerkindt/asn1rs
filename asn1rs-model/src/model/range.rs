@@ -46,3 +46,5 @@ impl<T> Range<Option<T>> {
         }
     }
 }
+
+impl Range<Option<i64>> {}

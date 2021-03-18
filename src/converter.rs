@@ -4,6 +4,7 @@ use crate::gen::rust::RustCodeGenerator as RustGenerator;
 use crate::gen::sql::Error as SqlGeneratorError;
 use crate::gen::sql::SqlDefGenerator as SqlGenerator;
 use crate::gen::Generator;
+use crate::model::lor::Error as ResolveError;
 use crate::model::protobuf::ToProtobufModel;
 use crate::model::sql::ToSqlModel;
 use crate::model::Error as ModelError;
@@ -21,6 +22,7 @@ pub enum Error {
     SqlGenerator(SqlGeneratorError),
     Model(ModelError),
     Io(IoError),
+    ResolveError(ResolveError),
 }
 
 impl From<ProtobufGeneratorError> for Error {
@@ -47,6 +49,12 @@ impl From<IoError> for Error {
     }
 }
 
+impl From<ResolveError> for Error {
+    fn from(e: ResolveError) -> Self {
+        Error::ResolveError(e)
+    }
+}
+
 #[derive(Default)]
 pub struct Converter {
     models: Vec<Model<Asn>>,
@@ -56,7 +64,7 @@ impl Converter {
     pub fn load_file<F: AsRef<Path>>(&mut self, file: F) -> Result<(), Error> {
         let input = ::std::fs::read_to_string(file)?;
         let tokens = Tokenizer::default().parse(&input);
-        let model = Model::try_from(tokens)?;
+        let model = Model::try_from(tokens)?.try_resolve()?;
         self.models.push(model);
         Ok(())
     }
@@ -163,7 +171,7 @@ pub fn convert_to_rust<F: AsRef<Path>, D: AsRef<Path>, A: Fn(&mut RustGenerator)
 ) -> Result<Vec<String>, Error> {
     let input = ::std::fs::read_to_string(file)?;
     let tokens = Tokenizer::default().parse(&input);
-    let model = Model::try_from(tokens)?;
+    let model = Model::try_from(tokens)?.try_resolve()?;
     let mut generator = RustGenerator::default();
     generator.add_model(model.to_rust());
 
@@ -186,7 +194,7 @@ pub fn convert_to_proto<F: AsRef<Path>, D: AsRef<Path>>(
 ) -> Result<Vec<String>, Error> {
     let input = ::std::fs::read_to_string(file)?;
     let tokens = Tokenizer::default().parse(&input);
-    let model = Model::try_from(tokens)?;
+    let model = Model::try_from(tokens)?.try_resolve()?;
     let mut generator = ProtobufGenerator::default();
     generator.add_model(model.to_rust().to_protobuf());
     let output = generator.to_string()?;
@@ -216,7 +224,7 @@ pub fn convert_to_sql_with<F: AsRef<Path>, D: AsRef<Path>>(
 ) -> Result<Vec<String>, Error> {
     let input = ::std::fs::read_to_string(file)?;
     let tokens = Tokenizer::default().parse(&input);
-    let model = Model::try_from(tokens)?;
+    let model = Model::try_from(tokens)?.try_resolve()?;
 
     generator.add_model(model.to_rust().to_sql());
     let output = generator.to_string()?;
