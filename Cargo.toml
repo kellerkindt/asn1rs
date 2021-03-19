@@ -72,3 +72,10 @@ required-features = ["legacy_bit_buffer"]
 
 [package.metadata.docs.rs]
 all-features = true
+
+
+[workspace]
+members = [
+    "asn1rs-macros",
+    "asn1rs-model",
+]
