@@ -3,12 +3,6 @@ use core::marker::PhantomData;
 
 pub struct Complex<V, T: Constraint>(PhantomData<T>, PhantomData<V>);
 
-impl<V, T: Constraint> Default for Complex<V, T> {
-    fn default() -> Self {
-        Complex(Default::default(), Default::default())
-    }
-}
-
 pub trait Constraint: super::common::Constraint {}
 
 impl<V: Writable, C: Constraint> WritableType for Complex<V, C> {

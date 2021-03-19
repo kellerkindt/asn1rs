@@ -3,12 +3,6 @@ use core::marker::PhantomData;
 
 pub struct Sequence<T: Constraint>(PhantomData<T>);
 
-impl<T: Constraint> Default for Sequence<T> {
-    fn default() -> Self {
-        Self(Default::default())
-    }
-}
-
 pub trait Constraint: super::common::Constraint {
     const NAME: &'static str;
     const STD_OPTIONAL_FIELDS: u64;

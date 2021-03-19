@@ -4,12 +4,6 @@ use core::marker::PhantomData;
 
 pub struct SequenceOf<T, C: Constraint = NoConstraint>(PhantomData<T>, PhantomData<C>);
 
-impl<C: Constraint> Default for SequenceOf<C> {
-    fn default() -> Self {
-        Self(Default::default(), Default::default())
-    }
-}
-
 pub trait Constraint: super::common::Constraint {
     const MIN: Option<u64> = None;
     const MAX: Option<u64> = None;

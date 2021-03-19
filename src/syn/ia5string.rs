@@ -4,12 +4,6 @@ use core::marker::PhantomData;
 
 pub struct Ia5String<C: Constraint = NoConstraint>(PhantomData<C>);
 
-impl<C: Constraint> Default for Ia5String<C> {
-    fn default() -> Self {
-        Ia5String(Default::default())
-    }
-}
-
 pub trait Constraint: super::common::Constraint {
     const MIN: Option<u64> = None;
     const MAX: Option<u64> = None;

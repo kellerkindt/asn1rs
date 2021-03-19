@@ -6,19 +6,10 @@ use std::convert::TryFrom;
 use std::fmt::{Debug, Display};
 use std::iter::Peekable;
 
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
+#[derive(Default, Debug, Clone, PartialOrd, PartialEq)]
 pub struct Integer<T: Display + Debug + Clone = i64> {
     pub range: Range<Option<T>>,
     pub constants: Vec<(String, i64)>,
-}
-
-impl<T: Display + Debug + Clone> Default for Integer<T> {
-    fn default() -> Self {
-        Self {
-            range: Range::none(),
-            constants: Vec::default(),
-        }
-    }
 }
 
 impl<T: Display + Debug + Clone> Integer<T> {

@@ -7,12 +7,6 @@ pub struct Integer<T: Number = u64, C: Constraint<T> = NoConstraint>(
     PhantomData<C>,
 );
 
-impl<T: Number, C: Constraint<T>> Default for Integer<T, C> {
-    fn default() -> Self {
-        Integer(Default::default(), Default::default())
-    }
-}
-
 pub trait Number: Copy {
     fn to_i64(self) -> i64;
 

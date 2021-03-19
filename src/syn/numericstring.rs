@@ -4,12 +4,6 @@ use core::marker::PhantomData;
 
 pub struct NumericString<C: Constraint = NoConstraint>(PhantomData<C>);
 
-impl<C: Constraint> Default for NumericString<C> {
-    fn default() -> Self {
-        NumericString(Default::default())
-    }
-}
-
 pub trait Constraint: super::common::Constraint {
     const MIN: Option<u64> = None;
     const MAX: Option<u64> = None;

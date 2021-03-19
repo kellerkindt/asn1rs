@@ -4,12 +4,6 @@ use core::marker::PhantomData;
 
 pub struct Boolean<C: Constraint = NoConstraint>(PhantomData<C>);
 
-impl<C: Constraint> Default for Boolean<C> {
-    fn default() -> Self {
-        Boolean(Default::default())
-    }
-}
-
 pub trait Constraint: super::common::Constraint {}
 
 #[derive(Default)]

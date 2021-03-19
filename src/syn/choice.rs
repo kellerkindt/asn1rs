@@ -3,12 +3,6 @@ use core::marker::PhantomData;
 
 pub struct Choice<C: Constraint>(PhantomData<C>);
 
-impl<C: Constraint> Default for Choice<C> {
-    fn default() -> Self {
-        Self(Default::default())
-    }
-}
-
 pub trait Constraint: super::common::Constraint + Sized {
     const NAME: &'static str;
     const VARIANT_COUNT: u64;

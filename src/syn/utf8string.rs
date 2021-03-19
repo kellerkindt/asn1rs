@@ -4,12 +4,6 @@ use core::marker::PhantomData;
 
 pub struct Utf8String<C: Constraint = NoConstraint>(PhantomData<C>);
 
-impl<C: Constraint> Default for Utf8String<C> {
-    fn default() -> Self {
-        Utf8String(Default::default())
-    }
-}
-
 pub trait Constraint: super::common::Constraint {
     const MIN: Option<u64> = None;
     const MAX: Option<u64> = None;

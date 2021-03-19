@@ -4,12 +4,6 @@ use core::marker::PhantomData;
 
 pub struct OctetString<C: Constraint = NoConstraint>(PhantomData<C>);
 
-impl<C: Constraint> Default for OctetString<C> {
-    fn default() -> Self {
-        Self(Default::default())
-    }
-}
-
 pub trait Constraint: super::common::Constraint {
     const MIN: Option<u64> = None;
     const MAX: Option<u64> = None;
