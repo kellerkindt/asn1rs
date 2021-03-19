@@ -62,6 +62,9 @@ The crate can be used as standalone CLI binary or used as library through its AP
 | `OPTIONAL`          | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             |
 | `IMPORTS..FROM..;`  | ✔️ yes  |         |             |             |            |                    |
 | `ObjectIdentifiers` | ✔️ yes  |         |             |             |            |                    |
+| Value References    | ✔️ yes  |         |             |             |            |                    |
+| ... in Range        | ✔️ yes  |         |             |             |            |                    |
+| ... in Size         | ✔️ yes  |         |             |             |            |                    |
 
 
  - ✔️ yes: according to specification
