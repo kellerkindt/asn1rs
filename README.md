@@ -10,6 +10,7 @@ The crate can be used as standalone CLI binary or used as library through its AP
 [![Build Status](https://github.com/kellerkindt/asn1rs/workflows/Rust/badge.svg)](https://github.com/kellerkindt/asn1rs/actions?query=workflow%3ARust)
 [![License](https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg)](https://github.com/kellerkindt/asn1rs)
 [![Crates.io](https://img.shields.io/crates/v/asn1rs.svg)](https://crates.io/crates/asn1rs)
+[![Coverage Status](https://coveralls.io/repos/github/kellerkindt/asn1rs/badge.svg?branch=master)](https://coveralls.io/github/kellerkindt/asn1rs?branch=master)
 [![Documentation](https://docs.rs/asn1rs/badge.svg)](https://docs.rs/asn1rs)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/kellerkindt/asn1rs/issues/new)
 
