@@ -1,5 +1,6 @@
 mod attribute;
 mod constants;
+mod inline;
 mod range;
 mod size;
 mod tag;
@@ -17,7 +18,8 @@ use std::str::FromStr;
 use syn::spanned::Spanned;
 use syn::{Attribute, Item};
 
-type AsnModelType = crate::model::Asn<crate::model::lor::Resolved>;
+pub use inline::asn_to_rust;
+pub type AsnModelType = crate::model::Asn<crate::model::lor::Resolved>;
 
 pub fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
     if cfg!(feature = "debug-proc-macro") {
