@@ -51,9 +51,6 @@ asn1rs-macros = { version = "0.2.0", path = "asn1rs-macros", optional = true }
 syn = {version = "1.0.28", features = ["full"] }
 quote = "1.0.3"
 proc-macro2 = "1.0.10"
-runtime-macros = "0.3.0"
-old-proc-macro2 = { package = "proc-macro2", version = "0.4" }
-old-syn = { package = "syn", version = "0.15", default-features = false, features = ["parsing", "printing", "full"] }
 
 [features]
 default = ["macros", "model"]
