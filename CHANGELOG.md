@@ -1,3 +1,25 @@
+# Version 0.2.1 (2021-03-22)
+
+This release refactors `Model<Asn>` which is now represented as `Model<Asn<Unresolved>>` and `Model<Asn<Resolved>>`.
+This change allows Value-References in SIZE and RANGE constraints (see [gh-50](https://github.com/kellerkindt/asn1rs/issues/50) [gh-49](https://github.com/kellerkindt/asn1rs/issues/49)) without a failable `to_rust()` converter.
+
+### Fixes
+- No longer choke on empty `SEQUENCE` definitions (see [gh-44](https://github.com/kellerkindt/asn1rs/issues/44))
+
+### Added
+- Parsing and resolving Value-References in SIZE and RANGE constraints (see [gh-50](https://github.com/kellerkindt/asn1rs/issues/50) [gh-49](https://github.com/kellerkindt/asn1rs/issues/49)) 
+
+### Changes
+- **BREAKING**: `Model::try_from(Tokenizer)` now returns `Model<Asn<Unresolved>>`. To convert to rust (`Model::<Asn<Resolved>>::to_rust(&self) -> Model<Rust>`) the fallible function `Model::<Asn<Unresolved>>::try_resolve(&self) -> Model<Asn<Resolved>>` must be called first.
+
+```rust
+let model_rust = Model::try_from(asn_tokens)
+    .expect("Failed to parse tokens")
+    .try_resolve()                                  <--------------+--- new
+    .expect("Failed to resolve at least one value reference")  <---+
+    .to_rust();
+```
+ 
 # Version 0.2.0 (2021-02-03)
 
 This release includes a lot of refactoring and new features.
