@@ -72,14 +72,6 @@ impl Token {
         self.text().map(|t| t.eq(text)).unwrap_or(false)
     }
 
-    pub fn test_text<F: FnOnce(&str) -> bool>(&self, f: F) -> bool {
-        self.text().map(f).unwrap_or(false)
-    }
-
-    pub fn text_all_numeric(&self) -> bool {
-        self.test_text(|t| t.chars().all(char::is_numeric))
-    }
-
     pub fn eq_text_ignore_ascii_case(&self, text: &str) -> bool {
         self.text()
             .map(|t| t.eq_ignore_ascii_case(text))
@@ -88,12 +80,6 @@ impl Token {
 
     pub fn eq_separator(&self, separator: char) -> bool {
         self.separator().map(|s| s == separator).unwrap_or(false)
-    }
-
-    pub fn eq_separator_ignore_ascii_case(&self, separator: char) -> bool {
-        self.separator()
-            .map(|s| separator.eq_ignore_ascii_case(&s))
-            .unwrap_or(false)
     }
 
     pub fn text(&self) -> Option<&str> {
@@ -304,5 +290,82 @@ mod tests {
         assert!(iter.next().unwrap().eq_separator('='));
         assert!(iter.next().unwrap().eq_text("None"));
         assert!(iter.next().is_none());
+    }
+
+    #[test]
+    pub fn test_token_is_separator() {
+        assert!(Token::Separator(Location::default(), ',').is_separator());
+    }
+
+    #[test]
+    pub fn test_token_is_text() {
+        assert!(Token::Text(Location::default(), String::default()).is_text());
+    }
+
+    #[test]
+    pub fn test_token_location_separator() {
+        let location = Location::at(42, 1337);
+        assert_eq!(location, Token::Separator(location, ',').location());
+    }
+
+    #[test]
+    pub fn test_token_location_text() {
+        let location = Location::at(42, 1337);
+        assert_eq!(
+            location,
+            Token::Text(location, String::default()).location()
+        );
+    }
+
+    #[test]
+    pub fn test_token_eq_text() {
+        assert!(Token::Text(Location::default(), "aBc".to_string()).eq_text("aBc"));
+        assert!(!Token::Text(Location::default(), "aBc".to_string()).eq_text("abc"));
+        assert!(!Token::Text(Location::default(), "aBc".to_string()).eq_text("cde"));
+    }
+
+    #[test]
+    pub fn test_token_eq_text_ignore_ascii_case() {
+        assert!(
+            Token::Text(Location::default(), "aBc".to_string()).eq_text_ignore_ascii_case("aBc")
+        );
+        assert!(
+            Token::Text(Location::default(), "aBc".to_string()).eq_text_ignore_ascii_case("abc")
+        );
+        assert!(
+            !Token::Text(Location::default(), "aBc".to_string()).eq_text_ignore_ascii_case("cde")
+        );
+    }
+
+    #[test]
+    pub fn test_token_display_text() {
+        assert_eq!(
+            "\"The text\"",
+            format!(
+                "{}",
+                Token::Text(Location::default(), "The text".to_string())
+            )
+        );
+    }
+
+    #[test]
+    pub fn test_token_display_separator() {
+        assert_eq!(
+            "'.'",
+            format!("{}", Token::Separator(Location::default(), '.'))
+        );
+    }
+
+    #[test]
+    pub fn test_token_into_text_none() {
+        assert_eq!(None, Token::Separator(Location::default(), '.').into_text());
+    }
+
+    #[test]
+    pub fn test_token_into_text_or_err() {
+        assert_eq!(
+            Err(()),
+            Token::Separator(Location::default(), '.').into_text_or_else(|_| ())
+        );
     }
 }

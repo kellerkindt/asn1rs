@@ -34,13 +34,6 @@ pub trait PeekableTokens {
     fn next_is_separator_and_eq(&mut self, separator: char) -> bool {
         self.next_separator_eq_or_err(separator).is_ok()
     }
-
-    fn next_separator_eq_ignore_case_or_err(&mut self, separator: char) -> Result<(), ErrorKind>;
-
-    #[inline]
-    fn next_is_separator_and_eq_ignore_case(&mut self, separator: char) -> bool {
-        self.next_separator_eq_ignore_case_or_err(separator).is_ok()
-    }
 }
 
 impl<T: Iterator<Item = Token>> PeekableTokens for Peekable<T> {
@@ -111,18 +104,6 @@ impl<T: Iterator<Item = Token>> PeekableTokens for Peekable<T> {
             let token = self.next_or_err()?;
             debug_assert!(token.eq_separator(separator));
             Ok(token)
-        } else {
-            Err(ErrorKind::ExpectedSeparatorGot(separator, peeked.clone()))
-        }
-    }
-
-    #[inline]
-    fn next_separator_eq_ignore_case_or_err(&mut self, separator: char) -> Result<(), ErrorKind> {
-        let peeked = self.peek_or_err()?;
-        if peeked.eq_separator_ignore_ascii_case(separator) {
-            let token = self.next_or_err()?;
-            debug_assert!(token.eq_separator_ignore_ascii_case(separator));
-            Ok(())
         } else {
             Err(ErrorKind::ExpectedSeparatorGot(separator, peeked.clone()))
         }
