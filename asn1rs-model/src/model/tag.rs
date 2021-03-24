@@ -134,3 +134,28 @@ pub trait TagProperty {
         self
     }
 }
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+
+    pub(crate) fn test_property<T: TagProperty>(mut property: T)
+    where
+        T: Sized,
+    {
+        property.set_tag(Tag::Universal(22));
+        assert_eq!(Some(Tag::Universal(22)), property.tag());
+
+        property.reset_tag();
+        assert_eq!(None, property.tag());
+
+        let property = property.with_tag_opt(Some(Tag::Application(1337)));
+        assert_eq!(Some(Tag::Application(1337)), property.tag());
+
+        let property = property.without_tag();
+        assert_eq!(None, property.tag());
+
+        let property = property.with_tag(Tag::Private(42));
+        assert_eq!(Some(Tag::Private(42)), property.tag());
+    }
+}

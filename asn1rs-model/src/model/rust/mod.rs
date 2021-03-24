@@ -978,11 +978,11 @@ pub fn rust_constant_name(name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::model::tag::tests::test_property;
     use crate::model::tests::*;
     use crate::model::{Choice, Enumerated, EnumeratedVariant, Field, Tag, Type};
     use crate::parser::Tokenizer;
-
-    use super::*;
 
     #[test]
     fn test_simple_asn_sequence_represented_correctly_as_rust_model() {
@@ -1624,5 +1624,33 @@ mod tests {
             )],
             &model_rust.definitions[..]
         );
+    }
+
+    #[test]
+    pub fn test_tag_property_rust() {
+        test_property(Rust::Enum(PlainEnum::from_names(
+            Some("Variant").into_iter(),
+        )));
+    }
+
+    #[test]
+    pub fn test_tag_property_field() {
+        test_property(RustField::from_name_type(
+            "FieldName".to_string(),
+            RustType::Bool,
+        ));
+    }
+
+    #[test]
+    pub fn test_tag_property_enumeration() {
+        test_property(Enumeration::from(vec!["VariantA", "VariantB"]));
+    }
+
+    #[test]
+    pub fn test_tag_property_data_variant() {
+        test_property(DataVariant::from_name_type(
+            "VariantName".to_string(),
+            RustType::Bool,
+        ));
     }
 }

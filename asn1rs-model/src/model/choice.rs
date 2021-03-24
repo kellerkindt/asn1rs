@@ -171,3 +171,17 @@ impl ChoiceVariant<Unresolved> {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::tag::tests::test_property;
+
+    #[test]
+    pub fn test_tag_property_choice_variant() {
+        test_property(ChoiceVariant::<Resolved>::name_type(
+            "VariantName".to_string(),
+            Type::Boolean,
+        ));
+    }
+}

@@ -30,6 +30,27 @@ impl TagProperty for Definition<Asn> {
     fn reset_tag(&mut self) {
         self.1.reset_tag()
     }
+
+    fn with_tag_opt(self, tag: Option<Tag>) -> Self
+    where
+        Self: Sized,
+    {
+        Self(self.0, self.1.with_tag_opt(tag))
+    }
+
+    fn with_tag(self, tag: Tag) -> Self
+    where
+        Self: Sized,
+    {
+        Self(self.0, self.1.with_tag(tag))
+    }
+
+    fn without_tag(self) -> Self
+    where
+        Self: Sized,
+    {
+        Self(self.0, self.1.without_tag())
+    }
 }
 
 impl TagProperty for Definition<Rust> {
@@ -43,5 +64,50 @@ impl TagProperty for Definition<Rust> {
 
     fn reset_tag(&mut self) {
         self.1.reset_tag()
+    }
+
+    fn with_tag_opt(self, tag: Option<Tag>) -> Self
+    where
+        Self: Sized,
+    {
+        Self(self.0, self.1.with_tag_opt(tag))
+    }
+
+    fn with_tag(self, tag: Tag) -> Self
+    where
+        Self: Sized,
+    {
+        Self(self.0, self.1.with_tag(tag))
+    }
+
+    fn without_tag(self) -> Self
+    where
+        Self: Sized,
+    {
+        Self(self.0, self.1.without_tag())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::rust::PlainEnum;
+    use crate::model::tag::tests::test_property;
+    use crate::model::Type;
+
+    #[test]
+    pub fn test_tag_property_definition_asn() {
+        test_property(Definition(
+            String::default(),
+            Asn::from(Type::unconstrained_integer()),
+        ));
+    }
+
+    #[test]
+    pub fn test_tag_property_definition_rust() {
+        test_property(Definition(
+            String::default(),
+            Rust::Enum(PlainEnum::from_names(Some("Variant").into_iter())),
+        ));
     }
 }
