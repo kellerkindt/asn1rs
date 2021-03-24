@@ -99,6 +99,7 @@ impl<T: Iterator<Item = Token>> TryFrom<&mut Peekable<T>>
                     iter.next_separator_eq_or_err('.')?;
                     iter.next_separator_eq_or_err('.')?;
                     iter.next_separator_eq_or_err('.')?;
+                    iter.next_separator_eq_or_err(')')?;
                     Ok(Size::Fix(start.unwrap_or_default(), true))
                 }
                 t => Err(Error::unexpected_token(t)),

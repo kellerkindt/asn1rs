@@ -15,6 +15,10 @@ asn_to_rust!(
     BasicConstrained ::= SEQUENCE {
         abc UTF8String (SIZE(8))
     }
+
+    BasicConstrainedFixedExtensible ::= SEQUENCE {
+        abc UTF8String (SIZE(8,...))
+    }
     
     BasicConstrainedSmall ::= SEQUENCE {
         abc UTF8String (SIZE(4..6))
@@ -49,6 +53,42 @@ fn test_fixed_size() {
         &[0x08, 0x65, 0x78, 0x61, 0x63, 0x74, 0x6C, 0x79, 0x38],
         &BasicConstrained {
             abc: "exactly8".to_string(),
+        },
+    );
+}
+
+#[test]
+fn test_fixed_size_extensible_smaller() {
+    // from playground
+    serialize_and_deserialize_uper(
+        8 * 4,
+        &[0x03, 0x6C, 0x74, 0x38],
+        &BasicConstrainedFixedExtensible {
+            abc: "lt8".to_string(),
+        },
+    );
+}
+
+#[test]
+fn test_fixed_size_extensible_exact() {
+    // from playground
+    serialize_and_deserialize_uper(
+        8 * 9,
+        &[0x08, 0x65, 0x78, 0x61, 0x63, 0x74, 0x6C, 0x79, 0x38],
+        &BasicConstrainedFixedExtensible {
+            abc: "exactly8".to_string(),
+        },
+    );
+}
+
+#[test]
+fn test_fixed_size_extensible_greater() {
+    // from playground
+    serialize_and_deserialize_uper(
+        8 * 10,
+        &[0x09, 0x65, 0x78, 0x61, 0x63, 0x74, 0x6C, 0x79, 0x5F, 0x39],
+        &BasicConstrainedFixedExtensible {
+            abc: "exactly_9".to_string(),
         },
     );
 }
