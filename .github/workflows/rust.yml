@@ -174,7 +174,7 @@ jobs:
         uses: actions-rs/tarpaulin@v0.1
         with:
           version: '0.18.0-alpha1'
-          args: '--out Xml --out Lcov --all-features -- --test-threads 1'
+          args: '--out Xml --out Lcov --all-features -- --test-threads 1 --nocapture'
 
       - name: Archive code coverage results
         uses: actions/upload-artifact@v1
