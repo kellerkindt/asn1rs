@@ -239,7 +239,7 @@ impl Model<Sql> {
         for field in fields {
             if field.r#type().is_vec() {
                 let list_entry_name = Self::struct_list_entry_table_name(name, field.name());
-                let value_sql_type = field.r#type().clone().into_inner_type().to_sql();
+                let value_sql_type = field.r#type().clone().as_inner_type().to_sql();
                 Self::add_list_table(name, &mut deferred, &list_entry_name, &value_sql_type);
             } else {
                 columns.push(Column {
@@ -357,7 +357,7 @@ impl Model<Sql> {
         }
         {
             let list_entry_name = format!("{}ListEntry", name);
-            let value_sql_type = rust_inner.clone().into_inner_type().to_sql();
+            let value_sql_type = rust_inner.clone().as_inner_type().to_sql();
             Self::add_list_table(name, definitions, &list_entry_name, &value_sql_type);
         }
     }
@@ -469,7 +469,7 @@ impl Model<Sql> {
 
     pub fn is_primitive(rust: &RustType) -> bool {
         #[allow(clippy::match_same_arms)] // to have the same order as the original enum
-        match rust.clone().into_inner_type() {
+        match rust.clone().as_inner_type() {
             RustType::String(..) => true,
             RustType::VecU8(_) => true,
             RustType::BitVec(_) => true,

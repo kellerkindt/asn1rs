@@ -105,7 +105,7 @@ impl ProtobufSerializer {
             Self::CODEC
         ));
 
-        match aliased.clone().into_inner_type() {
+        match aliased.clone().as_inner_type() {
             RustType::Complex(custom, _asn_tag) => {
                 if aliased.as_no_option().is_vec() {
                     block_reader.line(format!("me.0.push({}::read_protobuf(reader)?);", custom))
@@ -118,13 +118,13 @@ impl ProtobufSerializer {
                     block_reader.line(format!(
                         "me.0.push(reader.read_{}()?{});",
                         r.to_protobuf().to_string(),
-                        Self::get_as_rust_type_statement(&r),
+                        Self::get_as_rust_type_statement(r),
                     ))
                 } else {
                     block_reader.line(format!(
                         "me.0 = reader.read_{}()?{};",
                         r.to_protobuf().to_string(),
-                        Self::get_as_rust_type_statement(&r),
+                        Self::get_as_rust_type_statement(r),
                     ))
                 }
             }
@@ -147,13 +147,13 @@ impl ProtobufSerializer {
         block_match_tag.line("0 => break,");
 
         for (prev_tag, field) in fields.iter().enumerate() {
-            match &field.r#type().clone().into_inner_type() {
+            match field.r#type().clone().as_inner_type() {
                 RustType::Complex(name, _asn_tag) => {
                     let mut block_case = Block::new(&format!(
                         "{} => read_{}{}(",
                         prev_tag + 1,
                         RustCodeGenerator::rust_field_name(field.name(), false),
-                        if let RustType::Vec(..) = field.r#type().clone().no_option() {
+                        if let RustType::Vec(..) = field.r#type().as_no_option() {
                             ".get_or_insert_with(Vec::default).push"
                         } else {
                             " = Some"
@@ -177,7 +177,7 @@ impl ProtobufSerializer {
                     block_match_tag.push_block(block_case);
                 }
                 role => {
-                    if let RustType::Vec(..) = field.r#type().clone().no_option() {
+                    if let RustType::Vec(..) = field.r#type().as_no_option() {
                         block_match_tag.line(format!(
                             "{} => read_{}.get_or_insert_with(Vec::default).push({}),",
                             prev_tag + 1,
@@ -205,14 +205,14 @@ impl ProtobufSerializer {
         let mut return_block = Block::new(&format!("Ok({}", name));
         for field in fields.iter() {
             let as_rust_statement =
-                Self::get_as_rust_type_statement(&field.r#type().clone().into_inner_type());
+                Self::get_as_rust_type_statement(field.r#type().as_inner_type());
             return_block.line(&format!(
                 "{}: read_{}{}{},",
                 RustCodeGenerator::rust_field_name(field.name(), true),
                 RustCodeGenerator::rust_field_name(field.name(), false),
                 if as_rust_statement.is_empty() {
                     "".into()
-                } else if let RustType::Vec(..) = field.r#type().clone().no_option() {
+                } else if let RustType::Vec(..) = field.r#type().as_no_option() {
                     format!(
                         ".map(|v| v.into_iter().map(|v| v{}).collect())",
                         as_rust_statement
@@ -263,9 +263,9 @@ impl ProtobufSerializer {
                 },
             ));
             let complex_name = if let RustType::Complex(name, _asn_tag) =
-                variant.r#type().clone().into_inner_type()
+                variant.r#type().clone().as_inner_type()
             {
-                Some(name)
+                Some(name.clone())
             } else {
                 None
             };
@@ -341,7 +341,7 @@ impl ProtobufSerializer {
                 format!("&self.{}", attribute_name)
             }
         ));
-        match aliased.clone().into_inner_type() {
+        match aliased.as_inner_type() {
             RustType::Complex(_, _asn_tag) => {
                 block_for.line(format!(
                     "writer.write_tag({}, {})?;",
@@ -363,7 +363,7 @@ impl ProtobufSerializer {
                     Self::get_as_protobuf_type_statement(
                         format!(
                             "{}value",
-                            if aliased.clone().into_inner_type().is_primitive() {
+                            if aliased.as_inner_type().is_primitive() {
                                 "*"
                             } else {
                                 ""
@@ -408,7 +408,7 @@ impl ProtobufSerializer {
         mut block: &mut Block,
         deny_self: bool,
     ) {
-        match &field_type.clone().no_option() {
+        match &field_type.as_no_option() {
             RustType::Vec(..) => {
                 Self::impl_write_for_vec_attribute(&mut block, field_type, &field_name, tag);
             }

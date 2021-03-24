@@ -44,6 +44,7 @@ use self::async_psql::AsyncPsqlInserter;
 #[cfg(feature = "legacy-protobuf-codegen")]
 #[cfg_attr(feature = "legacy-protobuf-codegen", allow(deprecated))]
 use self::protobuf::ProtobufSerializer;
+use std::convert::Infallible;
 
 const KEYWORDS: [&str; 9] = [
     "use", "mod", "const", "type", "pub", "enum", "struct", "impl", "trait",
@@ -96,7 +97,7 @@ impl Default for RustCodeGenerator {
 }
 
 impl Generator<Rust> for RustCodeGenerator {
-    type Error = ();
+    type Error = Infallible;
 
     fn add_model(&mut self, model: Model<Rust>) {
         self.models.push(model);
@@ -111,25 +112,18 @@ impl Generator<Rust> for RustCodeGenerator {
     }
 
     fn to_string(&self) -> Result<Vec<(String, String)>, Self::Error> {
-        let mut files = Vec::new();
-        for model in &self.models {
-            files.push(self.model_to_file(
-                model,
-                &[
-                    #[cfg(feature = "legacy-uper-codegen")]
-                    #[cfg_attr(feature = "legacy-uper-codegen", allow(deprecated))]
-                    &uper::UperSerializer,
-                    #[cfg(feature = "legacy-protobuf-codegen")]
-                    #[cfg_attr(feature = "legacy-protobuf-codegen", allow(deprecated))]
-                    &ProtobufSerializer,
-                    #[cfg(feature = "psql")]
-                    &PsqlInserter,
-                    #[cfg(feature = "async-psql")]
-                    &AsyncPsqlInserter,
-                ],
-            ));
-        }
-        Ok(files)
+        Ok(self.to_string_with_generators(&[
+            #[cfg(feature = "legacy-uper-codegen")]
+            #[cfg_attr(feature = "legacy-uper-codegen", allow(deprecated))]
+            &uper::UperSerializer,
+            #[cfg(feature = "legacy-protobuf-codegen")]
+            #[cfg_attr(feature = "legacy-protobuf-codegen", allow(deprecated))]
+            &ProtobufSerializer,
+            #[cfg(feature = "psql")]
+            &PsqlInserter,
+            #[cfg(feature = "async-psql")]
+            &AsyncPsqlInserter,
+        ]))
     }
 }
 
@@ -152,6 +146,21 @@ impl RustCodeGenerator {
 
     pub fn set_fields_have_getter_and_setter(&mut self, allow: bool) {
         self.getter_and_setter = allow;
+    }
+
+    pub fn to_string_without_generators(&self) -> Vec<(String, String)> {
+        self.to_string_with_generators(&[])
+    }
+
+    pub fn to_string_with_generators(
+        &self,
+        generators: &[&dyn GeneratorSupplement<Rust>],
+    ) -> Vec<(String, String)> {
+        let mut files = Vec::new();
+        for model in &self.models {
+            files.push(self.model_to_file(model, generators));
+        }
+        files
     }
 
     pub fn model_to_file(
@@ -974,7 +983,11 @@ pub(crate) mod tests {
         .to_rust();
 
         let gen = RustCodeGenerator::from(model);
-        let (_file_name, file_content) = gen.to_string().unwrap().into_iter().next().unwrap();
+        let (_file_name, file_content) = gen
+            .to_string_without_generators()
+            .into_iter()
+            .next()
+            .unwrap();
 
         assert_starts_with_lines(
             r#"
@@ -1013,7 +1026,11 @@ pub(crate) mod tests {
         .to_rust();
 
         let gen = RustCodeGenerator::from(model);
-        let (_file_name, file_content) = gen.to_string().unwrap().into_iter().next().unwrap();
+        let (_file_name, file_content) = gen
+            .to_string_without_generators()
+            .into_iter()
+            .next()
+            .unwrap();
 
         assert_starts_with_lines(
             r#"

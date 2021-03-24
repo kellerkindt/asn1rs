@@ -53,9 +53,6 @@ pub enum RustType {
 
 impl RustType {
     pub fn as_inner_type(&self) -> &RustType {
-        if self.is_primitive() {
-            return self;
-        }
         if let RustType::Vec(inner, ..) | RustType::Option(inner) = self {
             inner.as_inner_type()
         } else {
@@ -64,9 +61,6 @@ impl RustType {
     }
 
     pub fn into_inner_type(self) -> RustType {
-        if self.is_primitive() {
-            return self;
-        }
         if let RustType::Vec(inner, ..) | RustType::Option(inner) = self {
             inner.into_inner_type()
         } else {
@@ -74,19 +68,8 @@ impl RustType {
         }
     }
 
-    pub fn to_inner(&self) -> Option<String> {
-        if self.is_primitive() {
-            return Some(self.to_string());
-        }
-        if let RustType::Vec(inner, ..) | RustType::Option(inner) = self {
-            inner.to_inner()
-        } else {
-            None
-        }
-    }
-
     pub fn to_inner_type_string(&self) -> String {
-        self.to_inner().unwrap_or_else(|| self.to_string())
+        self.as_inner_type().to_string()
     }
 
     pub fn no_option(self) -> Self {

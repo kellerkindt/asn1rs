@@ -505,7 +505,7 @@ impl UperSerializer {
                 &mut block,
                 Some(Member::Instance(
                     field.name().to_string(),
-                    !field.r#type().clone().no_option().is_primitive(),
+                    !field.r#type().as_no_option().is_primitive(),
                     false,
                 )),
                 field.r#type(),

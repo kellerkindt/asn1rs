@@ -100,7 +100,7 @@ pub(crate) fn list_entry_query_statement(name: &str, inner: &RustType) -> String
             name, name
         )
     } else {
-        let inner = inner.clone().into_inner_type().to_string();
+        let inner = inner.clone().as_inner_type().to_string();
         format!(
             "SELECT * FROM {} INNER JOIN {}ListEntry ON {}.id = {}ListEntry.value WHERE {}ListEntry.list = $1",
             inner, name, inner, name, name

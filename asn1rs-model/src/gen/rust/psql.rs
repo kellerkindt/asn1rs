@@ -262,16 +262,16 @@ impl PsqlInserter {
     }
 
     fn wrap_for_insert_in_as_or_from_if_required(name: &str, rust: &RustType) -> Option<String> {
-        let inner_sql = rust.clone().into_inner_type().to_sql();
-        let inner_rust = rust.clone().into_inner_type();
-        if inner_sql.to_rust().into_inner_type().similar(&inner_rust) {
+        let inner_sql = rust.as_inner_type().to_sql();
+        let inner_rust = rust.as_inner_type();
+        if inner_sql.to_rust().as_inner_type().similar(&inner_rust) {
             None
         } else {
             Some({
                 let rust_from_sql = inner_sql.to_rust().into_inner_type();
                 let as_target = rust_from_sql.to_string();
                 let use_from_instead_of_as =
-                    rust_from_sql.is_primitive() && rust_from_sql > inner_rust;
+                    rust_from_sql.is_primitive() && rust_from_sql > *inner_rust;
                 if let RustType::Option(_) = rust {
                     if use_from_instead_of_as {
                         format!("{}.map({}::from)", name, as_target)
@@ -288,9 +288,9 @@ impl PsqlInserter {
     }
 
     fn wrap_for_query_in_as_or_from_if_required(name: &str, rust: &RustType) -> Option<String> {
-        let inner_sql = rust.clone().into_inner_type().to_sql();
-        let inner_rust = rust.clone().into_inner_type();
-        if inner_sql.to_rust().into_inner_type().similar(&inner_rust) {
+        let inner_sql = rust.as_inner_type().to_sql();
+        let inner_rust = rust.as_inner_type();
+        if inner_sql.to_rust().as_inner_type().similar(&inner_rust) {
             None
         } else {
             Some({
@@ -379,13 +379,13 @@ impl PsqlInserter {
             block
         };
         if Model::<Sql>::is_primitive(rust) {
-            let inner_sql = rust.clone().into_inner_type().to_sql();
-            let inner_rust = rust.clone().into_inner_type();
-            if !inner_sql.to_rust().into_inner_type().similar(&inner_rust) {
+            let inner_sql = rust.as_inner_type().to_sql();
+            let inner_rust = rust.as_inner_type();
+            if !inner_sql.to_rust().as_inner_type().similar(&inner_rust) {
                 let rust_from_sql = inner_sql.to_rust().into_inner_type();
                 let as_target = rust_from_sql.to_string();
                 let use_from_instead_of_as =
-                    rust_from_sql.is_primitive() && rust_from_sql > inner_rust;
+                    rust_from_sql.is_primitive() && rust_from_sql > *inner_rust;
                 block_for.line(format!(
                     "let value = {};",
                     if use_from_instead_of_as {
@@ -506,11 +506,11 @@ impl PsqlInserter {
 
                 load_block.line(&format!(
                     "let rows = transaction.query(\"{}\", &[&{}::expect_returned_index(&row)?])?;",
-                    if let RustType::Complex(complex, _tag) = rust.clone().into_inner_type() {
+                    if let RustType::Complex(complex, _tag) = rust.as_inner_type() {
                         struct_list_entry_select_referenced_value_statement(
                             struct_name,
                             name,
-                            &complex,
+                            complex,
                         )
                     } else {
                         struct_list_entry_select_value_statement(struct_name, name)
@@ -518,20 +518,20 @@ impl PsqlInserter {
                     ERROR_TYPE
                 ));
                 let mut rows_foreach = Block::new("for row in rows.iter()");
-                if let RustType::Complex(complex, _tag) = rust.clone().into_inner_type() {
+                if let RustType::Complex(complex, _tag) = rust.as_inner_type() {
                     rows_foreach.line(&format!(
                         "vec.push({}::load_from(transaction, &row)?);",
                         complex
                     ));
                 } else {
-                    let rust = rust.clone().into_inner_type();
+                    let rust = rust.as_inner_type();
                     let sql = rust.to_sql();
                     rows_foreach.line(&format!(
                         "let value = {}::value_at_column::<{}>(&row, 0)?;",
                         ERROR_TYPE,
                         sql.to_rust().to_string(),
                     ));
-                    if rust < sql.to_rust() {
+                    if *rust < sql.to_rust() {
                         rows_foreach.line(&format!("let value = value as {};", rust.to_string()));
                     }
                     rows_foreach.line("vec.push(value);");
@@ -558,7 +558,7 @@ impl PsqlInserter {
                     Self::wrap_for_query_in_as_or_from_if_required(&load, rust,).unwrap_or(load)
                 ));
             } else {
-                let inner = rust.clone().into_inner_type();
+                let inner = rust.as_inner_type();
                 let load = if let RustType::Option(_) = rust {
                     format!(
                         "{}::value_at_column::<Option<i32>>(&row, {})?\
@@ -647,7 +647,7 @@ impl PsqlInserter {
             } else {
                 block_case.line(&format!(
                     "{}::query_with(transaction, row.get({}))?",
-                    variant.r#type().clone().into_inner_type().to_string(),
+                    variant.r#type().clone().as_inner_type().to_string(),
                     index + 1
                 ));
             }
@@ -678,8 +678,8 @@ impl PsqlInserter {
     fn impl_tupl_struct_query_fn(func: &mut Function, name: &str, rust: &RustType) {
         func.line("let statement = transaction.prepare(Self::query_statement())?;");
         func.line("let rows = transaction.query(&statement, &[&id])?;");
-        let inner = rust.clone().into_inner_type();
-        if Model::<Sql>::is_primitive(&inner) {
+        let inner = rust.as_inner_type();
+        if Model::<Sql>::is_primitive(inner) {
             let from_sql = inner.to_sql().to_rust();
 
             let load = format!(
