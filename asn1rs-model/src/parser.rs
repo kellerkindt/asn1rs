@@ -362,10 +362,35 @@ mod tests {
     }
 
     #[test]
-    pub fn test_token_into_text_or_err() {
+    pub fn test_token_into_text_or_else_succeed() {
+        assert_eq!(
+            Ok("SEQUENCE".to_string()),
+            Token::Text(Location::default(), "SEQUENCE".to_string())
+                .into_text_or_else(|_| unreachable!())
+        );
+    }
+
+    #[test]
+    pub fn test_token_into_text_or_else_fail() {
         assert_eq!(
             Err(()),
             Token::Separator(Location::default(), '.').into_text_or_else(|_| ())
+        );
+    }
+
+    #[test]
+    pub fn test_token_into_separator_or_else_succeed() {
+        assert_eq!(
+            Ok('.'),
+            Token::Separator(Location::default(), '.').into_separator_or_else(|_| unreachable!())
+        );
+    }
+
+    #[test]
+    pub fn test_token_into_separator_or_else_fail() {
+        assert_eq!(
+            Err(()),
+            Token::Text(Location::default(), String::default()).into_separator_or_else(|_| ())
         );
     }
 }
