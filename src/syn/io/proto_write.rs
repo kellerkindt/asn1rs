@@ -1,5 +1,6 @@
 use crate::io::protobuf::ProtoWrite as _;
 use crate::io::protobuf::{Error, Format};
+use crate::prelude::ProtobufReader;
 use crate::syn::*;
 use std::io::Write;
 
@@ -27,21 +28,36 @@ impl std::io::Write for SliceOrVec<'_> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         match self {
             Self::Vec(vec) => vec.write(buf),
-            Self::Slice(_, slice) => slice.write(buf),
+            Self::Slice(written, slice) => {
+                let (_left, mut right) = slice.split_at_mut(*written);
+                let len_before = right.len();
+                let result = right.write(buf);
+                let len_after = right.len();
+                *written += len_before.saturating_sub(len_after);
+                result
+            }
         }
     }
 
+    #[inline]
     fn flush(&mut self) -> std::io::Result<()> {
+        // this is a no-op because there is no buffer in-front of the buffer
         match self {
-            Self::Vec(vec) => vec.flush(),
-            Self::Slice(_, slice) => slice.flush(),
+            Self::Vec(..) | Self::Slice(..) => Ok(()),
         }
     }
 
     fn write_all(&mut self, buf: &[u8]) -> std::io::Result<()> {
         match self {
             Self::Vec(vec) => vec.write_all(buf),
-            Self::Slice(_, slice) => slice.write_all(buf),
+            Self::Slice(written, slice) => {
+                let (_left, mut right) = slice.split_at_mut(*written);
+                let len_before = right.len();
+                let result = right.write_all(buf);
+                let len_after = right.len();
+                *written += len_before.saturating_sub(len_after);
+                result
+            }
         }
     }
 }
@@ -70,7 +86,7 @@ impl Default for ProtobufWriter<'_> {
 impl<'a> From<&'a mut [u8]> for ProtobufWriter<'a> {
     fn from(slice: &'a mut [u8]) -> Self {
         ProtobufWriter {
-            buffer: SliceOrVec::Slice(slice.len(), slice),
+            buffer: SliceOrVec::Slice(0, slice),
             state: State::default(),
             is_root: true,
         }
@@ -81,14 +97,25 @@ impl<'a> ProtobufWriter<'a> {
     pub fn into_bytes_vec(self) -> Vec<u8> {
         match self.buffer {
             SliceOrVec::Vec(vec) => vec,
-            SliceOrVec::Slice(_, slice) => slice.to_vec(),
+            SliceOrVec::Slice(written, slice) => slice[..written].to_vec(),
         }
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        match &self.buffer {
+            SliceOrVec::Vec(vec) => &vec[..],
+            SliceOrVec::Slice(written, slice) => &slice[..*written],
+        }
+    }
+
+    pub fn as_reader(&self) -> ProtobufReader {
+        ProtobufReader::from(self.as_bytes())
     }
 
     pub fn len_written(&self) -> usize {
         match &self.buffer {
             SliceOrVec::Vec(vec) => vec.len(),
-            SliceOrVec::Slice(before, slice) => before.saturating_sub(slice.len()),
+            SliceOrVec::Slice(written, _slice) => *written,
         }
     }
 

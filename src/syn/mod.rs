@@ -115,11 +115,6 @@ pub trait Readable: Sized {
 pub trait ReadableType {
     type Type: Sized;
 
-    #[inline]
-    fn read_ref<R: Reader>(&self, reader: &mut R) -> Result<Self::Type, R::Error> {
-        Self::read_value(reader)
-    }
-
     fn read_value<R: Reader>(reader: &mut R) -> Result<Self::Type, R::Error>;
 }
 
@@ -221,17 +216,13 @@ pub trait Writable {
 pub trait WritableType {
     type Type;
 
-    #[inline]
-    fn write_ref<W: Writer>(&self, writer: &mut W, value: &Self::Type) -> Result<(), W::Error> {
-        Self::write_value(writer, value)
-    }
-
     fn write_value<W: Writer>(writer: &mut W, value: &Self::Type) -> Result<(), W::Error>;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::prelude::{ProtobufWriter, UperWriter};
     use crate::syn::common;
     use crate::syn::io::PrintlnWriter;
     use crate::syn::sequence::Sequence;
@@ -240,6 +231,7 @@ mod tests {
 
     #[test]
     fn test_compilable() {
+        #[derive(Debug, PartialEq)]
         struct Whatever {
             name: String,
             opt: Option<String>,
@@ -285,6 +277,12 @@ mod tests {
             }
         }
 
+        impl Readable for Whatever {
+            fn read<R: Reader>(reader: &mut R) -> Result<Self, <R as Reader>::Error> {
+                AsnDefWhatever::read_value(reader)
+            }
+        }
+
         let mut writer = PrintlnWriter::default();
         let value = Whatever {
             name: "SeGreatName".to_string(),
@@ -301,5 +299,27 @@ mod tests {
         //    Writing Utf8String(MIN..MAX): Lorem Ipsum
         //        value.write(&mut writer).unwrap();
         writer.write(&value).unwrap();
+
+        //
+        //    Showcase: UPER
+        //
+        let mut writer = UperWriter::default();
+        writer.write(&value).expect("Writing to UPER failed");
+
+        let mut reader = writer.as_reader();
+        let read_value = reader.read::<Whatever>().expect("Reading from UPER failed");
+
+        assert_eq!(value, read_value);
+
+        //
+        //    Showcase: Protobuf
+        //
+        let mut writer = ProtobufWriter::default();
+        writer.write(&value).expect("Writing to UPER failed");
+
+        let mut reader = writer.as_reader();
+        let read_value = reader.read::<Whatever>().expect("Reading from UPER failed");
+
+        assert_eq!(value, read_value);
     }
 }

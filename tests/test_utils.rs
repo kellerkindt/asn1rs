@@ -49,10 +49,32 @@ pub fn serialize_protobuf(to_protobuf: &impl Writable) -> Vec<u8> {
     let mut writer2 = ProtobufWriter::from(&mut vec2[..]);
     writer2.write(to_protobuf).unwrap();
 
+    let len_written = writer2.len_written();
+    let as_bytes_vec = writer2.as_bytes().to_vec();
+    let into_bytes_vec = writer2.into_bytes_vec();
+
     assert_eq!(
         &vec[..],
         &vec2[..],
         "ProtobufWriter output differs between Vec<u8> and &mut [u8] backend"
+    );
+
+    assert_eq!(
+        &vec[..],
+        &as_bytes_vec[..],
+        "ProtobufWriter::as_bytes returns wrong byte slice"
+    );
+
+    assert_eq!(
+        &vec[..],
+        &into_bytes_vec[..],
+        "ProtobufWriter::into_bytes_vec returns wrong vec"
+    );
+
+    assert_eq!(
+        vec.len(),
+        len_written,
+        "ProtobufWriter::len_written returns wrong value"
     );
 
     vec
