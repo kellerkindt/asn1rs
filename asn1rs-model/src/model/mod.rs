@@ -66,15 +66,20 @@ pub use tag::TagProperty;
 pub use tag_resolver::TagResolver;
 
 #[derive(Debug, Clone)]
-pub struct Model<T> {
+pub struct Model<T: Target> {
     pub name: String,
     pub oid: Option<ObjectIdentifier>,
     pub imports: Vec<Import>,
-    pub definitions: Vec<Definition<T>>,
-    pub value_references: Vec<ValueReference<T>>,
+    pub definitions: Vec<Definition<T::DefinitionType>>,
+    pub value_references: Vec<ValueReference<T::ValueReferenceType>>,
 }
 
-impl<T> Default for Model<T> {
+pub trait Target {
+    type DefinitionType;
+    type ValueReferenceType;
+}
+
+impl<T: Target> Default for Model<T> {
     fn default() -> Self {
         Model {
             name: Default::default(),

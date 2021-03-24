@@ -4,9 +4,9 @@ pub mod sql;
 
 pub use self::rust::RustCodeGenerator;
 
-use crate::model::Model;
+use crate::model::{Model, Target};
 
-pub trait Generator<T> {
+pub trait Generator<T: Target> {
     type Error;
 
     fn add_model(&mut self, model: Model<T>);

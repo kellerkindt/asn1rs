@@ -73,6 +73,14 @@ pub struct RustCodeGenerator {
     getter_and_setter: bool,
 }
 
+impl From<Model<Rust>> for RustCodeGenerator {
+    fn from(model: Model<Rust>) -> Self {
+        let mut gen = Self::default();
+        gen.add_model(model);
+        gen
+    }
+}
+
 impl Default for RustCodeGenerator {
     fn default() -> Self {
         RustCodeGenerator {
@@ -168,6 +176,10 @@ impl RustCodeGenerator {
             }
         }
 
+        for vref in &model.value_references {
+            scope.raw(&Self::fmt_const(&vref.name, &vref.role, &vref.value, 0));
+        }
+
         for definition in &model.definitions {
             self.add_definition(&mut scope, definition);
             Self::impl_definition(&mut scope, definition, generators, self.getter_and_setter);
@@ -178,6 +190,21 @@ impl RustCodeGenerator {
         }
 
         (file, scope.to_string())
+    }
+
+    fn fmt_const(name: &str, r#type: &RustType, value: &str, indent: usize) -> String {
+        format!(
+            "{}pub const {}: {} = {};",
+            "    ".repeat(indent),
+            name,
+            r#type.to_string(),
+            // TODO this does only support a small variety of constant types
+            if matches!(r#type, RustType::String(..)) {
+                Cow::Owned(format!("\"{}\"", value))
+            } else {
+                Cow::Borrowed(value)
+            }
+        )
     }
 
     pub fn add_definition(&self, scope: &mut Scope, Definition(name, rust): &Definition<Rust>) {
@@ -454,6 +481,13 @@ impl RustCodeGenerator {
                 extension_after: _,
                 ordering: _,
             } => {
+                Self::impl_consts(
+                    scope,
+                    name,
+                    fields
+                        .iter()
+                        .map(|f| (f.name_type.0.as_str(), &f.name_type.1, &f.constants[..])),
+                );
                 let implementation = Self::impl_struct(scope, name, fields, getter_and_setter);
                 for g in generators {
                     g.extend_impl_of_struct(name, implementation, fields);
@@ -476,8 +510,9 @@ impl RustCodeGenerator {
             Rust::TupleStruct {
                 r#type: inner,
                 tag: _,
-                constants: _,
+                constants,
             } => {
+                Self::impl_consts(scope, name, Some(("", inner, &constants[..])).into_iter());
                 let implementation = Self::impl_tuple_struct(scope, name, inner);
                 for g in generators {
                     g.extend_impl_of_tuple(name, implementation, inner);
@@ -533,6 +568,35 @@ impl RustCodeGenerator {
             Self::add_min_max_fn_if_applicable(implementation, Some(field.name()), field.r#type());
         }
         implementation
+    }
+
+    fn impl_consts<'a>(
+        scope: &mut Scope,
+        name: &str,
+        fields: impl Iterator<Item = (&'a str, &'a RustType, &'a [(String, String)])>,
+    ) {
+        let mut found_consts = false;
+        for (field, r#type, constants) in fields {
+            if !found_consts && !constants.is_empty() {
+                scope.raw(&format!("impl {} {{", name));
+                found_consts = true;
+            }
+            for (name, value) in constants {
+                scope.raw(&Self::fmt_const(
+                    &if field.is_empty() {
+                        Cow::Borrowed(name)
+                    } else {
+                        Cow::Owned(format!("{}_{}", field.to_uppercase(), name))
+                    },
+                    r#type,
+                    value,
+                    1,
+                ));
+            }
+        }
+        if found_consts {
+            scope.raw("}");
+        }
     }
 
     fn impl_struct_field_get(implementation: &mut Impl, field_name: &str, field_type: &RustType) {
@@ -882,5 +946,90 @@ impl RustCodeGenerator {
             .arg_ref_self()
             .arg("writer", format!("&mut dyn {}Writer", codec))
             .ret(format!("Result<(), {}Error>", codec))
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use super::*;
+    use crate::gen::rust::walker::tests::assert_starts_with_lines;
+    use crate::parser::Tokenizer;
+
+    #[test]
+    pub fn test_integer_struct_constants() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r#"BasicInteger DEFINITIONS AUTOMATIC TAGS ::=
+            BEGIN
+
+            MyStruct ::= SEQUENCE {
+                item INTEGER { apple(8), banana(9) } (0..255)
+            }
+
+            END
+        "#,
+        ))
+        .unwrap()
+        .try_resolve()
+        .unwrap()
+        .to_rust();
+
+        let gen = RustCodeGenerator::from(model);
+        let (_file_name, file_content) = gen.to_string().unwrap().into_iter().next().unwrap();
+
+        assert_starts_with_lines(
+            r#"
+            use asn1rs::prelude::*;
+            
+            #[asn(sequence)]
+            #[derive(Default, Debug, Clone, PartialEq, Hash)]
+            pub struct MyStruct {
+                #[asn(integer(0..255), const(APPLE(8), BANANA(9)))] pub item: u8,
+            }
+            
+            impl MyStruct {
+                pub const ITEM_APPLE: u8 = 8;
+                pub const ITEM_BANANA: u8 = 9;
+            }
+
+        "#,
+            &file_content,
+        );
+    }
+
+    #[test]
+    pub fn test_integer_tuple_constants() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r#"BasicInteger DEFINITIONS AUTOMATIC TAGS ::=
+            BEGIN
+            
+            MyTuple ::= INTEGER { abc(8), bernd(9) } (0..255)
+            
+            END
+        "#,
+        ))
+        .unwrap()
+        .try_resolve()
+        .unwrap()
+        .to_rust();
+
+        let gen = RustCodeGenerator::from(model);
+        let (_file_name, file_content) = gen.to_string().unwrap().into_iter().next().unwrap();
+
+        assert_starts_with_lines(
+            r#"
+            use asn1rs::prelude::*;
+            
+            #[asn(transparent)]
+            #[derive(Default, Debug, Clone, PartialEq, Hash)]
+            pub struct MyTuple(#[asn(integer(0..255), const(ABC(8), BERND(9)))] pub u8);
+            
+            impl MyTuple {
+                pub const ABC: u8 = 8;
+                pub const BERND: u8 = 9;
+            }
+            
+        "#,
+            &file_content,
+        );
     }
 }

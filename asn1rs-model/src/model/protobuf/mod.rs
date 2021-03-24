@@ -1,5 +1,6 @@
 use crate::model::rust::*;
 use crate::model::*;
+use std::convert::Infallible;
 
 const TUPLE_VARIABLE_NAME_REPLACEMENT: &str = "value";
 const DATAENUM_VARIABLE_NAME_REPLACEMENT: &str = "value";
@@ -106,6 +107,11 @@ impl ToProtobufType for RustType {
 pub enum Protobuf {
     Message(Vec<(String, ProtobufType)>),
     Enum(Vec<String>),
+}
+
+impl Target for Protobuf {
+    type DefinitionType = Self;
+    type ValueReferenceType = Infallible;
 }
 
 impl Model<Protobuf> {

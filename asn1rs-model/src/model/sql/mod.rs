@@ -1,12 +1,13 @@
 use crate::gen::RustCodeGenerator;
 use crate::model::rust::{DataEnum, DataVariant, EncodingOrdering};
 use crate::model::rust::{Field, PlainEnum};
-use crate::model::Range;
 use crate::model::Rust;
 use crate::model::RustType;
 use crate::model::{Charset, Model};
 use crate::model::{Definition, Size};
+use crate::model::{Range, Target};
 use std::collections::HashMap;
+use std::convert::Infallible;
 
 const FOREIGN_KEY_DEFAULT_COLUMN: &str = "id";
 const TUPLE_LIST_ENTRY_PARENT_COLUMN: &str = "list";
@@ -135,6 +136,11 @@ pub enum Sql {
     /// Table being affected to ->
     AbandonChildrenFunction(String, Vec<(String, String, String)>),
     SilentlyPreventAnyDelete(String),
+}
+
+impl Target for Sql {
+    type DefinitionType = Self;
+    type ValueReferenceType = Infallible;
 }
 
 impl Model<Sql> {

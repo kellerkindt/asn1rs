@@ -1,7 +1,8 @@
+use crate::model::lor::{ResolveState, Resolved};
 use crate::model::rust::Field as RustField;
-use crate::model::ComponentTypeList;
-use crate::model::{Asn, ChoiceVariant};
+use crate::model::{Asn, ChoiceVariant, Integer, Target};
 use crate::model::{Charset, Range};
+use crate::model::{ComponentTypeList, ValueReference};
 use crate::model::{Definition, Type};
 use crate::model::{Import, Tag, TagProperty};
 use crate::model::{Model, Size};
@@ -329,6 +330,11 @@ impl Rust {
     }
 }
 
+impl Target for Rust {
+    type DefinitionType = Rust;
+    type ValueReferenceType = RustType;
+}
+
 impl TagProperty for Rust {
     fn tag(&self) -> Option<Tag> {
         match self {
@@ -568,10 +574,44 @@ impl Model<Rust> {
             };
             Self::definition_to_rust(&rust_name, &asn.r#type, asn.tag, &mut ctxt);
         }
+        for vref in &asn_model.value_references {
+            if let Some(rust_type) = Self::flat_map_asn_type_to_rust_type(&vref.role.r#type) {
+                model.value_references.push(ValueReference {
+                    name: rust_constant_name(&vref.name),
+                    role: rust_type,
+                    value: vref.value.clone(),
+                });
+            } else {
+                // TODO
+            }
+        }
         model
     }
 
-    /// Converts the given `Asn` value to `Rust`, adding new `Defintion`s as
+    fn flat_map_asn_type_to_rust_type(r#type: &Type) -> Option<RustType> {
+        Some(match &r#type {
+            Type::Boolean => RustType::Bool,
+            Type::Integer(int) if int.range.extensible() => {
+                Self::asn_extensible_integer_to_rust(int)
+            }
+            Type::Integer(int) => Self::asn_fixed_integer_to_rust_type(int),
+            Type::String(size, charset) => RustType::String(size.clone(), *charset),
+            Type::OctetString(size) => RustType::VecU8(size.clone()),
+            Type::BitString(bs) => RustType::BitVec(bs.size.clone()),
+            Type::Optional(opt) => {
+                RustType::Option(Box::new(Self::flat_map_asn_type_to_rust_type(&**opt)?))
+            }
+            Type::Sequence(_)
+            | Type::SequenceOf(_, _)
+            | Type::Set(_)
+            | Type::SetOf(_, _)
+            | Type::Enumerated(_)
+            | Type::Choice(_)
+            | Type::TypeReference(_, _) => return None,
+        })
+    }
+
+    /// Converts the given `Asn` value to `Rust`, adding new `Definition`s as
     /// necessary (inlined types cannot be represented in rust and thus need to
     /// be extracted to their own types).
     /// The returned value is what shall be used to reference to the definition
@@ -770,54 +810,9 @@ impl Model<Rust> {
         match asn {
             AsnType::Boolean => RustType::Bool,
             AsnType::Integer(int) if int.range.extensible() => {
-                match (int.range.min(), int.range.max()) {
-                    (None, None)
-                    | (Some(0), None)
-                    | (Some(0), Some(i64::MAX))
-                    | (None, Some(i64::MAX)) => RustType::U64(Range(None, None, true)),
-                    (min, max) if min.unwrap_or_default() >= 0 && max.unwrap_or_default() >= 0 => {
-                        RustType::U64(Range(min.map(|v| v as u64), max.map(|v| v as u64), true))
-                    }
-                    (min, max) => RustType::I64(Range(
-                        min.unwrap_or_else(i64::min_value),
-                        max.unwrap_or_else(i64::max_value),
-                        true,
-                    )),
-                }
+                Self::asn_extensible_integer_to_rust(int)
             }
-            AsnType::Integer(int) => {
-                match (int.range.min(), int.range.max()) {
-                    (None, None)
-                    | (Some(0), None)
-                    | (Some(0), Some(i64::MAX))
-                    | (None, Some(i64::MAX)) => RustType::U64(Range(None, None, false)),
-                    (min, max) => {
-                        let min = min.unwrap_or_default();
-                        let max = max.unwrap_or(i64::MAX);
-                        if min >= 0 {
-                            match max as u64 {
-                                m if m <= U8_MAX => RustType::U8(Range::inclusive(min as u8, max as u8)),
-                                m if m <= U16_MAX => RustType::U16(Range::inclusive(min as u16, max as u16)),
-                                m if m <= U32_MAX => RustType::U32(Range::inclusive(min as u32, max as u32)),
-                                _/*m if m <= U64_MAX*/ => RustType::U64(Range::inclusive(Some(min as u64), Some(max as u64))),
-                                //_ => panic!("This should never happen, since max (as u64 frm i64) cannot be greater than U64_MAX")
-                            }
-                        } else {
-                            // i32 => -2147483648    to    2147483647  --\
-                            //        -2147483648 + 1   = -2147483647    | same
-                            //    abs(-2147483648 + 1)  =  2147483647  --/
-                            let max_amplitude = (min + 1).abs().max(max);
-                            match max_amplitude {
-                                _ if max_amplitude <= I8_MAX => RustType::I8(Range::inclusive(min as i8, max as i8)),
-                                _ if max_amplitude <= I16_MAX => RustType::I16(Range::inclusive(min as i16, max as i16)),
-                                _ if max_amplitude <= I32_MAX => RustType::I32(Range::inclusive(min as i32, max as i32)),
-                                _/*if max_amplitude <= I64_MAX*/ => RustType::I64(Range::inclusive(min as i64, max as i64)),
-                                //_ => panic!("This should never happen, since max (being i64) cannot be greater than I64_MAX")
-                            }
-                        }
-                    }
-                }
-            }
+            AsnType::Integer(int) => Self::asn_fixed_integer_to_rust_type(int),
 
             AsnType::String(size, charset) => RustType::String(size.clone(), *charset),
             AsnType::OctetString(size) => RustType::VecU8(size.clone()),
@@ -862,6 +857,59 @@ impl Model<Rust> {
                 name.clone(),
                 tag.clone().or_else(|| ctxt.resolver().resolve_tag(name)),
             ),
+        }
+    }
+
+    fn asn_extensible_integer_to_rust(
+        int: &Integer<<Resolved as ResolveState>::RangeType>,
+    ) -> RustType {
+        match (int.range.min(), int.range.max()) {
+            (None, None) | (Some(0), None) | (Some(0), Some(i64::MAX)) | (None, Some(i64::MAX)) => {
+                RustType::U64(Range(None, None, true))
+            }
+            (min, max) if min.unwrap_or_default() >= 0 && max.unwrap_or_default() >= 0 => {
+                RustType::U64(Range(min.map(|v| v as u64), max.map(|v| v as u64), true))
+            }
+            (min, max) => RustType::I64(Range(
+                min.unwrap_or_else(i64::min_value),
+                max.unwrap_or_else(i64::max_value),
+                true,
+            )),
+        }
+    }
+
+    fn asn_fixed_integer_to_rust_type(
+        int: &Integer<<Resolved as ResolveState>::RangeType>,
+    ) -> RustType {
+        match (int.range.min(), int.range.max()) {
+            (None, None) | (Some(0), None) | (Some(0), Some(i64::MAX)) | (None, Some(i64::MAX)) => {
+                RustType::U64(Range(None, None, false))
+            }
+            (min, max) => {
+                let min = min.unwrap_or_default();
+                let max = max.unwrap_or(i64::MAX);
+                if min >= 0 {
+                    match max as u64 {
+                        m if m <= U8_MAX => RustType::U8(Range::inclusive(min as u8, max as u8)),
+                        m if m <= U16_MAX => RustType::U16(Range::inclusive(min as u16, max as u16)),
+                        m if m <= U32_MAX => RustType::U32(Range::inclusive(min as u32, max as u32)),
+                        _/*m if m <= U64_MAX*/ => RustType::U64(Range::inclusive(Some(min as u64), Some(max as u64))),
+                        //_ => panic!("This should never happen, since max (as u64 frm i64) cannot be greater than U64_MAX")
+                    }
+                } else {
+                    // i32 => -2147483648    to    2147483647  --\
+                    //        -2147483648 + 1   = -2147483647    | same
+                    //    abs(-2147483648 + 1)  =  2147483647  --/
+                    let max_amplitude = (min + 1).abs().max(max);
+                    match max_amplitude {
+                        _ if max_amplitude <= I8_MAX => RustType::I8(Range::inclusive(min as i8, max as i8)),
+                        _ if max_amplitude <= I16_MAX => RustType::I16(Range::inclusive(min as i16, max as i16)),
+                        _ if max_amplitude <= I32_MAX => RustType::I32(Range::inclusive(min as i32, max as i32)),
+                        _/*if max_amplitude <= I64_MAX*/ => RustType::I64(Range::inclusive(min as i64, max as i64)),
+                        //_ => panic!("This should never happen, since max (being i64) cannot be greater than I64_MAX")
+                    }
+                }
+            }
         }
     }
 }
@@ -938,6 +986,11 @@ pub fn rust_module_name(name: &str) -> String {
         prev_alphabetic = alphabetic;
     }
     out
+}
+
+#[allow(clippy::module_name_repetitions)]
+pub fn rust_constant_name(name: &str) -> String {
+    rust_module_name(name).to_uppercase()
 }
 
 #[cfg(test)]

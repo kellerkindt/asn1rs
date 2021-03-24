@@ -10,10 +10,7 @@ pub fn asn_to_rust(input: &str) -> String {
         .try_resolve()
         .expect("Failed to resolve value references");
 
-    let mut generator = RustGenerator::default();
-    generator.add_model(model.to_rust());
-
-    let output = generator
+    let output = RustGenerator::from(model.to_rust())
         .to_string()
         .unwrap()
         .into_iter()

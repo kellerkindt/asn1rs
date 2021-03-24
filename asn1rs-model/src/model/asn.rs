@@ -2,7 +2,7 @@ use crate::model::lor::{Error as ResolveError, TryResolve, Unresolved};
 use crate::model::lor::{ResolveState, Resolved, Resolver};
 use crate::model::{
     BitString, Charset, Choice, ChoiceVariant, ComponentTypeList, Enumerated, Field, Integer,
-    Range, Size, Tag, TagProperty,
+    Range, Size, Tag, TagProperty, Target,
 };
 use std::fmt::Debug;
 
@@ -10,6 +10,11 @@ use std::fmt::Debug;
 pub struct Asn<RS: ResolveState = Resolved> {
     pub tag: Option<Tag>,
     pub r#type: Type<RS>,
+}
+
+impl<RS: ResolveState> Target for Asn<RS> {
+    type DefinitionType = Self;
+    type ValueReferenceType = Self;
 }
 
 impl<RS: ResolveState> Asn<RS> {
@@ -75,7 +80,7 @@ pub enum Type<RS: ResolveState = Resolved> {
     BitString(BitString<RS::SizeType>),
 
     Optional(Box<Type<RS>>),
-
+    // Default(Box<Type<RS>>, String),
     Sequence(ComponentTypeList<RS>),
     SequenceOf(Box<Type<RS>>, Size<RS::SizeType>),
     Set(ComponentTypeList<RS>),
