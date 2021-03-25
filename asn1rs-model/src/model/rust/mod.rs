@@ -1627,10 +1627,39 @@ mod tests {
     }
 
     #[test]
-    pub fn test_tag_property_rust() {
+    pub fn test_tag_property_rust_struct() {
+        test_property(Rust::Struct {
+            ordering: EncodingOrdering::Keep,
+            fields: Vec::default(),
+            tag: None,
+            extension_after: None,
+        });
+    }
+
+    #[test]
+    pub fn test_tag_property_rust_enum() {
         test_property(Rust::Enum(PlainEnum::from_names(
             Some("Variant").into_iter(),
         )));
+    }
+
+    #[test]
+    pub fn test_tag_property_rust_data_enum() {
+        test_property(Rust::DataEnum(DataEnum::from(vec![
+            DataVariant::from_name_type(
+                "SomeName".to_string(),
+                RustType::String(Size::Any, Charset::Visible),
+            ),
+        ])));
+    }
+
+    #[test]
+    pub fn test_tag_property_rust_tuple_struct() {
+        test_property(Rust::TupleStruct {
+            r#type: RustType::VecU8(Size::Any),
+            tag: None,
+            constants: Vec::default(),
+        });
     }
 
     #[test]
