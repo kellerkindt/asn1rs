@@ -979,6 +979,8 @@ pub fn rust_constant_name(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::gen::rust::walker::tests::assert_starts_with_lines;
+    use crate::gen::RustCodeGenerator;
     use crate::model::tag::tests::test_property;
     use crate::model::tests::*;
     use crate::model::{Choice, Enumerated, EnumeratedVariant, Field, Tag, Type};
@@ -1681,5 +1683,47 @@ mod tests {
             "VariantName".to_string(),
             RustType::Bool,
         ));
+    }
+
+    #[test]
+    pub fn test_value_reference_to_rust() {
+        let asn = Model::<Asn<Resolved>> {
+            name: "SomeGreatName".to_string(),
+            oid: None,
+            imports: Vec::default(),
+            definitions: Vec::default(),
+            value_references: vec![
+                ValueReference {
+                    name: "local-http".to_string(),
+                    role: AsnType::Integer(Integer::with_range(Range::inclusive(
+                        None,
+                        Some(65535),
+                    )))
+                    .untagged(),
+                    value: "8080".to_string(),
+                },
+                ValueReference {
+                    name: "use-firewall".to_string(),
+                    role: AsnType::Boolean.untagged(),
+                    value: "true".to_string(),
+                },
+            ],
+        };
+
+        assert_starts_with_lines(
+            r#"
+            use asn1rs::prelude::*;
+
+            pub const LOCAL_HTTP: u16 = 8080;
+            pub const USE_FIREWALL: bool = true;
+
+        "#,
+            &RustCodeGenerator::from(asn.to_rust())
+                .to_string_without_generators()
+                .into_iter()
+                .map(|(_f, c)| c)
+                .next()
+                .unwrap(),
+        );
     }
 }
