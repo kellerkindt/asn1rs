@@ -90,7 +90,7 @@ impl<'a> ProtobufReader<'a> {
         let tag = self.state.tag_counter + 1;
 
         while !self.state.source.is_empty() {
-            let mut prober = &self.state.source[..];
+            let mut prober = self.state.source;
             let (probed_tag, _format) = prober.read_tag()?;
             if probed_tag == tag {
                 self.state.tag_counter = tag - 1;
@@ -158,7 +158,7 @@ impl<'a> Reader for ProtobufReader<'a> {
         let state = self.state;
 
         let content_reader = |this: &mut Self| {
-            let mut reader = &this.state.source[..];
+            let mut reader = this.state.source;
             let (tag, format) = reader.read_tag()?;
             this.state.tag_counter = tag.saturating_sub(1);
             match C::read_content(u64::from(this.state.tag_counter), this) {
@@ -201,7 +201,7 @@ impl<'a> Reader for ProtobufReader<'a> {
             self.state.tag_counter += 1;
             Ok(None)
         } else {
-            let mut reader = &self.state.source[..];
+            let mut reader = self.state.source;
             let tag = reader.read_tag()?.0;
 
             if tag == self.state.tag_counter + 1 {
@@ -236,20 +236,18 @@ impl<'a> Reader for ProtobufReader<'a> {
                     .read_uint64()
                     .map(|v| T::from_i64(v as i64))
             }
+        } else if const_unwrap_or!(C::MIN, i64::MIN) >= i64::from(i32::MIN)
+            && const_unwrap_or!(C::MAX, i64::MAX) <= i64::from(i32::MAX)
+        {
+            self.state
+                .source
+                .read_sint32()
+                .map(|v| T::from_i64(v as i64))
         } else {
-            if const_unwrap_or!(C::MIN, i64::MIN) >= i64::from(i32::MIN)
-                && const_unwrap_or!(C::MAX, i64::MAX) <= i64::from(i32::MAX)
-            {
-                self.state
-                    .source
-                    .read_sint32()
-                    .map(|v| T::from_i64(v as i64))
-            } else {
-                self.state
-                    .source
-                    .read_sint64()
-                    .map(|v| T::from_i64(v as i64))
-            }
+            self.state
+                .source
+                .read_sint64()
+                .map(|v| T::from_i64(v as i64))
         }
     }
 

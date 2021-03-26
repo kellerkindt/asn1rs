@@ -61,6 +61,7 @@ impl std::io::Write for SliceOrVec<'_> {
         }
     }
 }
+
 impl Default for SliceOrVec<'_> {
     fn default() -> Self {
         Self::Vec(Vec::default())
@@ -300,18 +301,16 @@ impl Writer for ProtobufWriter<'_> {
                 self.buffer.write_tagged_uint64(tag, value)?;
                 self.state.format = Some(Format::VarInt);
             }
+        } else if const_unwrap_or!(C::MIN, i64::MIN) >= i64::from(i32::MIN)
+            && const_unwrap_or!(C::MAX, i64::MAX) <= i64::from(i32::MAX)
+        {
+            let value = value.to_i64() as i32; // safe cast because of check above
+            self.buffer.write_tagged_sint32(tag, value)?;
+            self.state.format = Some(Format::VarInt);
         } else {
-            if const_unwrap_or!(C::MIN, i64::MIN) >= i64::from(i32::MIN)
-                && const_unwrap_or!(C::MAX, i64::MAX) <= i64::from(i32::MAX)
-            {
-                let value = value.to_i64() as i32; // safe cast because of check above
-                self.buffer.write_tagged_sint32(tag, value)?;
-                self.state.format = Some(Format::VarInt);
-            } else {
-                let value = value.to_i64();
-                self.buffer.write_tagged_sint64(tag, value)?;
-                self.state.format = Some(Format::VarInt);
-            }
+            let value = value.to_i64();
+            self.buffer.write_tagged_sint64(tag, value)?;
+            self.state.format = Some(Format::VarInt);
         }
 
         self.state.tag_counter = tag;

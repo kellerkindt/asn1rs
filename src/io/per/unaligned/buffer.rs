@@ -114,11 +114,13 @@ impl BitBuffer {
     }
 }
 
-impl Into<Vec<u8>> for BitBuffer {
-    fn into(self) -> Vec<u8> {
-        self.buffer
+
+impl From<BitBuffer> for Vec<u8> {
+    fn from(bb: BitBuffer) -> Vec<u8> {
+        bb.buffer
     }
 }
+
 
 impl From<Vec<u8>> for BitBuffer {
     fn from(buffer: Vec<u8>) -> Self {
@@ -907,7 +909,7 @@ pub mod tests {
         const RANGE: (u64, u64) = (1, 20);
         let mut buffer = BitBuffer::default();
         buffer.write_octetstring(Some(RANGE.0), Some(RANGE.1), false, BYTES)?;
-        assert_eq!(&[0x19, 0x51, 0x5c, 0xb7, 0xf8], &buffer.content(),);
+        assert_eq!(&[0x19, 0x51, 0x5c, 0xb7, 0xf8], &buffer.content());
         Ok(())
     }
 
@@ -916,7 +918,7 @@ pub mod tests {
         const BYTES: &[u8] = &[0x2A, 0x2B, 0x96, 0xFF];
         let mut buffer = BitBuffer::default();
         buffer.write_octetstring(None, None, false, BYTES)?;
-        assert_eq!(&[0x04, 0x2a, 0x2b, 0x96, 0xff], &buffer.content(),);
+        assert_eq!(&[0x04, 0x2a, 0x2b, 0x96, 0xff], &buffer.content());
         Ok(())
     }
 
@@ -925,7 +927,7 @@ pub mod tests {
         const BYTES: &[u8] = &[];
         let mut buffer = BitBuffer::default();
         buffer.write_octetstring(None, None, false, BYTES)?;
-        assert_eq!(&[0x00], &buffer.content(),);
+        assert_eq!(&[0x00], &buffer.content());
         Ok(())
     }
 

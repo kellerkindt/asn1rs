@@ -234,7 +234,7 @@ impl PrimaryContext for Type {
             })?
             .to_lowercase();
 
-        Ok(parse_type_pre_stepped(&lowercase_ident, input)?)
+        parse_type_pre_stepped(&lowercase_ident, input)
     }
 }
 

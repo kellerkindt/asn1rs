@@ -5,6 +5,7 @@ use syn::Lit;
 use syn::Token;
 
 #[derive(Debug)]
+#[allow(clippy::upper_case_acronyms)]
 enum MMV {
     MinMax,
     Value(i64),
