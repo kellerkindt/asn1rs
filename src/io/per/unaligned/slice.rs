@@ -83,7 +83,7 @@ impl<'a> BitWrite for (&'a mut [u8], &mut usize) {
         src_bit_offset: usize,
         src_bit_len: usize,
     ) -> Result<(), Error> {
-        bit_string_copy_bulked(src, src_bit_offset,  self.0, *self.1, src_bit_len)?;
+        bit_string_copy_bulked(src, src_bit_offset, self.0, *self.1, src_bit_len)?;
         *self.1 += src_bit_len;
         Ok(())
     }

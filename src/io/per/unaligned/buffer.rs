@@ -114,13 +114,11 @@ impl BitBuffer {
     }
 }
 
-
 impl From<BitBuffer> for Vec<u8> {
     fn from(bb: BitBuffer) -> Vec<u8> {
         bb.buffer
     }
 }
-
 
 impl From<Vec<u8>> for BitBuffer {
     fn from(buffer: Vec<u8>) -> Self {
