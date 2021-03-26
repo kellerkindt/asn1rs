@@ -132,6 +132,11 @@ impl RustCodeGenerator {
         self.global_derives.push(derive.into());
     }
 
+    pub fn without_additional_global_derives(mut self) -> Self {
+        self.global_derives.clear();
+        self
+    }
+
     pub const fn fields_are_pub(&self) -> bool {
         self.direct_field_access
     }
@@ -982,8 +987,8 @@ pub(crate) mod tests {
         .unwrap()
         .to_rust();
 
-        let gen = RustCodeGenerator::from(model);
-        let (_file_name, file_content) = gen
+        let (_file_name, file_content) = RustCodeGenerator::from(model)
+            .without_additional_global_derives()
             .to_string_without_generators()
             .into_iter()
             .next()
@@ -1025,8 +1030,8 @@ pub(crate) mod tests {
         .unwrap()
         .to_rust();
 
-        let gen = RustCodeGenerator::from(model);
-        let (_file_name, file_content) = gen
+        let (_file_name, file_content) = RustCodeGenerator::from(model)
+            .without_additional_global_derives()
             .to_string_without_generators()
             .into_iter()
             .next()
