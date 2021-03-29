@@ -473,7 +473,7 @@ impl PsqlInserter {
         func.line("let statement = transaction.prepare(Self::query_statement())?;");
         func.line("let rows = transaction.query(&statement, &[&id])?;");
         func.line(&format!(
-            "Ok({}::load_from(transaction, rows.get(0).ok_or_else({}::no_result)?)?)",
+            "{}::load_from(transaction, rows.get(0).ok_or_else({}::no_result)?)",
             name, ERROR_TYPE,
         ));
     }
@@ -591,7 +591,7 @@ impl PsqlInserter {
         func.line("let statement = transaction.prepare(Self::query_statement())?;");
         func.line("let rows = transaction.query(&statement, &[&id])?;");
         func.line(&format!(
-            "Ok({}::load_from(transaction, rows.get(0).ok_or_else({}::no_result)?)?)",
+            "{}::load_from(transaction, rows.get(0).ok_or_else({}::no_result)?)",
             name, ERROR_TYPE
         ));
     }
