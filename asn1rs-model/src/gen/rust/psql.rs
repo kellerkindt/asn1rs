@@ -670,7 +670,7 @@ impl PsqlInserter {
 
     fn impl_enum_load_fn(func: &mut Function, name: &str) {
         func.line(&format!(
-            "Ok({}::query_with(transaction, {}::expect_returned_index(&row)?)?)",
+            "{}::query_with(transaction, {}::expect_returned_index(&row)?)",
             name, ERROR_TYPE,
         ));
     }
@@ -725,7 +725,7 @@ impl PsqlInserter {
 
     fn impl_tupl_struct_load_fn(func: &mut Function, name: &str) {
         func.line(&format!(
-            "Ok({}::query_with(transaction, {}::expect_returned_index(&row)?)?)",
+            "{}::query_with(transaction, {}::expect_returned_index(&row)?)",
             name, ERROR_TYPE,
         ));
     }
