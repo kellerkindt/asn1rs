@@ -837,7 +837,7 @@ impl Model<Rust> {
                 RustType::Complex(name, tag.or_else(|| ctxt.resolver().resolve_type_tag(ty)))
             }
             AsnType::TypeReference(name, tag) => RustType::Complex(
-                name.clone(),
+                rust_struct_or_enum_name(&name),
                 tag.clone().or_else(|| ctxt.resolver().resolve_tag(name)),
             ),
         }
@@ -921,14 +921,22 @@ pub fn rust_field_name(name: &str) -> String {
 pub fn rust_variant_name(name: &str) -> String {
     let mut out = String::new();
     let mut next_upper = true;
+    let mut prev_upper = false;
     for c in name.chars() {
-        if next_upper {
-            out.push_str(&c.to_uppercase().to_string());
-            next_upper = false;
-        } else if c == '-' {
+        if c == '-' || c == '_' {
             next_upper = true;
+            prev_upper = false;
+        } else if next_upper && !prev_upper {
+            out.push(c.to_ascii_uppercase());
+            next_upper = false;
+            prev_upper = true;
         } else {
-            out.push(c);
+            if prev_upper {
+                out.push(c.to_ascii_lowercase());
+            } else {
+                out.push(c);
+            }
+            prev_upper = c.is_ascii_uppercase();
         }
     }
     out
@@ -987,6 +995,14 @@ mod tests {
     use crate::parser::Tokenizer;
 
     #[test]
+    fn test_rust_name_multiple_upper_case() {
+        assert_eq!(
+            "SomeThingyThingWithId",
+            rust_struct_or_enum_name("some-thingy-ThingWithID")
+        );
+    }
+
+    #[test]
     fn test_simple_asn_sequence_represented_correctly_as_rust_model() {
         let model_rust = Model::try_from(Tokenizer::default().parse(SIMPLE_INTEGER_STRUCT_ASN))
             .unwrap()
@@ -1030,11 +1046,11 @@ mod tests {
                 "WoahDecision".into(),
                 Rust::Enum(
                     vec![
-                        "ABORT".into(),
-                        "RETURN".into(),
-                        "CONFIRM".into(),
-                        "MAYDAY".into(),
-                        "THE_CAKE_IS_A_LIE".into()
+                        "Abort".into(),
+                        "Return".into(),
+                        "Confirm".into(),
+                        "Mayday".into(),
+                        "TheCakeIsALie".into()
                     ]
                     .into()
                 ),
@@ -1175,7 +1191,7 @@ mod tests {
         assert_eq!(
             Definition(
                 "Neither".into(),
-                Rust::Enum(vec!["ABC".into(), "DEF".into(),].into()),
+                Rust::Enum(vec!["Abc".into(), "Def".into(),].into()),
             ),
             model_rust.definitions[2]
         );
@@ -1332,7 +1348,7 @@ mod tests {
                     AsnType::SequenceOf(Box::new(AsnType::unconstrained_utf8string()), Size::Any),
                 ),
                 ChoiceVariant::name_type(
-                    "NESTEDList",
+                    "NESTED-List",
                     AsnType::SequenceOf(
                         Box::new(AsnType::SequenceOf(
                             Box::new(AsnType::unconstrained_octetstring()),
@@ -1362,7 +1378,7 @@ mod tests {
                             ),
                         ),
                         DataVariant::from_name_type(
-                            "NESTEDList",
+                            "NestedList",
                             RustType::Vec(
                                 Box::new(RustType::Vec(
                                     Box::new(RustType::VecU8(Size::Any)),
@@ -1724,6 +1740,71 @@ mod tests {
                 .map(|(_f, c)| c)
                 .next()
                 .unwrap(),
+        );
+    }
+
+    #[test]
+    fn test_to_rust_coherent_complex_reference_renaming() {
+        let asn = Model::<Asn<Resolved>> {
+            name: "CoherentComplexRenaming".to_string(),
+            oid: None,
+            imports: vec![],
+            definitions: vec![
+                Definition("Some-Name-WithID".to_string(), Type::Boolean.untagged()),
+                Definition(
+                    "Complex-Container".to_string(),
+                    Type::Sequence(ComponentTypeList {
+                        fields: vec![
+                            Field {
+                                name: "some-internal".to_string(),
+                                role: Type::Boolean.untagged(),
+                            },
+                            Field {
+                                name: "id".to_string(),
+                                role: Type::TypeReference("Some-Name-WithID".to_string(), None)
+                                    .untagged(),
+                            },
+                        ],
+                        extension_after: None,
+                    })
+                    .untagged(),
+                ),
+            ],
+            value_references: vec![],
+        };
+        assert_eq!(
+            vec![
+                Definition(
+                    "SomeNameWithId".to_string(),
+                    Rust::TupleStruct {
+                        r#type: RustType::Bool,
+                        tag: None,
+                        constants: vec![]
+                    }
+                ),
+                Definition(
+                    "ComplexContainer".to_string(),
+                    Rust::Struct {
+                        ordering: EncodingOrdering::Keep,
+                        fields: vec![
+                            crate::model::rust::Field::from_name_type(
+                                "some_internal".to_string(),
+                                RustType::Bool
+                            ),
+                            crate::model::rust::Field::from_name_type(
+                                "id".to_string(),
+                                RustType::Complex(
+                                    "SomeNameWithId".to_string(),
+                                    Some(Tag::Universal(1)) // where does this come from!?
+                                )
+                            ),
+                        ],
+                        tag: None,
+                        extension_after: None
+                    }
+                ),
+            ],
+            asn.to_rust().definitions
         );
     }
 }
