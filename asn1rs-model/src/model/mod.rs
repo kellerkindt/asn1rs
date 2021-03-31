@@ -270,7 +270,6 @@ impl Model<Asn<Unresolved>> {
         iter: &mut Peekable<T>,
         r#type: &Type<Unresolved>,
     ) -> Result<LiteralValue, ErrorKind> {
-        println!("{:?}", iter.peek_or_err()?);
         let location = iter.peek_or_err()?.location();
         let string = match r#type {
             Type::Boolean
