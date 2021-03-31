@@ -23,7 +23,6 @@ asn_to_rust!(
 #[cfg(feature = "protobuf")]
 fn test_set_of_empty() {
     serialize_and_deserialize_protobuf(
-        // data is from the output of the legacy serializer
         &[],
         &ProtobufSetOf {
             many_sint32: Vec::default(),
@@ -35,7 +34,6 @@ fn test_set_of_empty() {
 #[cfg(feature = "protobuf")]
 fn test_set_of_empty_ext() {
     serialize_and_deserialize_protobuf(
-        // data is from the output of the legacy serializer
         &[8, 1, 26, 5, 101, 109, 112, 116, 121],
         &ProtobufSetOfExt {
             lone_bool: true,
@@ -49,7 +47,6 @@ fn test_set_of_empty_ext() {
 #[cfg(feature = "protobuf")]
 fn test_set_of_single() {
     serialize_and_deserialize_protobuf(
-        // data is from the output of the legacy serializer
         &[8, 1],
         &ProtobufSetOf {
             many_sint32: vec![-1_i32],
@@ -61,7 +58,6 @@ fn test_set_of_single() {
 #[cfg(feature = "protobuf")]
 fn test_set_of_single_ext() {
     serialize_and_deserialize_protobuf(
-        // data is from the output of the legacy serializer
         &[8, 0, 16, 1, 26, 6, 115, 105, 110, 103, 108, 101],
         &ProtobufSetOfExt {
             lone_bool: false,
@@ -75,7 +71,6 @@ fn test_set_of_single_ext() {
 #[cfg(feature = "protobuf")]
 fn test_set_of_multiple() {
     serialize_and_deserialize_protobuf(
-        // data is from the output of the legacy serializer
         &[8, 1, 8, 4, 8, 6, 8, 8, 8, 128, 16, 8, 255, 143, 226, 9],
         &ProtobufSetOf {
             many_sint32: vec![-1_i32, 2, 3, 4, 1024, -1024_1024],
@@ -87,7 +82,6 @@ fn test_set_of_multiple() {
 #[cfg(feature = "protobuf")]
 fn test_set_of_multiple_ext() {
     serialize_and_deserialize_protobuf(
-        // data is from the output of the legacy serializer
         &[
             8, 0, 16, 1, 16, 4, 16, 6, 16, 8, 16, 128, 16, 16, 255, 143, 226, 9, 26, 8, 109, 117,
             108, 116, 105, 112, 108, 101,

@@ -23,7 +23,6 @@ asn_to_rust!(
 #[cfg(feature = "protobuf")]
 fn test_sequence() {
     serialize_and_deserialize_protobuf(
-        // data is from the output of the legacy serializer
         &[10, 2, 8, 42],
         &ProtobufSequence {
             inner: ProtobufSequenceInner { magic_number: 42 },
@@ -35,7 +34,6 @@ fn test_sequence() {
 #[cfg(feature = "protobuf")]
 fn test_sequence_ext() {
     serialize_and_deserialize_protobuf(
-        // data is from the output of the legacy serializer
         &[8, 0, 18, 3, 8, 185, 10, 26, 3, 101, 120, 116],
         &ProtobufSequenceExt {
             lone_bool: false,

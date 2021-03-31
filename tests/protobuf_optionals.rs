@@ -19,7 +19,6 @@ asn_to_rust!(
 #[cfg(feature = "protobuf")]
 fn test_optionals_present() {
     serialize_and_deserialize_protobuf(
-        // data is from the output of the legacy serializer
         &[8, 1, 18, 6, 115, 116, 114, 105, 110, 103, 24, 84],
         &ProtobufOptionals {
             optional_bool: Some(true),
@@ -33,7 +32,6 @@ fn test_optionals_present() {
 #[cfg(feature = "protobuf")]
 fn test_optionals_absent() {
     serialize_and_deserialize_protobuf(
-        // data is from the output of the legacy serializer
         &[],
         &ProtobufOptionals {
             optional_bool: None,
@@ -47,7 +45,6 @@ fn test_optionals_absent() {
 #[cfg(feature = "protobuf")]
 fn test_optionals_mixed() {
     serialize_and_deserialize_protobuf(
-        // data is from the output of the legacy serializer
         &[8, 0, 24, 242, 20],
         &ProtobufOptionals {
             optional_bool: Some(false),

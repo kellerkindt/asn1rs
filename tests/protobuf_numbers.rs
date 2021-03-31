@@ -21,7 +21,6 @@ asn_to_rust!(
 #[cfg(feature = "protobuf")]
 fn test_numbers() {
     serialize_and_deserialize_protobuf(
-        // data is from the output of the legacy serializer
         &[8, 2, 16, 3, 24, 6, 32, 4, 40, 5],
         &ProtobufNumbers {
             should_be_sint32: 1_i32,

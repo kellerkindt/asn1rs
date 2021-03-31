@@ -37,7 +37,6 @@ asn_to_rust!(
 #[cfg(feature = "protobuf")]
 fn test_enumeration_a() {
     serialize_and_deserialize_protobuf(
-        // data is from the output of the legacy serializer
         &[8, 0],
         &ProtobufEnum {
             some_enum: ProtobufEnumSomeEnum::A,
@@ -49,7 +48,6 @@ fn test_enumeration_a() {
 #[cfg(feature = "protobuf")]
 fn test_enumeration_b() {
     serialize_and_deserialize_protobuf(
-        // data is from the output of the legacy serializer
         &[8, 1],
         &ProtobufEnum {
             some_enum: ProtobufEnumSomeEnum::B,
@@ -61,7 +59,6 @@ fn test_enumeration_b() {
 #[cfg(feature = "protobuf")]
 fn test_enumeration_c() {
     serialize_and_deserialize_protobuf(
-        // data is from the output of the legacy serializer
         &[8, 2],
         &ProtobufEnum {
             some_enum: ProtobufEnumSomeEnum::C,
@@ -73,7 +70,6 @@ fn test_enumeration_c() {
 #[cfg(feature = "protobuf")]
 fn test_enumeration_ext_b() {
     serialize_and_deserialize_protobuf(
-        // data is from the output of the legacy serializer
         &[8, 0, 16, 1, 24, 217, 2],
         &ProtobufEnumExt {
             lone_bool: false,
@@ -86,29 +82,17 @@ fn test_enumeration_ext_b() {
 #[test]
 #[cfg(feature = "protobuf")]
 fn test_enumeration_outer_a() {
-    serialize_and_deserialize_protobuf(
-        // data is from the output of the legacy serializer
-        &[0],
-        &ProtobufOuterEnum::A,
-    )
+    serialize_and_deserialize_protobuf(&[0], &ProtobufOuterEnum::A)
 }
 
 #[test]
 #[cfg(feature = "protobuf")]
 fn test_enumeration_outer_b() {
-    serialize_and_deserialize_protobuf(
-        // data is from the output of the legacy serializer
-        &[1],
-        &ProtobufOuterEnum::B,
-    )
+    serialize_and_deserialize_protobuf(&[1], &ProtobufOuterEnum::B)
 }
 
 #[test]
 #[cfg(feature = "protobuf")]
 fn test_enumeration_outer_c() {
-    serialize_and_deserialize_protobuf(
-        // data is from the output of the legacy serializer
-        &[2],
-        &ProtobufOuterEnum::C,
-    )
+    serialize_and_deserialize_protobuf(&[2], &ProtobufOuterEnum::C)
 }

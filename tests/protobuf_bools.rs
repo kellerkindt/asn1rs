@@ -18,7 +18,6 @@ asn_to_rust!(
 #[cfg(feature = "protobuf")]
 fn test_bools() {
     serialize_and_deserialize_protobuf(
-        // data is from the output of the legacy serializer
         &[8, 1, 16, 0],
         &ProtobufBools {
             one_bool: true,
