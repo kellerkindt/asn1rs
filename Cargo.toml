@@ -39,7 +39,7 @@ postgres = { version = "0.17.5", optional = true }
 
 # feature async-psql
 tokio = { version = "0.3.0", optional = true, features = ["macros"]  }
-tokio-postgres = { version = "0.5.5", optional = true }
+tokio-postgres = { version = "0.7.0", optional = true }
 futures = { version = "0.3.4", optional = true }
 bytes = { version = "0.5.4", optional = true }
 
