@@ -318,27 +318,3 @@ impl<R: Read> ProtoRead for R {
         }
     }
 }
-
-#[cfg(feature = "legacy-protobuf-codegen")]
-#[cfg_attr(feature = "legacy-protobuf-codegen", allow(deprecated))]
-pub use legacy::*;
-
-#[cfg(feature = "legacy-protobuf-codegen")]
-#[deprecated(note = "Use the Reader/-Writer with the Read-/Writable interface instead")]
-pub mod legacy {
-    #![allow(deprecated)]
-    use super::*;
-
-    pub use super::ProtoRead as Reader;
-    pub use super::ProtoWrite as Writer;
-
-    pub trait Protobuf: ProtobufEq {
-        fn protobuf_format(&self) -> Format;
-
-        fn read_protobuf(reader: &mut dyn ProtoRead) -> Result<Self, Error>
-        where
-            Self: Sized;
-
-        fn write_protobuf(&self, writer: &mut dyn ProtoWrite) -> Result<(), Error>;
-    }
-}

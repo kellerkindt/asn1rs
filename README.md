@@ -19,58 +19,57 @@ The crate can be used as standalone CLI binary or used as library through its AP
 ### Supported Features
 
 
-| Feature             | Parses  | UPER    | Protobuf    | PSQL        | Async PSQL | UPER Legacy\*     |
-| --------------------|:--------|:--------|:------------|:------------|:-----------|------------------:|
-| `SEQUENCE`          | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             | 
-| ...extensible       | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | 🔶 not serialized  | 
-| `SEQUENCE OF`       | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             | 
-| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored️         | 
-| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored️         |
-| `SET`               | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ⚠️ ignored️         | 
-| ...extensible       | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | 🔶 not serialized  | 
-| `SET OF`            | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ⚠️ ignored️         | 
-| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored️         | 
-| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored️         | 
-| `ENUMERATED`        | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             |           
-| ...extensible       | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | 🔶 not serialized  |           
-| `CHOICE`            | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             |           
-| ...extensible       | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | 🔶 not serialized  | 
-| `BIT STRING`        | ✔️ yes  | ✔️ yes  | ✔️ yes¹   | ✔️ yes¹   | ✔️ yes¹  | ✔️ yes             | 
-| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored         | 
-| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored         | 
-| `OCTET STRING`      | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             | 
-| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored         | 
-| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored         |   
-| `UTF8String`        | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             | 
-| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored         | 
-| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ⚠️ ignored         | 
-| `IA5String`         | ✔️ yes  | ✔️ yes  | ✔️ yes¹   | ✔️ yes¹   | ✔️ yes¹  | ❌ ub              | 
-| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ❌ ub              | 
-| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ❌ ub              |   
-| `NumericString`     | ✔️ yes  | ✔️ yes  | ✔️ yes¹   | ✔️ yes¹   | ✔️ yes¹  | ❌ ub              | 
-| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ❌ ub              | 
-| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ❌ ub              |   
-| `PrintableString`   | ✔️ yes  | ✔️ yes  | ✔️ yes¹   | ✔️ yes¹   | ✔️ yes¹  | ❌ ub              | 
-| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ❌ ub              | 
-| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ❌ ub              |   
-| `VisibleString`     | ✔️ yes  | ✔️ yes  | ✔️ yes¹   | ✔️ yes¹   | ✔️ yes¹  | ❌ ub              | 
-| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ❌ ub              | 
-| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes  | 🆗 ignored  | 🆗 ignored  | 🆗 ignored | ❌ ub              |   
-| `INTEGER`           | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             |
-| ...`A..B`           | ✔️ yes  | ✔️ yes  | ✔️ yes²   | ✔️ yes²   | ✔️ yes²  | ✔️ yes             |
-| ...`A..B,...`       | ✔️ yes  | ✔️ yes  | ✔️ yes²   | ✔️ yes²   | ✔️ yes²  | ⚠️ ignored         |
-| `BOOLEAN`           | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             |
-| `OPTIONAL`          | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             |
-| `DEFAULT ...`       | ✔️ yes  |         |             |             |            |                    |
-| ...`INTEGER`        | ✔️ yes  | ✔️ yes | ✔️ yes¹     | ✔️ yes¹     | ✔️ yes¹   | ⚠️ ignored             |
-| ...`*String`        | ✔️ yes  | ✔️ yes | ✔️ yes¹     | ✔️ yes¹     | ✔️ yes¹   | ⚠️ ignored             |
-| ...`BOOLEAN`        | ✔️ yes  | ✔️ yes | ✔️ yes¹     | ✔️ yes¹     | ✔️ yes¹   | ⚠️ ignored             |
-| `IMPORTS..FROM..;`  | ✔️ yes  |         |             |             |            |                    |
-| `ObjectIdentifiers` | ✔️ yes  |         |             |             |            |                    |
-| Value References    | ✔️ yes  |         |             |             |            |                    |
-| ... in Range        | ✔️ yes  |         |             |             |            |                    |
-| ... in Size         | ✔️ yes  |         |             |             |            |                    |
-| ... in Default      | ✔️ yes  |         |             |             |            |                    |
+| Feature             | Parses  | UPER    | Protobuf    | PSQL        | Async PSQL |
+| --------------------|:--------|:--------|:------------|:------------|:-----------|
+| ...extensible       | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
+| `SEQUENCE OF`       | ✔️ yes  | ✔️ yes   | ✔️ yes        | ✔️ yes       | ✔️ yes      |
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
+| `SET`               | ✔️ yes  | ✔️ yes   | ✔️ yes        | ✔️ yes       | ✔️ yes      |
+| ...extensible       | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
+| `SET OF`            | ✔️ yes  | ✔️ yes   | ✔️ yes        | ✔️ yes       | ✔️ yes      |
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
+| `ENUMERATED`        | ✔️ yes  | ✔️ yes   | ✔️ yes        | ✔️ yes       | ✔️ yes      |
+| ...extensible       | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
+| `CHOICE`            | ✔️ yes  | ✔️ yes   | ✔️ yes        | ✔️ yes       | ✔️ yes      |
+| ...extensible       | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
+| `BIT STRING`        | ✔️ yes  | ✔️ yes   | ✔️ yes¹       | ✔️ yes¹      | ✔️ yes¹     |
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
+| `OCTET STRING`      | ✔️ yes  | ✔️ yes   | ✔️ yes        | ✔️ yes       | ✔️ yes      |
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
+| `UTF8String`        | ✔️ yes  | ✔️ yes   | ✔️ yes        | ✔️ yes       | ✔️ yes      |
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
+| `IA5String`         | ✔️ yes  | ✔️ yes   | ✔️ yes¹       | ✔️ yes¹      | ✔️ yes¹     |
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
+| `NumericString`     | ✔️ yes  | ✔️ yes   | ✔️ yes¹       | ✔️ yes¹      | ✔️ yes¹     |
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
+| `PrintableString`   | ✔️ yes  | ✔️ yes   | ✔️ yes¹       | ✔️ yes¹      | ✔️ yes¹     |
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
+| `VisibleString`     | ✔️ yes  | ✔️ yes   | ✔️ yes¹       | ✔️ yes¹      | ✔️ yes¹     |
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
+| `INTEGER`           | ✔️ yes  | ✔️ yes   | ✔️ yes        | ✔️ yes       | ✔️ yes      |
+| ...`A..B`           | ✔️ yes  | ✔️ yes   | ✔️ yes²       | ✔️ yes²      | ✔️ yes²     |
+| ...`A..B,...`       | ✔️ yes  | ✔️ yes   | ✔️ yes²       | ✔️ yes²      | ✔️ yes²     |
+| `BOOLEAN`           | ✔️ yes  | ✔️ yes   | ✔️ yes        | ✔️ yes       | ✔️ yes      |
+| `OPTIONAL`          | ✔️ yes  | ✔️ yes   | ✔️ yes        | ✔️ yes       | ✔️ yes      |
+| `DEFAULT ...`       | ✔️ yes  |         |              |             |            |
+| ...`INTEGER`        | ✔️ yes  | ✔️ yes   | ✔️ yes¹       | ✔️ yes¹      | ✔️ yes¹     |
+| ...`*String`        | ✔️ yes  | ✔️ yes   | ✔️ yes¹       | ✔️ yes¹      | ✔️ yes¹     |
+| ...`BOOLEAN`        | ✔️ yes  | ✔️ yes   | ✔️ yes¹       | ✔️ yes¹      | ✔️ yes¹     |
+| `IMPORTS..FROM..;`  | ✔️ yes  |         |              |             |            |
+| `ObjectIdentifiers` | ✔️ yes  |         |              |             |            |
+| Value References    | ✔️ yes  |         |              |             |            |
+| ... in Range        | ✔️ yes  |         |              |             |            |
+| ... in Size         | ✔️ yes  |         |              |             |            |
+| ... in Default      | ✔️ yes  |         |              |             |            |
 
 
  - ✔️ yes: according to specification

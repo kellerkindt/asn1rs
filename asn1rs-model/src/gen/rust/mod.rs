@@ -1,13 +1,5 @@
 pub mod walker;
 
-#[deprecated(note = "Use the Reader/-Writer with the Read-/Writable interface instead")]
-#[cfg(feature = "legacy-protobuf-codegen")]
-pub mod protobuf;
-
-#[deprecated(note = "Use the Reader/-Writer with the Read-/Writable interface instead")]
-#[cfg(feature = "legacy-uper-codegen")]
-pub mod uper;
-
 #[cfg(feature = "psql")]
 pub mod psql;
 
@@ -31,21 +23,14 @@ use codegen::Impl;
 use codegen::Scope;
 use codegen::Struct;
 use std::borrow::Cow;
-
-#[cfg(feature = "legacy-codegen")]
-use codegen::Function;
+use std::convert::Infallible;
+use std::fmt::Display;
 
 #[cfg(feature = "psql")]
 use self::psql::PsqlInserter;
 
 #[cfg(feature = "async-psql")]
 use self::async_psql::AsyncPsqlInserter;
-
-#[cfg(feature = "legacy-protobuf-codegen")]
-#[cfg_attr(feature = "legacy-protobuf-codegen", allow(deprecated))]
-use self::protobuf::ProtobufSerializer;
-use std::convert::Infallible;
-use std::fmt::Display;
 
 const KEYWORDS: [&str; 9] = [
     "use", "mod", "const", "type", "pub", "enum", "struct", "impl", "trait",
@@ -87,10 +72,7 @@ impl Default for RustCodeGenerator {
     fn default() -> Self {
         RustCodeGenerator {
             models: Default::default(),
-            global_derives: vec![
-                #[cfg(all(feature = "protobuf", not(feature = "legacy-protobuf-codegen")))]
-                "ProtobufEq".to_string(),
-            ],
+            global_derives: Vec::default(),
             direct_field_access: true,
             getter_and_setter: false,
         }
@@ -114,12 +96,6 @@ impl Generator<Rust> for RustCodeGenerator {
 
     fn to_string(&self) -> Result<Vec<(String, String)>, Self::Error> {
         Ok(self.to_string_with_generators(&[
-            #[cfg(feature = "legacy-uper-codegen")]
-            #[cfg_attr(feature = "legacy-uper-codegen", allow(deprecated))]
-            &uper::UperSerializer,
-            #[cfg(feature = "legacy-protobuf-codegen")]
-            #[cfg_attr(feature = "legacy-protobuf-codegen", allow(deprecated))]
-            &ProtobufSerializer,
             #[cfg(feature = "psql")]
             &PsqlInserter,
             #[cfg(feature = "async-psql")]
@@ -938,36 +914,6 @@ impl RustCodeGenerator {
             en_m.derive(derive);
         });
         en_m
-    }
-
-    #[cfg(feature = "legacy-codegen")]
-    #[cfg_attr(feature = "legacy-codegen", allow(deprecated))]
-    fn new_serializable_impl<'a>(
-        scope: &'a mut Scope,
-        impl_for: &str,
-        codec: &str,
-    ) -> &'a mut Impl {
-        scope.new_impl(impl_for).impl_trait(codec)
-    }
-
-    #[cfg(feature = "legacy-codegen")]
-    #[cfg_attr(feature = "legacy-codegen", allow(deprecated))]
-    fn new_read_fn<'a>(implementation: &'a mut Impl, codec: &str) -> &'a mut Function {
-        implementation
-            .new_fn(&format!("read_{}", codec.to_lowercase()))
-            .arg("reader", format!("&mut dyn {}Reader", codec))
-            .ret(format!("Result<Self, {}Error>", codec))
-            .bound("Self", "Sized")
-    }
-
-    #[cfg(feature = "legacy-codegen")]
-    #[cfg_attr(feature = "legacy-codegen", allow(deprecated))]
-    fn new_write_fn<'a>(implementation: &'a mut Impl, codec: &str) -> &'a mut Function {
-        implementation
-            .new_fn(&format!("write_{}", codec.to_lowercase()))
-            .arg_ref_self()
-            .arg("writer", format!("&mut dyn {}Writer", codec))
-            .ret(format!("Result<(), {}Error>", codec))
     }
 }
 

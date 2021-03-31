@@ -87,16 +87,10 @@ pub fn deserialize_protobuf<T: Readable>(data: &[u8]) -> T {
 }
 
 #[cfg(feature = "protobuf")]
-pub fn serialize_and_deserialize_protobuf<
-    #[cfg(feature = "legacy-protobuf-codegen")] T: Readable + Writable + std::fmt::Debug + PartialEq + asn1rs::io::protobuf::Protobuf,
-    #[cfg(not(feature = "legacy-protobuf-codegen"))] T: Readable + Writable + std::fmt::Debug + PartialEq,
->(
+pub fn serialize_and_deserialize_protobuf<T: Readable + Writable + std::fmt::Debug + PartialEq>(
     data: &[u8],
     proto: &T,
 ) {
-    #[cfg(feature = "legacy-protobuf-codegen")]
-    legacy_protobuf_serialize_check(data, proto);
-
     let serialized = serialize_protobuf(proto);
     assert_eq!(
         data,
@@ -108,24 +102,5 @@ pub fn serialize_and_deserialize_protobuf<
         proto,
         &deserialize_protobuf::<T>(data),
         "Deserialized data struct does not match"
-    );
-}
-
-#[cfg(all(feature = "protobuf", feature = "legacy-protobuf-codegen"))]
-pub fn legacy_protobuf_serialize_check<
-    T: asn1rs::io::protobuf::Protobuf + std::fmt::Debug + PartialEq,
->(
-    data: &[u8],
-    proto: &T,
-) {
-    // legacy writer
-    let mut vec: Vec<u8> = Vec::default();
-    proto
-        .write_protobuf(&mut vec)
-        .expect("Legacy serializer failed");
-    assert_eq!(
-        &vec[..],
-        data,
-        "Given binary data does not match output of legacy serializer"
     );
 }

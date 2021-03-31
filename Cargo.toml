@@ -59,15 +59,8 @@ async-psql = ["asn1rs-model/async-psql", "tokio", "tokio-postgres", "futures", "
 protobuf = ["asn1rs-model/protobuf"]
 macros = ["asn1rs-macros"]
 model = ["asn1rs-model"]
-legacy_bit_buffer = []
-legacy-uper-codegen = ["asn1rs-model/legacy-uper-codegen"]
-legacy-protobuf-codegen = ["asn1rs-model/legacy-protobuf-codegen"]
 debug-proc-macro = ["asn1rs-macros/debug-proc-macro", "asn1rs-model/debug-proc-macro"]
 
-[[bench]]
-name = "bitbuffer"
-path = "benches/bitbuffer.rs"
-required-features = ["legacy_bit_buffer"]
 
 [package.metadata.docs.rs]
 all-features = true

@@ -23,11 +23,3 @@ pub mod async_psql;
 
 #[cfg(any(feature = "psql", feature = "async-psql"))]
 pub mod psql_shared;
-
-#[cfg(feature = "legacy-uper-codegen")]
-#[deprecated(note = "Use per::unaligned::buffer instead")]
-pub mod buffer;
-
-#[cfg(feature = "legacy-uper-codegen")]
-#[deprecated(note = "Use per::unaligned instead")]
-pub mod uper;
