@@ -141,8 +141,11 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-      - run: wget https://forge.etsi.org/rep/ITS/asn1/cdd_ts102894_2/raw/151b191121d05c3b808f5dec14387339730db14f/ITS-Container.asn
-      - run: wget https://forge.etsi.org/rep/ITS/asn1/cam_en302637_2/raw/7ae4195d48dd468754a50f1a3bb0c2ce976ae15a/CAM-PDU-Descriptions.asn
+      - run: >
+          wget
+          --retry-connrefused --waitretry=2 --read-timeout=10 --timeout=10 -t 10
+          https://forge.etsi.org/rep/ITS/asn1/cdd_ts102894_2/raw/151b191121d05c3b808f5dec14387339730db14f/ITS-Container.asn
+          https://forge.etsi.org/rep/ITS/asn1/cam_en302637_2/raw/7ae4195d48dd468754a50f1a3bb0c2ce976ae15a/CAM-PDU-Descriptions.asn
       - uses: actions-rs/cargo@v1
         with:
           command: run
