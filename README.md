@@ -95,6 +95,9 @@ The crate can be used as standalone CLI binary or used as library through its AP
  -  [📜️ ETSI EN 302 637-2 (PDF)](https://www.etsi.org/deliver/etsi_en/302600_302699/30263702/01.03.01_30/en_30263702v010301v.pdf)
     / [🧰 CAM-PDU-Description (GIT)](https://forge.etsi.org/rep/ITS/asn1/cam_en302637_2/blob/7ae4195d48dd468754a50f1a3bb0c2ce976ae15a/CAM-PDU-Descriptions.asn): \
     ```itu-t(0) identified-organization(4) etsi(0) itsDomain(5) wg1(1) en(302637) cam(2) version(2)```
+ -  [📜️ ETSI EN 302 637-3 (PDF)](https://www.etsi.org/deliver/etsi_en/302600_302699/30263703/01.02.01_30/en_30263703v010201v.pdf)
+    / [🧰 DENM-PDU-Descriptions (GIT)](https://forge.etsi.org/rep/ITS/asn1/denm_en302637_3/blob/29ec748fd9a0e44b91e1896867fa34453781e334/DENM-PDU-Descriptions.asn): \
+    ```itu-t(0) identified-organization(4) etsi(0) itsDomain(5) wg1(1) en(302637) denm(1) version(2)```
 
 ### CLI usage
 
