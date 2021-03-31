@@ -195,6 +195,10 @@ impl Model<Protobuf> {
                 // in protobuf everything is optional...
                 Self::definition_type_to_protobuf_type(inner)
             }
+            RustType::Default(inner, ..) => {
+                // TODO ignoring it in protobuf, is there a proper solution?
+                Self::definition_type_to_protobuf_type(inner)
+            }
 
             RustType::Vec(inner, _size, _ordering) => {
                 ProtobufType::Repeated(Box::new(Self::definition_type_to_protobuf_type(inner)))

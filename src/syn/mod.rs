@@ -3,6 +3,7 @@ pub mod boolean;
 pub mod choice;
 pub mod common;
 pub mod complex;
+pub mod default;
 pub mod enumerated;
 pub mod ia5string;
 pub mod io;
@@ -23,6 +24,7 @@ pub use bitstring::BitVec;
 pub use boolean::Boolean;
 pub use choice::Choice;
 pub use complex::Complex;
+pub use default::DefaultValue;
 pub use enumerated::Enumerated;
 pub use ia5string::Ia5String;
 pub use numbers::Integer;
@@ -84,6 +86,10 @@ pub trait Reader {
     fn read_choice<C: choice::Constraint>(&mut self) -> Result<C, Self::Error>;
 
     fn read_opt<T: ReadableType>(&mut self) -> Result<Option<T::Type>, Self::Error>;
+
+    fn read_default<C: default::Constraint<Owned = T::Type>, T: ReadableType>(
+        &mut self,
+    ) -> Result<T::Type, Self::Error>;
 
     fn read_number<T: numbers::Number, C: numbers::Constraint<T>>(
         &mut self,
@@ -166,6 +172,11 @@ pub trait Writer {
     fn write_choice<C: choice::Constraint>(&mut self, choice: &C) -> Result<(), Self::Error>;
 
     fn write_opt<T: WritableType>(&mut self, value: Option<&T::Type>) -> Result<(), Self::Error>;
+
+    fn write_default<C: default::Constraint<Owned = T::Type>, T: WritableType>(
+        &mut self,
+        value: &T::Type,
+    ) -> Result<(), Self::Error>;
 
     fn write_number<T: numbers::Number, C: numbers::Constraint<T>>(
         &mut self,

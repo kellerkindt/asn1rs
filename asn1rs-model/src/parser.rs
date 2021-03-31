@@ -112,14 +112,14 @@ impl Token {
         }
     }
 
-    pub fn into_text_or_else<E, F: Fn(Token) -> E>(self, f: F) -> Result<String, E> {
+    pub fn into_text_or_else<E, F: FnOnce(Token) -> E>(self, f: F) -> Result<String, E> {
         match self {
             Token::Text(_, text) => Ok(text),
             token => Err(f(token)),
         }
     }
 
-    pub fn into_separator_or_else<E, F: Fn(Token) -> E>(self, f: F) -> Result<char, E> {
+    pub fn into_separator_or_else<E, F: FnOnce(Token) -> E>(self, f: F) -> Result<char, E> {
         match self {
             Token::Separator(_, separator) => Ok(separator),
             token => Err(f(token)),

@@ -282,6 +282,15 @@ impl Writer for ProtobufWriter<'_> {
     }
 
     #[inline]
+    fn write_default<C: default::Constraint<Owned = T::Type>, T: WritableType>(
+        &mut self,
+        value: &T::Type,
+    ) -> Result<(), Self::Error> {
+        // todo is there a better solution than to ignore this?
+        T::write_value(self, value)
+    }
+
+    #[inline]
     fn write_number<T: numbers::Number, C: numbers::Constraint<T>>(
         &mut self,
         value: T,

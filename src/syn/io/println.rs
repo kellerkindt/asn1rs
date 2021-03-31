@@ -134,6 +134,22 @@ impl Writer for PrintlnWriter {
         })
     }
 
+    fn write_default<C: default::Constraint<Owned = T::Type>, T: WritableType>(
+        &mut self,
+        value: &T::Type,
+    ) -> Result<(), Self::Error> {
+        self.indented_println(format!("Writing DEFAULT (default: {:?})", C::DEFAULT_VALUE));
+        self.with_increased_indentation(|w| {
+            if C::DEFAULT_VALUE.eq(value) {
+                w.indented_println("None");
+                Ok(())
+            } else {
+                w.indented_println("Some");
+                w.with_increased_indentation(|w| T::write_value(w, value))
+            }
+        })
+    }
+
     fn write_number<T: numbers::Number, C: numbers::Constraint<T>>(
         &mut self,
         value: T,

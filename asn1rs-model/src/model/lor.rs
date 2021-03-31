@@ -1,9 +1,10 @@
-use crate::model::{Asn, Definition, Model, ValueReference};
+use crate::model::{Asn, Definition, LiteralValue, Model, ValueReference};
 use std::fmt::{Debug, Display, Formatter};
 
 pub trait ResolveState: Clone {
     type SizeType: Display + Debug + Clone + PartialOrd + PartialEq;
     type RangeType: Display + Debug + Clone + PartialOrd + PartialEq;
+    type DefaultType: Debug + Clone + PartialOrd + PartialEq;
 }
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
@@ -11,6 +12,7 @@ pub struct Resolved;
 impl ResolveState for Resolved {
     type SizeType = usize;
     type RangeType = i64;
+    type DefaultType = LiteralValue;
 }
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
@@ -18,6 +20,7 @@ pub struct Unresolved;
 impl ResolveState for Unresolved {
     type SizeType = LitOrRef<usize>;
     type RangeType = LitOrRef<i64>;
+    type DefaultType = LitOrRef<LiteralValue>;
 }
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
@@ -112,13 +115,10 @@ impl Resolver<usize> for Model<Asn<Unresolved>> {
                 .value_references
                 .iter()
                 .find(|vr| vr.name.eq(name))
-                .map(|vr| vr.value.parse())
+                .map(|vr| vr.value.to_integer())
             {
-                Some(Ok(value)) => Ok(value),
-                Some(Err(e)) => Err(Error::FailedToParseLiteral(format!(
-                    "name: {}, err: {}",
-                    name, e
-                ))),
+                Some(Some(value)) => Ok(value as usize),
+                Some(None) => Err(Error::FailedToParseLiteral(format!("name: {}", name))),
                 None => Err(Error::FailedToResolveReference(name.clone())),
             },
         }
@@ -133,15 +133,26 @@ impl Resolver<i64> for Model<Asn<Unresolved>> {
                 .value_references
                 .iter()
                 .find(|vr| vr.name.eq(name))
-                .map(|vr| vr.value.parse())
+                .map(|vr| vr.value.to_integer())
             {
-                Some(Ok(value)) => Ok(value),
-                Some(Err(e)) => Err(Error::FailedToParseLiteral(format!(
-                    "name: {}, err: {}",
-                    name, e
-                ))),
+                Some(Some(value)) => Ok(value),
+                Some(None) => Err(Error::FailedToParseLiteral(format!("name: {}", name))),
                 None => Err(Error::FailedToResolveReference(name.clone())),
             },
+        }
+    }
+}
+
+impl Resolver<LiteralValue> for Model<Asn<Unresolved>> {
+    fn resolve(&self, lor: &LitOrRef<LiteralValue>) -> Result<LiteralValue, Error> {
+        match lor {
+            LitOrRef::Lit(lit) => Ok(lit.clone()),
+            LitOrRef::Ref(name) => self
+                .value_references
+                .iter()
+                .find(|vr| vr.name.eq(name))
+                .map(|vr| vr.value.clone())
+                .ok_or_else(|| Error::FailedToResolveReference(name.clone())),
         }
     }
 }
@@ -180,7 +191,7 @@ pub mod tests {
         unresolved.value_references.push(ValueReference {
             name: "my_min".to_string(),
             role: Type::Integer(Integer::default()).untagged(),
-            value: "123".to_string(),
+            value: LiteralValue::Integer(123),
         });
 
         assert_eq!(
@@ -191,7 +202,7 @@ pub mod tests {
         unresolved.value_references.push(ValueReference {
             name: "my_max".to_string(),
             role: Type::Integer(Integer::default()).untagged(),
-            value: "456".to_string(),
+            value: LiteralValue::Integer(456),
         });
 
         let resolved = unresolved.try_resolve().unwrap();

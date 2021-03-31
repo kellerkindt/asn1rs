@@ -1,12 +1,13 @@
 use crate::model::lor::{ResolveState, Resolved};
 use crate::model::rust::Field as RustField;
-use crate::model::{Asn, ChoiceVariant, Integer, Target};
+use crate::model::{Asn, ChoiceVariant, Integer, LiteralValue, Target};
 use crate::model::{Charset, Range};
 use crate::model::{ComponentTypeList, ValueReference};
 use crate::model::{Definition, Type};
 use crate::model::{Import, Tag, TagProperty};
 use crate::model::{Model, Size};
 use crate::model::{TagResolver, Type as AsnType};
+use std::borrow::Cow;
 
 const I8_MAX: i64 = i8::max_value() as i64;
 const I16_MAX: i64 = i16::max_value() as i64;
@@ -42,7 +43,9 @@ pub enum RustType {
     VecU8(Size),
     BitVec(Size),
     Vec(Box<RustType>, Size, EncodingOrdering),
+
     Option(Box<RustType>),
+    Default(Box<RustType>, LiteralValue),
 
     /// Indicates a complex, custom type that is
     /// not one of rusts known types. This can be
@@ -53,7 +56,9 @@ pub enum RustType {
 
 impl RustType {
     pub fn as_inner_type(&self) -> &RustType {
-        if let RustType::Vec(inner, ..) | RustType::Option(inner) = self {
+        if let RustType::Vec(inner, ..) | RustType::Option(inner) | RustType::Default(inner, ..) =
+            self
+        {
             inner.as_inner_type()
         } else {
             self
@@ -61,7 +66,9 @@ impl RustType {
     }
 
     pub fn into_inner_type(self) -> RustType {
-        if let RustType::Vec(inner, ..) | RustType::Option(inner) = self {
+        if let RustType::Vec(inner, ..) | RustType::Option(inner) | RustType::Default(inner, ..) =
+            self
+        {
             inner.into_inner_type()
         } else {
             self
@@ -75,6 +82,7 @@ impl RustType {
     pub fn no_option(self) -> Self {
         match self {
             RustType::Option(inner) => *inner,
+            RustType::Default(inner, ..) => inner.no_option(),
             rust => rust,
         }
     }
@@ -91,8 +99,14 @@ impl RustType {
         matches!(self.as_no_option(), RustType::Vec(..))
     }
 
+    /// Checks whether self is `RustType::Option(..)`
     pub fn is_option(&self) -> bool {
         matches!(self, RustType::Option(..))
+    }
+
+    /// Values which might not be serialized according to ASN
+    pub fn is_optional(&self) -> bool {
+        matches!(self, RustType::Option(..) | RustType::Default(..))
     }
 
     pub fn is_primitive(&self) -> bool {
@@ -145,6 +159,7 @@ impl RustType {
             RustType::BitVec(_) => None,
             RustType::Vec(inner, _size, _ordering) => inner.integer_range_str(),
             RustType::Option(inner) => inner.integer_range_str(),
+            RustType::Default(inner, ..) => inner.integer_range_str(),
             RustType::Complex(_, _) => None,
         }
     }
@@ -200,6 +215,9 @@ impl RustType {
                 AsnType::SetOf(Box::new(inner.into_asn()), size)
             }
             RustType::Option(value) => AsnType::Optional(Box::new(value.into_asn())),
+            RustType::Default(value, default) => {
+                AsnType::Default(Box::new(value.into_asn()), default)
+            }
             RustType::Complex(name, tag) => AsnType::TypeReference(name, tag),
         }
     }
@@ -225,12 +243,11 @@ impl RustType {
                     false
                 }
             }
-            RustType::Option(inner_a) => {
-                if let RustType::Option(inner_b) = other {
-                    inner_a.similar(inner_b)
-                } else {
-                    false
-                }
+            RustType::Option(inner) => {
+                matches!(other, RustType::Option(other) if other.similar(inner))
+            }
+            RustType::Default(inner, ..) => {
+                matches!(other, RustType::Default(other, ..) if other.similar(inner))
             }
             RustType::Complex(inner_a, _tag) => {
                 if let RustType::Complex(inner_b, _tag) = other {
@@ -260,6 +277,7 @@ impl RustType {
             RustType::Vec(_, _, EncodingOrdering::Keep) => Tag::DEFAULT_SEQUENCE_OF,
             RustType::Vec(_, _, EncodingOrdering::Sort) => Tag::DEFAULT_SET_OF,
             RustType::Option(inner) => return inner.tag(),
+            RustType::Default(inner, ..) => return inner.tag(),
             // TODO this is wrong. This should resolve the tag from the referenced type instead, but atm the infrastructure is missing to do such a thing, see github#13
             RustType::Complex(_, tag) => return *tag,
         })
@@ -347,6 +365,35 @@ impl TagProperty for Rust {
     }
 }
 
+impl RustType {
+    /// Returns the representation of this type in rust code in a const context.
+    /// Primitive (heapless) types remain unchanged, while types such as `String`, `Vec<u8>`, ...
+    /// are replaced by their `'static` representatives (`&'static str`, `&'static [u8]`, ...)
+    pub fn to_const_lit_string(&self) -> Cow<'static, str> {
+        Cow::Borrowed(match self {
+            RustType::Bool => "bool",
+            RustType::U8(_) => "u8",
+            RustType::I8(_) => "i8",
+            RustType::U16(_) => "u16",
+            RustType::I16(_) => "i16",
+            RustType::U32(_) => "u32",
+            RustType::I32(_) => "i32",
+            RustType::U64(_) => "u64",
+            RustType::I64(_) => "i64",
+            RustType::String(..) => "&'static str",
+            RustType::VecU8(_) | RustType::BitVec(_) => "&'static [8]",
+            RustType::Vec(inner, _size, _ordering) => {
+                return Cow::Owned(format!("&'static [{}]", inner.to_const_lit_string()))
+            }
+            RustType::Option(inner) => {
+                return Cow::Owned(format!("Option<{}>", inner.to_const_lit_string()))
+            }
+            RustType::Default(inner, ..) => return inner.to_const_lit_string(),
+            RustType::Complex(name, _) => return Cow::Owned(name.clone()),
+        })
+    }
+}
+
 impl ToString for RustType {
     fn to_string(&self) -> String {
         match self {
@@ -364,6 +411,7 @@ impl ToString for RustType {
             RustType::BitVec(_) => "BitVec",
             RustType::Vec(inner, _size, _ordering) => return format!("Vec<{}>", inner.to_string()),
             RustType::Option(inner) => return format!("Option<{}>", inner.to_string()),
+            RustType::Default(inner, ..) => return inner.to_string(),
             RustType::Complex(name, _) => return name.clone(),
         }
         .into()
@@ -584,6 +632,10 @@ impl Model<Rust> {
             Type::Optional(opt) => {
                 RustType::Option(Box::new(Self::flat_map_asn_type_to_rust_type(&**opt)?))
             }
+            Type::Default(inner, default) => RustType::Default(
+                Box::new(Self::flat_map_asn_type_to_rust_type(&**inner)?),
+                default.clone(),
+            ),
             Type::Sequence(_)
             | Type::SequenceOf(_, _)
             | Type::Set(_)
@@ -638,6 +690,17 @@ impl Model<Rust> {
                 let inner = RustType::Option(Box::new(Self::definition_type_to_rust_type(
                     name, inner, tag, ctxt,
                 )));
+                ctxt.add_definition(Definition(
+                    name.into(),
+                    Rust::tuple_struct_from_type(inner).with_tag_opt(tag),
+                ))
+            }
+
+            AsnType::Default(inner, default) => {
+                let inner = RustType::Default(
+                    Box::new(Self::definition_type_to_rust_type(name, inner, tag, ctxt)),
+                    default.clone(),
+                );
                 ctxt.add_definition(Definition(
                     name.into(),
                     Rust::tuple_struct_from_type(inner).with_tag_opt(tag),
@@ -745,6 +808,11 @@ impl Model<Rust> {
             let tag = field.role.tag;
             let rust_role =
                 Self::definition_type_to_rust_type(&rust_name, &field.role.r#type, tag, ctxt);
+            let rust_role = if let Some(def) = &field.role.default {
+                RustType::Default(Box::new(rust_role.no_option()), def.clone())
+            } else {
+                rust_role
+            };
             let rust_field_name = rust_field_name(&field.name);
             let constants = Self::asn_constants_to_rust_constants(&field.role.r#type);
             rust_fields.push(
@@ -774,6 +842,7 @@ impl Model<Rust> {
             | Type::String(..)
             | Type::OctetString(_)
             | Type::Optional(_)
+            | Type::Default(..)
             | Type::Sequence(_)
             | Type::SequenceOf(..)
             | Type::Set(_)
@@ -808,6 +877,15 @@ impl Model<Rust> {
                     ctxt,
                 )))
             }
+            Type::Default(inner, default) => RustType::Default(
+                Box::new(Self::definition_type_to_rust_type(
+                    name,
+                    inner,
+                    tag.or_else(|| ctxt.resolver().resolve_no_default(&**inner)),
+                    ctxt,
+                )),
+                default.clone(),
+            ),
             AsnType::SequenceOf(asn, size) => RustType::Vec(
                 Box::new(Self::definition_type_to_rust_type(
                     name,
@@ -982,6 +1060,40 @@ pub fn rust_module_name(name: &str) -> String {
 #[allow(clippy::module_name_repetitions)]
 pub fn rust_constant_name(name: &str) -> String {
     rust_module_name(name).to_uppercase()
+}
+
+impl LiteralValue {
+    pub fn as_rust_const_literal_expect<F: FnOnce(&Self) -> bool>(
+        &self,
+        probe: F,
+    ) -> impl std::fmt::Display + '_ {
+        if probe(self) {
+            self.as_rust_const_literal()
+        } else {
+            panic!("Invalid string literal {:?}", self)
+        }
+    }
+
+    pub fn as_rust_const_literal(&self) -> impl std::fmt::Display + '_ {
+        struct Ref<'a>(&'a LiteralValue);
+        impl std::fmt::Display for Ref<'_> {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                match self.0 {
+                    LiteralValue::Boolean(v) => write!(f, "{}", v),
+                    LiteralValue::String(v) => write!(f, "\"{}\"", v),
+                    LiteralValue::Integer(v) => write!(f, "{}", v),
+                    LiteralValue::OctetString(v) => {
+                        write!(f, "[")?;
+                        for b in v {
+                            write!(f, "0x{:02x}, ", *b)?;
+                        }
+                        write!(f, "]")
+                    }
+                }
+            }
+        }
+        Ref(self)
+    }
 }
 
 #[cfg(test)]
@@ -1716,12 +1828,12 @@ mod tests {
                         Some(65535),
                     )))
                     .untagged(),
-                    value: "8080".to_string(),
+                    value: LiteralValue::Integer(8080),
                 },
                 ValueReference {
                     name: "use-firewall".to_string(),
                     role: AsnType::Boolean.untagged(),
-                    value: "true".to_string(),
+                    value: LiteralValue::Boolean(true),
                 },
             ],
         };

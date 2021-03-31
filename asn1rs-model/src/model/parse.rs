@@ -12,11 +12,22 @@ pub trait PeekableTokens {
 
     fn peek_is_separator_eq(&mut self, separator: char) -> bool;
 
+    #[inline]
+    fn peek_is_text_and_satisfies<F: FnOnce(&str) -> bool>(&mut self, probe: F) -> bool {
+        self.peek_or_err()
+            .ok()
+            .and_then(Token::text)
+            .map(|t| probe(t))
+            .unwrap_or(false)
+    }
+
     fn next_or_err(&mut self) -> Result<Token, ErrorKind>;
 
     fn next_text_or_err(&mut self) -> Result<String, ErrorKind>;
 
-    fn next_text_eq_ignore_case_or_err(&mut self, text: &str) -> Result<(), ErrorKind>;
+    fn next_text_eq_ignore_case_or_err(&mut self, text: &str) -> Result<Token, ErrorKind>;
+
+    fn next_text_eq_any_ignore_case_or_err(&mut self, texts: &[&str]) -> Result<Token, ErrorKind>;
 
     #[inline]
     fn next_is_text_and_eq_ignore_case(&mut self, text: &str) -> bool {
@@ -86,14 +97,29 @@ impl<T: Iterator<Item = Token>> PeekableTokens for Peekable<T> {
     }
 
     #[inline]
-    fn next_text_eq_ignore_case_or_err(&mut self, text: &str) -> Result<(), ErrorKind> {
+    fn next_text_eq_ignore_case_or_err(&mut self, text: &str) -> Result<Token, ErrorKind> {
         let peeked = self.peek_or_err()?;
         if peeked.eq_text_ignore_ascii_case(text) {
             let token = self.next_or_err()?;
             debug_assert!(token.eq_text_ignore_ascii_case(text));
-            Ok(())
+            Ok(token)
         } else {
             Err(ErrorKind::ExpectedTextGot(text.to_string(), peeked.clone()))
+        }
+    }
+
+    #[inline]
+    fn next_text_eq_any_ignore_case_or_err(&mut self, texts: &[&str]) -> Result<Token, ErrorKind> {
+        let peeked = self.peek_or_err()?;
+        if matches!(peeked, Token::Text(_, token) if texts.iter().any(|text| token.eq_ignore_ascii_case(text)))
+        {
+            let token = self.next_or_err()?;
+            debug_assert!(
+                matches!(&token, Token::Text(_, token) if texts.iter().any(|text| token.eq_ignore_ascii_case(text)))
+            );
+            Ok(token)
+        } else {
+            Err(ErrorKind::UnexpectedToken(peeked.clone()))
         }
     }
 

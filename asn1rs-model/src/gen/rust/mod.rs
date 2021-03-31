@@ -45,6 +45,7 @@ use self::async_psql::AsyncPsqlInserter;
 #[cfg_attr(feature = "legacy-protobuf-codegen", allow(deprecated))]
 use self::protobuf::ProtobufSerializer;
 use std::convert::Infallible;
+use std::fmt::Display;
 
 const KEYWORDS: [&str; 9] = [
     "use", "mod", "const", "type", "pub", "enum", "struct", "impl", "trait",
@@ -191,7 +192,12 @@ impl RustCodeGenerator {
         }
 
         for vref in &model.value_references {
-            scope.raw(&Self::fmt_const(&vref.name, &vref.role, &vref.value, 0));
+            scope.raw(&Self::fmt_const(
+                &vref.name,
+                &vref.role,
+                &vref.value.as_rust_const_literal(),
+                0,
+            ));
         }
 
         for definition in &model.definitions {
@@ -206,18 +212,13 @@ impl RustCodeGenerator {
         (file, scope.to_string())
     }
 
-    fn fmt_const(name: &str, r#type: &RustType, value: &str, indent: usize) -> String {
+    fn fmt_const(name: &str, r#type: &RustType, value: &impl Display, indent: usize) -> String {
         format!(
             "{}pub const {}: {} = {};",
             "    ".repeat(indent),
             name,
-            r#type.to_string(),
-            // TODO this does only support a small variety of constant types
-            if matches!(r#type, RustType::String(..)) {
-                Cow::Owned(format!("\"{}\"", value))
-            } else {
-                Cow::Borrowed(value)
-            }
+            r#type.to_const_lit_string(),
+            value
         )
     }
 
@@ -425,6 +426,13 @@ impl RustCodeGenerator {
             Type::Optional(inner) => (
                 Cow::Borrowed("optional"),
                 vec![Self::asn_attribute_type(&*inner)],
+            ),
+            Type::Default(inner, default) => (
+                Cow::Borrowed("default"),
+                vec![
+                    Self::asn_attribute_type(&*inner),
+                    default.as_rust_const_literal().to_string(),
+                ],
             ),
             Type::SequenceOf(inner, size) => (
                 Cow::Borrowed("sequence_of"),

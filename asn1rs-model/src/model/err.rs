@@ -22,7 +22,8 @@ pub enum ErrorKind {
     InvalidTag(Token),
     InvalidPositionForExtensionMarker(Token),
     InvalidIntText(Token),
-    UnsupportedValueReferenceLiteral(Token, Box<Type<Unresolved>>),
+    UnsupportedLiteral(Token, Box<Type<Unresolved>>),
+    InvalidLiteral(Token),
 }
 
 pub struct Error {
@@ -99,7 +100,7 @@ impl Error {
     }
 
     pub fn unsupported_value_reference_literal(token: Token, r#type: Type<Unresolved>) -> Self {
-        ErrorKind::UnsupportedValueReferenceLiteral(token, Box::new(r#type)).into()
+        ErrorKind::UnsupportedLiteral(token, Box::new(r#type)).into()
     }
 
     fn backtrace(&self) -> &Backtrace {
@@ -121,7 +122,8 @@ impl Error {
             ErrorKind::InvalidTag(t) => Some(t),
             ErrorKind::InvalidPositionForExtensionMarker(t) => Some(t),
             ErrorKind::InvalidIntText(t) => Some(t),
-            ErrorKind::UnsupportedValueReferenceLiteral(t, ..) => Some(t),
+            ErrorKind::UnsupportedLiteral(t, ..) => Some(t),
+            ErrorKind::InvalidLiteral(t) => Some(t),
         }
     }
 }
@@ -221,12 +223,19 @@ impl Display for Error {
                 token.location().column(),
                 token
             ),
-            ErrorKind::UnsupportedValueReferenceLiteral(token, r#type) => write!(
+            ErrorKind::UnsupportedLiteral(token, r#type) => write!(
                 f,
                 "At line {}, column {} an (yet) unsupported value reference literal of type '{:?}' was discovered: {}",
                 token.location().line(),
                 token.location().column(),
                 r#type,
+                token
+            ),
+            ErrorKind::InvalidLiteral(token) => write!(
+                f,
+                "At line {}, column {} an invalid literal was discovered: {}",
+                token.location().line(),
+                token.location().column(),
                 token
             ),
         }

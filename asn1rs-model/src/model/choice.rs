@@ -100,7 +100,8 @@ impl<T: Iterator<Item = Token>> TryFrom<&mut Peekable<T>> for Choice<Unresolved>
 impl Choice<Unresolved> {
     pub fn try_resolve<
         R: Resolver<<Resolved as ResolveState>::SizeType>
-            + Resolver<<Resolved as ResolveState>::RangeType>,
+            + Resolver<<Resolved as ResolveState>::RangeType>
+            + Resolver<<Resolved as ResolveState>::DefaultType>,
     >(
         &self,
         resolver: &R,
@@ -159,7 +160,8 @@ impl<RS: ResolveState> TagProperty for ChoiceVariant<RS> {
 impl ChoiceVariant<Unresolved> {
     pub fn try_resolve<
         R: Resolver<<Resolved as ResolveState>::SizeType>
-            + Resolver<<Resolved as ResolveState>::RangeType>,
+            + Resolver<<Resolved as ResolveState>::RangeType>
+            + Resolver<<Resolved as ResolveState>::DefaultType>,
     >(
         &self,
         resolver: &R,

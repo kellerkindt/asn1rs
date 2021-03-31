@@ -61,11 +61,16 @@ The crate can be used as standalone CLI binary or used as library through its AP
 | ...`A..B,...`       | ✔️ yes  | ✔️ yes  | ✔️ yes²   | ✔️ yes²   | ✔️ yes²  | ⚠️ ignored         |
 | `BOOLEAN`           | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             |
 | `OPTIONAL`          | ✔️ yes  | ✔️ yes  | ✔️ yes      | ✔️ yes      | ✔️ yes     | ✔️ yes             |
+| `DEFAULT ...`       | ✔️ yes  |         |             |             |            |                    |
+| ...`INTEGER`        | ✔️ yes  | ✔️ yes | ✔️ yes¹     | ✔️ yes¹     | ✔️ yes¹   | ⚠️ ignored             |
+| ...`*String`        | ✔️ yes  | ✔️ yes | ✔️ yes¹     | ✔️ yes¹     | ✔️ yes¹   | ⚠️ ignored             |
+| ...`BOOLEAN`        | ✔️ yes  | ✔️ yes | ✔️ yes¹     | ✔️ yes¹     | ✔️ yes¹   | ⚠️ ignored             |
 | `IMPORTS..FROM..;`  | ✔️ yes  |         |             |             |            |                    |
 | `ObjectIdentifiers` | ✔️ yes  |         |             |             |            |                    |
 | Value References    | ✔️ yes  |         |             |             |            |                    |
 | ... in Range        | ✔️ yes  |         |             |             |            |                    |
 | ... in Size         | ✔️ yes  |         |             |             |            |                    |
+| ... in Default      | ✔️ yes  |         |             |             |            |                    |
 
 
  - ✔️ yes: according to specification

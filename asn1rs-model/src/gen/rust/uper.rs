@@ -91,7 +91,7 @@ impl UperSerializer {
     }
 
     fn impl_read_fn_header_for_type(function: &mut Function, name: &str, aliased: &RustType) {
-        if let RustType::Option(_) = aliased {
+        if aliased.is_optional() {
             function.line(&format!(
                 "let {} = reader.read_bit()?;",
                 RustCodeGenerator::rust_field_name(name, true)
@@ -170,6 +170,24 @@ impl UperSerializer {
                 });
                 block.push_block(for_block);
                 block.line("values");
+            }
+            RustType::Default(inner, default) => {
+                let mut if_block = Block::new(&format!(
+                    "if {}",
+                    field_name
+                        .clone()
+                        .map_or_else(|| "value".into(), |f| f.name().to_string())
+                ));
+                Self::impl_read_fn_for_type(
+                    &mut if_block,
+                    &inner.to_inner_type_string(),
+                    field_name,
+                    inner,
+                );
+                let mut else_block = Block::new("else");
+                else_block.line(format!("{}.to_owned()", default.as_rust_const_literal()));
+                block.push_block(if_block);
+                block.push_block(else_block);
             }
             RustType::Option(inner) => {
                 let mut if_block = Block::new(&format!(
@@ -356,11 +374,21 @@ impl UperSerializer {
     }
 
     fn impl_write_fn_header_for_type(function: &mut Function, name: &str, aliased: &RustType) {
-        if let RustType::Option(_) = aliased {
-            function.line(&format!(
-                "writer.write_bit(self.{}.is_some())?;",
-                RustCodeGenerator::rust_field_name(name, true)
-            ));
+        match aliased {
+            RustType::Option(_) => {
+                function.line(&format!(
+                    "writer.write_bit(self.{}.is_some())?;",
+                    RustCodeGenerator::rust_field_name(name, true)
+                ));
+            }
+            RustType::Default(_, default) => {
+                function.line(&format!(
+                    "writer.write_bit(self.{} != {})?;",
+                    RustCodeGenerator::rust_field_name(name, true),
+                    default.as_rust_const_literal()
+                ));
+            }
+            _ => {}
         }
     }
 
@@ -469,6 +497,25 @@ impl UperSerializer {
                     field_name
                         .clone()
                         .map_or_else(|| "value".into(), |f| f.name().to_string()),
+                    field_name
+                        .clone()
+                        .map_or_else(|| "value".into(), |f| f.to_string()),
+                ));
+                Self::impl_write_fn_for_type(
+                    &mut if_block,
+                    Some(Member::Local(
+                        field_name.map_or_else(|| "value".into(), |f| f.name().to_string()),
+                        false,
+                        false,
+                    )),
+                    inner,
+                );
+                block.push_block(if_block);
+            }
+            RustType::Default(inner, default) => {
+                let mut if_block = Block::new(&format!(
+                    "if {} != {}",
+                    default.as_rust_const_literal(),
                     field_name
                         .clone()
                         .map_or_else(|| "value".into(), |f| f.to_string()),

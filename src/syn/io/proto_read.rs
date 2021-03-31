@@ -214,6 +214,14 @@ impl<'a> Reader for ProtobufReader<'a> {
     }
 
     #[inline]
+    fn read_default<C: default::Constraint<Owned = T::Type>, T: ReadableType>(
+        &mut self,
+    ) -> Result<T::Type, Self::Error> {
+        // todo is there a better solution than to ignore this?
+        T::read_value(self)
+    }
+
+    #[inline]
     fn read_number<T: numbers::Number, C: numbers::Constraint<T>>(
         &mut self,
     ) -> Result<T, Self::Error> {

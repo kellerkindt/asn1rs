@@ -245,8 +245,8 @@ impl Model<Asn<Unresolved>> {
         }
     }
 
-    fn read_value_reference(
-        iter: &mut Peekable<IntoIter<Token>>,
+    fn read_value_reference<T: Iterator<Item = Token>>(
+        iter: &mut Peekable<T>,
         name: String,
     ) -> Result<ValueReference<Asn<Unresolved>>, Error> {
         let r#type = Self::read_role(iter)?;
@@ -256,42 +256,69 @@ impl Model<Asn<Unresolved>> {
                 iter.next_separator_eq_or_err(':')?;
                 iter.next_separator_eq_or_err(':')?;
                 iter.next_separator_eq_or_err('=')?;
-                match r#type {
-                    Type::Boolean => iter.next_text_or_err()?,
-                    Type::Integer(_) => iter.next_text_or_err()?,
-                    Type::String(_, _) => Self::read_string_literal(iter, '"')?,
-                    Type::OctetString(_) => Self::read_hex_string_literal(iter)?,
-                    Type::BitString(_) => Self::read_hex_string_literal(iter)?,
-                    Type::Optional(_)
-                    | Type::Sequence(_)
-                    | Type::SequenceOf(_, _)
-                    | Type::Set(_)
-                    | Type::SetOf(_, _)
-                    | Type::Enumerated(_)
-                    | Type::Choice(_)
-                    | Type::TypeReference(_, _) => {
-                        return Err(Error::unsupported_value_reference_literal(
-                            iter.peek_or_err()?.clone(),
-                            r#type,
-                        ));
-                    }
-                }
+                Self::read_literal(iter, &r#type)?
             },
-            role: Asn { tag: None, r#type },
+            role: Asn {
+                tag: None,
+                r#type,
+                default: None,
+            },
         })
+    }
+
+    fn read_literal<T: Iterator<Item = Token>>(
+        iter: &mut Peekable<T>,
+        r#type: &Type<Unresolved>,
+    ) -> Result<LiteralValue, ErrorKind> {
+        println!("{:?}", iter.peek_or_err()?);
+        let location = iter.peek_or_err()?.location();
+        let string = match r#type {
+            Type::Boolean
+                if iter.peek_is_text_eq_ignore_case("true")
+                    || iter.peek_is_text_eq_ignore_case("false") =>
+            {
+                iter.next_text_or_err()?
+            }
+            Type::Integer(_)
+                if iter.peek_is_text_and_satisfies(|slice| {
+                    slice.chars().all(|c| c.is_ascii_digit())
+                        || (slice.starts_with('-')
+                            && slice.len() > 1
+                            && slice.chars().skip(1).all(|c| c.is_ascii_digit()))
+                }) =>
+            {
+                iter.next_text_or_err()?
+            }
+            Type::String(_, _) if iter.peek_is_separator_eq('"') => {
+                Self::read_string_literal(iter, '"')?
+            }
+            Type::OctetString(_) | Type::BitString(_) if iter.peek_is_separator_eq('\'') => {
+                Self::read_hex_or_bit_string_literal(iter)?
+            }
+            _ => {
+                return Err(ErrorKind::UnsupportedLiteral(
+                    iter.peek_or_err()?.clone(),
+                    Box::new(r#type.clone()),
+                ));
+            }
+        };
+        LiteralValue::try_from_asn_str(&string)
+            .ok_or(ErrorKind::InvalidLiteral(Token::Text(location, string)))
     }
 
     fn read_string_literal<T: Iterator<Item = Token>>(
         iter: &mut Peekable<T>,
         delimiter: char,
-    ) -> Result<String, Error> {
+    ) -> Result<String, ErrorKind> {
         iter.next_separator_eq_or_err(delimiter)?;
         let token = iter.next_or_err()?;
 
-        let mut string = token.text().map(ToString::to_string).unwrap_or_default();
+        let first_text = token.text().unwrap_or_default();
+        let mut string = String::from(delimiter);
+        string.push_str(first_text);
         let mut prev_loc = Location::at(
             token.location().line(),
-            token.location().column() + string.chars().count(),
+            token.location().column() + first_text.chars().count(),
         );
 
         loop {
@@ -314,14 +341,19 @@ impl Model<Asn<Unresolved>> {
             }
         }
 
+        string.push(delimiter);
+
         Ok(string)
     }
 
-    fn read_hex_string_literal<T: Iterator<Item = Token>>(
+    fn read_hex_or_bit_string_literal<T: Iterator<Item = Token>>(
         iter: &mut Peekable<T>,
-    ) -> Result<String, Error> {
-        let string = Self::read_string_literal(iter, '\'')?;
-        iter.next_text_eq_ignore_case_or_err("H")?;
+    ) -> Result<String, ErrorKind> {
+        let mut string = Self::read_string_literal(iter, '\'')?;
+        match iter.next_text_eq_any_ignore_case_or_err(&["H", "B"])? {
+            Token::Text(_, suffix) => string.push_str(&suffix),
+            t => return Err(ErrorKind::UnexpectedToken(t)),
+        };
         Ok(string)
     }
 
@@ -428,6 +460,23 @@ impl Model<Asn<Unresolved>> {
             if token.eq_text_ignore_ascii_case("OPTIONAL") {
                 field.role.make_optional();
                 iter.next_or_err()?
+            } else if token.eq_text_ignore_ascii_case("DEFAULT") {
+                if cfg!(feature = "debug-proc-macro") {
+                    println!("TOKEN:::: {:?}", token);
+                }
+                field
+                    .role
+                    .set_default(match Self::read_literal(iter, &field.role.r#type) {
+                        Ok(value) => LitOrRef::Lit(value),
+                        Err(ErrorKind::UnsupportedLiteral(token, ..)) if token.is_text() => {
+                            LitOrRef::Ref(iter.next_text_or_err()?)
+                        }
+                        Err(e) => return Err(e.into()),
+                    });
+                if cfg!(feature = "debug-proc-macro") {
+                    println!("     :::: {:?}", field);
+                }
+                iter.next_or_err()?
             } else {
                 token
             }
@@ -514,7 +563,25 @@ impl<RS: ResolveState> Model<Asn<RS>> {
 pub struct ValueReference<T> {
     pub name: String,
     pub role: T,
-    pub value: String,
+    pub value: LiteralValue,
+}
+
+#[derive(Debug, Clone, PartialOrd, PartialEq)]
+pub enum LiteralValue {
+    Boolean(bool),
+    String(String),
+    Integer(i64),
+    OctetString(Vec<u8>),
+}
+
+impl LiteralValue {
+    pub fn to_integer(&self) -> Option<i64> {
+        if let LiteralValue::Integer(int) = self {
+            Some(*int)
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Debug, Default, Clone, PartialOrd, PartialEq)]
@@ -547,7 +614,8 @@ impl<T: TagProperty> TagProperty for Field<T> {
 impl Field<Asn<Unresolved>> {
     pub fn try_resolve<
         R: Resolver<<Resolved as ResolveState>::SizeType>
-            + Resolver<<Resolved as ResolveState>::RangeType>,
+            + Resolver<<Resolved as ResolveState>::RangeType>
+            + Resolver<<Resolved as ResolveState>::DefaultType>,
     >(
         &self,
         resolver: &R,
@@ -1596,12 +1664,12 @@ pub(crate) mod tests {
                 ValueReference {
                     name: "somethingYes".to_string(),
                     role: Type::Boolean.untagged(),
-                    value: "TRUE".to_string()
+                    value: LiteralValue::Boolean(true)
                 },
                 ValueReference {
                     name: "somethingNo".to_string(),
                     role: Type::Boolean.untagged(),
-                    value: "FALSE".to_string()
+                    value: LiteralValue::Boolean(false)
                 },
             ],
             &model.value_references[..]
@@ -1626,7 +1694,7 @@ pub(crate) mod tests {
                     constants: Vec::default()
                 })
                 .untagged(),
-                value: "1337".to_string()
+                value: LiteralValue::Integer(1337)
             },
             model.value_references[0]
         )
@@ -1637,7 +1705,9 @@ pub(crate) mod tests {
         let model = Model::try_from(Tokenizer::default().parse(
             r"SomeName DEFINITIONS AUTOMATIC TAGS ::= BEGIN
                 
-                magicFlags BIT STRING ::= '4711'h
+                magicFlags BIT STRING ::= 'a711'H
+                
+                magicFlags2 BIT STRING ::= '1001'B
                 
                 END",
         ))
@@ -1650,10 +1720,22 @@ pub(crate) mod tests {
                     constants: Vec::default()
                 })
                 .untagged(),
-                value: "4711".to_string()
+                value: LiteralValue::OctetString(vec![0xa7, 0x11])
             },
             model.value_references[0]
-        )
+        );
+        assert_eq!(
+            ValueReference {
+                name: "magicFlags2".to_string(),
+                role: Type::BitString(BitString {
+                    size: Size::Any,
+                    constants: Vec::default()
+                })
+                .untagged(),
+                value: LiteralValue::OctetString(vec![0x09])
+            },
+            model.value_references[1]
+        );
     }
 
     #[test]
@@ -1670,7 +1752,7 @@ pub(crate) mod tests {
             ValueReference {
                 name: "answers".to_string(),
                 role: Type::OctetString(Size::Any).untagged(),
-                value: "42".to_string()
+                value: LiteralValue::OctetString(vec![0x42])
             },
             model.value_references[0]
         )
@@ -1692,12 +1774,12 @@ pub(crate) mod tests {
                 ValueReference {
                     name: "utf8".to_string(),
                     role: Type::String(Size::Any, Charset::Utf8).untagged(),
-                    value: "häw äre yöu .. .. doing".to_string()
+                    value: LiteralValue::String("häw äre yöu .. .. doing".to_string())
                 },
                 ValueReference {
                     name: "ia5".to_string(),
                     role: Type::String(Size::Any, Charset::Ia5).untagged(),
-                    value: "how are you".to_string()
+                    value: LiteralValue::String("how are you".to_string())
                 }
             ],
             &model.value_references[..]

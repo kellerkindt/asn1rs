@@ -428,6 +428,20 @@ impl Writer for UperWriter {
     }
 
     #[inline]
+    fn write_default<C: default::Constraint<Owned = T::Type>, T: WritableType>(
+        &mut self,
+        value: &T::Type,
+    ) -> Result<(), Self::Error> {
+        let present = C::DEFAULT_VALUE.ne(value);
+        self.write_bit_field_entry(true, present)?;
+        if present {
+            self.scope_stashed(|w| T::write_value(w, value))
+        } else {
+            Ok(())
+        }
+    }
+
+    #[inline]
     #[allow(clippy::redundant_pattern_matching)] // allow for const_*!
     fn write_number<T: numbers::Number, C: numbers::Constraint<T>>(
         &mut self,
@@ -849,6 +863,18 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
             self.scope_stashed(T::read_value).map(Some)
         } else {
             Ok(None)
+        }
+    }
+
+    #[inline]
+    fn read_default<C: default::Constraint<Owned = T::Type>, T: ReadableType>(
+        &mut self,
+    ) -> Result<T::Type, Self::Error> {
+        // unwrap: as opt-field this must and will return some value
+        if self.read_bit_field_entry(true)?.unwrap() {
+            self.scope_stashed(T::read_value)
+        } else {
+            Ok(C::DEFAULT_VALUE.to_owned())
         }
     }
 

@@ -54,7 +54,8 @@ impl<T: Iterator<Item = Token>> TryFrom<&mut Peekable<T>> for ComponentTypeList<
 impl ComponentTypeList<Unresolved> {
     pub fn try_resolve<
         R: Resolver<<Resolved as ResolveState>::SizeType>
-            + Resolver<<Resolved as ResolveState>::RangeType>,
+            + Resolver<<Resolved as ResolveState>::RangeType>
+            + Resolver<<Resolved as ResolveState>::DefaultType>,
     >(
         &self,
         resolver: &R,

@@ -1,6 +1,8 @@
 use crate::gen::RustCodeGenerator;
 use crate::model::rust::{DataEnum, EncodingOrdering, Field, PlainEnum};
-use crate::model::{Charset, Definition, Model, Range, Rust, RustType, Size, Tag, TagProperty};
+use crate::model::{
+    Charset, Definition, LiteralValue, Model, Range, Rust, RustType, Size, Tag, TagProperty,
+};
 use codegen::{Block, Impl, Scope};
 use std::fmt::Display;
 
@@ -97,6 +99,15 @@ impl AsnDefWriter {
                 )
             }
             RustType::Option(inner) => format!("Option<{}>", Self::type_declaration(&*inner, name)),
+            RustType::Default(inner, _default) => {
+                let virtual_field = Self::default_virtual_field_name(name);
+                format!(
+                    "{}DefaultValue<{}, {}Constraint>",
+                    CRATE_SYN_PREFIX,
+                    Self::type_declaration(&*inner, &virtual_field),
+                    name
+                )
+            }
             RustType::Complex(inner, _tag) => {
                 format!("{}Complex<{}, {}Constraint>", CRATE_SYN_PREFIX, inner, name)
             }
@@ -386,6 +397,29 @@ impl AsnDefWriter {
                 },
                 constraint_type_name,
             ),
+            RustType::Default(inner, default) => {
+                Self::write_common_constraint_type(
+                    scope,
+                    constraint_type_name,
+                    field.tag.unwrap_or(Tag::DEFAULT_SEQUENCE_OF),
+                );
+                Self::write_default_constraint(scope, constraint_type_name, &*inner, default);
+
+                let virtual_field_name = Self::default_virtual_field_name(field.name());
+                let constraint_type_name = Self::constraint_type_name(name, &virtual_field_name);
+                Self::write_constraint_type_decl(scope, &constraint_type_name);
+
+                self.write_field_constraint(
+                    scope,
+                    name,
+                    &Field {
+                        name_type: (virtual_field_name, *inner.clone()),
+                        tag: field.tag,
+                        constants: field.constants().to_vec(),
+                    },
+                    &constraint_type_name,
+                )
+            }
             RustType::Complex(_, tag) => {
                 self.write_complex_constraint(
                     scope,
@@ -412,6 +446,10 @@ impl AsnDefWriter {
 
     fn vec_virtual_field_name(field_name: &str) -> String {
         field_name.to_string() + "Values"
+    }
+
+    fn default_virtual_field_name(field_name: &str) -> String {
+        field_name.to_string() + "Value"
     }
 
     fn write_sequence_or_set_constraint(
@@ -676,6 +714,62 @@ impl AsnDefWriter {
         scope.raw("}");
     }
 
+    fn write_default_constraint(
+        scope: &mut Scope,
+        constraint_type_name: &str,
+        r#type: &RustType,
+        default: &LiteralValue,
+    ) {
+        use std::borrow::Cow;
+        scope.raw(&format!(
+            "impl {}default::Constraint for {} {{",
+            CRATE_SYN_PREFIX, constraint_type_name
+        ));
+
+        let (owned, borrowed, default) = match r#type.as_no_option() {
+            RustType::Option(_) => unreachable!(),
+            RustType::Default(..) => panic!("Nested default detected"),
+            RustType::Complex(name, _tag) => {
+                //panic!("Complex default types unsupported")
+                (
+                    Cow::<'_, str>::Borrowed(&name),
+                    Cow::<'_, str>::Borrowed(&name),
+                    Cow::<'_, str>::Owned(format!("{}({})", name, default.as_rust_const_literal())),
+                )
+            }
+            RustType::Bool => (
+                Cow::Borrowed("bool"),
+                Cow::Borrowed("bool"),
+                Cow::Owned(
+                    default
+                        .as_rust_const_literal_expect(|l| matches!(l, LiteralValue::Boolean(..)))
+                        .to_string(),
+                ),
+            ),
+            RustType::String(..) => (
+                Cow::Borrowed("String"),
+                Cow::Borrowed("str"),
+                Cow::Owned(
+                    default
+                        .as_rust_const_literal_expect(|l| matches!(l, LiteralValue::String(..)))
+                        .to_string(),
+                ),
+            ),
+            t => (
+                Cow::Owned(t.to_string()),
+                t.to_const_lit_string(),
+                Cow::Owned(default.as_rust_const_literal().to_string()),
+            ),
+        };
+        scope.raw(&format!("type Owned = {};", owned));
+        scope.raw(&format!("type Borrowed = {};", borrowed));
+        scope.raw(&format!(
+            "const DEFAULT_VALUE: &'static Self::Borrowed = &{};",
+            default
+        ));
+        scope.raw("}");
+    }
+
     fn write_sequence_constraint_insert_consts(
         scope: &mut Scope,
         name: &str,
@@ -700,7 +794,7 @@ impl AsnDefWriter {
                         .take_while(
                             |(index, _f)| *index <= extension_after_field.unwrap_or(usize::MAX)
                         )
-                        .filter(|(_index, f)| f.r#type().is_option())
+                        .filter(|(_index, f)| f.r#type().is_optional())
                         .count()
                 ),
                 format!("const NAME: &'static str = \"{}\";", name),

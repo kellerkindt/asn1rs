@@ -32,7 +32,10 @@ pub fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     let (definition, item) = match parse_asn_definition(attr, item) {
         Ok(v) => v,
-        Err(e) => return e,
+        Err(e) => {
+            println!("Errör: {}", e.to_string());
+            return e;
+        }
     };
 
     if cfg!(feature = "debug-proc-macro") {
@@ -107,6 +110,11 @@ pub fn parse_asn_definition(
             format!("Invalid ASN attribute ('{}'): {}", attr.to_string(), e),
         )
     })?;
+
+    if cfg!(feature = "debug-proc-macro") {
+        println!("{:?}", asn);
+        println!("Matching item {:?}", item);
+    }
 
     match item {
         Item::Struct(strct) if asn.primary.eq_ignore_ascii_case("sequence") => {
@@ -350,9 +358,11 @@ fn parse_and_remove_first_asn_attribute<C: Context>(
     attrs: &mut Vec<Attribute>,
 ) -> Result<AsnAttribute<C>, TokenStream> {
     find_and_remove_first_asn_attribute_or_err(span, attrs).and_then(|attribute| {
-        attribute
-            .parse_args::<AsnAttribute<C>>()
-            .map_err(|e| e.to_compile_error())
+        attribute.parse_args::<AsnAttribute<C>>().map_err(|e| {
+            println!("parse_args failed {:?}", e);
+            syn::Error::new(span, e).into_compile_error()
+            //e.into_compile_error()
+        })
     })
 }
 
@@ -372,6 +382,7 @@ fn into_asn<C: Context<Primary = Type>>(ty: &syn::Type, mut asn: AsnAttribute<C>
             }
             asn.primary
         },
+        default: asn.default_value,
     }
 }
 

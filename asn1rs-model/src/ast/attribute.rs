@@ -2,9 +2,12 @@ use super::range::ident_or_literal_or_punct;
 use super::range::IntegerRange;
 use super::tag::AttrTag;
 use crate::ast::constants::ConstLit;
+use crate::model::LiteralValue;
 use crate::model::{
     Charset, Choice, ChoiceVariant, Enumerated, EnumeratedVariant, Range, Size, Tag, Type,
 };
+use quote::ToTokens;
+use std::fmt::Debug;
 use std::fmt::Display;
 use std::marker::PhantomData;
 use std::ops::Deref;
@@ -20,6 +23,7 @@ pub(crate) struct AsnAttribute<C: Context> {
     pub(crate) tag: Option<Tag>,
     pub(crate) consts: Vec<ConstLit>,
     pub(crate) extensible_after: Option<String>,
+    pub(crate) default_value: Option<LiteralValue>,
     _c: PhantomData<C>,
 }
 
@@ -30,6 +34,7 @@ impl<C: Context> AsnAttribute<C> {
             tag: None,
             consts: Vec::default(),
             extensible_after: None,
+            default_value: None,
             _c: Default::default(),
         }
     }
@@ -80,6 +85,15 @@ impl<C: Context> Parse for AsnAttribute<C> {
 
             eof_or_comma(input, "Attributes must be separated by comma")?;
         }
+
+        if cfg!(feature = "debug-proc-macro") {
+            println!(
+                "AsnAttribute parse_args end: {:?}/{}",
+                asn,
+                input.to_string()
+            );
+        }
+
         Ok(asn)
     }
 }
@@ -148,6 +162,59 @@ fn parse_type_pre_stepped<'a>(
             parenthesized!(content in input);
             let inner = parse_type(&content)?;
             Ok(Type::Optional(Box::new(inner)))
+        }
+        "default" => {
+            let content;
+            parenthesized!(content in input);
+            let span = content.span();
+            let ctnt = content.to_string();
+            let inner = parse_type(&content).map_err(|e| {
+                syn::Error::new(
+                    span,
+                    format!(
+                        "Failed to extract default value type({}): {}",
+                        ctnt,
+                        e.to_string()
+                    ),
+                )
+            })?;
+
+            content.parse::<Token![,]>()?;
+            let span = content.span();
+            let ctnt = content.to_string();
+            let mut default = String::default();
+            if content.peek(Token![-]) {
+                content.parse::<Token![-]>()?;
+                default.push('-');
+            }
+
+            let ident = content
+                .parse::<syn::Ident>()
+                .map(|i| i.to_string())
+                .or_else(|_| {
+                    content
+                        .parse::<syn::Lit>()
+                        .map(|l| l.to_token_stream().to_string())
+                })
+                .map_err(|e| {
+                    syn::Error::new(
+                        span,
+                        format!(
+                            "Failed to parse default value literal({}): {}",
+                            ctnt,
+                            e.to_string()
+                        ),
+                    )
+                })?;
+
+            Ok(Type::Default(
+                Box::new(inner),
+                LiteralValue::try_from_asn_str(&{
+                    default.push_str(&ident);
+                    default
+                })
+                .ok_or_else(|| syn::Error::new(span, "Invalid literal value"))?,
+            ))
         }
         "boolean" => Ok(Type::Boolean),
         "sequence_of" | "set_of" => {
@@ -259,8 +326,8 @@ impl PrimaryContext for Option<usize> {
     }
 }
 
-pub trait Context {
-    type Primary: PrimaryContext;
+pub trait Context: Debug {
+    type Primary: PrimaryContext + Debug;
     const EXTENSIBLE_AFTER: bool;
     const TAGGABLE: bool;
     const CONSTS: bool;
@@ -294,6 +361,7 @@ impl Context for EnumeratedVariant {
     const CONSTS: bool = false;
 }
 
+#[derive(Debug)]
 pub struct Transparent;
 impl Context for Transparent {
     type Primary = Type;
@@ -302,6 +370,7 @@ impl Context for Transparent {
     const CONSTS: bool = true;
 }
 
+#[derive(Debug)]
 pub struct DefinitionHeader(String);
 impl Context for DefinitionHeader {
     type Primary = Self;

@@ -520,6 +520,7 @@ impl ToSql for RustType {
             RustType::BitVec(_) => SqlType::BitsReprByByteArrayAndBitsLen,
             RustType::Vec(inner, _size, _ordering) => SqlType::Array(inner.to_sql().into()),
             RustType::Option(inner) => return inner.to_sql().nullable(),
+            RustType::Default(inner, ..) => return inner.to_sql().nullable(),
             RustType::Complex(name, _tag) => SqlType::References(
                 name.clone(),
                 FOREIGN_KEY_DEFAULT_COLUMN.into(),
