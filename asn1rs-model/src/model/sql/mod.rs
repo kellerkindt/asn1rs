@@ -469,7 +469,7 @@ impl Model<Sql> {
 
     pub fn is_primitive(rust: &RustType) -> bool {
         #[allow(clippy::match_same_arms)] // to have the same order as the original enum
-        match rust.clone().as_inner_type() {
+        match rust.as_inner_type() {
             RustType::String(..) => true,
             RustType::VecU8(_) => true,
             RustType::BitVec(_) => true,
@@ -520,7 +520,7 @@ impl ToSql for RustType {
             RustType::BitVec(_) => SqlType::BitsReprByByteArrayAndBitsLen,
             RustType::Vec(inner, _size, _ordering) => SqlType::Array(inner.to_sql().into()),
             RustType::Option(inner) => return inner.to_sql().nullable(),
-            RustType::Default(inner, ..) => return inner.to_sql().nullable(),
+            RustType::Default(inner, ..) => return inner.to_sql(),
             RustType::Complex(name, _tag) => SqlType::References(
                 name.clone(),
                 FOREIGN_KEY_DEFAULT_COLUMN.into(),

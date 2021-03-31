@@ -120,8 +120,8 @@ impl RustType {
                 | RustType::U32(_)
                 | RustType::I32(_)
                 | RustType::U64(_)
-                | RustType::I64(_)
-        )
+                | RustType::I64(_),
+        ) || matches!(self, RustType::Default(inner, ..) if inner.is_primitive())
     }
 
     pub fn integer_range_str(&self) -> Option<Range<String>> {
@@ -244,10 +244,13 @@ impl RustType {
                 }
             }
             RustType::Option(inner) => {
-                matches!(other, RustType::Option(other) if other.similar(inner))
+                matches!(other, RustType::Option(o) if o.similar(&*inner))
+                    || matches!(other, RustType::Default(o, ..) if o.similar(&*inner))
             }
             RustType::Default(inner, ..) => {
-                matches!(other, RustType::Default(other, ..) if other.similar(inner))
+                other.similar(&*inner)
+                    || matches!(other, RustType::Default(o, ..) if o.similar(&*inner))
+                    || matches!(other, RustType::Option(o, ..) if o.similar(&*inner))
             }
             RustType::Complex(inner_a, _tag) => {
                 if let RustType::Complex(inner_b, _tag) = other {

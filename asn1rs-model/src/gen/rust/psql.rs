@@ -549,7 +549,11 @@ impl PsqlInserter {
                 let load = format!(
                     "{}::value_at_column::<{}>(&row, {})?",
                     ERROR_TYPE,
-                    rust.to_sql().to_rust().to_string(),
+                    if rust.to_sql().to_rust().similar(&rust) {
+                        rust.to_string()
+                    } else {
+                        rust.to_sql().to_rust().to_string()
+                    },
                     index + 1,
                 );
                 block.line(&format!(

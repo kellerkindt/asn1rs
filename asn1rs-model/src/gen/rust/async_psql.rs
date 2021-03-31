@@ -517,9 +517,14 @@ fn insert_sql_primitive_field(
         if r_type.is_primitive() { "" } else { "&" },
         if on_self { "self." } else { "" },
         field_name,
-        conversion.as_ref().map(|_| " as ").unwrap_or_default(),
         conversion
             .as_ref()
+            .filter(|_| r_type.is_primitive())
+            .map(|_| " as ")
+            .unwrap_or_default(),
+        conversion
+            .as_ref()
+            .filter(|_| r_type.is_primitive())
             .map(|r| r.to_string())
             .unwrap_or_default(),
     ));
