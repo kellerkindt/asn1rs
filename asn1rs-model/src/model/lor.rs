@@ -4,7 +4,7 @@ use std::fmt::{Debug, Display, Formatter};
 pub trait ResolveState: Clone {
     type SizeType: Display + Debug + Clone + PartialOrd + PartialEq;
     type RangeType: Display + Debug + Clone + PartialOrd + PartialEq;
-    type DefaultType: Debug + Clone + PartialOrd + PartialEq;
+    type ConstType: Debug + Clone + PartialOrd + PartialEq;
 }
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
@@ -12,7 +12,7 @@ pub struct Resolved;
 impl ResolveState for Resolved {
     type SizeType = usize;
     type RangeType = i64;
-    type DefaultType = LiteralValue;
+    type ConstType = LiteralValue;
 }
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
@@ -20,7 +20,7 @@ pub struct Unresolved;
 impl ResolveState for Unresolved {
     type SizeType = LitOrRef<usize>;
     type RangeType = LitOrRef<i64>;
-    type DefaultType = LitOrRef<LiteralValue>;
+    type ConstType = LitOrRef<LiteralValue>;
 }
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]

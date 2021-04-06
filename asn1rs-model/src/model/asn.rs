@@ -10,7 +10,7 @@ use std::fmt::Debug;
 pub struct Asn<RS: ResolveState = Resolved> {
     pub tag: Option<Tag>,
     pub r#type: Type<RS>,
-    pub default: Option<RS::DefaultType>,
+    pub default: Option<RS::ConstType>,
 }
 
 impl<RS: ResolveState> Target for Asn<RS> {
@@ -24,7 +24,7 @@ impl<RS: ResolveState> Asn<RS> {
         self.r#type = optional;
     }
 
-    pub fn set_default(&mut self, value: RS::DefaultType) {
+    pub fn set_default(&mut self, value: RS::ConstType) {
         self.default = Some(value);
     }
 
@@ -69,7 +69,7 @@ impl Asn<Unresolved> {
     pub fn try_resolve<
         R: Resolver<<Resolved as ResolveState>::SizeType>
             + Resolver<<Resolved as ResolveState>::RangeType>
-            + Resolver<<Resolved as ResolveState>::DefaultType>,
+            + Resolver<<Resolved as ResolveState>::ConstType>,
     >(
         &self,
         resolver: &R,
@@ -194,7 +194,7 @@ impl Type<Unresolved> {
     pub fn try_resolve<
         R: Resolver<<Resolved as ResolveState>::SizeType>
             + Resolver<<Resolved as ResolveState>::RangeType>
-            + Resolver<<Resolved as ResolveState>::DefaultType>,
+            + Resolver<<Resolved as ResolveState>::ConstType>,
     >(
         &self,
         resolver: &R,
