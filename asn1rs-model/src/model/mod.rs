@@ -33,6 +33,7 @@ mod definition;
 mod enumerated;
 mod err;
 mod int;
+mod itc;
 pub mod lor;
 mod oid;
 mod parse;
@@ -41,6 +42,7 @@ mod size;
 mod tag;
 mod tag_resolver;
 
+use crate::model::itc::InnerTypeConstraints;
 use crate::model::lor::{ResolveState, Resolved, Resolver, Unresolved};
 pub use asn::Asn;
 pub use asn::Type;
@@ -401,8 +403,23 @@ impl Model<Asn<Unresolved>> {
             "choice" => Type::Choice(Choice::try_from(iter)?),
             "sequence" => Self::read_sequence_or_sequence_of(iter)?,
             "set" => Self::read_set_or_set_of(iter)?,
-            _ => Type::TypeReference(text, None),
+            _ => {
+                let _ = Self::maybe_read_with_components_constraint(iter)?;
+                Type::TypeReference(text, None)
+            }
         })
+    }
+
+    fn maybe_read_with_components_constraint<T: Iterator<Item = Token>>(
+        iter: &mut Peekable<T>,
+    ) -> Result<Option<InnerTypeConstraints>, Error> {
+        if iter.next_is_separator_and_eq('(') {
+            let result = InnerTypeConstraints::try_from(&mut *iter)?;
+            iter.next_separator_eq_or_err(')')?;
+            Ok(Some(result))
+        } else {
+            Ok(None)
+        }
     }
 
     fn maybe_read_size<T: Iterator<Item = Token>>(

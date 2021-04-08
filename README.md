@@ -70,7 +70,7 @@ The crate can be used as standalone CLI binary or used as library through its AP
 | ... in Range        | ✔️ yes  |         |              |             |            |
 | ... in Size         | ✔️ yes  |         |              |             |            |
 | ... in Default      | ✔️ yes  |         |              |             |            |
-
+| `WITH COMPONENTS`   | ✔️ yes  | 🆗 ignored | 🆗 ignored | 🆗 ignored  | 🆗 ignored  |
 
  - ✔️ yes: according to specification
  - ✔️ yes¹: different representation
