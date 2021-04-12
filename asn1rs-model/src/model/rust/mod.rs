@@ -1092,6 +1092,14 @@ impl LiteralValue {
                         }
                         write!(f, "]")
                     }
+                    LiteralValue::EnumeratedVariant(r#type, variant) => {
+                        write!(
+                            f,
+                            "{}::{}",
+                            rust_struct_or_enum_name(r#type),
+                            rust_variant_name(variant)
+                        )
+                    }
                 }
             }
         }

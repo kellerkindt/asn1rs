@@ -6,7 +6,6 @@ use crate::model::LiteralValue;
 use crate::model::{
     Charset, Choice, ChoiceVariant, Enumerated, EnumeratedVariant, Range, Size, Tag, Type,
 };
-use quote::ToTokens;
 use std::fmt::Debug;
 use std::fmt::Display;
 use std::marker::PhantomData;
@@ -180,40 +179,43 @@ fn parse_type_pre_stepped<'a>(
             })?;
 
             content.parse::<Token![,]>()?;
-            let span = content.span();
-            let ctnt = content.to_string();
-            let mut default = String::default();
-            if content.peek(Token![-]) {
-                content.parse::<Token![-]>()?;
-                default.push('-');
-            }
-
-            let ident = content
-                .parse::<syn::Ident>()
-                .map(|i| i.to_string())
-                .or_else(|_| {
-                    content
-                        .parse::<syn::Lit>()
-                        .map(|l| l.to_token_stream().to_string())
-                })
-                .map_err(|e| {
-                    syn::Error::new(
-                        span,
-                        format!(
-                            "Failed to parse default value literal({}): {}",
-                            ctnt,
-                            e.to_string()
-                        ),
-                    )
-                })?;
 
             Ok(Type::Default(
                 Box::new(inner),
-                LiteralValue::try_from_asn_str(&{
-                    default.push_str(&ident);
-                    default
-                })
-                .ok_or_else(|| syn::Error::new(span, "Invalid literal value"))?,
+                content
+                    .parse::<syn::Lit>()
+                    .ok()
+                    .and_then(|lit| {
+                        Some(match lit {
+                            syn::Lit::Str(val) => LiteralValue::String(val.value()),
+                            syn::Lit::ByteStr(val) => LiteralValue::OctetString(val.value()),
+                            syn::Lit::Byte(val) => LiteralValue::Integer(i64::from(val.value())),
+                            syn::Lit::Int(val) => LiteralValue::Integer(val.base10_parse().ok()?),
+                            syn::Lit::Bool(val) => LiteralValue::Boolean(val.value()),
+                            syn::Lit::Char(_) | syn::Lit::Float(_) | syn::Lit::Verbatim(_) => {
+                                return None
+                            }
+                        })
+                    })
+                    .or_else(|| {
+                        content.parse::<syn::Path>().ok().and_then(|path| {
+                            if path.segments.len() == 2 {
+                                let mut iter = path.segments.iter();
+                                Some(LiteralValue::EnumeratedVariant(
+                                    iter.next().unwrap().ident.to_string(),
+                                    iter.next().unwrap().ident.to_string(),
+                                ))
+                            } else {
+                                None
+                            }
+                        })
+                    })
+                    .ok_or_else(|| {
+                        syn::Error::new(
+                            span,
+                            format!("Invalid literal value: {}", content.to_string()),
+                        )
+                    })?,
             ))
         }
         "boolean" => Ok(Type::Boolean),

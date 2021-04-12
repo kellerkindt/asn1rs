@@ -588,6 +588,7 @@ pub enum LiteralValue {
     String(String),
     Integer(i64),
     OctetString(Vec<u8>),
+    EnumeratedVariant(String, String),
 }
 
 impl LiteralValue {
@@ -631,7 +632,8 @@ impl Field<Asn<Unresolved>> {
     pub fn try_resolve<
         R: Resolver<<Resolved as ResolveState>::SizeType>
             + Resolver<<Resolved as ResolveState>::RangeType>
-            + Resolver<<Resolved as ResolveState>::ConstType>,
+            + Resolver<<Resolved as ResolveState>::ConstType>
+            + Resolver<Type<Unresolved>>,
     >(
         &self,
         resolver: &R,

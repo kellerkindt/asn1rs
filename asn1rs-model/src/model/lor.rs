@@ -1,4 +1,4 @@
-use crate::model::{Asn, Definition, LiteralValue, Model, ValueReference};
+use crate::model::{Asn, Definition, LiteralValue, Model, Type, ValueReference};
 use std::fmt::{Debug, Display, Formatter};
 
 pub trait ResolveState: Clone {
@@ -52,6 +52,7 @@ where
 
 #[derive(Debug, PartialOrd, PartialEq)]
 pub enum Error {
+    FailedToResolveType(String),
     FailedToResolveReference(String),
     FailedToParseLiteral(String),
 }
@@ -60,6 +61,9 @@ impl std::error::Error for Error {}
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            Error::FailedToResolveType(name) => {
+                write!(f, "Failed to resolve type with name: {}", name)
+            }
             Error::FailedToResolveReference(name) => {
                 write!(f, "Failed to resolve reference with name: {}", name)
             }
@@ -153,6 +157,20 @@ impl Resolver<LiteralValue> for Model<Asn<Unresolved>> {
                 .find(|vr| vr.name.eq(name))
                 .map(|vr| vr.value.clone())
                 .ok_or_else(|| Error::FailedToResolveReference(name.clone())),
+        }
+    }
+}
+
+impl Resolver<Type<Unresolved>> for Model<Asn<Unresolved>> {
+    fn resolve(&self, lor: &LitOrRef<Type<Unresolved>>) -> Result<Type<Unresolved>, Error> {
+        match lor {
+            LitOrRef::Lit(lit) => Ok(lit.clone()),
+            LitOrRef::Ref(name) => self
+                .definitions
+                .iter()
+                .find(|def| def.0.eq(name))
+                .map(|def| def.1.r#type.clone())
+                .ok_or_else(|| Error::FailedToResolveType(name.clone())),
         }
     }
 }

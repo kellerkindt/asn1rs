@@ -2,7 +2,7 @@ use crate::model::lor::{Error as ResolveError, TryResolve, Unresolved};
 use crate::model::lor::{ResolveState, Resolved, Resolver};
 use crate::model::{
     BitString, Charset, Choice, ChoiceVariant, ComponentTypeList, Enumerated, Field, Integer,
-    LiteralValue, Range, Size, Tag, TagProperty, Target,
+    LitOrRef, LiteralValue, Range, Size, Tag, TagProperty, Target,
 };
 use std::fmt::Debug;
 
@@ -69,19 +69,47 @@ impl Asn<Unresolved> {
     pub fn try_resolve<
         R: Resolver<<Resolved as ResolveState>::SizeType>
             + Resolver<<Resolved as ResolveState>::RangeType>
-            + Resolver<<Resolved as ResolveState>::ConstType>,
+            + Resolver<<Resolved as ResolveState>::ConstType>
+            + Resolver<Type<Unresolved>>,
     >(
         &self,
         resolver: &R,
     ) -> Result<Asn<Resolved>, ResolveError> {
+        let r#type = self.r#type.try_resolve(resolver)?;
         Ok(Asn {
             tag: self.tag,
-            r#type: self.r#type.try_resolve(resolver)?,
             default: self
                 .default
                 .as_ref()
-                .map(|d| resolver.resolve(d))
+                .map(|d| match d {
+                    LitOrRef::Lit(_) => resolver.resolve(d),
+                    LitOrRef::Ref(name) => {
+                        if let Type::TypeReference(referenced_name, _tag) = &r#type {
+                            if let Ok(Type::Enumerated(enumerated)) =
+                                resolver.resolve(&LitOrRef::Ref(referenced_name.to_string()))
+                            {
+                                if let Some(lit) =
+                                    enumerated.variants().find(|v| name.eq(v.name())).map(|v| {
+                                        LiteralValue::EnumeratedVariant(
+                                            referenced_name.to_string(),
+                                            v.name().to_string(),
+                                        )
+                                    })
+                                {
+                                    Ok(lit)
+                                } else {
+                                    resolver.resolve(d)
+                                }
+                            } else {
+                                resolver.resolve(d)
+                            }
+                        } else {
+                            resolver.resolve(d)
+                        }
+                    }
+                })
                 .transpose()?,
+            r#type,
         })
     }
 }
@@ -194,7 +222,8 @@ impl Type<Unresolved> {
     pub fn try_resolve<
         R: Resolver<<Resolved as ResolveState>::SizeType>
             + Resolver<<Resolved as ResolveState>::RangeType>
-            + Resolver<<Resolved as ResolveState>::ConstType>,
+            + Resolver<<Resolved as ResolveState>::ConstType>
+            + Resolver<Type<Unresolved>>,
     >(
         &self,
         resolver: &R,

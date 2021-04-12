@@ -101,7 +101,8 @@ impl Choice<Unresolved> {
     pub fn try_resolve<
         R: Resolver<<Resolved as ResolveState>::SizeType>
             + Resolver<<Resolved as ResolveState>::RangeType>
-            + Resolver<<Resolved as ResolveState>::ConstType>,
+            + Resolver<<Resolved as ResolveState>::ConstType>
+            + Resolver<Type<Unresolved>>,
     >(
         &self,
         resolver: &R,
@@ -161,7 +162,8 @@ impl ChoiceVariant<Unresolved> {
     pub fn try_resolve<
         R: Resolver<<Resolved as ResolveState>::SizeType>
             + Resolver<<Resolved as ResolveState>::RangeType>
-            + Resolver<<Resolved as ResolveState>::ConstType>,
+            + Resolver<<Resolved as ResolveState>::ConstType>
+            + Resolver<Type<Unresolved>>,
     >(
         &self,
         resolver: &R,

@@ -729,7 +729,9 @@ impl AsnDefWriter {
         let (owned, borrowed, default) = match r#type.as_no_option() {
             RustType::Option(_) => unreachable!(),
             RustType::Default(..) => panic!("Nested default detected"),
-            RustType::Complex(name, _tag) => {
+            RustType::Complex(name, _tag)
+                if !matches!(default, LiteralValue::EnumeratedVariant(..)) =>
+            {
                 //panic!("Complex default types unsupported")
                 (
                     Cow::<'_, str>::Borrowed(&name),
