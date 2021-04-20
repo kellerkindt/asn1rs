@@ -16,6 +16,14 @@ asn_to_rust!(
         secret-code INTEGER(-9999..9999) DEFAULT theRefValue
     }
     
+    MyWrappedInteger ::= Integer {
+        some-unit(1)
+    }
+    
+    MyCleverSeqWrapped ::= SEQUENCE {
+        secret-code MyWrappedInteger DEFAULT 1337
+    }
+    
     END"#
 );
 
@@ -30,6 +38,10 @@ pub fn does_it_compile() {
     //   Some
     //    WRITING Integer(MIN..MAX), tag=ContextSpecific(0)
     //     5
+
+    let _ = MyCleverSeqWrapped {
+        secret_code: MyWrappedInteger(1337),
+    };
 }
 
 #[test]
