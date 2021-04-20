@@ -7,10 +7,9 @@ use crate::gen::Generator;
 use crate::model::lor::Error as ResolveError;
 use crate::model::protobuf::ToProtobufModel;
 use crate::model::sql::ToSqlModel;
-use crate::model::Error as ModelError;
 use crate::model::Model;
+use crate::model::{Error as ModelError, MultiModuleResolver};
 use crate::parser::Tokenizer;
-use asn1rs_model::model::Asn;
 use std::collections::HashMap;
 use std::io::Error as IoError;
 use std::path::Path;
@@ -57,14 +56,14 @@ impl From<ResolveError> for Error {
 
 #[derive(Default)]
 pub struct Converter {
-    models: Vec<Model<Asn>>,
+    models: MultiModuleResolver,
 }
 
 impl Converter {
     pub fn load_file<F: AsRef<Path>>(&mut self, file: F) -> Result<(), Error> {
         let input = ::std::fs::read_to_string(file)?;
         let tokens = Tokenizer::default().parse(&input);
-        let model = Model::try_from(tokens)?.try_resolve()?;
+        let model = Model::try_from(tokens)?;
         self.models.push(model);
         Ok(())
     }
@@ -74,10 +73,11 @@ impl Converter {
         directory: D,
         custom_adjustments: A,
     ) -> Result<HashMap<String, Vec<String>>, Error> {
-        let scope = self.models.iter().collect::<Vec<_>>();
-        let mut files = HashMap::with_capacity(self.models.len());
+        let models = self.models.try_resolve_all()?;
+        let scope = models.iter().collect::<Vec<_>>();
+        let mut files = HashMap::with_capacity(models.len());
 
-        for model in &self.models {
+        for model in &models {
             let mut generator = RustGenerator::default();
             generator.add_model(model.to_rust_with_scope(&scope[..]));
 
@@ -104,10 +104,11 @@ impl Converter {
         &self,
         directory: D,
     ) -> Result<HashMap<String, Vec<String>>, Error> {
-        let scope = self.models.iter().collect::<Vec<_>>();
-        let mut files = HashMap::with_capacity(self.models.len());
+        let models = self.models.try_resolve_all()?;
+        let scope = models.iter().collect::<Vec<_>>();
+        let mut files = HashMap::with_capacity(models.len());
 
-        for model in &self.models {
+        for model in &models {
             let mut generator = ProtobufGenerator::default();
             generator.add_model(model.to_rust_with_scope(&scope[..]).to_protobuf());
 
@@ -139,10 +140,11 @@ impl Converter {
         directory: D,
         mut generator: SqlGenerator,
     ) -> Result<HashMap<String, Vec<String>>, Error> {
-        let scope = self.models.iter().collect::<Vec<_>>();
-        let mut files = HashMap::with_capacity(self.models.len());
+        let models = self.models.try_resolve_all()?;
+        let scope = models.iter().collect::<Vec<_>>();
+        let mut files = HashMap::with_capacity(models.len());
 
-        for model in &self.models {
+        for model in &models {
             generator.reset();
             generator.add_model(model.to_rust_with_scope(&scope[..]).to_sql());
 

@@ -1,4 +1,5 @@
-use crate::model::{Asn, Definition, LiteralValue, Model, Type, ValueReference};
+use crate::model::rs::ResolveScope;
+use crate::model::{Asn, LiteralValue, Model};
 use std::fmt::{Debug, Display, Formatter};
 
 pub trait ResolveState: Clone {
@@ -84,103 +85,16 @@ pub trait TryResolve<T, R: Sized> {
 
 impl Model<Asn<Unresolved>> {
     pub fn try_resolve(&self) -> Result<Model<Asn<Resolved>>, Error> {
-        let mut model = Model::<Asn<Resolved>> {
-            name: self.name.clone(),
-            oid: self.oid.clone(),
-            imports: self.imports.clone(),
-            definitions: Vec::with_capacity(self.definitions.len()),
-            value_references: Vec::with_capacity(self.value_references.len()),
-        };
-
-        // copy over all value references
-        for vr in &self.value_references {
-            model.value_references.push(ValueReference {
-                name: vr.name.clone(),
-                role: vr.role.try_resolve(self)?,
-                value: vr.value.clone(),
-            })
-        }
-
-        for Definition(name, asn) in &self.definitions {
-            model
-                .definitions
-                .push(Definition(name.clone(), asn.try_resolve(self)?))
-        }
-
-        Ok(model)
-    }
-}
-
-impl Resolver<usize> for Model<Asn<Unresolved>> {
-    fn resolve(&self, lor: &LitOrRef<usize>) -> Result<usize, Error> {
-        match lor {
-            LitOrRef::Lit(lit) => Ok(*lit),
-            LitOrRef::Ref(name) => match self
-                .value_references
-                .iter()
-                .find(|vr| vr.name.eq(name))
-                .map(|vr| vr.value.to_integer())
-            {
-                Some(Some(value)) => Ok(value as usize),
-                Some(None) => Err(Error::FailedToParseLiteral(format!("name: {}", name))),
-                None => Err(Error::FailedToResolveReference(name.clone())),
-            },
-        }
-    }
-}
-
-impl Resolver<i64> for Model<Asn<Unresolved>> {
-    fn resolve(&self, lor: &LitOrRef<i64>) -> Result<i64, Error> {
-        match lor {
-            LitOrRef::Lit(lit) => Ok(*lit),
-            LitOrRef::Ref(name) => match self
-                .value_references
-                .iter()
-                .find(|vr| vr.name.eq(name))
-                .map(|vr| vr.value.to_integer())
-            {
-                Some(Some(value)) => Ok(value),
-                Some(None) => Err(Error::FailedToParseLiteral(format!("name: {}", name))),
-                None => Err(Error::FailedToResolveReference(name.clone())),
-            },
-        }
-    }
-}
-
-impl Resolver<LiteralValue> for Model<Asn<Unresolved>> {
-    fn resolve(&self, lor: &LitOrRef<LiteralValue>) -> Result<LiteralValue, Error> {
-        match lor {
-            LitOrRef::Lit(lit) => Ok(lit.clone()),
-            LitOrRef::Ref(name) => self
-                .value_references
-                .iter()
-                .find(|vr| vr.name.eq(name))
-                .map(|vr| vr.value.clone())
-                .ok_or_else(|| Error::FailedToResolveReference(name.clone())),
-        }
-    }
-}
-
-impl Resolver<Type<Unresolved>> for Model<Asn<Unresolved>> {
-    fn resolve(&self, lor: &LitOrRef<Type<Unresolved>>) -> Result<Type<Unresolved>, Error> {
-        match lor {
-            LitOrRef::Lit(lit) => Ok(lit.clone()),
-            LitOrRef::Ref(name) => self
-                .definitions
-                .iter()
-                .find(|def| def.0.eq(name))
-                .map(|def| def.1.r#type.clone())
-                .ok_or_else(|| Error::FailedToResolveType(name.clone())),
-        }
+        ResolveScope::from(self).try_resolve()
     }
 }
 
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::model::Integer;
     use crate::model::Range;
     use crate::model::Type;
+    use crate::model::{Definition, Integer, ValueReference};
 
     #[test]
     fn test_simple_resolve() {
