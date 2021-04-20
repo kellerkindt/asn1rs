@@ -275,17 +275,17 @@ impl Model<Asn<Unresolved>> {
     ) -> Result<LiteralValue, ErrorKind> {
         let location = iter.peek_or_err()?.location();
         let string = {
-            if iter.peek_is_text_eq_ignore_case("true") || iter.peek_is_text_eq_ignore_case("false")
+            // boolean or integer
+            #[allow(clippy::blocks_in_if_conditions)]
+            if iter.peek_is_text_eq_ignore_case("true")
+                || iter.peek_is_text_eq_ignore_case("false")
+                || iter.peek_is_text_and_satisfies(|slice| {
+                    slice.chars().all(|c| c.is_ascii_digit())
+                        || (slice.starts_with('-')
+                            && slice.len() > 1
+                            && slice.chars().skip(1).all(|c| c.is_ascii_digit()))
+                })
             {
-                // boolean
-                iter.next_text_or_err()?
-            } else if iter.peek_is_text_and_satisfies(|slice| {
-                slice.chars().all(|c| c.is_ascii_digit())
-                    || (slice.starts_with('-')
-                        && slice.len() > 1
-                        && slice.chars().skip(1).all(|c| c.is_ascii_digit()))
-            }) {
-                // integer
                 iter.next_text_or_err()?
             } else if iter.peek_is_separator_eq('"') {
                 Self::read_string_literal(iter, '"')?
