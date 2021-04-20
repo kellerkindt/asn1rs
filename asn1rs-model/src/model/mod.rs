@@ -503,11 +503,20 @@ impl Model<Asn<Unresolved>> {
 impl Model<Asn<Resolved>> {
     pub fn to_rust(&self) -> Model<rust::Rust> {
         let scope: &[&Self] = &[];
-        Model::convert_asn_to_rust(self, scope)
+        Model::to_rust_with_scope(self, scope)
+    }
+
+    pub fn to_rust_keep_names(&self) -> Model<rust::Rust> {
+        let scope: &[&Self] = &[];
+        Model::to_rust_keep_names_with_scope(self, scope)
     }
 
     pub fn to_rust_with_scope(&self, scope: &[&Self]) -> Model<rust::Rust> {
-        Model::convert_asn_to_rust(self, scope)
+        Model::convert_asn_to_rust(self, scope, true)
+    }
+
+    pub fn to_rust_keep_names_with_scope(&self, scope: &[&Self]) -> Model<rust::Rust> {
+        Model::convert_asn_to_rust(self, scope, false)
     }
 }
 

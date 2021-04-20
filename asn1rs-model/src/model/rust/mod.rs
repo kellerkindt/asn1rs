@@ -584,34 +584,40 @@ impl TagProperty for DataVariant {
 }
 
 impl Model<Rust> {
-    pub fn convert_asn_to_rust(asn_model: &Model<Asn>, scope: &[&Model<Asn>]) -> Model<Rust> {
+    pub fn convert_asn_to_rust(
+        asn_model: &Model<Asn>,
+        scope: &[&Model<Asn>],
+        make_names_nice: bool,
+    ) -> Model<Rust> {
+        let mut definitions = Vec::with_capacity(asn_model.definitions.len());
+        let mut ctxt = Context {
+            resolver: TagResolver::new(asn_model, scope),
+            target: &mut definitions,
+            make_names_nice,
+        };
         let mut model = Model {
-            name: rust_module_name(&asn_model.name),
+            name: ctxt.module_name(&asn_model.name),
             oid: asn_model.oid.clone(),
             imports: asn_model
                 .imports
                 .iter()
                 .map(|i| Import {
-                    what: i.what.iter().map(|w| rust_struct_or_enum_name(w)).collect(),
-                    from: rust_module_name(&i.from),
+                    what: i.what.iter().map(|w| ctxt.struct_or_enum_name(w)).collect(),
+                    from: ctxt.module_name(&i.from),
                     from_oid: i.from_oid.clone(),
                 })
                 .collect(),
-            definitions: Vec::with_capacity(asn_model.definitions.len()),
+            definitions: Vec::default(),
             value_references: Vec::with_capacity(asn_model.value_references.len()),
         };
         for Definition(name, asn) in &asn_model.definitions {
-            let rust_name = rust_struct_or_enum_name(name);
-            let mut ctxt = Context {
-                resolver: TagResolver::new(asn_model, scope),
-                target: &mut model.definitions,
-            };
+            let rust_name = ctxt.struct_or_enum_name(name);
             Self::definition_to_rust(&rust_name, &asn.r#type, asn.tag, &mut ctxt);
         }
         for vref in &asn_model.value_references {
             if let Some(rust_type) = Self::flat_map_asn_type_to_rust_type(&vref.role.r#type) {
                 model.value_references.push(ValueReference {
-                    name: rust_constant_name(&vref.name),
+                    name: ctxt.constant_name(&vref.name),
                     role: rust_type,
                     value: vref.value.clone(),
                 });
@@ -619,6 +625,7 @@ impl Model<Rust> {
                 // TODO
             }
         }
+        model.definitions = definitions;
         model
     }
 
@@ -678,7 +685,7 @@ impl Model<Rust> {
 
             me @ AsnType::Integer(_) => {
                 let rust_type = Self::definition_type_to_rust_type(name, asn, tag, ctxt);
-                let constants = Self::asn_constants_to_rust_constants(me);
+                let constants = ctxt.to_rust_constants(me);
                 ctxt.add_definition(Definition(
                     name.into(),
                     Rust::TupleStruct {
@@ -771,10 +778,10 @@ impl Model<Rust> {
                 };
 
                 for ChoiceVariant { name, r#type, tag } in choice.variants() {
-                    let rust_name = format!("{}{}", name, rust_struct_or_enum_name(&name));
+                    let rust_name = format!("{}{}", name, ctxt.struct_or_enum_name(&name));
                     let rust_role =
                         Self::definition_type_to_rust_type(&rust_name, &r#type, *tag, ctxt);
-                    let rust_field_name = rust_variant_name(&name);
+                    let rust_field_name = ctxt.variant_name(&name);
                     enumeration.variants.push(
                         DataVariant::from_name_type(rust_field_name, rust_role).with_tag_opt(*tag),
                     );
@@ -791,7 +798,7 @@ impl Model<Rust> {
                 };
 
                 for variant in enumerated.variants() {
-                    rust_enum.variants.push(rust_variant_name(variant.name()));
+                    rust_enum.variants.push(ctxt.variant_name(variant.name()));
                 }
 
                 ctxt.add_definition(Definition(name.into(), Rust::Enum(rust_enum)));
@@ -807,7 +814,7 @@ impl Model<Rust> {
         let mut rust_fields = Vec::with_capacity(fields.len());
 
         for field in fields.iter() {
-            let rust_name = format!("{}{}", name, rust_struct_or_enum_name(&field.name));
+            let rust_name = format!("{}{}", name, ctxt.struct_or_enum_name(&field.name));
             let tag = field.role.tag;
             let rust_role =
                 Self::definition_type_to_rust_type(&rust_name, &field.role.r#type, tag, ctxt);
@@ -816,8 +823,8 @@ impl Model<Rust> {
             } else {
                 rust_role
             };
-            let rust_field_name = rust_field_name(&field.name);
-            let constants = Self::asn_constants_to_rust_constants(&field.role.r#type);
+            let rust_field_name = ctxt.field_name(&field.name);
+            let constants = ctxt.to_rust_constants(&field.role.r#type);
             rust_fields.push(
                 RustField::from_name_type(rust_field_name, rust_role)
                     .with_constants(constants)
@@ -826,34 +833,6 @@ impl Model<Rust> {
         }
 
         rust_fields
-    }
-
-    fn asn_constants_to_rust_constants(asn: &AsnType) -> Vec<(String, String)> {
-        match asn {
-            AsnType::Integer(integer) => integer
-                .constants
-                .iter()
-                .map(|(name, value)| (rust_module_name(name).to_uppercase(), format!("{}", value)))
-                .collect(),
-            AsnType::BitString(bitstring) => bitstring
-                .constants
-                .iter()
-                .map(|(name, value)| (rust_module_name(name).to_uppercase(), format!("{}", value)))
-                .collect(),
-
-            Type::Boolean
-            | Type::String(..)
-            | Type::OctetString(_)
-            | Type::Optional(_)
-            | Type::Default(..)
-            | Type::Sequence(_)
-            | Type::SequenceOf(..)
-            | Type::Set(_)
-            | Type::SetOf(..)
-            | Type::Enumerated(_)
-            | Type::Choice(_)
-            | Type::TypeReference(_, _) => Vec::default(),
-        }
     }
 
     fn definition_type_to_rust_type(
@@ -913,12 +892,12 @@ impl Model<Rust> {
             | ty @ AsnType::Set(_)
             | ty @ AsnType::Enumerated(_)
             | ty @ AsnType::Choice(_) => {
-                let name = rust_struct_or_enum_name(name);
+                let name = ctxt.struct_or_enum_name(name);
                 Self::definition_to_rust(&name, asn, tag, ctxt);
                 RustType::Complex(name, tag.or_else(|| ctxt.resolver().resolve_type_tag(ty)))
             }
             AsnType::TypeReference(name, tag) => RustType::Complex(
-                rust_struct_or_enum_name(&name),
+                ctxt.struct_or_enum_name(&name),
                 tag.clone().or_else(|| ctxt.resolver().resolve_tag(name)),
             ),
         }
@@ -981,9 +960,78 @@ impl Model<Rust> {
 struct Context<'a> {
     resolver: TagResolver<'a>,
     target: &'a mut Vec<Definition<Rust>>,
+    make_names_nice: bool,
 }
 
 impl Context<'_> {
+    fn to_rust_constants(&self, asn: &AsnType) -> Vec<(String, String)> {
+        match asn {
+            AsnType::Integer(integer) => integer
+                .constants
+                .iter()
+                .map(|(name, value)| (self.constant_name(name), format!("{}", value)))
+                .collect(),
+            AsnType::BitString(bitstring) => bitstring
+                .constants
+                .iter()
+                .map(|(name, value)| (self.constant_name(name), format!("{}", value)))
+                .collect(),
+
+            Type::Boolean
+            | Type::String(..)
+            | Type::OctetString(_)
+            | Type::Optional(_)
+            | Type::Default(..)
+            | Type::Sequence(_)
+            | Type::SequenceOf(..)
+            | Type::Set(_)
+            | Type::SetOf(..)
+            | Type::Enumerated(_)
+            | Type::Choice(_)
+            | Type::TypeReference(_, _) => Vec::default(),
+        }
+    }
+
+    pub fn struct_or_enum_name(&self, name: &str) -> String {
+        if self.make_names_nice {
+            rust_struct_or_enum_name(name)
+        } else {
+            name.to_string()
+        }
+    }
+
+    pub fn constant_name(&self, name: &str) -> String {
+        if self.make_names_nice {
+            rust_constant_name(name)
+        } else {
+            name.to_string()
+        }
+    }
+
+    pub fn variant_name(&self, name: &str) -> String {
+        if self.make_names_nice {
+            rust_variant_name(name)
+        } else {
+            name.to_string()
+        }
+    }
+
+    pub fn field_name(&self, name: &str) -> String {
+        if self.make_names_nice {
+            rust_field_name(name)
+        } else {
+            name.to_string()
+        }
+    }
+
+    pub fn module_name(&self, name: &str) -> String {
+        if self.make_names_nice {
+            rust_module_name(name)
+        } else {
+            name.to_string()
+        }
+    }
+
     pub fn add_definition(&mut self, def: Definition<Rust>) {
         self.target.push(def)
     }
@@ -1038,10 +1086,13 @@ pub fn rust_module_name(name: &str) -> String {
     while let Some(c) = chars.next() {
         let mut lowered = false;
         let alphabetic = c.is_alphabetic();
-        if prev_alphabetic != alphabetic && !out.is_empty() && c != '-' && c != '_' {
-            if out.chars().last().unwrap() != '_' {
-                out.push('_');
-            }
+        if prev_alphabetic != alphabetic
+            && c != '-'
+            && c != '_'
+            && !out.is_empty()
+            && !out.ends_with('_')
+        {
+            out.push('_');
         }
         if c.is_uppercase() {
             if !out.is_empty() && prev_alphabetic {
@@ -1074,17 +1125,18 @@ pub fn rust_constant_name(name: &str) -> String {
 impl LiteralValue {
     pub fn as_rust_const_literal_expect<F: FnOnce(&Self) -> bool>(
         &self,
+        make_names_nice: bool,
         probe: F,
     ) -> impl std::fmt::Display + '_ {
         if probe(self) {
-            self.as_rust_const_literal()
+            self.as_rust_const_literal(make_names_nice)
         } else {
             panic!("Invalid string literal {:?}", self)
         }
     }
 
-    pub fn as_rust_const_literal(&self) -> impl std::fmt::Display + '_ {
-        struct Ref<'a>(&'a LiteralValue);
+    pub fn as_rust_const_literal(&self, make_names_nice: bool) -> impl std::fmt::Display + '_ {
+        struct Ref<'a>(&'a LiteralValue, bool);
         impl std::fmt::Display for Ref<'_> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 match self.0 {
@@ -1102,14 +1154,22 @@ impl LiteralValue {
                         write!(
                             f,
                             "{}::{}",
-                            rust_struct_or_enum_name(r#type),
-                            rust_variant_name(variant)
+                            if self.1 {
+                                Cow::Owned(rust_struct_or_enum_name(r#type))
+                            } else {
+                                Cow::Borrowed(r#type)
+                            },
+                            if self.1 {
+                                Cow::Owned(rust_variant_name(variant))
+                            } else {
+                                Cow::Borrowed(variant)
+                            }
                         )
                     }
                 }
             }
         }
-        Ref(self)
+        Ref(self, make_names_nice)
     }
 }
 

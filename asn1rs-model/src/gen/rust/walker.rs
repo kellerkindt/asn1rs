@@ -736,7 +736,11 @@ impl AsnDefWriter {
                 (
                     Cow::<'_, str>::Borrowed(&name),
                     Cow::<'_, str>::Borrowed(&name),
-                    Cow::<'_, str>::Owned(format!("{}({})", name, default.as_rust_const_literal())),
+                    Cow::<'_, str>::Owned(format!(
+                        "{}({})",
+                        name,
+                        default.as_rust_const_literal(false)
+                    )),
                 )
             }
             RustType::Bool => (
@@ -744,7 +748,9 @@ impl AsnDefWriter {
                 Cow::Borrowed("bool"),
                 Cow::Owned(
                     default
-                        .as_rust_const_literal_expect(|l| matches!(l, LiteralValue::Boolean(..)))
+                        .as_rust_const_literal_expect(true, |l| {
+                            matches!(l, LiteralValue::Boolean(..))
+                        })
                         .to_string(),
                 ),
             ),
@@ -753,14 +759,16 @@ impl AsnDefWriter {
                 Cow::Borrowed("str"),
                 Cow::Owned(
                     default
-                        .as_rust_const_literal_expect(|l| matches!(l, LiteralValue::String(..)))
+                        .as_rust_const_literal_expect(true, |l| {
+                            matches!(l, LiteralValue::String(..))
+                        })
                         .to_string(),
                 ),
             ),
             t => (
                 Cow::Owned(t.to_string()),
                 t.to_const_lit_string(),
-                Cow::Owned(default.as_rust_const_literal().to_string()),
+                Cow::Owned(default.as_rust_const_literal(false).to_string()),
             ),
         };
         scope.raw(&format!("type Owned = {};", owned));

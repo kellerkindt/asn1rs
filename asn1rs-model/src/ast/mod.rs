@@ -79,12 +79,13 @@ pub fn expand(definition: Option<Definition<AsnModelType>>) -> Vec<TokenStream> 
 
         if cfg!(feature = "debug-proc-macro") {
             println!("---------- parsed definition to rust begin ----------");
-            println!("{:?}", model.to_rust());
+            println!("{:?}", model.to_rust_keep_names());
             println!("---------- parsed definition to rust end ----------");
             println!();
         }
-        additional_impl
-            .push(TokenStream::from_str(&AsnDefWriter::stringify(&model.to_rust())).unwrap());
+        additional_impl.push(
+            TokenStream::from_str(&AsnDefWriter::stringify(&model.to_rust_keep_names())).unwrap(),
+        );
     }
 
     additional_impl

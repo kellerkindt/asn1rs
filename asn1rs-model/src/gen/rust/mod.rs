@@ -171,7 +171,7 @@ impl RustCodeGenerator {
             scope.raw(&Self::fmt_const(
                 &vref.name,
                 &vref.role,
-                &vref.value.as_rust_const_literal(),
+                &vref.value.as_rust_const_literal(true),
                 0,
             ));
         }
@@ -407,7 +407,7 @@ impl RustCodeGenerator {
                 Cow::Borrowed("default"),
                 vec![
                     Self::asn_attribute_type(&*inner),
-                    default.as_rust_const_literal().to_string(),
+                    default.as_rust_const_literal(true).to_string(),
                 ],
             ),
             Type::SequenceOf(inner, size) => (
