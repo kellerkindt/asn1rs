@@ -1003,7 +1003,8 @@ pub fn rust_variant_name(name: &str) -> String {
     let mut out = String::new();
     let mut next_upper = true;
     let mut prev_upper = false;
-    for c in name.chars() {
+    let mut chars = name.chars().peekable();
+    while let Some(c) = chars.next() {
         if c == '-' || c == '_' {
             next_upper = true;
             prev_upper = false;
@@ -1012,7 +1013,7 @@ pub fn rust_variant_name(name: &str) -> String {
             next_upper = false;
             prev_upper = true;
         } else {
-            if prev_upper {
+            if prev_upper && !chars.peek().map(|c| c.is_lowercase()).unwrap_or(false) {
                 out.push(c.to_ascii_lowercase());
             } else {
                 out.push(c);
@@ -1116,6 +1117,44 @@ mod tests {
     use crate::model::tests::*;
     use crate::model::{Choice, Enumerated, EnumeratedVariant, Field, Tag, Type};
     use crate::parser::Tokenizer;
+
+    #[test]
+    fn test_rust_struct_or_enum_name() {
+        fn stable_rust_struct_or_enum_name(name: &str) -> String {
+            let v1 = rust_struct_or_enum_name(name);
+            assert_eq!(v1, rust_struct_or_enum_name(&v1));
+            v1
+        }
+
+        assert_eq!("TestAbc", stable_rust_struct_or_enum_name("test-abc"));
+        assert_eq!(
+            "BerndDasBrot",
+            stable_rust_struct_or_enum_name("berndDasBrot")
+        );
+        assert_eq!(
+            "WhoKnowsWhat",
+            stable_rust_struct_or_enum_name("who-knowsWhat")
+        );
+        assert_eq!("EWaffle", stable_rust_struct_or_enum_name("e-waffle"));
+        assert_eq!("EeWaffle", stable_rust_struct_or_enum_name("ee-waffle"));
+        assert_eq!("EeWaffle", stable_rust_struct_or_enum_name("EEWaffle"));
+    }
+
+    #[test]
+    fn test_rust_variant_name() {
+        fn stable_rust_variant_name(name: &str) -> String {
+            let v1 = rust_variant_name(name);
+            assert_eq!(v1, rust_variant_name(&v1));
+            v1
+        }
+
+        assert_eq!("TestAbc", stable_rust_variant_name("test-abc"));
+        assert_eq!("BerndDasBrot", stable_rust_variant_name("berndDasBrot"));
+        assert_eq!("WhoKnowsWhat", stable_rust_variant_name("who-knowsWhat"));
+        assert_eq!("EWaffle", stable_rust_variant_name("e-waffle"));
+        assert_eq!("EeWaffle", stable_rust_variant_name("ee-waffle"));
+        assert_eq!("EeWaffle", stable_rust_variant_name("EEWaffle"));
+    }
 
     #[test]
     fn test_rust_name_multiple_upper_case() {
