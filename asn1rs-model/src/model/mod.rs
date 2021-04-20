@@ -260,7 +260,7 @@ impl Model<Asn<Unresolved>> {
                 iter.next_separator_eq_or_err(':')?;
                 iter.next_separator_eq_or_err(':')?;
                 iter.next_separator_eq_or_err('=')?;
-                Self::read_literal(iter, &r#type)?
+                Self::read_literal(iter)?
             },
             role: Asn {
                 tag: None,
@@ -272,37 +272,27 @@ impl Model<Asn<Unresolved>> {
 
     fn read_literal<T: Iterator<Item = Token>>(
         iter: &mut Peekable<T>,
-        r#type: &Type<Unresolved>,
     ) -> Result<LiteralValue, ErrorKind> {
         let location = iter.peek_or_err()?.location();
-        let string = match r#type {
-            Type::Boolean
-                if iter.peek_is_text_eq_ignore_case("true")
-                    || iter.peek_is_text_eq_ignore_case("false") =>
+        let string = {
+            if iter.peek_is_text_eq_ignore_case("true") || iter.peek_is_text_eq_ignore_case("false")
             {
+                // boolean
                 iter.next_text_or_err()?
-            }
-            Type::Integer(_)
-                if iter.peek_is_text_and_satisfies(|slice| {
-                    slice.chars().all(|c| c.is_ascii_digit())
-                        || (slice.starts_with('-')
-                            && slice.len() > 1
-                            && slice.chars().skip(1).all(|c| c.is_ascii_digit()))
-                }) =>
-            {
+            } else if iter.peek_is_text_and_satisfies(|slice| {
+                slice.chars().all(|c| c.is_ascii_digit())
+                    || (slice.starts_with('-')
+                        && slice.len() > 1
+                        && slice.chars().skip(1).all(|c| c.is_ascii_digit()))
+            }) {
+                // integer
                 iter.next_text_or_err()?
-            }
-            Type::String(_, _) if iter.peek_is_separator_eq('"') => {
+            } else if iter.peek_is_separator_eq('"') {
                 Self::read_string_literal(iter, '"')?
-            }
-            Type::OctetString(_) | Type::BitString(_) if iter.peek_is_separator_eq('\'') => {
+            } else if iter.peek_is_separator_eq('\'') {
                 Self::read_hex_or_bit_string_literal(iter)?
-            }
-            _ => {
-                return Err(ErrorKind::UnsupportedLiteral(
-                    iter.peek_or_err()?.clone(),
-                    Box::new(r#type.clone()),
-                ));
+            } else {
+                return Err(ErrorKind::UnsupportedLiteral(iter.peek_or_err()?.clone()));
             }
         };
         LiteralValue::try_from_asn_str(&string)
@@ -482,15 +472,13 @@ impl Model<Asn<Unresolved>> {
                 if cfg!(feature = "debug-proc-macro") {
                     println!("TOKEN:::: {:?}", token);
                 }
-                field
-                    .role
-                    .set_default(match Self::read_literal(iter, &field.role.r#type) {
-                        Ok(value) => LitOrRef::Lit(value),
-                        Err(ErrorKind::UnsupportedLiteral(token, ..)) if token.is_text() => {
-                            LitOrRef::Ref(iter.next_text_or_err()?)
-                        }
-                        Err(e) => return Err(e.into()),
-                    });
+                field.role.set_default(match Self::read_literal(iter) {
+                    Ok(value) => LitOrRef::Lit(value),
+                    Err(ErrorKind::UnsupportedLiteral(token, ..)) if token.is_text() => {
+                        LitOrRef::Ref(iter.next_text_or_err()?)
+                    }
+                    Err(e) => return Err(e.into()),
+                });
                 if cfg!(feature = "debug-proc-macro") {
                     println!("     :::: {:?}", field);
                 }

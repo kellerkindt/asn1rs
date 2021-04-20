@@ -3,8 +3,6 @@ use std::fmt::{Debug, Display, Formatter};
 
 use backtrace::Backtrace;
 
-use crate::model::lor::Unresolved;
-use crate::model::Type;
 use crate::parser::Token;
 
 #[derive(PartialOrd, PartialEq)]
@@ -22,7 +20,7 @@ pub enum ErrorKind {
     InvalidTag(Token),
     InvalidPositionForExtensionMarker(Token),
     InvalidIntText(Token),
-    UnsupportedLiteral(Token, Box<Type<Unresolved>>),
+    UnsupportedLiteral(Token),
     InvalidLiteral(Token),
 }
 
@@ -99,8 +97,8 @@ impl Error {
         ErrorKind::UnexpectedEndOfStream.into()
     }
 
-    pub fn unsupported_value_reference_literal(token: Token, r#type: Type<Unresolved>) -> Self {
-        ErrorKind::UnsupportedLiteral(token, Box::new(r#type)).into()
+    pub fn unsupported_value_reference_literal(token: Token) -> Self {
+        ErrorKind::UnsupportedLiteral(token).into()
     }
 
     fn backtrace(&self) -> &Backtrace {
@@ -122,7 +120,7 @@ impl Error {
             ErrorKind::InvalidTag(t) => Some(t),
             ErrorKind::InvalidPositionForExtensionMarker(t) => Some(t),
             ErrorKind::InvalidIntText(t) => Some(t),
-            ErrorKind::UnsupportedLiteral(t, ..) => Some(t),
+            ErrorKind::UnsupportedLiteral(t) => Some(t),
             ErrorKind::InvalidLiteral(t) => Some(t),
         }
     }
@@ -223,12 +221,11 @@ impl Display for Error {
                 token.location().column(),
                 token
             ),
-            ErrorKind::UnsupportedLiteral(token, r#type) => write!(
+            ErrorKind::UnsupportedLiteral(token) => write!(
                 f,
-                "At line {}, column {} an (yet) unsupported value reference literal of type '{:?}' was discovered: {}",
+                "At line {}, column {} an (yet) unsupported value reference literal was discovered: {}",
                 token.location().line(),
                 token.location().column(),
-                r#type,
                 token
             ),
             ErrorKind::InvalidLiteral(token) => write!(
