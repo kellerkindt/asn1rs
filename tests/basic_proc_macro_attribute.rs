@@ -6,9 +6,9 @@ pub struct Potato {
     #[asn(integer)]
     size: u64,
     #[asn(integer(min..max))]
-    size2: u64,
+    size_2: u64,
     #[asn(integer(12..128), tag(APPLICATION(4)))]
-    size3: u8,
+    size_3: u8,
     #[asn(utf8string, tag(4))]
     string: String,
 }
@@ -17,8 +17,8 @@ pub struct Potato {
 fn test_compiles() {
     let _p = Potato {
         size: 123,
-        size2: 1234,
-        size3: 234,
+        size_2: 1234,
+        size_3: 234,
         string: String::from("where is the content"),
     };
 }
@@ -27,8 +27,8 @@ fn test_compiles() {
 fn test_serialize_with_uper() {
     let p = Potato {
         size: 123,
-        size2: 1234,
-        size3: 128,
+        size_2: 1234,
+        size_3: 128,
         string: String::from("where is the content"),
     };
     let mut uper = UperWriter::default();
@@ -58,8 +58,8 @@ fn test_deserialize_with_uper() {
     assert_eq!(
         Potato {
             size: 123,
-            size2: 1234,
-            size3: 128,
+            size_2: 1234,
+            size_3: 128,
             string: String::from("where is the content"),
         },
         p
@@ -181,8 +181,8 @@ fn what_to_eat_test_uper_2() {
     let mut uper = UperWriter::default();
     let what = WhatToEat::Potato(Potato {
         size: 13,
-        size2: 37,
-        size3: 42,
+        size_2: 37,
+        size_3: 42,
         string: "such tasty potato".to_string(),
     });
     uper.write(&what).unwrap();
@@ -461,11 +461,11 @@ fn test_transparent_important_uper_none() {
 #[derive(Debug, Default, PartialOrd, PartialEq)]
 pub struct BoolContainer {
     #[asn(boolean)]
-    bool1: bool,
+    bool_1: bool,
     #[asn(boolean)]
-    bool2: bool,
+    bool_2: bool,
     #[asn(boolean)]
-    bool3: bool,
+    bool_3: bool,
 }
 
 #[test]
@@ -473,9 +473,9 @@ pub struct BoolContainer {
 fn test_bool_container_uper() {
     let mut uper = UperWriter::default();
     let v = BoolContainer {
-        bool1: false,
-        bool2: true,
-        bool3: true,
+        bool_1: false,
+        bool_2: true,
+        bool_3: true,
     };
     uper.write(&v).unwrap();
     assert_eq!(&[0b011_0_0000], uper.byte_content());
@@ -495,22 +495,22 @@ fn test_extensible_struct() {
     let mut uper = UperWriter::default();
     let v = ExtensibleStruct {
         range: 145,
-        value1: None,
-        value2: 146,
-        value3: 146,
-        value4: 146,
-        value5: 146,
-        value6: 146,
-        value7: 146,
-        value8: 146,
-        value9: 146,
-        value10: 146,
-        value11: 146,
-        value12: 146,
-        value13: 146,
-        value14: 146,
-        value15: 146,
-        value16: 146,
+        value_1: None,
+        value_2: 146,
+        value_3: 146,
+        value_4: 146,
+        value_5: 146,
+        value_6: 146,
+        value_7: 146,
+        value_8: 146,
+        value_9: 146,
+        value_10: 146,
+        value_11: 146,
+        value_12: 146,
+        value_13: 146,
+        value_14: 146,
+        value_15: 146,
+        value_16: 146,
     };
     uper.write(&v).unwrap();
     assert_eq!(
@@ -534,37 +534,37 @@ pub struct ExtensibleStruct {
     #[asn(integer(0..255))]
     range: u8,
     #[asn(optional(integer(0..255)), const(abc(2)))]
-    value1: Option<u8>,
+    value_1: Option<u8>,
     #[asn(integer(0..255), const(abc(3), def(4)))]
-    value2: u8,
+    value_2: u8,
     #[asn(integer(0..255))]
-    value3: u8,
+    value_3: u8,
     #[asn(integer(0..255))]
-    value4: u8,
+    value_4: u8,
     #[asn(integer(0..255))]
-    value5: u8,
+    value_5: u8,
     #[asn(integer(0..255))]
-    value6: u8,
+    value_6: u8,
     #[asn(integer(0..255))]
-    value7: u8,
+    value_7: u8,
     #[asn(integer(0..255))]
-    value8: u8,
+    value_8: u8,
     #[asn(integer(0..255))]
-    value9: u8,
+    value_9: u8,
     #[asn(integer(0..255))]
-    value10: u8,
+    value_10: u8,
     #[asn(integer(0..255))]
-    value11: u8,
+    value_11: u8,
     #[asn(integer(0..255))]
-    value12: u8,
+    value_12: u8,
     #[asn(integer(0..255))]
-    value13: u8,
+    value_13: u8,
     #[asn(integer(0..255))]
-    value14: u8,
+    value_14: u8,
     #[asn(integer(0..255))]
-    value15: u8,
+    value_15: u8,
     #[asn(integer(0..255))]
-    value16: u8,
+    value_16: u8,
 }
 
 #[test]
@@ -574,22 +574,22 @@ fn test_nested_extensible_struct() {
         range: 123,
         inner: ExtensibleStruct {
             range: 145,
-            value1: None,
-            value2: 146,
-            value3: 146,
-            value4: 146,
-            value5: 146,
-            value6: 146,
-            value7: 146,
-            value8: 146,
-            value9: 146,
-            value10: 146,
-            value11: 146,
-            value12: 146,
-            value13: 146,
-            value14: 146,
-            value15: 146,
-            value16: 146,
+            value_1: None,
+            value_2: 146,
+            value_3: 146,
+            value_4: 146,
+            value_5: 146,
+            value_6: 146,
+            value_7: 146,
+            value_8: 146,
+            value_9: 146,
+            value_10: 146,
+            value_11: 146,
+            value_12: 146,
+            value_13: 146,
+            value_14: 146,
+            value_15: 146,
+            value_16: 146,
         },
     };
     uper.write(&v).unwrap();

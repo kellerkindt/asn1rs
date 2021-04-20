@@ -1038,6 +1038,11 @@ pub fn rust_module_name(name: &str) -> String {
     while let Some(c) = chars.next() {
         let mut lowered = false;
         let alphabetic = c.is_alphabetic();
+        if prev_alphabetic != alphabetic && !out.is_empty() && c != '-' && c != '_' {
+            if out.chars().last().unwrap() != '_' {
+                out.push('_');
+            }
+        }
         if c.is_uppercase() {
             if !out.is_empty() && prev_alphabetic {
                 if !prev_lowered {
@@ -1050,7 +1055,7 @@ pub fn rust_module_name(name: &str) -> String {
             }
             lowered = true;
             out.push_str(&c.to_lowercase().to_string());
-        } else if c == '-' {
+        } else if c == '-' || c == '_' {
             out.push('_');
         } else {
             out.push(c);
@@ -1154,6 +1159,20 @@ mod tests {
         assert_eq!("EWaffle", stable_rust_variant_name("e-waffle"));
         assert_eq!("EeWaffle", stable_rust_variant_name("ee-waffle"));
         assert_eq!("EeWaffle", stable_rust_variant_name("EEWaffle"));
+    }
+
+    #[test]
+    fn test_rust_constant_name() {
+        fn stable_constant_name(name: &str) -> String {
+            let v1 = rust_constant_name(name);
+            assert_eq!(v1, rust_constant_name(&v1));
+            v1
+        }
+
+        assert_eq!(
+            "SOME_IMPORTANT_VALUE_60_DEGREE_OFFSET_30_OTHER_10_MORE_42",
+            stable_constant_name("some-importantValue60degreeOffset-30-other10-more_42")
+        );
     }
 
     #[test]
