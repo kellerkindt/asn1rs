@@ -19,9 +19,16 @@ asn_to_rust!(
         ...,
         ghi [APPLICATION 2] UTF8String
       }
+      
+      SomeVal ::= INTEGER (-32768..32767)
           
     END"
 );
+
+#[test]
+fn does_it_compile() {
+    let _ = SomeVal(13i16);
+}
 
 #[test]
 fn test_basic() {
