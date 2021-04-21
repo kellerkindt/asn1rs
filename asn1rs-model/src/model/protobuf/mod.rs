@@ -218,7 +218,7 @@ impl ToProtobufModel for Model<Rust> {
 }
 
 pub fn proto_field_name(name: &str) -> String {
-    rust_module_name(name)
+    rust_module_name(name, false)
 }
 
 pub fn proto_variant_name(name: &str) -> String {

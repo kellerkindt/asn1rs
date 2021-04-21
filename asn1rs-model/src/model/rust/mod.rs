@@ -1026,7 +1026,7 @@ impl Context<'_> {
 
     pub fn module_name(&self, name: &str) -> String {
         if self.make_names_nice {
-            rust_module_name(name)
+            rust_module_name(name, false)
         } else {
             name.to_string()
         }
@@ -1043,7 +1043,7 @@ impl Context<'_> {
 
 #[allow(clippy::module_name_repetitions)]
 pub fn rust_field_name(name: &str) -> String {
-    rust_module_name(name)
+    rust_module_name(name, false)
 }
 
 #[allow(clippy::module_name_repetitions)]
@@ -1078,7 +1078,7 @@ pub fn rust_struct_or_enum_name(name: &str) -> String {
 }
 
 #[allow(clippy::module_name_repetitions)]
-pub fn rust_module_name(name: &str) -> String {
+pub fn rust_module_name(name: &str, pad_non_alphabetic: bool) -> String {
     let mut out = String::new();
     let mut prev_lowered = false;
     let mut prev_alphabetic = false;
@@ -1086,7 +1086,8 @@ pub fn rust_module_name(name: &str) -> String {
     while let Some(c) = chars.next() {
         let mut lowered = false;
         let alphabetic = c.is_alphabetic();
-        if prev_alphabetic != alphabetic
+        if pad_non_alphabetic
+            && prev_alphabetic != alphabetic
             && c != '-'
             && c != '_'
             && !out.is_empty()
@@ -1119,7 +1120,7 @@ pub fn rust_module_name(name: &str) -> String {
 
 #[allow(clippy::module_name_repetitions)]
 pub fn rust_constant_name(name: &str) -> String {
-    rust_module_name(name).to_uppercase()
+    rust_module_name(name, true).to_uppercase()
 }
 
 impl LiteralValue {
