@@ -515,16 +515,28 @@ impl RustCodeGenerator {
                 for g in generators {
                     g.extend_impl_of_tuple(name, implementation, inner);
                 }
+                Self::impl_tuple_struct_const_new(scope, name, inner);
                 Self::impl_tuple_struct_deref(scope, name, inner);
                 Self::impl_tuple_struct_deref_mut(scope, name, inner);
+                Self::impl_tuple_struct_from(scope, name, inner);
             }
         }
+    }
+
+    fn impl_tuple_struct_const_new(scope: &mut Scope, name: &str, rust: &RustType) {
+        scope
+            .new_impl(name)
+            .new_fn("new")
+            .vis("pub const")
+            .arg("value", rust.to_string())
+            .ret("Self")
+            .line("Self(value)");
     }
 
     fn impl_tuple_struct_deref(scope: &mut Scope, name: &str, rust: &RustType) {
         scope
             .new_impl(name)
-            .impl_trait("::std::ops::Deref")
+            .impl_trait("::core::ops::Deref")
             .associate_type("Target", rust.to_string())
             .new_fn("deref")
             .arg_ref_self()
@@ -535,11 +547,28 @@ impl RustCodeGenerator {
     fn impl_tuple_struct_deref_mut(scope: &mut Scope, name: &str, rust: &RustType) {
         scope
             .new_impl(name)
-            .impl_trait("::std::ops::DerefMut")
+            .impl_trait("::core::ops::DerefMut")
             .new_fn("deref_mut")
             .arg_mut_self()
             .ret(&format!("&mut {}", rust.to_string()))
             .line("&mut self.0".to_string());
+    }
+
+    fn impl_tuple_struct_from(scope: &mut Scope, name: &str, rust: &RustType) {
+        scope
+            .new_impl(name)
+            .impl_trait(format!("::core::convert::From<{}>", rust.to_string()))
+            .new_fn("from")
+            .arg("value", &rust.to_string())
+            .ret("Self")
+            .line("Self(value)");
+        scope
+            .new_impl(&rust.to_string())
+            .impl_trait(format!("::core::convert::From<{}>", name))
+            .new_fn("from")
+            .arg("value", name)
+            .ret("Self")
+            .line("value.0");
     }
 
     fn impl_tuple_struct<'a>(scope: &'a mut Scope, name: &str, rust: &RustType) -> &'a mut Impl {
