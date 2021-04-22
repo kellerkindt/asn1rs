@@ -194,7 +194,11 @@ impl RustCodeGenerator {
             "    ".repeat(indent),
             name,
             r#type.to_const_lit_string(),
-            value
+            if let RustType::Complex(..) = r#type {
+                format!("{}::new({})", r#type.to_const_lit_string(), value)
+            } else {
+                value.to_string()
+            }
         )
     }
 

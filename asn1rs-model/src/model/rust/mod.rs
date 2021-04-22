@@ -615,21 +615,22 @@ impl Model<Rust> {
             Self::definition_to_rust(&rust_name, &asn.r#type, asn.tag, &mut ctxt);
         }
         for vref in &asn_model.value_references {
-            if let Some(rust_type) = Self::flat_map_asn_type_to_rust_type(&vref.role.r#type) {
+            if let Some(rust_type) = Self::map_asn_type_to_rust_type_flat(&vref.role.r#type) {
                 model.value_references.push(ValueReference {
                     name: ctxt.constant_name(&vref.name),
                     role: rust_type,
                     value: vref.value.clone(),
                 });
             } else {
-                // TODO
+                // TODO some kind of debug-log?
+                println!("Ignoring ValueReference {}", vref.name);
             }
         }
         model.definitions = definitions;
         model
     }
 
-    fn flat_map_asn_type_to_rust_type(r#type: &Type) -> Option<RustType> {
+    fn map_asn_type_to_rust_type_flat(r#type: &Type) -> Option<RustType> {
         Some(match &r#type {
             Type::Boolean => RustType::Bool,
             Type::Integer(int) if int.range.extensible() => {
@@ -640,19 +641,19 @@ impl Model<Rust> {
             Type::OctetString(size) => RustType::VecU8(size.clone()),
             Type::BitString(bs) => RustType::BitVec(bs.size.clone()),
             Type::Optional(opt) => {
-                RustType::Option(Box::new(Self::flat_map_asn_type_to_rust_type(&**opt)?))
+                RustType::Option(Box::new(Self::map_asn_type_to_rust_type_flat(&**opt)?))
             }
             Type::Default(inner, default) => RustType::Default(
-                Box::new(Self::flat_map_asn_type_to_rust_type(&**inner)?),
+                Box::new(Self::map_asn_type_to_rust_type_flat(&**inner)?),
                 default.clone(),
             ),
+            Type::TypeReference(name, tag) => RustType::Complex(name.clone(), *tag),
             Type::Sequence(_)
             | Type::SequenceOf(_, _)
             | Type::Set(_)
             | Type::SetOf(_, _)
             | Type::Enumerated(_)
-            | Type::Choice(_)
-            | Type::TypeReference(_, _) => return None,
+            | Type::Choice(_) => return None,
         })
     }
 
