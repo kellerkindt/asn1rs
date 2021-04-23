@@ -378,6 +378,7 @@ impl Model<Asn<Unresolved>> {
         Ok(match text.to_ascii_lowercase().as_ref() {
             "integer" => Type::Integer(Integer::try_from(iter)?),
             "boolean" => Type::Boolean,
+            "null" => Type::Null,
             "utf8string" => Type::String(Self::maybe_read_size(iter)?, Charset::Utf8),
             "ia5string" => Type::String(Self::maybe_read_size(iter)?, Charset::Ia5),
             "numericstring" => Type::String(Self::maybe_read_size(iter)?, Charset::Numeric),

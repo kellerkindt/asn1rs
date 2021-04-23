@@ -65,6 +65,7 @@ The crate can be used as standalone CLI binary or used as library through its AP
 | ...`*String`        | ✔️ yes  | ✔️ yes   | ✔️ yes¹       | ✔️ yes¹      | ✔️ yes¹     |
 | ...`BOOLEAN`        | ✔️ yes  | ✔️ yes   | ✔️ yes¹       | ✔️ yes¹      | ✔️ yes¹     |
 | ...`ENUMERATED`     | ✔️ yes  | ✔️ yes   | ✔️ yes¹       | ✔️ yes¹      | ✔️ yes¹     |
+| `NULL`              | ✔️ yes  | ✔️ yes   | ✔️ yes¹       | ✔️ yes¹      | ✔️ yes¹     |
 | `IMPORTS..FROM..;`  | ✔️ yes  |         |              |             |            |
 | `ObjectIdentifiers` | ✔️ yes  |         |              |             |            |
 | Value References    | ✔️ yes  |         |              |             |            |

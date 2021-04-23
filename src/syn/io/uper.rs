@@ -638,6 +638,11 @@ impl Writer for UperWriter {
         self.write_bit_field_entry(false, true)?;
         self.with_buffer(|w| w.bits.write_bit(value))
     }
+
+    #[inline]
+    fn write_null<C: null::Constraint>(&mut self, _value: &Null) -> Result<(), Self::Error> {
+        Ok(())
+    }
 }
 
 pub struct UperReader<B: ScopedBitRead> {
@@ -1013,6 +1018,11 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
     fn read_boolean<C: boolean::Constraint>(&mut self) -> Result<bool, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
         self.with_buffer(|r| r.bits.read_boolean())
+    }
+
+    #[inline]
+    fn read_null<C: null::Constraint>(&mut self) -> Result<Null, Self::Error> {
+        Ok(Null)
     }
 }
 

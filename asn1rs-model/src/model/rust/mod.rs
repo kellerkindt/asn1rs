@@ -43,6 +43,7 @@ pub enum RustType {
     VecU8(Size),
     BitVec(Size),
     Vec(Box<RustType>, Size, EncodingOrdering),
+    Null,
 
     Option(Box<RustType>),
     Default(Box<RustType>, LiteralValue),
@@ -158,6 +159,7 @@ impl RustType {
             RustType::VecU8(_) => None,
             RustType::BitVec(_) => None,
             RustType::Vec(inner, _size, _ordering) => inner.integer_range_str(),
+            RustType::Null => None,
             RustType::Option(inner) => inner.integer_range_str(),
             RustType::Default(inner, ..) => inner.integer_range_str(),
             RustType::Complex(_, _) => None,
@@ -214,6 +216,7 @@ impl RustType {
             RustType::Vec(inner, size, EncodingOrdering::Sort) => {
                 AsnType::SetOf(Box::new(inner.into_asn()), size)
             }
+            RustType::Null => AsnType::Null,
             RustType::Option(value) => AsnType::Optional(Box::new(value.into_asn())),
             RustType::Default(value, default) => {
                 AsnType::Default(Box::new(value.into_asn()), default)
@@ -243,6 +246,7 @@ impl RustType {
                     false
                 }
             }
+            RustType::Null => RustType::Null == *other,
             RustType::Option(inner) => {
                 matches!(other, RustType::Option(o) if o.similar(&*inner))
                     || matches!(other, RustType::Default(o, ..) if o.similar(&*inner))
@@ -279,6 +283,7 @@ impl RustType {
             RustType::String(_, charset) => charset.default_tag(),
             RustType::Vec(_, _, EncodingOrdering::Keep) => Tag::DEFAULT_SEQUENCE_OF,
             RustType::Vec(_, _, EncodingOrdering::Sort) => Tag::DEFAULT_SET_OF,
+            RustType::Null => Tag::DEFAULT_NULL,
             RustType::Option(inner) => return inner.tag(),
             RustType::Default(inner, ..) => return inner.tag(),
             // TODO this is wrong. This should resolve the tag from the referenced type instead, but atm the infrastructure is missing to do such a thing, see github#13
@@ -388,6 +393,7 @@ impl RustType {
             RustType::Vec(inner, _size, _ordering) => {
                 return Cow::Owned(format!("&'static [{}]", inner.to_const_lit_string()))
             }
+            RustType::Null => "Null",
             RustType::Option(inner) => {
                 return Cow::Owned(format!("Option<{}>", inner.to_const_lit_string()))
             }
@@ -413,6 +419,7 @@ impl ToString for RustType {
             RustType::VecU8(_) => "Vec<u8>",
             RustType::BitVec(_) => "BitVec",
             RustType::Vec(inner, _size, _ordering) => return format!("Vec<{}>", inner.to_string()),
+            RustType::Null => "Null",
             RustType::Option(inner) => return format!("Option<{}>", inner.to_string()),
             RustType::Default(inner, ..) => return inner.to_string(),
             RustType::Complex(name, _) => return name.clone(),
@@ -640,6 +647,7 @@ impl Model<Rust> {
             Type::String(size, charset) => RustType::String(size.clone(), *charset),
             Type::OctetString(size) => RustType::VecU8(size.clone()),
             Type::BitString(bs) => RustType::BitVec(bs.size.clone()),
+            Type::Null => RustType::Null,
             Type::Optional(opt) => {
                 RustType::Option(Box::new(Self::map_asn_type_to_rust_type_flat(&**opt)?))
             }
@@ -667,6 +675,7 @@ impl Model<Rust> {
     fn definition_to_rust(name: &str, asn: &AsnType, tag: Option<Tag>, ctxt: &mut Context<'_>) {
         match asn {
             AsnType::Boolean
+            | AsnType::Null
             | AsnType::String(..)
             | AsnType::OctetString(_)
             | AsnType::BitString(_) => {
@@ -844,6 +853,7 @@ impl Model<Rust> {
     ) -> RustType {
         match asn {
             AsnType::Boolean => RustType::Bool,
+            AsnType::Null => RustType::Null,
             AsnType::Integer(int) if int.range.extensible() => {
                 Self::asn_extensible_integer_to_rust(int)
             }
@@ -979,6 +989,7 @@ impl Context<'_> {
                 .collect(),
 
             Type::Boolean
+            | Type::Null
             | Type::String(..)
             | Type::OctetString(_)
             | Type::Optional(_)

@@ -85,6 +85,7 @@ impl AsnDefWriter {
             ),
             RustType::VecU8(_) => format!("{}OctetString<{}Constraint>", CRATE_SYN_PREFIX, name),
             RustType::BitVec(_) => format!("{}BitString<{}Constraint>", CRATE_SYN_PREFIX, name),
+            RustType::Null => format!("{}NullT", CRATE_SYN_PREFIX),
             RustType::Vec(inner, _, ordering) => {
                 let virtual_field = Self::vec_virtual_field_name(name);
                 format!(
@@ -386,6 +387,13 @@ impl AsnDefWriter {
                     },
                     &constraint_type_name,
                 )
+            }
+            RustType::Null => {
+                Self::write_common_constraint_type(
+                    scope,
+                    constraint_type_name,
+                    field.tag.unwrap_or(Tag::DEFAULT_NULL),
+                );
             }
             RustType::Option(inner) => self.write_field_constraint(
                 scope,

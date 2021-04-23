@@ -25,6 +25,7 @@ pub enum SqlType {
     Array(Box<SqlType>),
     NotNull(Box<SqlType>),
     ByteArray,
+    NullByteArray,
     BitsReprByByteArrayAndBitsLen,
     References(String, String, Option<Action>, Option<Action>),
 }
@@ -78,6 +79,7 @@ impl SqlType {
             }
             SqlType::NotNull(inner) => return inner.to_rust().no_option(),
             SqlType::ByteArray => RustType::VecU8(Size::Any),
+            SqlType::NullByteArray => return RustType::Null,
             SqlType::BitsReprByByteArrayAndBitsLen => RustType::BitVec(Size::Any),
             SqlType::References(name, _, _, _) => RustType::Complex(name.clone(), None),
         }))
@@ -95,7 +97,9 @@ impl ToString for SqlType {
             SqlType::Text => "TEXT".into(),
             SqlType::Array(inner) => format!("{}[]", inner.to_string()),
             SqlType::NotNull(inner) => format!("{} NOT NULL", inner.to_string()),
-            SqlType::ByteArray | SqlType::BitsReprByByteArrayAndBitsLen => "BYTEA".into(),
+            SqlType::ByteArray
+            | SqlType::NullByteArray
+            | SqlType::BitsReprByByteArrayAndBitsLen => "BYTEA".into(),
             SqlType::References(table, column, on_delete, on_update) => format!(
                 "INTEGER REFERENCES {}({}){}{}",
                 table,
@@ -473,6 +477,7 @@ impl Model<Sql> {
             RustType::String(..) => true,
             RustType::VecU8(_) => true,
             RustType::BitVec(_) => true,
+            RustType::Null => true,
             r => r.is_primitive(),
         }
     }
@@ -505,6 +510,7 @@ impl ToSql for RustType {
     fn to_sql(&self) -> SqlType {
         SqlType::NotNull(Box::new(match self {
             RustType::Bool => SqlType::Boolean,
+            RustType::Null => return SqlType::NullByteArray.nullable(),
             RustType::U8(_) | RustType::I8(_) => SqlType::SmallInt,
             RustType::U16(Range(_, upper, _)) if *upper <= i16::max_value() as u16 => {
                 SqlType::SmallInt

@@ -302,4 +302,9 @@ impl Writer for PrintlnWriter {
         self.with_increased_indentation(|w| w.indented_println(value.to_string()));
         Ok(())
     }
+
+    fn write_null<C: null::Constraint>(&mut self, _value: &Null) -> Result<(), Self::Error> {
+        self.indented_println(format!("WRITING NULL, tag={:?}", C::TAG));
+        Ok(())
+    }
 }

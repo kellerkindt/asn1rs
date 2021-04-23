@@ -219,6 +219,7 @@ fn parse_type_pre_stepped<'a>(
             ))
         }
         "boolean" => Ok(Type::Boolean),
+        "null" => Ok(Type::Null),
         "sequence_of" | "set_of" => {
             let content;
             parenthesized!(content in input);

@@ -7,6 +7,7 @@ pub mod default;
 pub mod enumerated;
 pub mod ia5string;
 pub mod io;
+pub mod null;
 pub mod numbers;
 pub mod numericstring;
 pub mod octetstring;
@@ -19,6 +20,7 @@ pub mod setof;
 pub mod utf8string;
 pub mod visiblestring;
 
+pub use crate::syn::null::Null;
 pub use bitstring::BitString;
 pub use bitstring::BitVec;
 pub use boolean::Boolean;
@@ -27,6 +29,7 @@ pub use complex::Complex;
 pub use default::DefaultValue;
 pub use enumerated::Enumerated;
 pub use ia5string::Ia5String;
+pub use null::NullT;
 pub use numbers::Integer;
 pub use numericstring::NumericString;
 pub use octetstring::OctetString;
@@ -40,6 +43,7 @@ pub use visiblestring::VisibleString;
 
 pub mod prelude {
     pub use super::bitstring::BitVec;
+    pub use super::Null;
     pub use super::Readable;
     pub use super::ReadableType;
     pub use super::Reader;
@@ -112,6 +116,8 @@ pub trait Reader {
     fn read_bit_string<C: bitstring::Constraint>(&mut self) -> Result<(Vec<u8>, u64), Self::Error>;
 
     fn read_boolean<C: boolean::Constraint>(&mut self) -> Result<bool, Self::Error>;
+
+    fn read_null<C: null::Constraint>(&mut self) -> Result<Null, Self::Error>;
 }
 
 pub trait Readable: Sized {
@@ -218,6 +224,8 @@ pub trait Writer {
     ) -> Result<(), Self::Error>;
 
     fn write_boolean<C: boolean::Constraint>(&mut self, value: bool) -> Result<(), Self::Error>;
+
+    fn write_null<C: null::Constraint>(&mut self, value: &Null) -> Result<(), Self::Error>;
 }
 
 pub trait Writable {

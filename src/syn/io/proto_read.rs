@@ -332,4 +332,9 @@ impl<'a> Reader for ProtobufReader<'a> {
         self.state.tag_counter = tag;
         self.state.source.read_bool()
     }
+
+    #[inline]
+    fn read_null<C: null::Constraint>(&mut self) -> Result<Null, Self::Error> {
+        Ok(Null)
+    }
 }

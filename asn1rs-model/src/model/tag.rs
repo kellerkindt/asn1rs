@@ -43,6 +43,7 @@ impl Tag {
     pub const DEFAULT_INTEGER: Tag = Tag::Universal(2);
     pub const DEFAULT_BIT_STRING: Tag = Tag::Universal(3);
     pub const DEFAULT_OCTET_STRING: Tag = Tag::Universal(4);
+    pub const DEFAULT_NULL: Tag = Tag::Universal(5);
     pub const DEFAULT_ENUMERATED: Tag = Tag::Universal(10);
     pub const DEFAULT_UTF8_STRING: Tag = Tag::Universal(12);
     pub const DEFAULT_SEQUENCE: Tag = Tag::Universal(16);

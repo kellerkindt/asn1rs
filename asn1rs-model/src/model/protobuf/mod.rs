@@ -188,6 +188,7 @@ impl Model<Protobuf> {
             RustType::String(..) => ProtobufType::String,
             RustType::VecU8(_) => ProtobufType::Bytes,
             RustType::BitVec(_) => ProtobufType::BitsReprByBytesAndBitsLen,
+            RustType::Null => ProtobufType::Bytes,
 
             RustType::Complex(complex, _) => ProtobufType::Complex(complex.clone()),
 

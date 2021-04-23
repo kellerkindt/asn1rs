@@ -422,4 +422,9 @@ impl Writer for ProtobufWriter<'_> {
         self.state.format = Some(Format::VarInt);
         Ok(())
     }
+
+    #[inline]
+    fn write_null<C: null::Constraint>(&mut self, _value: &Null) -> Result<(), Self::Error> {
+        Ok(())
+    }
 }

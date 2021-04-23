@@ -125,6 +125,8 @@ pub enum Type<RS: ResolveState = Resolved> {
     OctetString(Size<RS::SizeType>),
     /// ITU-T X.680 | ISO/IEC 8824-1, 22
     BitString(BitString<RS::SizeType>),
+    /// ITU-T X.680 | ISO/IEC 8824-1, 24
+    Null,
 
     Optional(Box<Type<RS>>),
     Default(Box<Type<RS>>, LiteralValue),
@@ -234,6 +236,7 @@ impl Type<Unresolved> {
             Type::String(size, charset) => Type::String(size.try_resolve(resolver)?, *charset),
             Type::OctetString(size) => Type::OctetString(size.try_resolve(resolver)?),
             Type::BitString(string) => Type::BitString(string.try_resolve(resolver)?),
+            Type::Null => Type::Null,
             Type::Optional(inner) => Type::Optional(Box::new(inner.try_resolve(resolver)?)),
             Type::Default(inner, default) => {
                 Type::Default(Box::new(inner.try_resolve(resolver)?), default.clone())

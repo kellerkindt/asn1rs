@@ -65,6 +65,7 @@ impl TagResolver<'_> {
             Type::String(_, Charset::Visible) => Some(Tag::DEFAULT_VISIBLE_STRING),
             Type::String(_, Charset::Utf8) => Some(Tag::DEFAULT_UTF8_STRING),
             Type::String(_, Charset::Ia5) => Some(Tag::DEFAULT_IA5_STRING),
+            Type::Null => Some(Tag::DEFAULT_NULL),
             Type::Optional(inner) => self.resolve_type_tag(&**inner),
             Type::Default(inner, ..) => self.resolve_type_tag(&**inner),
             Type::Sequence(_) => Some(Tag::DEFAULT_SEQUENCE),

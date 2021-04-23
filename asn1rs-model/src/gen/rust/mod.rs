@@ -403,6 +403,7 @@ impl RustCodeGenerator {
                     .flatten()
                     .collect()],
             ),
+            Type::Null => (Cow::Borrowed("null"), Vec::default()),
             Type::Optional(inner) => (
                 Cow::Borrowed("optional"),
                 vec![Self::asn_attribute_type(&*inner)],
