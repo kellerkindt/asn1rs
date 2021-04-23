@@ -34,7 +34,7 @@ impl<C: Constraint> ReadableType for NullT<C> {
     }
 }
 
-#[derive(Default, Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash)]
+#[derive(Default, Debug, Clone, Ord, PartialOrd, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct Null;
 
 impl From<()> for Null {
