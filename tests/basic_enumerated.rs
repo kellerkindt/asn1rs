@@ -1,6 +1,8 @@
-use asn1rs::prelude::*;
 use asn1rs::syn::io::UperReader as NewUperReader;
 use asn1rs::syn::io::UperWriter as NewUperWriter;
+
+mod test_utils;
+use test_utils::*;
 
 asn_to_rust!(
     r"BasicEnumerated DEFINITIONS AUTOMATIC TAGS ::=
@@ -18,6 +20,15 @@ asn_to_rust!(
         ..., -- whatever reserved blubber comment
         ghi(8),
         jkl(9)
+    }
+
+    SomeEnum ::= ENUMERATED {
+        abc(0),
+        def(1),
+        ghi(2),
+        jkl(3),
+        mno(4),
+        qrs(15)
     }
 
     
@@ -76,4 +87,14 @@ pub fn test_basic_uper() {
         ],
         writer.byte_content()
     );
+}
+
+#[test]
+fn test_some_enum_with_skipped_numbers() {
+    test_utils::serialize_and_deserialize_uper(3, &[0x00], &SomeEnum::Abc);
+    test_utils::serialize_and_deserialize_uper(3, &[0x20], &SomeEnum::Def);
+    test_utils::serialize_and_deserialize_uper(3, &[0x40], &SomeEnum::Ghi);
+    test_utils::serialize_and_deserialize_uper(3, &[0x60], &SomeEnum::Jkl);
+    test_utils::serialize_and_deserialize_uper(3, &[0x80], &SomeEnum::Mno);
+    test_utils::serialize_and_deserialize_uper(3, &[0xA0], &SomeEnum::Qrs);
 }
