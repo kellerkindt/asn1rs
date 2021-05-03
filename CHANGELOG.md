@@ -1,3 +1,31 @@
+# Version 0.2.2 (2021-05-03)
+
+This release includes a lot of refactoring and new features. With these changes, it is now possible to use the following ASN.1 standard:
+
+- 🎉 ```itu-t(0) identified-organization(4) etsi(0) itsDomain(5) wg1(1) en(302637) denm(1) version(2)``` (DENM)
+
+### Fixes
+- Properly parse (extensible) `SIZE` without a range value.
+- Fix `ProtobufWriter` on slices
+- Fix clippy v1.51 remarks.
+- Fix `rust_variant_name` and `rust_struct_or_enum_name` for two consecutively upper case letters.
+- Fix ` rust_constant_name` not inserting _ around numbers.
+ 
+### Added
+- Lots of regression tests for utility functions. 
+- Regression tests for `ProtobufWriter` on slices.
+- Basic support for `DEFAULT` (for `INTEGER`, *`String`, `BOOLEAN`, `ENUMERATED` and some tuple/transparent types)
+- Parsing (and ignoring) of `WITH COMPONENTS` constraints
+- Resolving symbols across multiple module descriptions.
+- Support ASN `NULL` type
+
+### Changes
+- Generate constants besides structs. This has the advantage that constants are clearly visible.
+- Performance improvement while converting the Model to Rust: Do not allocating structs that are thrown away anyway (call `RustType::as_inner_type` instead of `::clone` & `RustType::into_inner_type`).
+
+### Removed
+- **Legacy** protobuf and uper codegen
+
 # Version 0.2.1 (2021-03-22)
 
 This release refactors `Model<Asn>` which is now represented as `Model<Asn<Unresolved>>` and `Model<Asn<Resolved>>`.
