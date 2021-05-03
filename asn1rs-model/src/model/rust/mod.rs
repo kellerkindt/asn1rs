@@ -389,7 +389,8 @@ impl RustType {
             RustType::U64(_) => "u64",
             RustType::I64(_) => "i64",
             RustType::String(..) => "&'static str",
-            RustType::VecU8(_) | RustType::BitVec(_) => "&'static [8]",
+            RustType::VecU8(_) => "&'static [u8]",
+            RustType::BitVec(_) => "u64",
             RustType::Vec(inner, _size, _ordering) => {
                 return Cow::Owned(format!("&'static [{}]", inner.to_const_lit_string()))
             }

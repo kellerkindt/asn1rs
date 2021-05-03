@@ -23,10 +23,27 @@ asn_to_rust!(
     
     BasicConstrainedExtensible ::= SEQUENCE {
         abc BIT STRING (SIZE(4..6,...))
-    } 
+    }
+    
+    SomeContainer ::= SEQUENCE {
+        some-value BIT STRING {
+            very-important-flag  (0),
+            not-so-important-flag(1)
+        } (SIZE(2))
+    }
     
     END"
 );
+
+#[test]
+fn test_some_container_flag_set() {
+    let mut c = SomeContainer {
+        some_value: BitVec::with_len(2),
+    };
+    c.some_value
+        .set_bit(SomeContainer::SOME_VALUE_VERY_IMPORTANT_FLAG);
+    serialize_and_deserialize_uper(2, &[0x80], &c);
+}
 
 #[test]
 fn test_unconstrained_6_bits() {
