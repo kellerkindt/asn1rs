@@ -231,7 +231,6 @@ impl UperWriter {
         let result = f(self);
         let scope = core::mem::replace(&mut self.scope, original);
         // save because this is supposed to be the original from above
-        let exhausted = scope.as_ref().unwrap().exhausted();
         debug_assert!(scope.unwrap().exhausted());
         result
     }
