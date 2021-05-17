@@ -51,7 +51,17 @@ impl Scope {
         match self {
             Scope::OptBitField(range) => range.start == range.end,
             Scope::AllBitField(range) => range.start == range.end,
-            Scope::ExtensibleSequence { .. } => false,
+            Scope::ExtensibleSequence {
+                opt_bit_field,
+                calls_until_ext_bitfield,
+                number_of_ext_fields,
+            } => {
+                *calls_until_ext_bitfield == *number_of_ext_fields
+                    && match opt_bit_field {
+                        Some(range) => range.start == range.end,
+                        None => true,
+                    }
+            }
         }
     }
 
@@ -221,6 +231,7 @@ impl UperWriter {
         let result = f(self);
         let scope = core::mem::replace(&mut self.scope, original);
         // save because this is supposed to be the original from above
+        let exhausted = scope.as_ref().unwrap().exhausted();
         debug_assert!(scope.unwrap().exhausted());
         result
     }
