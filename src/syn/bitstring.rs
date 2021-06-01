@@ -101,7 +101,7 @@ impl BitVec {
     }
 
     pub fn set_bit(&mut self, bit: u64) {
-        self.ensure_vec_large_enough(bit);
+        self.ensure_vec_large_enough(bit + 1);
         let byte = bit / 8;
         let bit = bit % 8;
         let mask = 0x80_u8 >> bit;
@@ -109,7 +109,7 @@ impl BitVec {
     }
 
     pub fn reset_bit(&mut self, bit: u64) {
-        self.ensure_vec_large_enough(bit);
+        self.ensure_vec_large_enough(bit + 1);
         let byte = bit / 8;
         let bit = bit % 8;
         let mask = 0x80_u8 >> bit;
@@ -122,6 +122,10 @@ impl BitVec {
             self.0.resize(bytes, 0x00);
             self.1 = bits;
         }
+    }
+
+    pub fn overall_capacity_at_least(&mut self, bits: u64) {
+        self.ensure_vec_large_enough(bits);
     }
 
     pub fn bit_len(&self) -> u64 {
