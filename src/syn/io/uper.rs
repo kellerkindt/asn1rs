@@ -11,12 +11,7 @@ use std::ops::Range;
 pub use crate::io::per::unaligned::buffer::Bits;
 pub use crate::io::per::unaligned::ScopedBitRead;
 
-/// This ist enum is the main reason, the new impl is about ~10% slower (2020-09) than the previous/
-/// legacy implementation. This dynamic state tracking at runtime could be avoided by passing all
-/// values as const generics on each `read_`*/`write_`* call [RFC 2000]. Maybe getting rid of all
-/// `mem::replace` calls would also be sufficient.
-///
-/// [RFC 2000]: https://github.com/rust-lang/rust/issues/44580    
+#[derive(Debug, Clone)]
 pub enum Scope {
     OptBitField(Range<usize>),
     AllBitField(Range<usize>),
@@ -39,10 +34,14 @@ pub enum Scope {
     /// needs to keep track of the current field number. Also, the position of where to write
     /// the presence flags to must be updated as well.
     ExtensibleSequence {
+        name: &'static str,
+        bit_pos: usize,
         opt_bit_field: Option<Range<usize>>,
         calls_until_ext_bitfield: usize,
         number_of_ext_fields: usize,
     },
+    /// Indicates that the extensible sequence has no extension body
+    ExtensibleSequenceEmpty(&'static str),
 }
 
 impl Scope {
@@ -52,22 +51,25 @@ impl Scope {
             Scope::OptBitField(range) => range.start == range.end,
             Scope::AllBitField(range) => range.start == range.end,
             Scope::ExtensibleSequence {
+                name: _,
+                bit_pos: _,
                 opt_bit_field,
-                calls_until_ext_bitfield,
-                number_of_ext_fields,
-            } => {
-                *calls_until_ext_bitfield == *number_of_ext_fields
-                    && match opt_bit_field {
-                        Some(range) => range.start == range.end,
-                        None => true,
-                    }
-            }
+                calls_until_ext_bitfield: _,
+                number_of_ext_fields: _,
+            } => match opt_bit_field {
+                Some(range) => range.start == range.end,
+                None => true,
+            },
+            Scope::ExtensibleSequenceEmpty(_) => true,
         }
     }
 
     #[inline]
     pub const fn encode_as_open_type_field(&self) -> bool {
-        matches!(self, Scope::AllBitField(_))
+        matches!(
+            self,
+            Scope::AllBitField(_) | Scope::ExtensibleSequenceEmpty(_)
+        )
     }
 
     #[inline]
@@ -95,26 +97,39 @@ impl Scope {
                 result
             }
             Scope::ExtensibleSequence {
+                name,
+                bit_pos: ext_bit_pos,
                 opt_bit_field,
                 calls_until_ext_bitfield,
                 number_of_ext_fields,
             } => {
                 if *calls_until_ext_bitfield == 0 {
-                    // when we reach this point, there is never zero numbers of ext-fields
-                    buffer.write_normally_small_non_negative_whole_number(
-                        *number_of_ext_fields as u64 - 1,
-                    )?;
-                    let pos = buffer.write_position;
-                    for _ in 0..*number_of_ext_fields {
-                        if let Err(e) = buffer.write_bit(true) {
-                            buffer.write_position = pos;
-                            return Err(e);
+                    buffer.with_write_position_at(*ext_bit_pos, |b| b.write_bit(is_present))?;
+                    if is_present {
+                        // when we reach this point, there is never zero numbers of ext-fields
+                        buffer.write_normally_small_non_negative_whole_number(
+                            *number_of_ext_fields as u64 - 1,
+                        )?;
+                        let pos = buffer.write_position;
+                        for _ in 0..*number_of_ext_fields {
+                            if let Err(e) = buffer.write_bit(true) {
+                                buffer.write_position = pos;
+                                return Err(e);
+                            }
                         }
+
+                        // pos + 1 because the bit for the current call is already set
+                        // by the initializer loop above
+                        let range = pos + 1..buffer.write_position;
+                        *self = Scope::AllBitField(range);
+                    } else {
+                        *self = Scope::ExtensibleSequenceEmpty(name);
                     }
-                    let range = pos..buffer.write_position;
-                    // buffer.write_int(range.len() as i64, (1, range.end as i64))?;
-                    *self = Scope::AllBitField(range);
-                    self.write_into_field(buffer, is_opt, is_present)
+                    // no need for this
+                    // if is_present is true, the bit is already set (initialize loop above)
+                    // if is_present is false, no bit will be written (empty)
+                    // self.write_into_field(buffer, is_opt, is_present)
+                    Ok(())
                 } else {
                     *calls_until_ext_bitfield = calls_until_ext_bitfield.saturating_sub(1);
                     if let Some(range) = opt_bit_field {
@@ -131,6 +146,13 @@ impl Scope {
                     }
                 }
             }
+            Scope::ExtensibleSequenceEmpty(name) => {
+                if is_present {
+                    Err(Error::ExtensionFieldsInconsistent(name.to_string()))
+                } else {
+                    Ok(())
+                }
+            }
         }
     }
 
@@ -142,7 +164,9 @@ impl Scope {
     ) -> Result<Option<bool>, Error> {
         match self {
             Scope::OptBitField(range) => {
-                if is_opt {
+                if range.start >= range.end {
+                    Ok(Some(false))
+                } else if is_opt {
                     let result =
                         bits.with_read_position_at(range.start, |buffer| buffer.read_bit());
                     range.start += 1;
@@ -152,26 +176,39 @@ impl Scope {
                 }
             }
             Scope::AllBitField(range) => {
-                let result = bits.with_read_position_at(range.start, |buffer| buffer.read_bit());
-                range.start += 1;
-                Some(result).transpose()
+                if range.start < range.end {
+                    let result =
+                        bits.with_read_position_at(range.start, |buffer| buffer.read_bit());
+                    range.start += 1;
+                    Some(result).transpose()
+                } else {
+                    // all further extensible fields are not present
+                    Ok(Some(false))
+                }
             }
             Scope::ExtensibleSequence {
+                name,
+                bit_pos: ext_bit_pos,
                 opt_bit_field,
                 calls_until_ext_bitfield,
                 number_of_ext_fields,
             } => {
                 if *calls_until_ext_bitfield == 0 {
-                    let read_number_of_ext_fields = bits.read_normally_small_length()? as usize + 1;
-                    if read_number_of_ext_fields != *number_of_ext_fields {
-                        return Err(Error::UnsupportedOperation(format!(
-                            "Expected {} extended fields but got {}",
-                            number_of_ext_fields, read_number_of_ext_fields
-                        )));
+                    if bits.with_read_position_at(*ext_bit_pos, |b| b.read_bit())? {
+                        let read_number_of_ext_fields =
+                            bits.read_normally_small_length()? as usize + 1;
+                        if read_number_of_ext_fields > *number_of_ext_fields {
+                            return Err(Error::UnsupportedOperation(format!(
+                                "Expected no more than {} extended fields but got {}",
+                                number_of_ext_fields, read_number_of_ext_fields
+                            )));
+                        }
+                        let range = bits.pos()..bits.pos() + *number_of_ext_fields;
+                        bits.set_pos(range.end); // skip bit-field
+                        *self = Scope::AllBitField(range);
+                    } else {
+                        *self = Scope::ExtensibleSequenceEmpty(name);
                     }
-                    let range = bits.pos()..bits.pos() + *number_of_ext_fields;
-                    bits.set_pos(range.end); // skip bit-field
-                    *self = Scope::AllBitField(range);
                     self.read_from_field(bits, is_opt)
                 } else {
                     *calls_until_ext_bitfield = calls_until_ext_bitfield.saturating_sub(1);
@@ -187,6 +224,7 @@ impl Scope {
                         .transpose()
                 }
             }
+            Scope::ExtensibleSequenceEmpty(_) => Ok(Some(false)),
         }
     }
 }
@@ -226,12 +264,24 @@ impl UperWriter {
     }
 
     #[inline]
-    pub fn scope_pushed<R, F: FnOnce(&mut Self) -> R>(&mut self, scope: Scope, f: F) -> R {
+    pub fn scope_pushed<T, E, F: FnOnce(&mut Self) -> Result<T, E>>(
+        &mut self,
+        scope: Scope,
+        f: F,
+    ) -> Result<T, E> {
         let original = core::mem::replace(&mut self.scope, Some(scope));
         let result = f(self);
-        let scope = core::mem::replace(&mut self.scope, original);
-        // save because this is supposed to be the original from above
-        debug_assert!(scope.unwrap().exhausted());
+        if cfg!(debug_assertions) && result.is_ok() {
+            let scope = core::mem::replace(&mut self.scope, original);
+            // call to .unwrap() is save because this is supposed to be the original from above
+            debug_assert!(
+                scope.clone().unwrap().exhausted(),
+                "Not exhausted: {:?}",
+                scope.unwrap()
+            );
+        } else {
+            self.scope = original;
+        }
         result
     }
 
@@ -312,9 +362,14 @@ impl Writer for UperWriter {
     ) -> Result<(), Self::Error> {
         self.write_bit_field_entry(false, true)?;
         self.with_buffer(|w| {
-            if let Some(extension_after) = C::EXTENDED_AFTER_FIELD {
-                w.bits.write_bit(C::FIELD_COUNT > extension_after)?;
-            }
+            let extension = if let Some(extension_after) = C::EXTENDED_AFTER_FIELD {
+                let bit_pos = w.bits.write_position;
+                // if no extension field is present, none will call into overwriting this
+                w.bits.write_bit(false)?;
+                Some((extension_after, bit_pos))
+            } else {
+                None
+            };
 
             // In UPER the values for all OPTIONAL flags are written before any field
             // value is written. This remembers their position, so a later call of `write_opt`
@@ -330,9 +385,11 @@ impl Writer for UperWriter {
                 }
             }
 
-            if let Some(extension_after) = C::EXTENDED_AFTER_FIELD {
+            if let Some((extension_after, bit_pos)) = extension {
                 w.scope_pushed(
                     Scope::ExtensibleSequence {
+                        name: C::NAME,
+                        bit_pos,
                         opt_bit_field: Some(range),
                         calls_until_ext_bitfield: (extension_after + 1) as usize,
                         number_of_ext_fields: (C::FIELD_COUNT - (extension_after + 1)) as usize,
@@ -431,7 +488,7 @@ impl Writer for UperWriter {
     ) -> Result<(), Self::Error> {
         self.write_bit_field_entry(true, const_is_some!(value))?;
         if let Some(value) = value {
-            self.scope_stashed(|w| T::write_value(w, value))
+            self.with_buffer(|w| w.scope_stashed(|w| T::write_value(w, value)))
         } else {
             Ok(())
         }
@@ -683,13 +740,21 @@ impl<B: ScopedBitRead> UperReader<B> {
     }
 
     #[inline]
-    pub fn scope_pushed<R, F: FnOnce(&mut Self) -> R>(&mut self, scope: Scope, f: F) -> R {
+    pub fn scope_pushed<T, E, F: FnOnce(&mut Self) -> Result<T, E>>(
+        &mut self,
+        scope: Scope,
+        f: F,
+    ) -> Result<T, E> {
         let original = core::mem::replace(&mut self.scope, Some(scope));
         let result = f(self);
-        if cfg!(debug_assertions) {
+        if cfg!(debug_assertions) && result.is_ok() {
             let scope = core::mem::replace(&mut self.scope, original);
-            // save because this is the original from above
-            debug_assert!(scope.unwrap().exhausted());
+            // call to .unwrap() is save because this is supposed to be the original from above
+            debug_assert!(
+                scope.clone().unwrap().exhausted(),
+                "Not exhausted: {:?}",
+                scope.unwrap()
+            );
         } else {
             self.scope = original;
         }
@@ -767,16 +832,16 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
     ) -> Result<S, Self::Error> {
         let _ = self.read_bit_field_entry(false);
         self.with_buffer(|r| {
-            if let Some(extension_after) = C::EXTENDED_AFTER_FIELD {
-                let has_extension = r.bits.read_bit()?;
-                let expects_extension = C::FIELD_COUNT > extension_after;
-                if has_extension != expects_extension {
-                    return Err(Error::InvalidExtensionConstellation(
-                        expects_extension,
-                        has_extension,
-                    ));
+            let extension_after = if let Some(extension_after) = C::EXTENDED_AFTER_FIELD {
+                let bit_pos = r.bits.pos();
+                if r.bits.read_bit()? {
+                    Some((extension_after, bit_pos))
+                } else {
+                    None
                 }
-            }
+            } else {
+                None
+            };
 
             // In UPER the values for all OPTIONAL flags are written before any field
             // value is written. This remembers their position, so a later call of `read_opt`
@@ -787,9 +852,11 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
             let range = r.bits.pos()..r.bits.pos() + C::STD_OPTIONAL_FIELDS as usize;
             r.bits.set_pos(range.end); // skip optional
 
-            if let Some(extension_after) = C::EXTENDED_AFTER_FIELD {
+            if let Some((extension_after, bit_pos)) = extension_after {
                 r.scope_pushed(
                     Scope::ExtensibleSequence {
+                        name: C::NAME,
+                        bit_pos,
                         opt_bit_field: Some(range),
                         calls_until_ext_bitfield: (extension_after + 1) as usize,
                         number_of_ext_fields: (C::FIELD_COUNT - (extension_after + 1)) as usize,
@@ -875,7 +942,8 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
     ) -> Result<Option<<T as ReadableType>::Type>, Self::Error> {
         // unwrap: as opt-field this must and will return some value
         if self.read_bit_field_entry(true)?.unwrap() {
-            self.scope_stashed(T::read_value).map(Some)
+            self.with_buffer(|w| w.scope_stashed(T::read_value))
+                .map(Some)
         } else {
             Ok(None)
         }

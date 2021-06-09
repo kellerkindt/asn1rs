@@ -59,8 +59,26 @@ fn test_extensible() {
         &Extensible {
             def: 774,
             abc: "bye bye".to_string(),
-            jkl: "jkl".to_string(),
-            ghi: "ghi".to_string(),
+            jkl: Some("jkl".to_string()),
+            ghi: Some("ghi".to_string()),
+        },
+    );
+}
+
+#[test]
+fn test_extensible_2() {
+    // from playground
+    serialize_and_deserialize_uper(
+        8 * 11 + 1,
+        &[
+            // serialization order def -> abc -> jkl -> ghi
+            0x01, 0x01, 0x83, 0x03, 0xB1, 0x3C, 0xB2, 0x90, 0x31, 0x3C, 0xB2, 0x80,
+        ],
+        &Extensible {
+            def: 774,
+            abc: "bye bye".to_string(),
+            jkl: None,
+            ghi: None,
         },
     );
 }

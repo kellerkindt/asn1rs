@@ -732,7 +732,7 @@ impl Model<Rust> {
                 fields,
                 extension_after,
             }) => {
-                let fields = Self::asn_fields_to_rust_fields(name, fields, ctxt);
+                let fields = Self::asn_fields_to_rust_fields(name, fields, *extension_after, ctxt);
                 ctxt.add_definition(Definition(
                     name.into(),
                     Rust::Struct {
@@ -748,7 +748,7 @@ impl Model<Rust> {
                 fields,
                 extension_after,
             }) => {
-                let fields = Self::asn_fields_to_rust_fields(name, fields, ctxt);
+                let fields = Self::asn_fields_to_rust_fields(name, fields, *extension_after, ctxt);
                 ctxt.add_definition(Definition(
                     name.into(),
                     Rust::Struct {
@@ -820,17 +820,22 @@ impl Model<Rust> {
     fn asn_fields_to_rust_fields(
         name: &str,
         fields: &[crate::model::Field<Asn>],
+        extension_after: Option<usize>,
         ctxt: &mut Context<'_>,
     ) -> Vec<Field> {
         let mut rust_fields = Vec::with_capacity(fields.len());
 
-        for field in fields.iter() {
+        for (index, field) in fields.iter().enumerate() {
             let rust_name = format!("{}{}", name, ctxt.struct_or_enum_name(&field.name));
             let tag = field.role.tag;
             let rust_role =
                 Self::definition_type_to_rust_type(&rust_name, &field.role.r#type, tag, ctxt);
             let rust_role = if let Some(def) = &field.role.default {
                 RustType::Default(Box::new(rust_role.no_option()), def.clone())
+            } else if extension_after.map(|e| index > e).unwrap_or(false)
+                && !rust_role.is_optional()
+            {
+                RustType::Option(Box::new(rust_role))
             } else {
                 rust_role
             };

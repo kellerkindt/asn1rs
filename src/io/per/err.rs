@@ -9,7 +9,7 @@ pub enum Error {
     InsufficientSpaceInDestinationBuffer,
     InsufficientDataInSourceBuffer,
     InvalidChoiceIndex(u64, u64),
-    InvalidExtensionConstellation(bool, bool),
+    ExtensionFieldsInconsistent(String),
     ValueNotInRange(i64, i64, i64),
     ValueExceedsMaxInt,
     ValueIsNegativeButExpectedUnsigned(i64),
@@ -55,11 +55,13 @@ impl std::fmt::Display for Error {
                 "Unexpected choice-index {} with variant count {}",
                 index, variant_count
             ),
-            Error::InvalidExtensionConstellation(expects, has) => write!(
-                f,
-                "Unexpected extension constellation, expected: {}, read: {}",
-                expects, has
-            ),
+            Error::ExtensionFieldsInconsistent(name) => {
+                write!(
+                    f,
+                    "The extension fields of {} are inconsistent, either all or none must be present",
+                    name
+                )
+            }
             Error::ValueNotInRange(value, min, max) => write!(
                 f,
                 "The value {} is not within the inclusive range of {} and {}",

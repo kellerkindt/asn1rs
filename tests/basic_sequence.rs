@@ -59,7 +59,7 @@ fn test_extensible() {
         &Extensible {
             abc: "bye bye".to_string(),
             def: 774,
-            ghi: "great extension".to_string(),
+            ghi: Some("great extension".to_string()),
         },
     );
 }
