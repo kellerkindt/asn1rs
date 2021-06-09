@@ -83,6 +83,31 @@ fn test_extensible_2() {
     );
 }
 
+/// ```asn
+/// Extensible ::= {
+///     abc "bye bye",
+///     def 774,
+///     jkl "jkl"
+/// }
+/// ```
+#[test]
+fn test_extensible_4() {
+    // from playground
+    serialize_and_deserialize_uper(
+        8 * 17 + 2,
+        &[
+            0x81, 0x01, 0x83, 0x03, 0xB1, 0x3C, 0xB2, 0x90, 0x31, 0x3C, 0xB2, 0x81, 0x81, 0x00,
+            0xDA, 0x9A, 0xDB, 0x00,
+        ],
+        &Extensible {
+            def: 774,
+            abc: "bye bye".to_string(),
+            jkl: Some("jkl".to_string()),
+            ghi: None,
+        },
+    );
+}
+
 #[test]
 fn test_implicit_tag_assignment() {
     use asn1rs::syn::common::Constraint;
