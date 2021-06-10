@@ -191,7 +191,7 @@ fn parse_type_pre_stepped<'a>(
                             syn::Lit::ByteStr(val) => LiteralValue::OctetString(val.value()),
                             syn::Lit::Byte(val) => LiteralValue::Integer(i64::from(val.value())),
                             syn::Lit::Int(val) => LiteralValue::Integer(val.base10_parse().ok()?),
-                            syn::Lit::Bool(val) => LiteralValue::Boolean(val.value()),
+                            syn::Lit::Bool(val) => LiteralValue::Boolean(val.value),
                             syn::Lit::Char(_) | syn::Lit::Float(_) | syn::Lit::Verbatim(_) => {
                                 return None
                             }
