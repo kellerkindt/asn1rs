@@ -113,3 +113,41 @@ impl std::error::Error for Error {
         "encoding or decoding UPER failed"
     }
 }
+
+impl PartialEq for Error {
+    fn eq(&self, other: &Self) -> bool {
+        match self {
+            Error::FromUtf8Error(a) => matches!(other, Error::FromUtf8Error(oa) if a == oa),
+            Error::InvalidString(a, b, c) => {
+                matches!(other, Error::InvalidString(oa, ob, oc) if (a, b, c) == (oa, ob, oc))
+            }
+            Error::UnsupportedOperation(a) => {
+                matches!(other, Error::UnsupportedOperation(oa) if a == oa)
+            }
+            Error::InsufficientSpaceInDestinationBuffer(_) => {
+                matches!(other, Error::InsufficientSpaceInDestinationBuffer(_))
+            }
+            Error::InsufficientDataInSourceBuffer(_) => {
+                matches!(other, Error::InsufficientDataInSourceBuffer(_))
+            }
+            Error::InvalidChoiceIndex(a, b) => {
+                matches!(other, Error::InvalidChoiceIndex(oa, ob) if (a, b) == (oa, ob))
+            }
+            Error::ExtensionFieldsInconsistent(a) => {
+                matches!(other, Error::ExtensionFieldsInconsistent(oa) if a == oa)
+            }
+            Error::ValueNotInRange(a, b, c) => {
+                matches!(other, Error::ValueNotInRange(oa, ob, oc) if (a, b, c) == (oa, ob, oc))
+            }
+            Error::ValueExceedsMaxInt => matches!(other, Error::ValueExceedsMaxInt),
+            Error::ValueIsNegativeButExpectedUnsigned(a) => {
+                matches!(other, Error::ValueIsNegativeButExpectedUnsigned(oa) if a == oa)
+            }
+            Error::SizeNotInRange(a, b, c) => {
+                matches!(other, Error::SizeNotInRange(oa, ob, oc) if (a,b ,c) == (oa, ob,oc))
+            }
+            Error::OptFlagsExhausted => matches!(other, Error::OptFlagsExhausted),
+            Error::EndOfStream => matches!(other, Error::EndOfStream),
+        }
+    }
+}
