@@ -98,10 +98,10 @@ fn bit_string_copy(
     len: usize,
 ) -> Result<(), Error> {
     if dst.len() * BYTE_LEN < dst_bit_position + len {
-        return Err(Error::InsufficientSpaceInDestinationBuffer);
+        return Err(Error::insufficient_space_in_destination_buffer());
     }
     if src.len() * BYTE_LEN < src_bit_position + len {
-        return Err(Error::InsufficientDataInSourceBuffer);
+        return Err(Error::insufficient_data_in_source_buffer());
     }
     for bit in 0..len {
         let dst_byte_pos = (dst_bit_position + bit) / BYTE_LEN;
@@ -141,10 +141,10 @@ pub(crate) fn bit_string_copy_bulked(
     }
 
     if dst.len() * BYTE_LEN < dst_bit_position + len {
-        return Err(Error::InsufficientSpaceInDestinationBuffer);
+        return Err(Error::insufficient_space_in_destination_buffer());
     }
     if src.len() * BYTE_LEN < src_bit_position + len {
-        return Err(Error::InsufficientDataInSourceBuffer);
+        return Err(Error::insufficient_data_in_source_buffer());
     }
 
     let bits_till_full_byte_src = (BYTE_LEN - (src_bit_position % BYTE_LEN)) % BYTE_LEN;

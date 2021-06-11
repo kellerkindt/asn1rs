@@ -1,13 +1,14 @@
 use crate::model::Charset;
+use backtrace::Backtrace;
 use std::string::FromUtf8Error;
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum Error {
     FromUtf8Error(FromUtf8Error),
     InvalidString(Charset, char, usize),
     UnsupportedOperation(String),
-    InsufficientSpaceInDestinationBuffer,
-    InsufficientDataInSourceBuffer,
+    InsufficientSpaceInDestinationBuffer(Backtrace),
+    InsufficientDataInSourceBuffer(Backtrace),
     InvalidChoiceIndex(u64, u64),
     ExtensionFieldsInconsistent(String),
     ValueNotInRange(i64, i64, i64),
@@ -24,6 +25,14 @@ impl Error {
             None => Ok(()),
             Some((index, char)) => Err(Self::InvalidString(charset, char, index)),
         }
+    }
+
+    pub fn insufficient_space_in_destination_buffer() -> Self {
+        Error::InsufficientSpaceInDestinationBuffer(Backtrace::new_unresolved())
+    }
+
+    pub fn insufficient_data_in_source_buffer() -> Self {
+        Error::InsufficientDataInSourceBuffer(Backtrace::new_unresolved())
     }
 }
 
@@ -42,13 +51,23 @@ impl std::fmt::Display for Error {
                 )
             }
             Error::UnsupportedOperation(o) => write!(f, "The operation is not supported: {}", o),
-            Error::InsufficientSpaceInDestinationBuffer => write!(
+            Error::InsufficientSpaceInDestinationBuffer(backtrace) => write!(
                 f,
-                "There is insufficient space in the destination buffer for this operation"
+                "There is insufficient space in the destination buffer for this operation:\n{:?}",
+                {
+                    let mut b = backtrace.clone();
+                    b.resolve();
+                    b
+                }
             ),
-            Error::InsufficientDataInSourceBuffer => write!(
+            Error::InsufficientDataInSourceBuffer(backtrace) => write!(
                 f,
-                "There is insufficient data in the source buffer for this operation"
+                "There is insufficient data in the source buffer for this operation:\n{:?}",
+                {
+                    let mut b = backtrace.clone();
+                    b.resolve();
+                    b
+                }
             ),
             Error::InvalidChoiceIndex(index, variant_count) => write!(
                 f,
