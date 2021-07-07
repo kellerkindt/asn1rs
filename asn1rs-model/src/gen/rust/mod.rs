@@ -442,13 +442,10 @@ impl RustCodeGenerator {
             Type::Choice(_) => (Cow::Borrowed("choice"), Vec::default()),
             Type::TypeReference(inner, tag) => (
                 Cow::Borrowed("complex"),
-                vec![
-                    Some(inner.clone()),
-                    tag.clone().map(Self::asn_attribute_tag),
-                ]
-                .into_iter()
-                .flatten()
-                .collect(),
+                vec![Some(inner.clone()), (*tag).map(Self::asn_attribute_tag)]
+                    .into_iter()
+                    .flatten()
+                    .collect(),
             ),
         };
         if parameters.is_empty() {

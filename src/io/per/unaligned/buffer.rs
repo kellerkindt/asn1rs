@@ -629,7 +629,7 @@ pub mod tests {
 
     #[test]
     fn bit_buffer_unconstrained_whole_number_127() -> Result<(), Error> {
-        const INT: i64 = 127; // u4::max_value() as u64
+        const INT: i64 = 127; // u4::MAX as u64
         let mut buffer = BitBuffer::default();
         buffer.write_unconstrained_whole_number(INT)?;
         // Can be represented in 1 byte,
@@ -643,7 +643,7 @@ pub mod tests {
 
     #[test]
     fn bit_buffer_unconstrained_whole_number_128() -> Result<(), Error> {
-        const INT: i64 = 128; // u4::max_value() as u64 + 1
+        const INT: i64 = 128; // u4::MAX as u64 + 1
         let mut buffer = BitBuffer::default();
         buffer.write_unconstrained_whole_number(INT)?;
         assert_eq!(buffer.content(), &[0x02, 0x00, 0x80]);
@@ -653,7 +653,7 @@ pub mod tests {
 
     #[test]
     fn bit_buffer_unconstrained_whole_number_255() -> Result<(), Error> {
-        const INT: i64 = 255; // u8::max_value() as u64
+        const INT: i64 = 255; // u8::MAX as u64
         let mut buffer = BitBuffer::default();
         buffer.write_unconstrained_whole_number(INT)?;
         assert_eq!(buffer.content(), &[0x02, 0x00, 0xFF]);
@@ -663,7 +663,7 @@ pub mod tests {
 
     #[test]
     fn bit_buffer_unconstrained_whole_number_256() -> Result<(), Error> {
-        const INT: i64 = 256; // u8::max_value() as u64 + 1
+        const INT: i64 = 256; // u8::MAX as u64 + 1
         let mut buffer = BitBuffer::default();
         buffer.write_unconstrained_whole_number(INT)?;
         // Can be represented in 2 bytes,
@@ -684,7 +684,7 @@ pub mod tests {
 
     #[test]
     fn bit_buffer_unconstrained_whole_number_65535() -> Result<(), Error> {
-        const INT: i64 = 65_535; // u16::max_value() as u64
+        const INT: i64 = 65_535; // u16::MAX as u64
         let mut buffer = BitBuffer::default();
         buffer.write_unconstrained_whole_number(INT)?;
         assert_eq!(buffer.content(), &[0x03, 0x00, 0xFF, 0xFF]);
@@ -694,7 +694,7 @@ pub mod tests {
 
     #[test]
     fn bit_buffer_unconstrained_whole_number_65536() -> Result<(), Error> {
-        const INT: i64 = 65_536; // u16::max_value() as u64 + 1
+        const INT: i64 = 65_536; // u16::MAX as u64 + 1
         let mut buffer = BitBuffer::default();
         buffer.write_unconstrained_whole_number(INT)?;
         assert_eq!(buffer.content(), &[0x03, 0x01, 0x00, 0x00]);
@@ -704,7 +704,7 @@ pub mod tests {
 
     #[test]
     fn bit_buffer_unconstrained_whole_number_16777215() -> Result<(), Error> {
-        const INT: i64 = 16_777_215; // u24::max_value() as u64
+        const INT: i64 = 16_777_215; // u24::MAX as u64
         let mut buffer = BitBuffer::default();
         buffer.write_unconstrained_whole_number(INT)?;
         assert_eq!(buffer.content(), &[0x04, 0x00, 0xFF, 0xFF, 0xFF]);
@@ -714,7 +714,7 @@ pub mod tests {
 
     #[test]
     fn bit_buffer_unconstrained_whole_number_16777216() -> Result<(), Error> {
-        const INT: i64 = 16_777_216; // u24::max_value() as u64 + 1
+        const INT: i64 = 16_777_216; // u24::MAX as u64 + 1
         let mut buffer = BitBuffer::default();
         buffer.write_unconstrained_whole_number(INT)?;
         // Can be represented in 4 bytes,
@@ -737,7 +737,7 @@ pub mod tests {
 
     #[test]
     fn bit_buffer_unconstrained_whole_number_4294967295() -> Result<(), Error> {
-        const INT: i64 = 4_294_967_295; // u32::max_value() as u64
+        const INT: i64 = 4_294_967_295; // u32::MAX as u64
         let mut buffer = BitBuffer::default();
         buffer.write_unconstrained_whole_number(INT)?;
         assert_eq!(buffer.content(), &[0x05, 0x00, 0xFF, 0xFF, 0xFF, 0xFF]);
@@ -747,7 +747,7 @@ pub mod tests {
 
     #[test]
     fn bit_buffer_unconstrained_whole_number_4294967296() -> Result<(), Error> {
-        const INT: i64 = 4_294_967_296; // u32::max_value() as u64 + 1
+        const INT: i64 = 4_294_967_296; // u32::MAX as u64 + 1
         let mut buffer = BitBuffer::default();
         buffer.write_unconstrained_whole_number(INT)?;
         assert_eq!(buffer.content(), &[0x05, 0x01, 0x00, 0x00, 0x00, 0x00]);
@@ -757,7 +757,7 @@ pub mod tests {
 
     #[test]
     fn bit_buffer_unconstrained_whole_number_i64_max() -> Result<(), Error> {
-        const INT: i64 = i64::max_value();
+        const INT: i64 = i64::MAX;
         let mut buffer = BitBuffer::default();
         buffer.write_unconstrained_whole_number(INT)?;
         // Can be represented in 8 bytes,

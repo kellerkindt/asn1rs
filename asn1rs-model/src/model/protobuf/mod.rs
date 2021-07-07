@@ -36,12 +36,12 @@ impl ProtobufType {
         #[allow(clippy::match_same_arms)] // to have the same order as the original enum
         match self {
             ProtobufType::Bool => RustType::Bool,
-            ProtobufType::SFixed32 => RustType::I32(Range::inclusive(0, i32::max_value())),
-            ProtobufType::SFixed64 => RustType::I64(Range::inclusive(0, i64::max_value())),
-            ProtobufType::UInt32 => RustType::U32(Range::inclusive(0, u32::max_value())),
+            ProtobufType::SFixed32 => RustType::I32(Range::inclusive(0, i32::MAX)),
+            ProtobufType::SFixed64 => RustType::I64(Range::inclusive(0, i64::MAX)),
+            ProtobufType::UInt32 => RustType::U32(Range::inclusive(0, u32::MAX)),
             ProtobufType::UInt64 => RustType::U64(Range::none()),
-            ProtobufType::SInt32 => RustType::I32(Range::inclusive(0, i32::max_value())),
-            ProtobufType::SInt64 => RustType::I64(Range::inclusive(0, i64::max_value())),
+            ProtobufType::SInt32 => RustType::I32(Range::inclusive(0, i32::MAX)),
+            ProtobufType::SInt64 => RustType::I64(Range::inclusive(0, i64::MAX)),
             ProtobufType::String => RustType::String(Size::Any, Charset::Utf8),
             ProtobufType::Bytes => RustType::VecU8(Size::Any),
             ProtobufType::BitsReprByBytesAndBitsLen => RustType::BitVec(Size::Any),

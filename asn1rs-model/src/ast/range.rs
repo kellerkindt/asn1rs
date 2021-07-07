@@ -64,15 +64,13 @@ impl Parse for IntegerRange {
                     if max.is_positive() {
                         0
                     } else {
-                        i64::max_value().wrapping_add(1)
+                        i64::MAX.wrapping_add(1)
                     },
                     max,
                 )),
                 extensible,
             )),
-            (MMV::Value(min), MMV::MinMax) => {
-                Ok(IntegerRange(Some((min, i64::max_value())), extensible))
-            }
+            (MMV::Value(min), MMV::MinMax) => Ok(IntegerRange(Some((min, i64::MAX)), extensible)),
         }
     }
 }

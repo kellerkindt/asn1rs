@@ -90,7 +90,7 @@ impl TagResolver<'_> {
                 tags.into_iter().next()
             }
             Type::TypeReference(inner, tag) => {
-                let tag = tag.clone().or_else(|| self.resolve_tag(inner.as_str()));
+                let tag = (*tag).or_else(|| self.resolve_tag(inner.as_str()));
                 if cfg!(feature = "debug-proc-macro") {
                     println!("resolved :: {}::Tag = {:?}", inner, tag);
                 }

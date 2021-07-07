@@ -9,15 +9,15 @@ use crate::model::{Model, Size};
 use crate::model::{TagResolver, Type as AsnType};
 use std::borrow::Cow;
 
-const I8_MAX: i64 = i8::max_value() as i64;
-const I16_MAX: i64 = i16::max_value() as i64;
-const I32_MAX: i64 = i32::max_value() as i64;
-//const I64_MAX: i64 = i64::max_value() as i64;
+const I8_MAX: i64 = i8::MAX as i64;
+const I16_MAX: i64 = i16::MAX as i64;
+const I32_MAX: i64 = i32::MAX as i64;
+//const I64_MAX: i64 = i64::MAX as i64;
 
-const U8_MAX: u64 = u8::max_value() as u64;
-const U16_MAX: u64 = u16::max_value() as u64;
-const U32_MAX: u64 = u32::max_value() as u64;
-//const U64_MAX: u64 = u64::max_value() as u64;
+const U8_MAX: u64 = u8::MAX as u64;
+const U16_MAX: u64 = u16::MAX as u64;
+const U32_MAX: u64 = u32::MAX as u64;
+//const U64_MAX: u64 = u64::MAX as u64;
 
 pub type PlainVariant = String;
 pub type PlainEnum = Enumeration<PlainVariant>;
@@ -149,7 +149,7 @@ impl RustType {
             }
             RustType::U64(Range(min, max, extensible)) => Some(Range(
                 min.unwrap_or_default().to_string(),
-                max.unwrap_or_else(|| i64::max_value() as u64).to_string(),
+                max.unwrap_or_else(|| i64::MAX as u64).to_string(),
                 *extensible,
             )),
             RustType::I64(Range(min, max, extensible)) => {
@@ -915,7 +915,7 @@ impl Model<Rust> {
             }
             AsnType::TypeReference(name, tag) => RustType::Complex(
                 ctxt.struct_or_enum_name(&name),
-                tag.clone().or_else(|| ctxt.resolver().resolve_tag(name)),
+                (*tag).or_else(|| ctxt.resolver().resolve_tag(name)),
             ),
         }
     }
@@ -931,8 +931,8 @@ impl Model<Rust> {
                 RustType::U64(Range(min.map(|v| v as u64), max.map(|v| v as u64), true))
             }
             (min, max) => RustType::I64(Range(
-                min.unwrap_or_else(i64::min_value),
-                max.unwrap_or_else(i64::max_value),
+                min.unwrap_or(i64::MIN),
+                max.unwrap_or(i64::MAX),
                 true,
             )),
         }
