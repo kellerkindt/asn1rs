@@ -849,9 +849,7 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
             if r.bits.remaining() < C::STD_OPTIONAL_FIELDS as usize {
                 return Err(Error::EndOfStream);
             }
-            let name = C::NAME.to_string();
-            let optional_fields = C::STD_OPTIONAL_FIELDS;
-            println!("{} has {} optional fields", name, optional_fields);
+
             let range = r.bits.pos()..r.bits.pos() + C::STD_OPTIONAL_FIELDS as usize;
             r.bits.set_pos(range.end); // skip optional
 
@@ -878,10 +876,8 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
     ) -> Result<Vec<T::Type>, Self::Error> {
         let _ = self.read_bit_field_entry(false)?;
         self.with_buffer(|r| {
-            println!("read_sequence_of EXTENSIBLE={}", C::EXTENSIBLE);
             let len = if C::EXTENSIBLE {
                 let extensible = r.bits.read_bit()?;
-                println!("read_sequence_of extensible_set={}", extensible);
                 if extensible {
                     r.bits.read_length_determinant(None, None)?
                 } else {
@@ -891,7 +887,6 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
                 r.bits.read_length_determinant(C::MIN, C::MAX)?
             };
 
-            println!("read_sequence_of len={}", len);
             if len > 0 {
                 r.scope_stashed(|r| {
                     let mut vec = Vec::with_capacity(len as usize);
@@ -929,7 +924,6 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
                 .read_enumeration_index(C::STD_VARIANT_COUNT, C::EXTENSIBLE)
         })
         .and_then(|index| {
-            println!("read_enumerated: index={}", index);
             C::from_choice_index(index).ok_or(Error::InvalidChoiceIndex(index, C::VARIANT_COUNT))
         })
     }
