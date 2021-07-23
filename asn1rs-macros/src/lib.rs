@@ -1,5 +1,3 @@
-extern crate proc_macro;
-
 use asn1rs_model::ast;
 use proc_macro::TokenStream;
 use syn::parse_macro_input;
