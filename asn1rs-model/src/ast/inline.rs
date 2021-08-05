@@ -4,7 +4,7 @@ use crate::model::Model;
 use crate::parser::Tokenizer;
 
 pub fn asn_to_rust(input: &str) -> String {
-    let tokens = Tokenizer::default().parse(&input);
+    let tokens = Tokenizer::default().parse(input);
     let model = Model::try_from(tokens)
         .expect("Failed to parse tokens")
         .try_resolve()

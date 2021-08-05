@@ -35,7 +35,7 @@ impl AsnDefWriter {
                     name
                 ));
                 for field in fields {
-                    self.write_type_declaration(scope, &name, field.name(), field.r#type());
+                    self.write_type_declaration(scope, name, field.name(), field.r#type());
                 }
             }
             Rust::Enum(_enm) => {
@@ -50,7 +50,7 @@ impl AsnDefWriter {
                     name, CRATE_SYN_PREFIX, name
                 ));
                 for variant in enm.variants() {
-                    self.write_type_declaration(scope, &name, variant.name(), variant.r#type());
+                    self.write_type_declaration(scope, name, variant.name(), variant.r#type());
                 }
             }
             Rust::TupleStruct {
@@ -62,7 +62,7 @@ impl AsnDefWriter {
                     "type AsnDef{} = {}Sequence<{}>;",
                     name, CRATE_SYN_PREFIX, name
                 ));
-                self.write_type_declaration(scope, &name, "0", field);
+                self.write_type_declaration(scope, name, "0", field);
             }
         }
     }
@@ -143,11 +143,11 @@ impl AsnDefWriter {
                 ordering,
             } => {
                 // ITU-T X.680 | ISO/IEC 8824-1, G.2.12.3 (SEQUENCE and SET)
-                let fields = Self::assign_implicit_tags(&fields);
-                self.write_field_constraints(scope, &name, &fields);
+                let fields = Self::assign_implicit_tags(fields);
+                self.write_field_constraints(scope, name, &fields);
                 self.write_sequence_or_set_constraint(
                     scope,
-                    &name,
+                    name,
                     *tag,
                     &fields,
                     *extension_after,
@@ -155,7 +155,7 @@ impl AsnDefWriter {
                 );
             }
             Rust::Enum(plain) => {
-                self.write_enumerated_constraint(scope, &name, plain);
+                self.write_enumerated_constraint(scope, name, plain);
             }
             Rust::DataEnum(data) => {
                 let fields = data
@@ -170,8 +170,8 @@ impl AsnDefWriter {
                 // ITU-T X.680 | ISO/IEC 8824-1, G.2.12.3 (CHOICE)
                 let fields = Self::assign_implicit_tags(&fields);
 
-                self.write_field_constraints(scope, &name, &fields);
-                self.write_choice_constraint(scope, &name, data)
+                self.write_field_constraints(scope, name, &fields);
+                self.write_choice_constraint(scope, name, data)
             }
             Rust::TupleStruct {
                 r#type,
@@ -183,10 +183,10 @@ impl AsnDefWriter {
                     tag: *tag,
                     constants: constants.to_vec(),
                 }];
-                self.write_field_constraints(scope, &name, &fields[..]);
+                self.write_field_constraints(scope, name, &fields[..]);
                 self.write_sequence_or_set_constraint(
                     scope,
-                    &name,
+                    name,
                     *tag,
                     &fields[..],
                     None,
@@ -742,8 +742,8 @@ impl AsnDefWriter {
             {
                 //panic!("Complex default types unsupported")
                 (
-                    Cow::<'_, str>::Borrowed(&name),
-                    Cow::<'_, str>::Borrowed(&name),
+                    Cow::<'_, str>::Borrowed(name),
+                    Cow::<'_, str>::Borrowed(name),
                     Cow::<'_, str>::Owned(format!(
                         "{}({})",
                         name,

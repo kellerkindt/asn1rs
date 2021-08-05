@@ -21,7 +21,7 @@ impl<C: Constraint> WritableType for NullT<C> {
         writer: &mut W,
         value: &Self::Type,
     ) -> Result<(), <W as Writer>::Error> {
-        writer.write_null::<C>(&value)
+        writer.write_null::<C>(value)
     }
 }
 

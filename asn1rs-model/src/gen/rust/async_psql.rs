@@ -186,7 +186,7 @@ fn impl_insert_fn_content<'a, I: ExactSizeIterator<Item = &'a (String, RustType)
                 on_self,
                 name,
                 container,
-                &field_name,
+                field_name,
                 r_type,
                 None,
             ))

@@ -42,7 +42,7 @@ impl<C: Context> AsnAttribute<C> {
 impl<C: Context> Parse for AsnAttribute<C> {
     fn parse<'a>(input: &'a ParseBuffer<'a>) -> syn::Result<Self> {
         let mut asn = Self::new(C::Primary::parse(input)?);
-        eof_or_comma(&input, "Primary attribute must be separated by comma")?;
+        eof_or_comma(input, "Primary attribute must be separated by comma")?;
 
         while !input.cursor().eof() {
             let lowercase_ident = input
@@ -120,7 +120,7 @@ fn parse_type_pre_stepped<'a>(
         string if string.ends_with("string") => {
             let len = string.chars().count();
             let charset = &string[..len - "string".chars().count()];
-            let charset = Charset::from_str(&charset)
+            let charset = Charset::from_str(charset)
                 .map_err(|_| input.error(format!("Unexpected charset '{}'", charset)))?;
             parse_opt_size_or_any(input).map(|size| Type::String(size, charset))
         }

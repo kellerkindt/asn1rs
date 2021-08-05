@@ -307,8 +307,7 @@ fn parse_choice(
         })
         .vec_result()?;
 
-    let extensible_after =
-        find_extensible_index(&asn, asn_span, variants.iter().map(|v| v.name()))?;
+    let extensible_after = find_extensible_index(asn, asn_span, variants.iter().map(|v| v.name()))?;
 
     let choice = Type::Choice(
         Choice::from_variants(variants.into_iter()).with_maybe_extension_after(extensible_after),
@@ -351,7 +350,7 @@ fn parse_and_remove_first_asn_attribute_type<C: Context<Primary = Type>>(
     ty: &syn::Type,
     attrs: &mut Vec<Attribute>,
 ) -> Result<AsnModelType, TokenStream> {
-    parse_and_remove_first_asn_attribute::<C>(span, attrs).map(|asn| into_asn(&ty, asn))
+    parse_and_remove_first_asn_attribute::<C>(span, attrs).map(|asn| into_asn(ty, asn))
 }
 
 fn parse_and_remove_first_asn_attribute<C: Context>(

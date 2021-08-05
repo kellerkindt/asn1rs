@@ -264,7 +264,7 @@ impl PsqlInserter {
     fn wrap_for_insert_in_as_or_from_if_required(name: &str, rust: &RustType) -> Option<String> {
         let inner_sql = rust.as_inner_type().to_sql();
         let inner_rust = rust.as_inner_type();
-        if inner_sql.to_rust().as_inner_type().similar(&inner_rust) {
+        if inner_sql.to_rust().as_inner_type().similar(inner_rust) {
             None
         } else {
             Some({
@@ -290,7 +290,7 @@ impl PsqlInserter {
     fn wrap_for_query_in_as_or_from_if_required(name: &str, rust: &RustType) -> Option<String> {
         let inner_sql = rust.as_inner_type().to_sql();
         let inner_rust = rust.as_inner_type();
-        if inner_sql.to_rust().as_inner_type().similar(&inner_rust) {
+        if inner_sql.to_rust().as_inner_type().similar(inner_rust) {
             None
         } else {
             Some({
@@ -381,7 +381,7 @@ impl PsqlInserter {
         if Model::<Sql>::is_primitive(rust) {
             let inner_sql = rust.as_inner_type().to_sql();
             let inner_rust = rust.as_inner_type();
-            if !inner_sql.to_rust().as_inner_type().similar(&inner_rust) {
+            if !inner_sql.to_rust().as_inner_type().similar(inner_rust) {
                 let rust_from_sql = inner_sql.to_rust().into_inner_type();
                 let as_target = rust_from_sql.to_string();
                 let use_from_instead_of_as =
@@ -549,7 +549,7 @@ impl PsqlInserter {
                 let load = format!(
                     "{}::value_at_column::<{}>(&row, {})?",
                     ERROR_TYPE,
-                    if rust.to_sql().to_rust().similar(&rust) {
+                    if rust.to_sql().to_rust().similar(rust) {
                         rust.to_string()
                     } else {
                         rust.to_sql().to_rust().to_string()

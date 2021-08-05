@@ -789,10 +789,10 @@ impl Model<Rust> {
                 };
 
                 for ChoiceVariant { name, r#type, tag } in choice.variants() {
-                    let rust_name = format!("{}{}", name, ctxt.struct_or_enum_name(&name));
+                    let rust_name = format!("{}{}", name, ctxt.struct_or_enum_name(name));
                     let rust_role =
-                        Self::definition_type_to_rust_type(&rust_name, &r#type, *tag, ctxt);
-                    let rust_field_name = ctxt.variant_name(&name);
+                        Self::definition_type_to_rust_type(&rust_name, r#type, *tag, ctxt);
+                    let rust_field_name = ctxt.variant_name(name);
                     enumeration.variants.push(
                         DataVariant::from_name_type(rust_field_name, rust_role).with_tag_opt(*tag),
                     );
@@ -914,7 +914,7 @@ impl Model<Rust> {
                 RustType::Complex(name, tag.or_else(|| ctxt.resolver().resolve_type_tag(ty)))
             }
             AsnType::TypeReference(name, tag) => RustType::Complex(
-                ctxt.struct_or_enum_name(&name),
+                ctxt.struct_or_enum_name(name),
                 (*tag).or_else(|| ctxt.resolver().resolve_tag(name)),
             ),
         }

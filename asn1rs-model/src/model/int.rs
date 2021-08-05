@@ -79,12 +79,12 @@ impl TryResolve<i64, Integer<i64>> for Integer<LitOrRef<i64>> {
                 self.range
                     .0
                     .as_ref()
-                    .map(|lor| resolver.resolve(&lor))
+                    .map(|lor| resolver.resolve(lor))
                     .transpose()?,
                 self.range
                     .1
                     .as_ref()
-                    .map(|lor| resolver.resolve(&lor))
+                    .map(|lor| resolver.resolve(lor))
                     .transpose()?,
                 self.range.2,
             ),

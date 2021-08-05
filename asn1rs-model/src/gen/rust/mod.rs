@@ -834,12 +834,12 @@ impl RustCodeGenerator {
                 .new_fn(&format!("{}min", prefix))
                 .vis("pub const")
                 .ret(&field_type.to_inner_type_string())
-                .line(&Self::format_number_nicely(&range.min()));
+                .line(&Self::format_number_nicely(range.min()));
             implementation
                 .new_fn(&format!("{}max", prefix))
                 .vis("pub const")
                 .ret(&field_type.to_inner_type_string())
-                .line(&Self::format_number_nicely(&range.max()));
+                .line(&Self::format_number_nicely(range.max()));
         }
     }
 
