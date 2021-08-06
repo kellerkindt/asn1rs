@@ -205,3 +205,5 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: EmbarkStudios/cargo-deny-action@v1
+        with:
+          arguments: --ignore RUSTSEC-2021-0072
