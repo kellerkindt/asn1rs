@@ -41,7 +41,7 @@ postgres = { version = "0.17.5", optional = true }
 tokio = { version = "1.8.1", optional = true, features = ["macros"]  }
 tokio-postgres = { version = "0.7.2", optional = true }
 futures = { version = "0.3.4", optional = true }
-bytes = { version = "0.5.4", optional = true }
+bytes = { version = "1.0", optional = true }
 
 # feature asn1rs-*
 asn1rs-model =  { version = "0.2.2", path = "asn1rs-model", optional = true }
