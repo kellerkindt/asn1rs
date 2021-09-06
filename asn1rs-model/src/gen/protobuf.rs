@@ -1,8 +1,8 @@
 use crate::gen::Generator;
-use crate::model::Definition;
-use crate::model::Model;
 use crate::model::Protobuf;
 use crate::model::ProtobufType;
+use crate::model::{Definition, ObjectIdentifierComponent};
+use crate::model::{Model, ObjectIdentifier};
 use std::fmt::Error as FmtError;
 use std::fmt::Write;
 
@@ -61,7 +61,11 @@ impl ProtobufDefGenerator {
 
     pub fn append_header(target: &mut dyn Write, model: &Model<Protobuf>) -> Result<(), Error> {
         writeln!(target, "syntax = 'proto3';")?;
-        writeln!(target, "package {};", Self::model_to_package(&model.name))?;
+        writeln!(
+            target,
+            "package {};",
+            Self::model_to_package(&model.name, model.oid.as_ref())
+        )?;
         writeln!(target)?;
         Ok(())
     }
@@ -143,7 +147,10 @@ impl ProtobufDefGenerator {
                 'outer: for import in &model.imports {
                     for what in &import.what {
                         if what.eq(name) {
-                            prefixed.push_str(&Self::model_to_package(&import.from));
+                            prefixed.push_str(&Self::model_to_package(
+                                &import.from,
+                                import.from_oid.as_ref(),
+                            ));
                             prefixed.push('.');
                             break 'outer;
                         }
@@ -214,8 +221,27 @@ impl ProtobufDefGenerator {
         out
     }
 
-    pub fn model_to_package(model: &str) -> String {
-        Self::model_name(&model.replace("_", "."), '.')
+    pub fn model_to_package(path: &str, oid: Option<&ObjectIdentifier>) -> String {
+        if let Some(oid) = oid {
+            oid.iter()
+                .map(|oid| match oid {
+                    ObjectIdentifierComponent::NameForm(name)
+                    | ObjectIdentifierComponent::NameAndNumberForm(name, _) => {
+                        if name.chars().next().map_or(false, |c| !c.is_alphabetic()) {
+                            format!("_{}", name.replace('-', "_"))
+                        } else {
+                            name.replace('-', "_")
+                        }
+                    }
+                    ObjectIdentifierComponent::NumberForm(number) => {
+                        format!("_{}", number)
+                    }
+                })
+                .collect::<Vec<String>>()
+                .join(".")
+        } else {
+            Self::model_name(&path.replace("_", "."), '.')
+        }
     }
 }
 
