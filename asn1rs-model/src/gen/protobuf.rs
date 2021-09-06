@@ -1,4 +1,5 @@
 use crate::gen::Generator;
+use crate::model::rust::rust_module_name;
 use crate::model::Protobuf;
 use crate::model::ProtobufType;
 use crate::model::{Definition, ObjectIdentifierComponent};
@@ -237,6 +238,7 @@ impl ProtobufDefGenerator {
                         format!("_{}", number)
                     }
                 })
+                .map(|name| rust_module_name(&name, false))
                 .collect::<Vec<String>>()
                 .join(".")
         } else {
