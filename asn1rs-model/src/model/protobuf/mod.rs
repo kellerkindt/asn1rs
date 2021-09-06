@@ -84,7 +84,7 @@ impl ToString for ProtobufType {
             ProtobufType::SInt64 => "sint64",
             ProtobufType::String => "string",
             ProtobufType::Bytes => "bytes",
-            ProtobufType::BitsReprByBytesAndBitsLen => "bit_vec",
+            ProtobufType::BitsReprByBytesAndBitsLen => "bytes",
             ProtobufType::OneOf(_) => "oneof",
             ProtobufType::Complex(name) => return name.clone(),
             ProtobufType::Repeated(name) => return format!("repeated {}", name.to_string()),
