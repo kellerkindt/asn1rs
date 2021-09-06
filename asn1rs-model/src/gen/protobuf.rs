@@ -88,7 +88,7 @@ impl ProtobufDefGenerator {
             Protobuf::Enum(variants) => {
                 writeln!(target, "enum {} {{", name)?;
                 for (tag, variant) in variants.iter().enumerate() {
-                    Self::append_variant(target, variant, tag)?;
+                    Self::append_variant(target, name, variant, tag)?;
                 }
                 writeln!(target, "}}")?;
             }
@@ -136,8 +136,19 @@ impl ProtobufDefGenerator {
         Ok(())
     }
 
-    pub fn append_variant(target: &mut dyn Write, variant: &str, tag: usize) -> Result<(), Error> {
-        writeln!(target, "    {} = {};", Self::variant_name(variant), tag)?;
+    pub fn append_variant(
+        target: &mut dyn Write,
+        base: &str,
+        variant: &str,
+        tag: usize,
+    ) -> Result<(), Error> {
+        writeln!(
+            target,
+            "    {}_{} = {};",
+            Self::variant_name(base),
+            Self::variant_name(variant),
+            tag
+        )?;
         Ok(())
     }
 
