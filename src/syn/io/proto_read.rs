@@ -61,11 +61,8 @@ impl<'a> ProtobufReader<'a> {
             let content_end = content_position + content_length;
 
             tags.push_back((tag, format, content_position..content_end));
-            eprintln!("{:?}", tags);
             position = content_end;
         }
-
-        eprintln!("tags {:?}", tags);
 
         Ok(State::Enclosed {
             tag_counter: 1,
@@ -260,8 +257,6 @@ impl<'a> Reader for ProtobufReader<'a> {
         match self.next_tag_range::<true>() {
             None => Err(Error::MissingRequiredField(C::NAME)),
             Some(range) => {
-                eprintln!("{}: range={:?}", C::NAME, range);
-
                 let (format, range, tag) = {
                     let reader = &mut &self.source[range.clone()];
                     let len_before = reader.len();
