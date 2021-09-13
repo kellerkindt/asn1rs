@@ -334,10 +334,12 @@ mod tests {
         //    Showcase: Protobuf
         //
         let mut writer = ProtobufWriter::default();
-        writer.write(&value).expect("Writing to UPER failed");
+        writer.write(&value).expect("Writing to PROTO failed");
 
         let mut reader = writer.as_reader();
-        let read_value = reader.read::<Whatever>().expect("Reading from UPER failed");
+        let read_value = reader
+            .read::<Whatever>()
+            .expect("Reading from PROTO failed");
 
         assert_eq!(value, read_value);
     }

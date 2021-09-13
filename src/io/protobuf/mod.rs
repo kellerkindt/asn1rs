@@ -154,7 +154,7 @@ pub trait ProtoWrite {
     }
 
     fn write_tagged_bytes(&mut self, field: u32, value: &[u8]) -> Result<(), Error> {
-        self.write_tag(field, Format::VarInt)?;
+        self.write_tag(field, Format::LengthDelimited)?;
         self.write_bytes(value)
     }
 
@@ -299,9 +299,8 @@ impl<R: Read> ProtoRead for R {
     }
 
     fn read_bytes(&mut self) -> Result<Vec<u8>, Error> {
-        let len = self.read_varint()? as usize;
-        let mut vec = vec![0_u8; len];
-        self.read_exact(&mut vec[..])?;
+        let mut vec = Vec::new();
+        self.read_to_end(&mut vec)?;
         Ok(vec)
     }
 

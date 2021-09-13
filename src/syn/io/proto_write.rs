@@ -4,7 +4,7 @@ use crate::prelude::ProtobufReader;
 use crate::syn::*;
 use std::io::Write;
 
-#[derive(Default, Copy, Clone)]
+#[derive(Debug, Default, Copy, Clone)]
 struct State {
     tag_counter: u32,
     format: Option<Format>,
@@ -230,9 +230,9 @@ impl Writer for ProtobufWriter<'_> {
     #[inline]
     fn write_choice<C: choice::Constraint>(&mut self, choice: &C) -> Result<(), Self::Error> {
         let root = core::mem::take(&mut self.is_root);
-        let mut state = core::mem::take(&mut self.state);
 
         let result = if !root {
+            let mut state = core::mem::take(&mut self.state);
             let mut buffer = core::mem::take(&mut self.buffer);
 
             // writing to the new buffer
@@ -245,16 +245,12 @@ impl Writer for ProtobufWriter<'_> {
 
             if result.is_ok() {
                 let buffer = buffer.into_inner_vec().unwrap(); // fine because take creates a vec
-                let format = state.format.unwrap();
+                let format = Format::LengthDelimited;
                 let tag = self.state.tag_counter + 1;
                 self.buffer.write_tag(tag, format)?;
+                self.buffer.write_bytes(&buffer[..])?;
                 self.state.tag_counter = tag;
-
-                if format == Format::LengthDelimited {
-                    self.buffer.write_bytes(&buffer[..])?;
-                } else {
-                    self.buffer.write_all(&buffer[..])?;
-                }
+                self.state.format = Some(format);
             }
 
             result
