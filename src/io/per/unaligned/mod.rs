@@ -551,7 +551,7 @@ impl<T: BitWrite> PackedWrite for T {
                 // 11.9.3.6: less than or equal to 127
                 self.write_bit(false)?;
                 self.write_non_negative_binary_integer(None, Some(LENGTH_127), value)
-            } else if value <= LENGTH_16K {
+            } else if value < LENGTH_16K {
                 // 11.9.3.7: greater than 127 and less than or equal to 16K
                 self.write_bit(true)?;
                 self.write_bit(false)?;
