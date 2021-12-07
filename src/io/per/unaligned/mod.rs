@@ -216,7 +216,7 @@ impl<T: BitRead> PackedRead for T {
                 // 11.9.3.8: chunks of 16k multiples
                 let mut multiple = [0u8; 1];
                 self.read_bits_with_offset(&mut multiple[..], 2)?;
-                Ok(LENGTH_16K * u64::from(multiple[0].max(MAX_FRAGMENTS)))
+                Ok(LENGTH_16K * u64::from(multiple[0].min(MAX_FRAGMENTS)))
             }
         }
     }
