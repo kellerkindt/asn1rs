@@ -27,7 +27,7 @@ fn walk_dir(path: PathBuf) {
             Ok(entry) if entry.file_type().unwrap().is_dir() => {
                 walk_dir(entry.path());
             }
-            Ok(entry) if entry.file_type().unwrap().is_file() => {
+            Ok(entry) if entry.file_type().unwrap().is_file() && entry.path().ends_with(".rs") => {
                 println!("Feeding {:?}", entry.path());
                 let file = fs::File::open(entry.path()).unwrap();
                 emulate_macro_expansion_fallible(file);
