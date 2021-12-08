@@ -9,7 +9,7 @@ pub const BYTE_LEN: usize = 8;
 const FRAGMENT_SIZE: u64 = 16 * 1024;
 const MAX_FRAGMENTS: u8 = 4  /* 11.9.3.8, NOTE */ ;
 const MIN_FRAGMENT_SIZE: u64 = FRAGMENT_SIZE;
-const MAX_FRAGMENT_SIZE: u64 = FRAGMENT_SIZE * MAX_FRAGMENTS as u64;
+const MAX_FRAGMENTS_SIZE: u64 = FRAGMENT_SIZE * MAX_FRAGMENTS as u64;
 
 const LENGTH_127: u64 = 127;
 const LENGTH_16K: u64 = 16 * 1024;
@@ -519,7 +519,7 @@ impl<T: BitWrite> PackedWrite for T {
         lower_bound: Option<u64>,
         upper_bound: Option<u64>,
         value: u64,
-    ) -> Result<(), Error> {
+    ) -> Result<Option<u64>, Error> {
         let lower_bound_unwrapped = const_unwrap_or!(lower_bound, 0);
         let upper_bound_unwrapped = const_unwrap_or!(upper_bound, i64::MAX as u64);
 
@@ -528,7 +528,7 @@ impl<T: BitWrite> PackedWrite for T {
         {
             // 11.9.4.2
             if lower_bound == upper_bound {
-                Ok(())
+                Ok(None)
             } else if value < lower_bound_unwrapped {
                 Err(Error::ValueNotInRange(
                     value as i64,
@@ -540,29 +540,33 @@ impl<T: BitWrite> PackedWrite for T {
                     lower_bound,
                     upper_bound,
                     value - lower_bound_unwrapped,
-                )
+                )?;
+                Ok(None)
             }
         } else if const_is_some!(upper_bound) && upper_bound_unwrapped <= LENGTH_64K {
             // 11.9.4.1 -> 11.9.3.4 -> 11.6.1
-            self.write_non_negative_binary_integer(lower_bound, upper_bound, value)
+            self.write_non_negative_binary_integer(lower_bound, upper_bound, value)?;
+            Ok(None)
         } else {
             // 11.9.4.1 -> 11.9.3.5
             if value <= LENGTH_127 {
                 // 11.9.3.6: less than or equal to 127
                 self.write_bit(false)?;
-                self.write_non_negative_binary_integer(None, Some(LENGTH_127), value)
+                self.write_non_negative_binary_integer(None, Some(LENGTH_127), value)?;
+                Ok(None)
             } else if value < LENGTH_16K {
                 // 11.9.3.7: greater than 127 and less than or equal to 16K
                 self.write_bit(true)?;
                 self.write_bit(false)?;
-                self.write_non_negative_binary_integer(None, Some(LENGTH_16K - 1), value)
+                self.write_non_negative_binary_integer(None, Some(LENGTH_16K - 1), value)?;
+                Ok(None)
             } else {
                 // 11.9.3.8: chunks of 16k multiples
                 self.write_bit(true)?;
                 self.write_bit(true)?;
-                let multiple = ((value / LENGTH_16K) as u8).max(MAX_FRAGMENTS);
+                let multiple = ((value / LENGTH_16K) as u8).min(MAX_FRAGMENTS);
                 self.write_bits_with_offset(&[multiple], 2)?;
-                Ok(())
+                Ok(Some(u64::from(multiple) * LENGTH_16K))
             }
         }
     }
@@ -583,7 +587,7 @@ impl<T: BitWrite> PackedWrite for T {
         let lower_bound = const_unwrap_or!(lower_bound_size, 0);
         let upper_bound = const_unwrap_or!(upper_bound_size, i64::MAX as u64);
         let length = len;
-        let fragmented = length > MAX_FRAGMENT_SIZE;
+        let fragmented = length > MAX_FRAGMENTS_SIZE;
         let out_of_range = length < lower_bound || length > upper_bound;
 
         if extensible {
@@ -619,13 +623,13 @@ impl<T: BitWrite> PackedWrite for T {
         self.write_bits_with_offset_len(
             src,
             offset as usize,
-            MAX_FRAGMENT_SIZE.min(length) as usize,
+            MAX_FRAGMENTS_SIZE.min(length) as usize,
         )?;
 
         if fragmented {
-            let mut written_bits = MAX_FRAGMENT_SIZE;
+            let mut written_bits = MAX_FRAGMENTS_SIZE;
             loop {
-                let fragment_size = (length - written_bits).min(MAX_FRAGMENT_SIZE);
+                let fragment_size = (length - written_bits).min(MAX_FRAGMENTS_SIZE);
                 let fragment_size = fragment_size - (fragment_size % MIN_FRAGMENT_SIZE);
                 self.write_length_determinant(None, None, fragment_size)?;
                 self.write_bits_with_offset_len(
@@ -658,19 +662,18 @@ impl<T: BitWrite> PackedWrite for T {
         let lower_bound = const_unwrap_or!(lower_bound_size, 0);
         let upper_bound = const_unwrap_or!(upper_bound_size, i64::MAX as u64);
         let length = src.len() as u64;
-        let fragmented = length > MAX_FRAGMENT_SIZE;
         let out_of_range = length < lower_bound || length > upper_bound;
 
         if extensible {
             self.write_bit(out_of_range)?;
         }
 
-        if out_of_range {
+        let fragment_size = if out_of_range {
             if extensible {
                 // 17.3
                 // self.read_semi_constrained_whole_number(0)
                 // self.read_non_negative_binary_integer(0, MAX) + lb  | lb=0=>MIN for unsigned
-                self.write_length_determinant(None, None, length)?;
+                self.write_length_determinant(None, None, length)?
             } else {
                 return Err(Error::SizeNotInRange(length, lower_bound, upper_bound));
             }
@@ -689,27 +692,30 @@ impl<T: BitWrite> PackedWrite for T {
             && upper_bound < LENGTH_64K
         {
             // 17.7
+            None
         } else {
             // 17.8
-            self.write_length_determinant(lower_bound_size, upper_bound_size, length)?;
-        }
+            self.write_length_determinant(lower_bound_size, upper_bound_size, length)?
+        };
 
-        self.write_bits(&src[..MAX_FRAGMENT_SIZE.min(length) as usize])?;
+        self.write_bits(&src[..fragment_size.unwrap_or(length) as usize])?;
 
-        if fragmented {
-            let mut written_bytes = MAX_FRAGMENT_SIZE;
+        if let Some(mut written_bytes) = fragment_size {
             loop {
-                let fragment_size = (length - written_bytes).min(MAX_FRAGMENT_SIZE);
-                let fragment_size = fragment_size - (fragment_size % MIN_FRAGMENT_SIZE);
-                self.write_length_determinant(None, None, fragment_size)?;
+                let remaining = length - written_bytes;
+                let fragment_size = self
+                    .write_length_determinant(None, None, remaining)?
+                    .unwrap_or(remaining);
+
                 self.write_bits(
                     &src[written_bytes as usize..(written_bytes + fragment_size) as usize],
                 )?;
-                written_bytes += fragment_size;
 
                 if fragment_size < MIN_FRAGMENT_SIZE {
                     break;
                 }
+
+                written_bytes += fragment_size;
             }
         }
 

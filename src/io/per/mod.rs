@@ -98,13 +98,15 @@ pub trait PackedWrite {
     ) -> Result<(), Error>;
 
     /// According to ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 3.7.17, the length determinant is
-    /// a number used to count bits, octets (bytes), characters or components
+    /// a number used to count bits, octets (bytes), characters or components.
+    /// Returns `Some`-value, if the transmitted value differs from the given length (for example
+    /// when the length exceeds  the non-fragmented size)
     fn write_length_determinant(
         &mut self,
         lower_bound: Option<u64>,
         upper_bound: Option<u64>,
         length: u64,
-    ) -> Result<(), Error>;
+    ) -> Result<Option<u64>, Error>;
 
     /// According to ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 3.7.19, a number without constrains
     /// and is likely to be small. It is used where small lengths are more likely than large values.
