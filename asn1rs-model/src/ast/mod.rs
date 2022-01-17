@@ -25,15 +25,15 @@ pub fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
     if cfg!(feature = "debug-proc-macro") {
         println!();
         println!("---------- asn proc_macro_attribute parse call ----------");
-        println!("Attribute: {}", attr.to_string());
-        println!("Item:      {}", item.to_string());
+        println!("Attribute: {}", attr);
+        println!("Item:      {}", item);
         println!();
     }
 
     let (definition, item) = match parse_asn_definition(attr, item) {
         Ok(v) => v,
         Err(e) => {
-            println!("Errör: {}", e.to_string());
+            println!("Errör: {}", e);
             return e;
         }
     };
@@ -45,7 +45,7 @@ pub fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
         println!();
 
         println!("---------- filtered item begin ----------");
-        println!("{}", quote! {#item}.to_string());
+        println!("{}", quote! {#item});
         println!("---------- filtered item end ----------");
         println!();
     }
@@ -59,7 +59,7 @@ pub fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
 
     if cfg!(feature = "debug-proc-macro") {
         println!("---------- result begin ----------");
-        println!("{}", result.to_string());
+        println!("{}", result);
         println!("---------- result end ----------");
         println!();
     }
@@ -99,8 +99,8 @@ pub fn parse_asn_definition(
     let attr_span = attr.span();
 
     if cfg!(feature = "debug-proc-macro") {
-        println!("ATTRIBUTE: {}", attr.to_string());
-        println!("ITEM:      {}", item.to_string());
+        println!("ATTRIBUTE: {}", attr);
+        println!("ITEM:      {}", item);
     }
 
     let item = syn::parse2::<Item>(item)
@@ -108,7 +108,7 @@ pub fn parse_asn_definition(
     let asn = syn::parse2::<AsnAttribute<DefinitionHeader>>(attr.clone()).map_err(|e| {
         compile_error_ts(
             attr_span,
-            format!("Invalid ASN attribute ('{}'): {}", attr.to_string(), e),
+            format!("Invalid ASN attribute ('{}'): {}", attr, e),
         )
     })?;
 

@@ -86,11 +86,7 @@ impl<C: Context> Parse for AsnAttribute<C> {
         }
 
         if cfg!(feature = "debug-proc-macro") {
-            println!(
-                "AsnAttribute parse_args end: {:?}/{}",
-                asn,
-                input.to_string()
-            );
+            println!("AsnAttribute parse_args end: {:?}/{}", asn, input);
         }
 
         Ok(asn)
@@ -170,11 +166,7 @@ fn parse_type_pre_stepped<'a>(
             let inner = parse_type(&content).map_err(|e| {
                 syn::Error::new(
                     span,
-                    format!(
-                        "Failed to extract default value type({}): {}",
-                        ctnt,
-                        e.to_string()
-                    ),
+                    format!("Failed to extract default value type({}): {}", ctnt, e),
                 )
             })?;
 
@@ -211,10 +203,7 @@ fn parse_type_pre_stepped<'a>(
                         })
                     })
                     .ok_or_else(|| {
-                        syn::Error::new(
-                            span,
-                            format!("Invalid literal value: {}", content.to_string()),
-                        )
+                        syn::Error::new(span, format!("Invalid literal value: {}", content))
                     })?,
             ))
         }

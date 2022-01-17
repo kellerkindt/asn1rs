@@ -17,7 +17,7 @@ pub trait PeekableTokens {
         self.peek_or_err()
             .ok()
             .and_then(Token::text)
-            .map(|t| probe(t))
+            .map(probe)
             .unwrap_or(false)
     }
 

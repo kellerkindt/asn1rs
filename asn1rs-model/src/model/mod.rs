@@ -546,7 +546,7 @@ impl<RS: ResolveState> Model<Asn<RS>> {
         let mut constants = Vec::default();
         if iter.next_is_separator_and_eq('{') {
             loop {
-                constants.push(Self::read_constant(iter, |token| parser(token))?);
+                constants.push(Self::read_constant(iter, &parser)?);
                 loop_ctrl_separator!(iter.next_or_err()?);
             }
         }
