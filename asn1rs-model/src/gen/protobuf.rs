@@ -197,7 +197,7 @@ impl ProtobufDefGenerator {
     }
 
     pub fn field_name(name: &str) -> String {
-        name.replace("-", "_")
+        name.replace('-', "_")
     }
 
     pub fn model_file_name(model: &str) -> String {
@@ -253,7 +253,7 @@ impl ProtobufDefGenerator {
                 .collect::<Vec<String>>()
                 .join(".")
         } else {
-            Self::model_name(&path.replace("_", "."), '.')
+            Self::model_name(&path.replace('_', "."), '.')
         }
     }
 }

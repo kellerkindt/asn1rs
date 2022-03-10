@@ -129,7 +129,7 @@ impl<T: Iterator<Item = Token>> TryFrom<&mut Peekable<T>>
                 Ok(Size::Any)
             } else {
                 let start = start.unwrap_or_default();
-                let end = end.unwrap_or_else(|| LitOrRef::Lit(i64::MAX as usize));
+                let end = end.unwrap_or(LitOrRef::Lit(i64::MAX as usize));
                 let extensible = if iter.next_separator_eq_or_err(',').is_ok() {
                     iter.next_separator_eq_or_err('.')?;
                     iter.next_separator_eq_or_err('.')?;

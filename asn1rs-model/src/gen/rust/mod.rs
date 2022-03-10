@@ -859,7 +859,7 @@ impl RustCodeGenerator {
     }
 
     pub fn rust_field_name(name: &str, check_for_keywords: bool) -> String {
-        let mut name = name.replace("-", "_");
+        let mut name = name.replace('-', "_");
         if check_for_keywords {
             for keyword in &KEYWORDS {
                 if keyword.eq(&name) {

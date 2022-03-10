@@ -139,7 +139,7 @@ impl Tokenizer {
             let mut token = None;
             let content = line.split("--").next(); // get rid of one-line comments
 
-            for (column_0, char) in content.iter().map(|c| c.chars()).flatten().enumerate() {
+            for (column_0, char) in content.iter().flat_map(|c| c.chars()).enumerate() {
                 match char {
                     // asn syntax
                     ':' | ';' | '=' | '(' | ')' | '{' | '}' | '.' | ',' | '[' | ']' | '\''
