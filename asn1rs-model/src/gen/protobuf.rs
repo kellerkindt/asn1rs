@@ -142,6 +142,7 @@ impl ProtobufDefGenerator {
         variant: &str,
         tag: usize,
     ) -> Result<(), Error> {
+        // "Prefer prefixing enum values": https://developers.google.com/protocol-buffers/docs/style#enums
         writeln!(
             target,
             "    {}_{} = {};",
