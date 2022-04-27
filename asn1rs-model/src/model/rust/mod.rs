@@ -788,11 +788,16 @@ impl Model<Rust> {
                     extended_after_index: choice.extension_after_index(),
                 };
 
-                for ChoiceVariant { name, r#type, tag } in choice.variants() {
-                    let rust_name = format!("{}{}", name, ctxt.struct_or_enum_name(name));
+                for ChoiceVariant {
+                    name: variant_name,
+                    r#type,
+                    tag,
+                } in choice.variants()
+                {
+                    let rust_name = format!("{}{}", name, ctxt.struct_or_enum_name(variant_name));
                     let rust_role =
                         Self::definition_type_to_rust_type(&rust_name, r#type, *tag, ctxt);
-                    let rust_field_name = ctxt.variant_name(name);
+                    let rust_field_name = ctxt.variant_name(variant_name);
                     enumeration.variants.push(
                         DataVariant::from_name_type(rust_field_name, rust_role).with_tag_opt(*tag),
                     );
