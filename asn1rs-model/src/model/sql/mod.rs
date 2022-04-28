@@ -13,6 +13,10 @@ const FOREIGN_KEY_DEFAULT_COLUMN: &str = "id";
 const TUPLE_LIST_ENTRY_PARENT_COLUMN: &str = "list";
 const TUPLE_LIST_ENTRY_VALUE_COLUMN: &str = "value";
 
+/// Default seems to be 63, dont exceed it
+/// https://github.com/kellerkindt/asn1rs/issues/75#issuecomment-1110804868
+const TYPENAME_LENGTH_LIMIT_PSQL: usize = 63;
+
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 #[allow(clippy::module_name_repetitions)]
 pub enum SqlType {
@@ -157,7 +161,8 @@ impl Model<Sql> {
             value_references: Vec::default(),
         };
         for Definition(name, rust) in &rust_model.definitions {
-            Self::definition_to_sql(name, rust, &mut model.definitions);
+            let name = Self::sql_definition_name(name);
+            Self::definition_to_sql(&name, rust, &mut model.definitions);
         }
         model.fix_table_declaration_occurrence();
         model
@@ -326,7 +331,7 @@ impl Model<Sql> {
 
     fn index_def(table: &str, column: &str) -> Definition<Sql> {
         Definition(
-            format!("{}_Index_{}", table, column),
+            Self::sql_definition_name(&format!("{}_Index_{}", table, column)),
             Sql::Index(table.into(), vec![column.into()]),
         )
     }
@@ -360,7 +365,7 @@ impl Model<Sql> {
             ));
         }
         {
-            let list_entry_name = format!("{}ListEntry", name);
+            let list_entry_name = Self::sql_definition_name(&format!("{}ListEntry", name));
             let value_sql_type = rust_inner.clone().as_inner_type().to_sql();
             Self::add_list_table(name, definitions, &list_entry_name, &value_sql_type);
         }
@@ -431,6 +436,31 @@ impl Model<Sql> {
         }
     }
 
+    pub fn sql_definition_name(name: &str) -> String {
+        if name.len() > TYPENAME_LENGTH_LIMIT_PSQL {
+            // carve out lower case segments at the beginning until it fits into the limit
+            let mut result = String::with_capacity(TYPENAME_LENGTH_LIMIT_PSQL);
+            for (index, character) in name.chars().enumerate() {
+                if character.is_ascii_lowercase() {
+                    // skip
+                } else {
+                    result.push(character);
+                    // check if the rest could just be copied over
+                    let remainig = (name.len() - index).saturating_sub(1);
+                    if remainig + result.len() <= TYPENAME_LENGTH_LIMIT_PSQL {
+                        result.push_str(&name[index + 1..]);
+                        break;
+                    } else if result.len() >= TYPENAME_LENGTH_LIMIT_PSQL {
+                        break;
+                    }
+                }
+            }
+            result
+        } else {
+            name.to_string()
+        }
+    }
+
     fn append_index_and_abandon_function<'a>(
         name: &str,
         fields: impl Iterator<Item = &'a (String, RustType)>,
@@ -455,14 +485,14 @@ impl Model<Sql> {
         definitions: &mut Vec<Definition<Sql>>,
     ) {
         definitions.push(Definition(
-            format!("DelChilds_{}", name),
+            Self::sql_definition_name(&format!("DelChilds_{}", name)),
             Sql::AbandonChildrenFunction(name.into(), children),
         ));
     }
 
     fn add_silently_prevent_any_delete(name: &str, definitions: &mut Vec<Definition<Sql>>) {
         definitions.push(Definition(
-            format!("SilentlyPreventAnyDeleteOn{}", name),
+            Self::sql_definition_name(&format!("SilentlyPreventAnyDeleteOn{}", name)),
             Sql::SilentlyPreventAnyDelete(name.into()),
         ));
     }
@@ -483,11 +513,11 @@ impl Model<Sql> {
     }
 
     pub fn struct_list_entry_table_name(struct_name: &str, field_name: &str) -> String {
-        format!(
+        Self::sql_definition_name(&format!(
             "{}_{}",
             struct_name,
             RustCodeGenerator::rust_variant_name(field_name)
-        )
+        ))
     }
 }
 
@@ -539,6 +569,29 @@ mod tests {
     use crate::model::rust::{EncodingOrdering, Field};
     use crate::model::{Charset, Model, Tag};
     use crate::model::{Import, Size};
+
+    #[test]
+    fn test_conversion_too_long_name() {
+        let chars_70_length =
+            "TheQuickBrownFoxJumpsOverTheLazyDogTheQuickBrownFoxJumpsOverTheLazyDog";
+
+        assert!(chars_70_length.chars().count() > TYPENAME_LENGTH_LIMIT_PSQL);
+
+        assert_eq!(
+            "TQBFoxJumpsOverTheLazyDogTheQuickBrownFoxJumpsOverTheLazyDog",
+            &Model::<Sql>::sql_definition_name(chars_70_length)
+        );
+
+        assert_eq!(
+            "THEQUICKBROWNFOXJUMPSOVERTHELAZYDOGTHEQUICKBROWNFOXJUMPSOVERTHE",
+            &Model::<Sql>::sql_definition_name(&chars_70_length.to_ascii_uppercase())
+        );
+
+        assert_eq!(
+            "TheQuickBrownFoxJumpsOverTheLazyDogTheQuickBrownFoxJumpsOverThe",
+            &Model::<Sql>::sql_definition_name(&chars_70_length[..TYPENAME_LENGTH_LIMIT_PSQL])
+        );
+    }
 
     #[test]
     fn test_conversion_struct() {
