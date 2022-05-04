@@ -106,7 +106,7 @@ impl ToString for SqlType {
             | SqlType::BitsReprByByteArrayAndBitsLen => "BYTEA".into(),
             SqlType::References(table, column, on_delete, on_update) => format!(
                 "INTEGER REFERENCES {}({}){}{}",
-                table,
+                Model::<Sql>::sql_definition_name(table),
                 column,
                 if let Some(cascade) = on_delete {
                     format!(" ON DELETE {}", cascade.to_string())
