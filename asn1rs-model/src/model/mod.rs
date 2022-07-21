@@ -397,6 +397,9 @@ impl Model<Asn<Unresolved>> {
             "sequence" => Self::read_sequence_or_sequence_of(iter)?,
             "set" => Self::read_set_or_set_of(iter)?,
             _ => {
+                // TODO use InnerTypeConstraints to flatten TypeReference to an actual type and
+                //      prevent tuple-type nesting in the generated rust and other code by copying
+                //      over the fields and adding these additional constraints
                 let _ = Self::maybe_read_with_components_constraint(iter)?;
                 Type::TypeReference(text, None)
             }

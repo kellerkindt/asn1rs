@@ -312,6 +312,7 @@ pub enum Rust {
     DataEnum(DataEnum),
 
     /// Used to represent a single, unnamed inner type
+    // TODO inline the referred type!?
     TupleStruct {
         r#type: RustType,
         tag: Option<Tag>,
