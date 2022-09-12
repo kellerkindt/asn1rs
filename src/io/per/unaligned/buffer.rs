@@ -409,7 +409,7 @@ pub mod tests {
         assert!(buffer.read_bit()?);
         assert!(!buffer.read_bit()?);
 
-        assert_eq!(buffer.read_bit(), Err(Error::EndOfStream));
+        assert_eq!(buffer.read_bit(), Err(ErrorKind::EndOfStream.into()));
 
         Ok(())
     }
@@ -789,12 +789,12 @@ pub mod tests {
         // lower check
         assert_eq!(
             buffer.write_constrained_whole_number(10, 127, 0),
-            Err(Error::ValueNotInRange(0, 10, 127))
+            Err(ErrorKind::ValueNotInRange(0, 10, 127).into())
         );
         // upper check
         assert_eq!(
             buffer.write_constrained_whole_number(10, 127, 128),
-            Err(Error::ValueNotInRange(128, 10, 127))
+            Err(ErrorKind::ValueNotInRange(128, 10, 127).into())
         );
     }
 
@@ -804,12 +804,12 @@ pub mod tests {
         // lower check
         assert_eq!(
             buffer.write_constrained_whole_number(-10, -1, -11),
-            Err(Error::ValueNotInRange(-11, -10, -1))
+            Err(ErrorKind::ValueNotInRange(-11, -10, -1).into())
         );
         // upper check
         assert_eq!(
             buffer.write_constrained_whole_number(-10, -1, 0),
-            Err(Error::ValueNotInRange(0, -10, -1))
+            Err(ErrorKind::ValueNotInRange(0, -10, -1).into())
         );
     }
 
@@ -819,12 +819,12 @@ pub mod tests {
         // lower check
         assert_eq!(
             buffer.write_constrained_whole_number(-10, 1, -11),
-            Err(Error::ValueNotInRange(-11, -10, 1))
+            Err(ErrorKind::ValueNotInRange(-11, -10, 1).into())
         );
         // upper check
         assert_eq!(
             buffer.write_constrained_whole_number(-10, 1, 2),
-            Err(Error::ValueNotInRange(2, -10, 1))
+            Err(ErrorKind::ValueNotInRange(2, -10, 1).into())
         );
     }
 

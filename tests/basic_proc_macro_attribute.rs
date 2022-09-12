@@ -698,9 +698,10 @@ fn test_extensible_struct_fail_inconsistent() {
         value16: Some(146),
     };
     assert_eq!(
-        Err(asn1rs::io::per::Error::ExtensionFieldsInconsistent(
+        Err(asn1rs::io::per::ErrorKind::ExtensionFieldsInconsistent(
             "ExtensibleStruct".to_string()
-        )),
+        )
+        .into()),
         uper.write(&v)
     );
 }

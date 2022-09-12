@@ -36,11 +36,12 @@ fn detect_only_invalid_character() {
     }
     .write(&mut writer);
     assert_eq!(
-        Err(asn1rs::io::per::Error::InvalidString(
+        Err(asn1rs::io::per::ErrorKind::InvalidString(
             asn1rs::model::Charset::Visible,
             '\u{7F}',
             95
-        )),
+        )
+        .into()),
         result
     )
 }

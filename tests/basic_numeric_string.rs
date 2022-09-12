@@ -35,11 +35,10 @@ fn detect_only_invalid_character() {
     }
     .write(&mut writer);
     assert_eq!(
-        Err(asn1rs::io::per::Error::InvalidString(
-            asn1rs::model::Charset::Numeric,
-            'x',
-            11
-        )),
+        Err(
+            asn1rs::io::per::ErrorKind::InvalidString(asn1rs::model::Charset::Numeric, 'x', 11)
+                .into()
+        ),
         result
     )
 }
