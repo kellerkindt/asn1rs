@@ -1,6 +1,6 @@
 use crate::model::Tag;
 
-#[derive(Debug, Clone, Copy, PartialOrd, PartialEq, EnumString)]
+#[derive(Debug, Clone, Copy, PartialOrd, PartialEq, Eq, EnumString)]
 #[strum(serialize_all = "lowercase")]
 pub enum Charset {
     Utf8,

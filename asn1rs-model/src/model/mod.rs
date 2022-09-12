@@ -578,14 +578,14 @@ impl<RS: ResolveState> Model<Asn<RS>> {
     }
 }
 
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq, Eq)]
 pub struct ValueReference<T> {
     pub name: String,
     pub role: T,
     pub value: LiteralValue,
 }
 
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq, Eq)]
 pub enum LiteralValue {
     Boolean(bool),
     String(String),
@@ -604,14 +604,14 @@ impl LiteralValue {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Default, Clone, PartialOrd, PartialEq, Eq)]
 pub struct Import {
     pub what: Vec<String>,
     pub from: String,
     pub from_oid: Option<ObjectIdentifier>,
 }
 
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq, Eq)]
 pub struct Field<T> {
     pub name: String,
     pub role: T,

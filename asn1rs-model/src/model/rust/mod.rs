@@ -248,13 +248,13 @@ impl RustType {
             }
             RustType::Null => RustType::Null == *other,
             RustType::Option(inner) => {
-                matches!(other, RustType::Option(o) if o.similar(&*inner))
-                    || matches!(other, RustType::Default(o, ..) if o.similar(&*inner))
+                matches!(other, RustType::Option(o) if o.similar(inner))
+                    || matches!(other, RustType::Default(o, ..) if o.similar(inner))
             }
             RustType::Default(inner, ..) => {
-                other.similar(&*inner)
-                    || matches!(other, RustType::Default(o, ..) if o.similar(&*inner))
-                    || matches!(other, RustType::Option(o, ..) if o.similar(&*inner))
+                other.similar(inner)
+                    || matches!(other, RustType::Default(o, ..) if o.similar(inner))
+                    || matches!(other, RustType::Option(o, ..) if o.similar(inner))
             }
             RustType::Complex(inner_a, _tag) => {
                 if let RustType::Complex(inner_b, _tag) = other {
@@ -294,7 +294,7 @@ impl RustType {
 
 /// Describes whether the original declaration cares about (re-)ordering the elements or whether
 /// their encoding is to be applied in the order of definition (struct fields) or appearance (vec)
-#[derive(Debug, Clone, Copy, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialOrd, PartialEq, Eq)]
 pub enum EncodingOrdering {
     Sort,
     Keep,
@@ -482,7 +482,7 @@ impl TagProperty for Field {
     }
 }
 
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq, Eq)]
 pub struct Enumeration<T> {
     variants: Vec<T>,
     tag: Option<Tag>,

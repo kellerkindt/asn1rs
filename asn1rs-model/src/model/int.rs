@@ -6,7 +6,7 @@ use std::convert::TryFrom;
 use std::fmt::{Debug, Display};
 use std::iter::Peekable;
 
-#[derive(Default, Debug, Clone, PartialOrd, PartialEq)]
+#[derive(Default, Debug, Clone, PartialOrd, PartialEq, Eq)]
 pub struct Integer<T: Display + Debug + Clone = i64> {
     pub range: Range<Option<T>>,
     pub constants: Vec<(String, i64)>,

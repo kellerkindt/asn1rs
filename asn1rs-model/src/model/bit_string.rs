@@ -6,7 +6,7 @@ use std::convert::TryFrom;
 use std::fmt::{Debug, Display};
 use std::iter::Peekable;
 
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq, Eq)]
 pub struct BitString<T: Display + Debug + Clone = usize> {
     pub size: Size<T>,
     pub constants: Vec<(String, u64)>,

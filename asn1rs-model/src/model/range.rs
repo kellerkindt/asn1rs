@@ -1,4 +1,4 @@
-#[derive(Debug, Default, Clone, Copy, PartialOrd, PartialEq)]
+#[derive(Debug, Default, Clone, Copy, PartialOrd, PartialEq, Eq)]
 pub struct Range<T>(pub T, pub T, pub bool);
 
 impl<T> Range<T> {

@@ -8,7 +8,7 @@ pub trait ResolveState: Clone {
     type ConstType: Debug + Clone + PartialOrd + PartialEq;
 }
 
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq, Eq)]
 pub struct Resolved;
 impl ResolveState for Resolved {
     type SizeType = usize;
@@ -16,7 +16,7 @@ impl ResolveState for Resolved {
     type ConstType = LiteralValue;
 }
 
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq, Eq)]
 pub struct Unresolved;
 impl ResolveState for Unresolved {
     type SizeType = LitOrRef<usize>;
@@ -24,7 +24,7 @@ impl ResolveState for Unresolved {
     type ConstType = LitOrRef<LiteralValue>;
 }
 
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq, Eq)]
 pub enum LitOrRef<T> {
     Lit(T),
     Ref(String),
@@ -51,7 +51,7 @@ where
     }
 }
 
-#[derive(Debug, PartialOrd, PartialEq)]
+#[derive(Debug, PartialOrd, PartialEq, Eq)]
 pub enum Error {
     FailedToResolveType(String),
     FailedToResolveReference(String),

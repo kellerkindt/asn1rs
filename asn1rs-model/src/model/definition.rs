@@ -1,6 +1,6 @@
 use crate::model::{Asn, Rust, Tag, TagProperty};
 
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq, Eq)]
 pub struct Definition<T>(pub String, pub T);
 
 impl<T> Definition<T> {

@@ -3,7 +3,7 @@ use crate::parser::Token;
 use std::convert::TryFrom;
 use std::iter::Peekable;
 
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq, Eq)]
 pub struct InnerTypeConstraints {
     implicit_all_present: bool,
     entries: Vec<(String, Option<ValueConstraint>, Option<PresenceConstraint>)>,
@@ -66,7 +66,7 @@ impl<T: Iterator<Item = Token>> TryFrom<&mut Peekable<T>> for InnerTypeConstrain
     }
 }
 
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq, Eq)]
 pub struct ValueConstraint(String);
 
 impl<T: Iterator<Item = Token>> TryFrom<&mut Peekable<T>> for ValueConstraint {
@@ -95,7 +95,7 @@ impl<T: Iterator<Item = Token>> TryFrom<&mut Peekable<T>> for ValueConstraint {
     }
 }
 
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq, Eq)]
 pub enum PresenceConstraint {
     Present,
     Absent,

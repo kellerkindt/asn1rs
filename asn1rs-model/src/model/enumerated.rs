@@ -3,7 +3,7 @@ use crate::parser::Token;
 use std::convert::TryFrom;
 use std::iter::Peekable;
 
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq, Eq)]
 pub struct Enumerated {
     variants: Vec<EnumeratedVariant>,
     extension_after: Option<usize>,
@@ -116,7 +116,7 @@ impl<T: Iterator<Item = Token>> TryFrom<&mut Peekable<T>> for Enumerated {
     }
 }
 
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq, Eq)]
 pub struct EnumeratedVariant {
     pub(crate) name: String,
     pub(crate) number: Option<usize>,

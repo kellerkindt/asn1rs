@@ -5,7 +5,7 @@ use backtrace::Backtrace;
 
 use crate::parser::Token;
 
-#[derive(PartialOrd, PartialEq)]
+#[derive(PartialOrd, PartialEq, Eq)]
 pub enum ErrorKind {
     ExpectedText(Token),
     ExpectedTextGot(String, Token),

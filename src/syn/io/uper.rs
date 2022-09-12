@@ -758,6 +758,7 @@ impl<B: ScopedBitRead> UperReader<B> {
         lower_bound: Option<u64>,
         upper_bound: Option<u64>,
     ) -> Result<u64, Error> {
+        #[allow(clippy::let_and_return)]
         let result = self.bits.read_length_determinant(lower_bound, upper_bound);
         #[cfg(feature = "descriptive-deserialize-errors")]
         self.scope_description
@@ -775,6 +776,7 @@ impl<B: ScopedBitRead> UperReader<B> {
         std_variants: u64,
         extensible: bool,
     ) -> Result<u64, Error> {
+        #[allow(clippy::let_and_return)]
         let result = self.bits.read_enumeration_index(std_variants, extensible);
         #[cfg(feature = "descriptive-deserialize-errors")]
         self.scope_description
@@ -854,6 +856,7 @@ impl<B: ScopedBitRead> UperReader<B> {
 
     #[inline]
     pub fn read_bit_field_entry(&mut self, is_opt: bool) -> Result<Option<bool>, Error> {
+        #[allow(clippy::let_and_return)]
         let result = if let Some(scope) = &mut self.scope {
             scope.read_from_field(
                 #[cfg(feature = "descriptive-deserialize-errors")]
@@ -901,6 +904,7 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
     where
         Self: Sized,
     {
+        #[allow(clippy::let_and_return)]
         let value = T::read(self);
         #[cfg(feature = "descriptive-deserialize-errors")]
         let value = value.map_err(|mut e| {
@@ -924,6 +928,7 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
             .push(ScopeDescription::sequence::<C>());
 
         let _ = self.read_bit_field_entry(false);
+        #[allow(clippy::let_and_return)]
         let result = self.with_buffer(|r| {
             let extension_after = if let Some(extension_after) = C::EXTENDED_AFTER_FIELD {
                 let bit_pos = r.bits.pos();
@@ -977,6 +982,7 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
             .push(ScopeDescription::sequence_of::<C>());
 
         let _ = self.read_bit_field_entry(false)?;
+        #[allow(clippy::let_and_return)]
         self.with_buffer(|r| {
             let len = if C::EXTENSIBLE {
                 let extensible = r.bits.read_bit()?;
@@ -1025,6 +1031,7 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
             .push(ScopeDescription::enumerated::<C>());
 
         let _ = self.read_bit_field_entry(false)?;
+        #[allow(clippy::let_and_return)]
         let result = self.with_buffer(|r| r.read_enumeration_index(C::STD_VARIANT_COUNT, C::EXTENSIBLE))
             .and_then(|index| {
                 #[cfg(feature = "descriptive-deserialize-errors")]
@@ -1057,6 +1064,7 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
         self.scope_description.push(ScopeDescription::choice::<C>());
 
         let _ = self.read_bit_field_entry(false)?;
+        #[allow(clippy::let_and_return)]
         let result = self.scope_stashed(|r| {
             let index = r
                 .bits
@@ -1155,6 +1163,7 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
             .push(ScopeDescription::utf8string::<C>());
 
         let _ = self.read_bit_field_entry(false)?;
+        #[allow(clippy::let_and_return)]
         let result = self.with_buffer(|r| {
             // ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 30.3
             // For 'known-multiplier character string types' there is no min/max in the encoding
@@ -1176,6 +1185,7 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
             .push(ScopeDescription::ia5string::<C>());
 
         let _ = self.read_bit_field_entry(false)?;
+        #[allow(clippy::let_and_return)]
         let result = self.with_buffer(|r| {
             let len = if C::EXTENSIBLE && r.bits.read_bit()? {
                 r.read_length_determinant(None, None)?
@@ -1205,6 +1215,7 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
             .push(ScopeDescription::numeric_string::<C>());
 
         let _ = self.read_bit_field_entry(false)?;
+        #[allow(clippy::let_and_return)]
         let result = self.with_buffer(|r| {
             let len = if C::EXTENSIBLE && r.bits.read_bit()? {
                 r.read_length_determinant(None, None)?
@@ -1240,6 +1251,7 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
             .push(ScopeDescription::printable_string::<C>());
 
         let _ = self.read_bit_field_entry(false)?;
+        #[allow(clippy::let_and_return)]
         let result = self.with_buffer(|r| {
             let len = if C::EXTENSIBLE && r.bits.read_bit()? {
                 r.read_length_determinant(None, None)?
@@ -1269,6 +1281,7 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
             .push(ScopeDescription::visible_string::<C>());
 
         let _ = self.read_bit_field_entry(false)?;
+        #[allow(clippy::let_and_return)]
         let result = self.with_buffer(|r| {
             let len = if C::EXTENSIBLE && r.bits.read_bit()? {
                 r.read_length_determinant(None, None)?
@@ -1298,6 +1311,7 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
             .push(ScopeDescription::octet_string::<C>());
 
         let _ = self.read_bit_field_entry(false)?;
+        #[allow(clippy::let_and_return)]
         let result = self.with_buffer(|r| r.bits.read_octetstring(C::MIN, C::MAX, C::EXTENSIBLE));
 
         #[cfg(feature = "descriptive-deserialize-errors")]
@@ -1323,6 +1337,7 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
             .push(ScopeDescription::bit_string::<C>());
 
         let _ = self.read_bit_field_entry(false)?;
+        #[allow(clippy::let_and_return)]
         let result = self.with_buffer(|r| r.bits.read_bitstring(C::MIN, C::MAX, C::EXTENSIBLE));
 
         #[cfg(feature = "descriptive-deserialize-errors")]
@@ -1351,6 +1366,7 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
             .push(ScopeDescription::boolean::<C>());
 
         let _ = self.read_bit_field_entry(false)?;
+        #[allow(clippy::let_and_return)]
         let result = self.with_buffer(|r| r.bits.read_boolean());
 
         #[cfg(feature = "descriptive-deserialize-errors")]

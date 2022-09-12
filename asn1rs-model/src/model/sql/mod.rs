@@ -34,7 +34,7 @@ pub enum SqlType {
     References(String, String, Option<Action>, Option<Action>),
 }
 
-#[derive(Debug, Clone, PartialEq, PartialOrd)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd)]
 pub enum Action {
     Cascade,
     Restrict,
@@ -53,7 +53,7 @@ impl ToString for Action {
 impl SqlType {
     pub fn as_nullable(&self) -> &Self {
         match self {
-            SqlType::NotNull(inner) => &*inner,
+            SqlType::NotNull(inner) => inner,
             other => other,
         }
     }
@@ -130,7 +130,7 @@ pub struct Column {
     pub primary_key: bool,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Constraint {
     CombinedPrimaryKey(Vec<String>),
     OneNotNull(Vec<String>),

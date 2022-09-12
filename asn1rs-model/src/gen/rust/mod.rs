@@ -406,12 +406,12 @@ impl RustCodeGenerator {
             Type::Null => (Cow::Borrowed("null"), Vec::default()),
             Type::Optional(inner) => (
                 Cow::Borrowed("optional"),
-                vec![Self::asn_attribute_type(&*inner)],
+                vec![Self::asn_attribute_type(inner)],
             ),
             Type::Default(inner, default) => (
                 Cow::Borrowed("default"),
                 vec![
-                    Self::asn_attribute_type(&*inner),
+                    Self::asn_attribute_type(inner),
                     default.as_rust_const_literal(true).to_string(),
                 ],
             ),
@@ -419,7 +419,7 @@ impl RustCodeGenerator {
                 Cow::Borrowed("sequence_of"),
                 vec![
                     size.to_constraint_string(),
-                    Some(Self::asn_attribute_type(&*inner)),
+                    Some(Self::asn_attribute_type(inner)),
                 ]
                 .into_iter()
                 .flatten()
@@ -429,7 +429,7 @@ impl RustCodeGenerator {
                 Cow::Borrowed("set_of"),
                 vec![
                     size.to_constraint_string(),
-                    Some(Self::asn_attribute_type(&*inner)),
+                    Some(Self::asn_attribute_type(inner)),
                 ]
                 .into_iter()
                 .flatten()

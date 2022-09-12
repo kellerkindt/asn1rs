@@ -7,7 +7,7 @@ use std::convert::TryFrom;
 use std::fmt::{Debug, Display};
 use std::iter::Peekable;
 
-#[derive(Debug, Clone, PartialOrd, PartialEq)]
+#[derive(Debug, Clone, PartialOrd, PartialEq, Eq)]
 pub enum Size<T: Display + Debug + Clone = usize> {
     Any,
     Fix(T, bool),

@@ -95,17 +95,17 @@ impl AsnDefWriter {
                         EncodingOrdering::Keep => "SequenceOf",
                         EncodingOrdering::Sort => "SetOf",
                     },
-                    Self::type_declaration(&*inner, &virtual_field),
+                    Self::type_declaration(inner, &virtual_field),
                     name
                 )
             }
-            RustType::Option(inner) => format!("Option<{}>", Self::type_declaration(&*inner, name)),
+            RustType::Option(inner) => format!("Option<{}>", Self::type_declaration(inner, name)),
             RustType::Default(inner, _default) => {
                 let virtual_field = Self::default_virtual_field_name(name);
                 format!(
                     "{}DefaultValue<{}, {}Constraint>",
                     CRATE_SYN_PREFIX,
-                    Self::type_declaration(&*inner, &virtual_field),
+                    Self::type_declaration(inner, &virtual_field),
                     name
                 )
             }
@@ -411,7 +411,7 @@ impl AsnDefWriter {
                     constraint_type_name,
                     field.tag.unwrap_or(Tag::DEFAULT_SEQUENCE_OF),
                 );
-                Self::write_default_constraint(scope, constraint_type_name, &*inner, default);
+                Self::write_default_constraint(scope, constraint_type_name, inner, default);
 
                 let virtual_field_name = Self::default_virtual_field_name(field.name());
                 let constraint_type_name = Self::constraint_type_name(name, &virtual_field_name);
