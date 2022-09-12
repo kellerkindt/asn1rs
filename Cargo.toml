@@ -60,7 +60,7 @@ protobuf = ["asn1rs-model/protobuf"]
 macros = ["asn1rs-macros"]
 model = ["asn1rs-model"]
 debug-proc-macro = ["asn1rs-macros/debug-proc-macro", "asn1rs-model/debug-proc-macro"]
-
+descriptive-deserialize-errors = []
 
 [package.metadata.docs.rs]
 all-features = true

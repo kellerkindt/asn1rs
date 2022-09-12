@@ -1,13 +1,13 @@
 use super::BitRead;
 use crate::io::per::unaligned::BitWrite;
 use crate::io::per::unaligned::BYTE_LEN;
-use crate::io::per::Error;
+use crate::io::per::{Error, ErrorKind};
 
 impl BitRead for (&[u8], &mut usize) {
     #[inline]
     fn read_bit(&mut self) -> Result<bool, Error> {
         if *self.1 > self.0.len() * BYTE_LEN {
-            return Err(Error::EndOfStream);
+            return Err(ErrorKind::EndOfStream.into());
         }
         let bit = self.0[*self.1 / BYTE_LEN] & (0x80 >> (*self.1 % BYTE_LEN)) != 0;
         *self.1 += 1;
@@ -50,7 +50,7 @@ impl<'a> BitWrite for (&'a mut [u8], &mut usize) {
     #[inline]
     fn write_bit(&mut self, bit: bool) -> Result<(), Error> {
         if *self.1 + 1 > self.0.len() * BYTE_LEN {
-            return Err(Error::EndOfStream);
+            return Err(ErrorKind::EndOfStream.into());
         }
         if bit {
             self.0[*self.1 / BYTE_LEN] |= 0x80 >> (*self.1 % BYTE_LEN);

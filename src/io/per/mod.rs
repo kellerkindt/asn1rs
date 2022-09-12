@@ -7,6 +7,7 @@ pub mod err;
 pub mod unaligned;
 
 pub use err::Error;
+pub use err::ErrorKind;
 
 /// According to ITU-T X.691 | ISO/IEC 8825-2:2015
 pub trait PackedRead {

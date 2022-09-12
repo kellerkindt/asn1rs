@@ -1,5 +1,6 @@
 use super::*;
 use crate::io::per::Error;
+use crate::io::per::ErrorKind;
 
 #[derive(Debug, Default)]
 pub struct BitBuffer {
@@ -132,7 +133,7 @@ impl BitRead for BitBuffer {
         if self.read_position < self.write_position {
             BitRead::read_bit(&mut (&self.buffer[..], &mut self.read_position))
         } else {
-            Err(Error::EndOfStream)
+            Err(ErrorKind::EndOfStream.into())
         }
     }
 
@@ -268,7 +269,7 @@ impl BitRead for Bits<'_> {
         if self.pos < self.len {
             BitRead::read_bit(&mut (self.slice, &mut self.pos))
         } else {
-            Err(Error::EndOfStream)
+            Err(ErrorKind::EndOfStream.into())
         }
     }
 

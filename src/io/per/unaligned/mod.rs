@@ -1,4 +1,4 @@
-use crate::io::per::Error;
+use crate::io::per::{Error, ErrorKind};
 use crate::io::per::{PackedRead, PackedWrite};
 
 pub mod buffer;
@@ -449,7 +449,7 @@ impl<T: BitWrite> PackedWrite for T {
         let range = upper_bound - lower_bound;
         if range > 0 {
             if value < lower_bound || value > upper_bound {
-                Err(Error::ValueNotInRange(value, lower_bound, upper_bound))
+                Err(ErrorKind::ValueNotInRange(value, lower_bound, upper_bound).into())
             } else {
                 self.write_non_negative_binary_integer(
                     None,
@@ -485,7 +485,7 @@ impl<T: BitWrite> PackedWrite for T {
         value: i64,
     ) -> Result<(), Error> {
         if value < lower_bound {
-            Err(Error::ValueNotInRange(value, lower_bound, i64::MAX))
+            Err(ErrorKind::ValueNotInRange(value, lower_bound, i64::MAX).into())
         } else {
             self.write_non_negative_binary_integer(None, None, (value - lower_bound) as u64)
         }
@@ -530,11 +530,12 @@ impl<T: BitWrite> PackedWrite for T {
             if lower_bound == upper_bound {
                 Ok(None)
             } else if value < lower_bound_unwrapped {
-                Err(Error::ValueNotInRange(
+                Err(ErrorKind::ValueNotInRange(
                     value as i64,
                     lower_bound_unwrapped as i64,
                     upper_bound_unwrapped as i64,
-                ))
+                )
+                .into())
             } else {
                 self.write_non_negative_binary_integer(
                     lower_bound,
@@ -601,7 +602,7 @@ impl<T: BitWrite> PackedWrite for T {
                 // self.read_non_negative_binary_integer(0, MAX) + lb  | lb=0=>MIN for unsigned
                 self.write_length_determinant(None, None, length)?;
             } else {
-                return Err(Error::SizeNotInRange(length, lower_bound, upper_bound));
+                return Err(ErrorKind::SizeNotInRange(length, lower_bound, upper_bound).into());
             }
         }
         /*else if const_is_some!(lower_bound_size)
@@ -675,7 +676,7 @@ impl<T: BitWrite> PackedWrite for T {
                 // self.read_non_negative_binary_integer(0, MAX) + lb  | lb=0=>MIN for unsigned
                 self.write_length_determinant(None, None, length)?
             } else {
-                return Err(Error::SizeNotInRange(length, lower_bound, upper_bound));
+                return Err(ErrorKind::SizeNotInRange(length, lower_bound, upper_bound).into());
             }
         } else if upper_bound == 0 {
             // 17.5
@@ -748,7 +749,7 @@ impl<T: BitWrite> PackedWrite for T {
             if extensible {
                 self.write_normally_small_length(index - std_variants)
             } else {
-                Err(Error::InvalidChoiceIndex(index, std_variants))
+                Err(ErrorKind::InvalidChoiceIndex(index, std_variants).into())
             }
         } else {
             self.write_non_negative_binary_integer(None, Some(std_variants - 1), index)

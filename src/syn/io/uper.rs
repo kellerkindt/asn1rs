@@ -1,4 +1,5 @@
 use crate::io::per::err::Error;
+use crate::io::per::err::ErrorKind;
 use crate::io::per::unaligned::buffer::BitBuffer;
 use crate::io::per::unaligned::BitWrite;
 use crate::io::per::unaligned::BYTE_LEN;
@@ -6,6 +7,7 @@ use crate::io::per::PackedRead;
 use crate::io::per::PackedWrite;
 use crate::model::Charset;
 use crate::syn::*;
+use std::fmt::Debug;
 use std::ops::Range;
 
 pub use crate::io::per::unaligned::buffer::Bits;
@@ -148,7 +150,7 @@ impl Scope {
             }
             Scope::ExtensibleSequenceEmpty(name) => {
                 if is_present {
-                    Err(Error::ExtensionFieldsInconsistent(name.to_string()))
+                    Err(ErrorKind::ExtensionFieldsInconsistent(name.to_string()).into())
                 } else {
                     Ok(())
                 }
@@ -159,6 +161,7 @@ impl Scope {
     #[inline]
     pub fn read_from_field(
         &mut self,
+        #[cfg(feature = "descriptive-deserialize-errors")] descriptions: &mut Vec<ScopeDescription>,
         bits: &mut impl ScopedBitRead,
         is_opt: bool,
     ) -> Result<Option<bool>, Error> {
@@ -198,18 +201,29 @@ impl Scope {
                         let read_number_of_ext_fields =
                             bits.read_normally_small_length()? as usize + 1;
                         if read_number_of_ext_fields > *number_of_ext_fields {
-                            return Err(Error::UnsupportedOperation(format!(
-                                "Expected no more than {} extended fields but got {}",
-                                number_of_ext_fields, read_number_of_ext_fields
-                            )));
+                            #[cfg(feature = "descriptive-deserialize-errors")]
+                            descriptions.push(ScopeDescription::warning(
+                                format!("read_number_of_ext_fields({read_number_of_ext_fields}) > *number_of_ext_fields({number_of_ext_fields})")
+                            ));
+                            //     return Err(Error::UnsupportedOperation(format!(
+                            //         "Expected no more than {} extended field{} but got {}",
+                            //         number_of_ext_fields,
+                            //         if *number_of_ext_fields != 1 { "s" } else { "" },
+                            //         read_number_of_ext_fields
+                            //     )));
                         }
                         let range = bits.pos()..bits.pos() + *number_of_ext_fields;
-                        bits.set_pos(range.end); // skip bit-field
+                        bits.set_pos(range.start + read_number_of_ext_fields); // skip bit-field
                         *self = Scope::AllBitField(range);
                     } else {
                         *self = Scope::ExtensibleSequenceEmpty(name);
                     }
-                    self.read_from_field(bits, is_opt)
+                    self.read_from_field(
+                        #[cfg(feature = "descriptive-deserialize-errors")]
+                        descriptions,
+                        bits,
+                        is_opt,
+                    )
                 } else {
                     *calls_until_ext_bitfield = calls_until_ext_bitfield.saturating_sub(1);
                     opt_bit_field
@@ -340,7 +354,7 @@ impl UperWriter {
 
         if out_of_range {
             if !extensible {
-                return Err(Error::SizeNotInRange(len, unwrapped_min, unwrapped_max));
+                return Err(ErrorKind::SizeNotInRange(len, unwrapped_min, unwrapped_max).into());
             } else {
                 self.bits.write_length_determinant(None, None, len)?;
             }
@@ -559,7 +573,7 @@ impl Writer for UperWriter {
                 let min = const_unwrap_or!(C::MIN, 0);
                 let max = const_unwrap_or!(C::MAX, u64::MAX);
                 if chars < min || chars > max {
-                    return Err(Error::SizeNotInRange(chars, min, max));
+                    return Err(ErrorKind::SizeNotInRange(chars, min, max).into());
                 }
             }
 
@@ -715,6 +729,8 @@ impl Writer for UperWriter {
 pub struct UperReader<B: ScopedBitRead> {
     bits: B,
     scope: Option<Scope>,
+    #[cfg(feature = "descriptive-deserialize-errors")]
+    scope_description: Vec<ScopeDescription>,
 }
 
 /*
@@ -726,25 +742,61 @@ impl<B: ScopedBitRead> From<B> for UperReader<B> {
 
 impl<'a, I: Into<Bits<'a>>> From<I> for UperReader<Bits<'a>> {
     fn from(bits: I) -> Self {
-        UperReader {
+        Self {
             bits: bits.into(),
             scope: None,
+            #[cfg(feature = "descriptive-deserialize-errors")]
+            scope_description: Vec::new(),
         }
     }
 }
 
 impl<B: ScopedBitRead> UperReader<B> {
     #[inline]
+    fn read_length_determinant(
+        &mut self,
+        lower_bound: Option<u64>,
+        upper_bound: Option<u64>,
+    ) -> Result<u64, Error> {
+        let result = self.bits.read_length_determinant(lower_bound, upper_bound);
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description
+            .push(ScopeDescription::bits_length_determinant(
+                lower_bound,
+                upper_bound,
+                result.clone(),
+            ));
+        result
+    }
+
+    #[inline]
+    fn read_enumeration_index(
+        &mut self,
+        std_variants: u64,
+        extensible: bool,
+    ) -> Result<u64, Error> {
+        let result = self.bits.read_enumeration_index(std_variants, extensible);
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description
+            .push(ScopeDescription::bits_enumeration_index(
+                std_variants,
+                extensible,
+                result.clone(),
+            ));
+        result
+    }
+
+    #[inline]
     pub fn bits_remaining(&self) -> usize {
         self.bits.remaining()
     }
 
     #[inline]
-    pub fn scope_pushed<T, E, F: FnOnce(&mut Self) -> Result<T, E>>(
+    pub fn scope_pushed<T, F: FnOnce(&mut Self) -> Result<T, Error>>(
         &mut self,
         scope: Scope,
         f: F,
-    ) -> Result<T, E> {
+    ) -> Result<T, Error> {
         let original = core::mem::replace(&mut self.scope, Some(scope));
         let result = f(self);
         if cfg!(debug_assertions) && result.is_ok() {
@@ -762,7 +814,10 @@ impl<B: ScopedBitRead> UperReader<B> {
     }
 
     #[inline]
-    pub fn scope_stashed<R, F: FnOnce(&mut Self) -> R>(&mut self, f: F) -> R {
+    pub fn scope_stashed<T, F: FnOnce(&mut Self) -> Result<T, Error>>(
+        &mut self,
+        f: F,
+    ) -> Result<T, Error> {
         let scope = self.scope.take();
         let result = f(self);
         self.scope = scope;
@@ -770,16 +825,25 @@ impl<B: ScopedBitRead> UperReader<B> {
     }
 
     #[inline]
-    pub fn read_whole_sub_slice<T, E, F: FnOnce(&mut Self) -> Result<T, E>>(
+    pub fn read_whole_sub_slice<T, F: FnOnce(&mut Self) -> Result<T, Error>>(
         &mut self,
         length_bytes: usize,
         f: F,
-    ) -> Result<T, E> {
+    ) -> Result<T, Error> {
         let write_position = self.bits.pos() + (length_bytes * BYTE_LEN);
         let write_original = core::mem::replace(&mut self.bits.len(), write_position);
         let result = f(self);
         // extend to original position
         let len = self.bits.set_len(write_original);
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description
+            .push(ScopeDescription::read_whole_sub_slice(
+                length_bytes,
+                write_position,
+                write_original,
+                len,
+                &result,
+            ));
         debug_assert_eq!(write_original, len);
         if result.is_ok() {
             // on successful read, skip the slice
@@ -790,13 +854,24 @@ impl<B: ScopedBitRead> UperReader<B> {
 
     #[inline]
     pub fn read_bit_field_entry(&mut self, is_opt: bool) -> Result<Option<bool>, Error> {
-        if let Some(scope) = &mut self.scope {
-            scope.read_from_field(&mut self.bits, is_opt)
+        let result = if let Some(scope) = &mut self.scope {
+            scope.read_from_field(
+                #[cfg(feature = "descriptive-deserialize-errors")]
+                &mut self.scope_description,
+                &mut self.bits,
+                is_opt,
+            )
         } else if is_opt {
             Some(self.bits.read_bit()).transpose()
         } else {
             Ok(None)
-        }
+        };
+
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description
+            .push(ScopeDescription::read_bit_field_entry(is_opt, &result));
+
+        result
     }
 
     #[inline]
@@ -810,7 +885,7 @@ impl<B: ScopedBitRead> UperReader<B> {
             .map(Scope::encode_as_open_type_field)
             .unwrap_or(false)
         {
-            let len = self.bits.read_length_determinant(None, None)?;
+            let len = self.read_length_determinant(None, None)?;
             self.read_whole_sub_slice(len as usize, f)
         } else {
             f(self)
@@ -822,6 +897,20 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
     type Error = Error;
 
     #[inline]
+    fn read<T: Readable>(&mut self) -> Result<T, Self::Error>
+    where
+        Self: Sized,
+    {
+        let value = T::read(self);
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        let value = value.map_err(|mut e| {
+            e.0.description = core::mem::take(&mut self.scope_description);
+            e
+        });
+        value
+    }
+
+    #[inline]
     fn read_sequence<
         C: sequence::Constraint,
         S: Sized,
@@ -830,8 +919,12 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
         &mut self,
         f: F,
     ) -> Result<S, Self::Error> {
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description
+            .push(ScopeDescription::sequence::<C>());
+
         let _ = self.read_bit_field_entry(false);
-        self.with_buffer(|r| {
+        let result = self.with_buffer(|r| {
             let extension_after = if let Some(extension_after) = C::EXTENDED_AFTER_FIELD {
                 let bit_pos = r.bits.pos();
                 if r.bits.read_bit()? {
@@ -847,7 +940,7 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
             // value is written. This remembers their position, so a later call of `read_opt`
             // can retrieve them from the buffer
             if r.bits.remaining() < C::STD_OPTIONAL_FIELDS as usize {
-                return Err(Error::EndOfStream);
+                return Err(ErrorKind::EndOfStream.into());
             }
 
             let range = r.bits.pos()..r.bits.pos() + C::STD_OPTIONAL_FIELDS as usize;
@@ -867,24 +960,33 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
             } else {
                 r.scope_pushed(Scope::OptBitField(range), f)
             }
-        })
+        });
+
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description.push(ScopeDescription::End(C::NAME));
+
+        result
     }
 
     #[inline]
     fn read_sequence_of<C: sequenceof::Constraint, T: ReadableType>(
         &mut self,
     ) -> Result<Vec<T::Type>, Self::Error> {
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description
+            .push(ScopeDescription::sequence_of::<C>());
+
         let _ = self.read_bit_field_entry(false)?;
         self.with_buffer(|r| {
             let len = if C::EXTENSIBLE {
                 let extensible = r.bits.read_bit()?;
                 if extensible {
-                    r.bits.read_length_determinant(None, None)?
+                    r.read_length_determinant(None, None)?
                 } else {
-                    r.bits.read_length_determinant(C::MIN, C::MAX)?
+                    r.read_length_determinant(C::MIN, C::MAX)?
                 }
             } else {
-                r.bits.read_length_determinant(C::MIN, C::MAX)?
+                r.read_length_determinant(C::MIN, C::MAX)?
             };
 
             if len > 0 {
@@ -918,39 +1020,71 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
 
     #[inline]
     fn read_enumerated<C: enumerated::Constraint>(&mut self) -> Result<C, Self::Error> {
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description
+            .push(ScopeDescription::enumerated::<C>());
+
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|r| {
-            r.bits
-                .read_enumeration_index(C::STD_VARIANT_COUNT, C::EXTENSIBLE)
-        })
-        .and_then(|index| {
-            C::from_choice_index(index).ok_or(Error::InvalidChoiceIndex(index, C::VARIANT_COUNT))
-        })
+        let result = self.with_buffer(|r| r.read_enumeration_index(C::STD_VARIANT_COUNT, C::EXTENSIBLE))
+            .and_then(|index| {
+                #[cfg(feature = "descriptive-deserialize-errors")]
+                if index >= C::VARIANT_COUNT {
+                    self.scope_description
+                        .push(ScopeDescription::warning(format!(
+                            "Index of extensible enum {} outside of known variants, clamping index value from {index} to {}",
+                            C::NAME,
+                            C::VARIANT_COUNT.saturating_sub(1)
+                        )));
+                }
+                let result = C::from_choice_index(index)
+                    .ok_or_else(|| ErrorKind::InvalidChoiceIndex(index, C::VARIANT_COUNT).into());
+                #[cfg(feature = "descriptive-deserialize-errors")]
+                self.scope_description.push(ScopeDescription::Result(
+                    result.as_ref().map(|_| index.to_string()).map_err(|e| Error::clone(e))
+                ));
+                result
+            });
+
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description.push(ScopeDescription::End(C::NAME));
+
+        result
     }
 
     #[inline]
     fn read_choice<C: choice::Constraint>(&mut self) -> Result<C, Self::Error> {
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description.push(ScopeDescription::choice::<C>());
+
         let _ = self.read_bit_field_entry(false)?;
-        self.scope_stashed(|r| {
+        let result = self.scope_stashed(|r| {
             let index = r
                 .bits
                 .read_choice_index(C::STD_VARIANT_COUNT, C::EXTENSIBLE)?;
             if index >= C::STD_VARIANT_COUNT {
-                let length = r.bits.read_length_determinant(None, None)?;
+                let length = r.read_length_determinant(None, None)?;
                 r.read_whole_sub_slice(length as usize, |r| Ok((index, C::read_content(index, r)?)))
             } else {
                 Ok((index, C::read_content(index, r)?))
             }
             .and_then(|(index, content)| {
-                content.ok_or(Error::InvalidChoiceIndex(index, C::VARIANT_COUNT))
+                content.ok_or_else(|| ErrorKind::InvalidChoiceIndex(index, C::VARIANT_COUNT).into())
             })
-        })
+        });
+
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description.push(ScopeDescription::End(C::NAME));
+
+        result
     }
 
     #[inline]
     fn read_opt<T: ReadableType>(
         &mut self,
     ) -> Result<Option<<T as ReadableType>::Type>, Self::Error> {
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description.push(ScopeDescription::optional());
+
         // unwrap: as opt-field this must and will return some value
         if self.read_bit_field_entry(true)?.unwrap() {
             self.with_buffer(|w| w.scope_stashed(T::read_value))
@@ -964,6 +1098,10 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
     fn read_default<C: default::Constraint<Owned = T::Type>, T: ReadableType>(
         &mut self,
     ) -> Result<T::Type, Self::Error> {
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description
+            .push(ScopeDescription::default_type());
+
         // unwrap: as opt-field this must and will return some value
         if self.read_bit_field_entry(true)?.unwrap() {
             self.scope_stashed(T::read_value)
@@ -977,6 +1115,10 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
     fn read_number<T: numbers::Number, C: numbers::Constraint<T>>(
         &mut self,
     ) -> Result<T, Self::Error> {
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description
+            .push(ScopeDescription::number::<T, C>());
+
         let _ = self.read_bit_field_entry(false)?;
         self.with_buffer(|r| {
             let unconstrained = if C::EXTENSIBLE {
@@ -985,38 +1127,60 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
                 const_is_none!(C::MIN) && const_is_none!(C::MAX)
             };
 
-            if unconstrained {
-                r.bits.read_unconstrained_whole_number().map(T::from_i64)
+            let result = if unconstrained {
+                r.bits.read_unconstrained_whole_number()
             } else {
-                r.bits
-                    .read_constrained_whole_number(
-                        const_unwrap_or!(C::MIN, 0),
-                        const_unwrap_or!(C::MAX, i64::MAX),
-                    )
-                    .map(T::from_i64)
-            }
+                r.bits.read_constrained_whole_number(
+                    const_unwrap_or!(C::MIN, 0),
+                    const_unwrap_or!(C::MAX, i64::MAX),
+                )
+            };
+
+            #[cfg(feature = "descriptive-deserialize-errors")]
+            r.scope_description.push(ScopeDescription::Result(
+                result
+                    .as_ref()
+                    .map(ToString::to_string)
+                    .map_err(|e| e.clone()),
+            ));
+
+            result.map(T::from_i64)
         })
     }
 
     #[inline]
     fn read_utf8string<C: utf8string::Constraint>(&mut self) -> Result<String, Self::Error> {
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description
+            .push(ScopeDescription::utf8string::<C>());
+
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|r| {
+        let result = self.with_buffer(|r| {
             // ITU-T X.691 | ISO/IEC 8825-2:2015, chapter 30.3
             // For 'known-multiplier character string types' there is no min/max in the encoding
             let octets = r.bits.read_octetstring(None, None, false)?;
-            String::from_utf8(octets).map_err(Self::Error::FromUtf8Error)
-        })
+            String::from_utf8(octets).map_err(|e| ErrorKind::FromUtf8Error(e).into())
+        });
+
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description
+            .push(ScopeDescription::Result(result.clone()));
+
+        result
     }
 
     #[inline]
     fn read_ia5string<C: ia5string::Constraint>(&mut self) -> Result<String, Self::Error> {
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description
+            .push(ScopeDescription::ia5string::<C>());
+
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|r| {
+        let result = self.with_buffer(|r| {
             let len = if C::EXTENSIBLE && r.bits.read_bit()? {
-                r.bits.read_length_determinant(None, None)?
+                r.read_length_determinant(None, None)?
             } else {
-                r.bits.read_length_determinant(C::MIN, C::MAX)?
+                r.read_length_determinant(C::MIN, C::MAX)?
             };
 
             let mut buffer = vec![0u8; len as usize];
@@ -1024,18 +1188,28 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
                 r.bits.read_bits_with_offset(&mut buffer[i..i + 1], 1)?;
             }
 
-            String::from_utf8(buffer).map_err(Self::Error::FromUtf8Error)
-        })
+            String::from_utf8(buffer).map_err(|e| ErrorKind::FromUtf8Error(e).into())
+        });
+
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description
+            .push(ScopeDescription::Result(result.clone()));
+
+        result
     }
 
     #[inline]
     fn read_numeric_string<C: numericstring::Constraint>(&mut self) -> Result<String, Self::Error> {
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description
+            .push(ScopeDescription::numeric_string::<C>());
+
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|r| {
+        let result = self.with_buffer(|r| {
             let len = if C::EXTENSIBLE && r.bits.read_bit()? {
-                r.bits.read_length_determinant(None, None)?
+                r.read_length_determinant(None, None)?
             } else {
-                r.bits.read_length_determinant(C::MIN, C::MAX)?
+                r.read_length_determinant(C::MIN, C::MAX)?
             };
 
             let mut buffer = vec![0u8; len as usize];
@@ -1047,20 +1221,30 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
                 }
             }
 
-            String::from_utf8(buffer).map_err(Self::Error::FromUtf8Error)
-        })
+            String::from_utf8(buffer).map_err(|e| ErrorKind::FromUtf8Error(e).into())
+        });
+
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description
+            .push(ScopeDescription::Result(result.clone()));
+
+        result
     }
 
     #[inline]
     fn read_printable_string<C: printablestring::Constraint>(
         &mut self,
     ) -> Result<String, Self::Error> {
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description
+            .push(ScopeDescription::printable_string::<C>());
+
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|r| {
+        let result = self.with_buffer(|r| {
             let len = if C::EXTENSIBLE && r.bits.read_bit()? {
-                r.bits.read_length_determinant(None, None)?
+                r.read_length_determinant(None, None)?
             } else {
-                r.bits.read_length_determinant(C::MIN, C::MAX)?
+                r.read_length_determinant(C::MIN, C::MAX)?
             };
 
             let mut buffer = vec![0u8; len as usize];
@@ -1068,18 +1252,28 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
                 .chunks_exact_mut(1)
                 .try_for_each(|chunk| r.bits.read_bits_with_offset(chunk, 1))?;
 
-            String::from_utf8(buffer).map_err(Self::Error::FromUtf8Error)
-        })
+            String::from_utf8(buffer).map_err(|e| ErrorKind::FromUtf8Error(e).into())
+        });
+
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description
+            .push(ScopeDescription::Result(result.clone()));
+
+        result
     }
 
     #[inline]
     fn read_visible_string<C: visiblestring::Constraint>(&mut self) -> Result<String, Self::Error> {
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description
+            .push(ScopeDescription::visible_string::<C>());
+
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|r| {
+        let result = self.with_buffer(|r| {
             let len = if C::EXTENSIBLE && r.bits.read_bit()? {
-                r.bits.read_length_determinant(None, None)?
+                r.read_length_determinant(None, None)?
             } else {
-                r.bits.read_length_determinant(C::MIN, C::MAX)?
+                r.read_length_determinant(C::MIN, C::MAX)?
             };
 
             let mut buffer = vec![0u8; len as usize];
@@ -1087,26 +1281,87 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
                 .chunks_exact_mut(1)
                 .try_for_each(|chunk| r.bits.read_bits_with_offset(chunk, 1))?;
 
-            String::from_utf8(buffer).map_err(Self::Error::FromUtf8Error)
-        })
+            String::from_utf8(buffer).map_err(|e| ErrorKind::FromUtf8Error(e).into())
+        });
+
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description
+            .push(ScopeDescription::Result(result.clone()));
+
+        result
     }
 
     #[inline]
     fn read_octet_string<C: octetstring::Constraint>(&mut self) -> Result<Vec<u8>, Self::Error> {
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description
+            .push(ScopeDescription::octet_string::<C>());
+
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|r| r.bits.read_octetstring(C::MIN, C::MAX, C::EXTENSIBLE))
+        let result = self.with_buffer(|r| r.bits.read_octetstring(C::MIN, C::MAX, C::EXTENSIBLE));
+
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description.push(ScopeDescription::Result(
+            result
+                .as_ref()
+                .map(|s| {
+                    s.iter()
+                        .map(|v| format!("{v:02x}"))
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                })
+                .map_err(|e| e.clone()),
+        ));
+
+        result
     }
 
     #[inline]
     fn read_bit_string<C: bitstring::Constraint>(&mut self) -> Result<(Vec<u8>, u64), Self::Error> {
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description
+            .push(ScopeDescription::bit_string::<C>());
+
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|r| r.bits.read_bitstring(C::MIN, C::MAX, C::EXTENSIBLE))
+        let result = self.with_buffer(|r| r.bits.read_bitstring(C::MIN, C::MAX, C::EXTENSIBLE));
+
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description.push(ScopeDescription::Result(
+            result
+                .as_ref()
+                .map(|(bits, len)| {
+                    format!(
+                        "len={len} bits=[{}]",
+                        bits.iter()
+                            .map(|v| format!("{v:02x}"))
+                            .collect::<Vec<_>>()
+                            .join(" ")
+                    )
+                })
+                .map_err(|e| e.clone()),
+        ));
+
+        result
     }
 
     #[inline]
     fn read_boolean<C: boolean::Constraint>(&mut self) -> Result<bool, Self::Error> {
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description
+            .push(ScopeDescription::boolean::<C>());
+
         let _ = self.read_bit_field_entry(false)?;
-        self.with_buffer(|r| r.bits.read_boolean())
+        let result = self.with_buffer(|r| r.bits.read_boolean());
+
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description.push(ScopeDescription::Result(
+            result
+                .as_ref()
+                .map(|v| v.to_string())
+                .map_err(|e| e.clone()),
+        ));
+
+        result
     }
 
     #[inline]
@@ -1128,5 +1383,321 @@ impl<'a, R: Readable, I: Into<Bits<'a>> + 'a> UperDecodable<'a, I> for R {
     {
         let mut reader = UperReader::from(bits);
         Self::read(&mut reader)
+    }
+}
+
+#[cfg(feature = "descriptive-deserialize-errors")]
+#[cfg_attr(
+    feature = "descriptive-deserialize-errors",
+    derive(Debug, Clone, PartialEq)
+)]
+pub enum ScopeDescription {
+    Root(Vec<ScopeDescription>),
+    Sequence {
+        tag: asn1rs_model::model::Tag,
+        name: &'static str,
+        std_optional_fields: u64,
+        field_count: u64,
+        extended_after_field: Option<u64>,
+    },
+    SequenceOf {
+        tag: asn1rs_model::model::Tag,
+        min: Option<u64>,
+        max: Option<u64>,
+        extensible: bool,
+    },
+    Enumerated {
+        tag: asn1rs_model::model::Tag,
+        name: &'static str,
+        variant_count: u64,
+        std_variant_count: u64,
+        extensible: bool,
+    },
+    Choice {
+        tag: asn1rs_model::model::Tag,
+        name: &'static str,
+        variant_count: u64,
+        std_variant_count: u64,
+        extensible: bool,
+    },
+    Optional,
+    Default,
+    Number {
+        tag: asn1rs_model::model::Tag,
+        min: Option<i64>,
+        max: Option<i64>,
+        extensible: bool,
+    },
+    Utf8String {
+        tag: asn1rs_model::model::Tag,
+        min: Option<u64>,
+        max: Option<u64>,
+        extensible: bool,
+    },
+    Ia5String {
+        tag: asn1rs_model::model::Tag,
+        min: Option<u64>,
+        max: Option<u64>,
+        extensible: bool,
+    },
+    NumericString {
+        tag: asn1rs_model::model::Tag,
+        min: Option<u64>,
+        max: Option<u64>,
+        extensible: bool,
+    },
+    PrintableString {
+        tag: asn1rs_model::model::Tag,
+        min: Option<u64>,
+        max: Option<u64>,
+        extensible: bool,
+    },
+    VisibleString {
+        tag: asn1rs_model::model::Tag,
+        min: Option<u64>,
+        max: Option<u64>,
+        extensible: bool,
+    },
+    OctetString {
+        tag: asn1rs_model::model::Tag,
+        min: Option<u64>,
+        max: Option<u64>,
+        extensible: bool,
+    },
+    BitString {
+        tag: asn1rs_model::model::Tag,
+        min: Option<u64>,
+        max: Option<u64>,
+        extensible: bool,
+    },
+    Boolean {
+        tag: asn1rs_model::model::Tag,
+    },
+    Result(Result<String, Error>),
+    BitsLengthDeterminant {
+        lower_bound: Option<u64>,
+        upper_bound: Option<u64>,
+        result: Result<u64, Error>,
+    },
+    BitsEnumerationIndex {
+        std_variants: u64,
+        extensible: bool,
+        result: Result<u64, Error>,
+    },
+    ReadWholeSubSlice {
+        length_bytes: usize,
+        write_position: usize,
+        write_original: usize,
+        len: usize,
+        result: Result<(), Error>,
+    },
+    ReadBitFieldEntry {
+        is_opt: bool,
+        result: Result<Option<bool>, Error>,
+    },
+    Warning {
+        message: String,
+    },
+    End(&'static str),
+}
+
+#[cfg(feature = "descriptive-deserialize-errors")]
+mod scope_description_impl {
+    use super::*;
+
+    impl ScopeDescription {
+        #[inline]
+        pub fn sequence<C: sequence::Constraint>() -> Self {
+            Self::Sequence {
+                tag: C::TAG,
+                name: C::NAME,
+                std_optional_fields: C::STD_OPTIONAL_FIELDS,
+                field_count: C::FIELD_COUNT,
+                extended_after_field: C::EXTENDED_AFTER_FIELD,
+            }
+        }
+
+        #[inline]
+        pub fn sequence_of<C: sequenceof::Constraint>() -> Self {
+            Self::SequenceOf {
+                tag: C::TAG,
+                min: C::MIN,
+                max: C::MAX,
+                extensible: C::EXTENSIBLE,
+            }
+        }
+
+        #[inline]
+        pub fn enumerated<C: enumerated::Constraint>() -> Self {
+            Self::Enumerated {
+                tag: C::TAG,
+                name: C::NAME,
+                variant_count: C::VARIANT_COUNT,
+                std_variant_count: C::STD_VARIANT_COUNT,
+                extensible: C::EXTENSIBLE,
+            }
+        }
+
+        #[inline]
+        pub fn choice<C: choice::Constraint>() -> Self {
+            Self::Choice {
+                tag: C::TAG,
+                name: C::NAME,
+                variant_count: C::VARIANT_COUNT,
+                std_variant_count: C::STD_VARIANT_COUNT,
+                extensible: C::EXTENSIBLE,
+            }
+        }
+
+        #[inline]
+        pub fn optional() -> Self {
+            ScopeDescription::Optional
+        }
+
+        #[inline]
+        pub fn default_type() -> Self {
+            ScopeDescription::Default
+        }
+
+        #[inline]
+        pub fn number<T: numbers::Number, C: numbers::Constraint<T>>() -> Self {
+            Self::Number {
+                tag: C::TAG,
+                min: C::MIN,
+                max: C::MAX,
+                extensible: C::EXTENSIBLE,
+            }
+        }
+
+        #[inline]
+        pub fn utf8string<C: utf8string::Constraint>() -> Self {
+            Self::Utf8String {
+                tag: C::TAG,
+                min: C::MIN,
+                max: C::MAX,
+                extensible: C::EXTENSIBLE,
+            }
+        }
+
+        #[inline]
+        pub fn ia5string<C: ia5string::Constraint>() -> Self {
+            Self::Ia5String {
+                tag: C::TAG,
+                min: C::MIN,
+                max: C::MAX,
+                extensible: C::EXTENSIBLE,
+            }
+        }
+
+        #[inline]
+        pub fn numeric_string<C: numericstring::Constraint>() -> Self {
+            Self::NumericString {
+                tag: C::TAG,
+                min: C::MIN,
+                max: C::MAX,
+                extensible: C::EXTENSIBLE,
+            }
+        }
+
+        #[inline]
+        pub fn printable_string<C: printablestring::Constraint>() -> Self {
+            Self::PrintableString {
+                tag: C::TAG,
+                min: C::MIN,
+                max: C::MAX,
+                extensible: C::EXTENSIBLE,
+            }
+        }
+
+        #[inline]
+        pub fn visible_string<C: visiblestring::Constraint>() -> Self {
+            Self::VisibleString {
+                tag: C::TAG,
+                min: C::MIN,
+                max: C::MAX,
+                extensible: C::EXTENSIBLE,
+            }
+        }
+
+        #[inline]
+        pub fn octet_string<C: octetstring::Constraint>() -> Self {
+            Self::OctetString {
+                tag: C::TAG,
+                min: C::MIN,
+                max: C::MAX,
+                extensible: C::EXTENSIBLE,
+            }
+        }
+
+        #[inline]
+        pub fn bit_string<C: bitstring::Constraint>() -> Self {
+            Self::BitString {
+                tag: C::TAG,
+                min: C::MIN,
+                max: C::MAX,
+                extensible: C::EXTENSIBLE,
+            }
+        }
+
+        #[inline]
+        pub fn boolean<C: boolean::Constraint>() -> Self {
+            Self::Boolean { tag: C::TAG }
+        }
+
+        #[inline]
+        pub fn bits_length_determinant(
+            lower_bound: Option<u64>,
+            upper_bound: Option<u64>,
+            result: Result<u64, Error>,
+        ) -> Self {
+            Self::BitsLengthDeterminant {
+                lower_bound,
+                upper_bound,
+                result,
+            }
+        }
+
+        #[inline]
+        pub fn bits_enumeration_index(
+            std_variants: u64,
+            extensible: bool,
+            result: Result<u64, Error>,
+        ) -> Self {
+            Self::BitsEnumerationIndex {
+                std_variants,
+                extensible,
+                result,
+            }
+        }
+
+        #[inline]
+        pub fn read_whole_sub_slice<T>(
+            length_bytes: usize,
+            write_position: usize,
+            write_original: usize,
+            len: usize,
+            result: &Result<T, Error>,
+        ) -> Self {
+            Self::ReadWholeSubSlice {
+                length_bytes,
+                write_position,
+                write_original,
+                len,
+                result: result.as_ref().map(drop).map_err(|e| e.clone()),
+            }
+        }
+
+        #[inline]
+        pub fn read_bit_field_entry(is_opt: bool, result: &Result<Option<bool>, Error>) -> Self {
+            Self::ReadBitFieldEntry {
+                is_opt,
+                result: result.clone(),
+            }
+        }
+
+        #[inline]
+        pub fn warning(s: impl Into<String>) -> Self {
+            Self::Warning { message: s.into() }
+        }
     }
 }
