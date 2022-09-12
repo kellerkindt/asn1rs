@@ -1047,7 +1047,7 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
                     .ok_or_else(|| ErrorKind::InvalidChoiceIndex(index, C::VARIANT_COUNT).into());
                 #[cfg(feature = "descriptive-deserialize-errors")]
                 self.scope_description.push(ScopeDescription::Result(
-                    result.as_ref().map(|_| index.to_string()).map_err(|e| Error::clone(e))
+                    result.as_ref().map(|_| index.to_string()).map_err(Error::clone)
                 ));
                 result
             });
