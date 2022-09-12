@@ -63,12 +63,18 @@ pub enum ErrorKind {
     UnsupportedOperation(String),
     InsufficientSpaceInDestinationBuffer(Backtrace),
     InsufficientDataInSourceBuffer(Backtrace),
+    LengthDeterminantExceedsLimit {
+        length: usize,
+        limit: usize,
+        backtrace: Backtrace,
+    },
     InvalidChoiceIndex(u64, u64),
     ExtensionFieldsInconsistent(String),
     ValueNotInRange(i64, i64, i64),
     ValueExceedsMaxInt,
     ValueIsNegativeButExpectedUnsigned(i64),
     SizeNotInRange(u64, u64, u64),
+    BitLenNotInRange(u64, u64, u64),
     OptFlagsExhausted,
     EndOfStream,
 }
@@ -93,6 +99,17 @@ impl Error {
     #[inline(never)]
     pub fn insufficient_data_in_source_buffer() -> Self {
         ErrorKind::InsufficientDataInSourceBuffer(Backtrace::new_unresolved()).into()
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn length_determinant_exceeds_limit(length: usize, limit: usize) -> Self {
+        ErrorKind::LengthDeterminantExceedsLimit {
+            length,
+            limit,
+            backtrace: Backtrace::new_unresolved(),
+        }
+        .into()
     }
 }
 
@@ -129,6 +146,22 @@ impl std::fmt::Display for ErrorKind {
                     b
                 }
             ),
+            ErrorKind::LengthDeterminantExceedsLimit {
+                length,
+                limit,
+                backtrace,
+            } => {
+                write!(
+                    f,
+                    "The read length determinant exceeds the byte limit of {} with the value {}:\n{:?}",
+                    limit, length,
+                    {
+                        let mut b = backtrace.clone();
+                        b.resolve();
+                        b
+                    }
+                )
+            }
             Self::InvalidChoiceIndex(index, variant_count) => write!(
                 f,
                 "Unexpected choice-index {} with variant count {}",
@@ -159,6 +192,11 @@ impl std::fmt::Display for ErrorKind {
                 "The size {} is not within the inclusive range of {} and {}",
                 size, min, max
             ),
+            Self::BitLenNotInRange(size, min, max) => write!(
+                f,
+                "The length {} is not within the inclusive range of {} and {} for a bit field",
+                size, min, max
+            ),
             Self::OptFlagsExhausted => write!(f, "All optional flags have already been exhausted"),
             Self::EndOfStream => write!(
                 f,
@@ -184,6 +222,9 @@ impl PartialEq for ErrorKind {
             Self::InsufficientDataInSourceBuffer(_) => {
                 matches!(other, Self::InsufficientDataInSourceBuffer(_))
             }
+            Self::LengthDeterminantExceedsLimit { length, limit, .. } => {
+                matches!(other, Self::LengthDeterminantExceedsLimit { length: other_length, limit: other_limit, .. } if length == other_length && limit == other_limit)
+            }
             Self::InvalidChoiceIndex(a, b) => {
                 matches!(other, Self::InvalidChoiceIndex(oa, ob) if (a, b) == (oa, ob))
             }
@@ -199,6 +240,9 @@ impl PartialEq for ErrorKind {
             }
             Self::SizeNotInRange(a, b, c) => {
                 matches!(other, Self::SizeNotInRange(oa, ob, oc) if (a,b ,c) == (oa, ob,oc))
+            }
+            Self::BitLenNotInRange(a, b, c) => {
+                matches!(other, Self::BitLenNotInRange(oa, ob, oc) if (a,b ,c) == (oa, ob,oc))
             }
             Self::OptFlagsExhausted => matches!(other, Self::OptFlagsExhausted),
             Self::EndOfStream => matches!(other, Self::EndOfStream),

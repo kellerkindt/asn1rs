@@ -61,12 +61,9 @@ pub trait ScopedBitRead: BitRead {
     #[inline]
     fn with_read_position_at<T, F: Fn(&mut Self) -> T>(&mut self, pos: usize, f: F) -> T {
         let original_pos = self.pos();
-        debug_assert!(pos < self.len());
-        let pos_set = self.set_pos(pos);
-        debug_assert_eq!(pos, pos_set);
+        self.set_pos(pos);
         let result = f(self);
-        let pos_set = self.set_pos(original_pos);
-        debug_assert_eq!(original_pos, pos_set);
+        self.set_pos(original_pos);
         result
     }
 }
@@ -95,17 +92,21 @@ impl<T: BitRead> PackedRead for T {
         };
 
         if let Some((lower, upper)) = range {
-            let range = upper - lower;
+            let range = upper.saturating_sub(lower);
             let offset_bits = range.leading_zeros() as usize;
             let mut bytes = [0u8; std::mem::size_of::<u64>()];
             self.read_bits_with_offset(&mut bytes, offset_bits)?;
             Ok(lower + u64::from_be_bytes(bytes))
         } else {
-            let length = self.read_length_determinant(None, None)?;
             let mut bytes = [0u8; std::mem::size_of::<u64>()];
-            let offset = bytes.len() - length as usize;
-            self.read_bits(&mut bytes[offset..])?;
-            Ok(u64::from_be_bytes(bytes))
+            let length = self.read_length_determinant(None, None)? as usize;
+
+            if let Some(offset) = bytes.len().checked_sub(length) {
+                self.read_bits(&mut bytes[offset..])?;
+                Ok(u64::from_be_bytes(bytes))
+            } else {
+                Err(Error::length_determinant_exceeds_limit(length, bytes.len()))
+            }
         }
     }
 
@@ -113,6 +114,16 @@ impl<T: BitRead> PackedRead for T {
     #[inline]
     fn read_2s_compliment_binary_integer(&mut self, bit_len: u64) -> Result<i64, Error> {
         let mut bytes = [0u8; std::mem::size_of::<i64>()];
+
+        if bit_len == 0 || bit_len as usize > bytes.len() * BYTE_LEN {
+            return Err(ErrorKind::BitLenNotInRange(
+                bit_len,
+                1_u64,
+                (bytes.len() * BYTE_LEN) as u64,
+            )
+            .into());
+        }
+
         let bits_offset = (bytes.len() * BYTE_LEN) - bit_len as usize;
         self.read_bits_with_offset(&mut bytes, bits_offset)?;
         let byte_offset = bits_offset / BYTE_LEN;
