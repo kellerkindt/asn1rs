@@ -397,7 +397,7 @@ impl Writer for ProtobufWriter<'_> {
         bit_len: u64,
     ) -> Result<(), Self::Error> {
         let tag = self.state.tag_counter + 1;
-        let mut value = (&value[..(bit_len as usize + 7) / 8]).to_vec();
+        let mut value = value[..(bit_len as usize + 7) / 8].to_vec();
         bit_len.to_be_bytes().iter().for_each(|b| value.push(*b));
 
         self.buffer.write_tagged_bytes(tag, &value)?;
