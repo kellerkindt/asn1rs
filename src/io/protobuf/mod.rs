@@ -111,7 +111,7 @@ pub trait ProtoWrite {
     fn write_varint(&mut self, value: u64) -> Result<(), Error>;
 
     fn write_bool(&mut self, value: bool) -> Result<(), Error> {
-        self.write_varint(if value { 1 } else { 0 })
+        self.write_varint(u64::from(value))
     }
 
     fn write_bytes(&mut self, value: &[u8]) -> Result<(), Error>;
