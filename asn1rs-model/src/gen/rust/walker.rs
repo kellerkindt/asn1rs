@@ -25,7 +25,12 @@ impl AsnDefWriter {
                 ordering,
             } => {
                 scope.raw(&format!(
-                    "type AsnDef{} = {}{}<{}>;",
+                    "{}type AsnDef{} = {}{}<{}>;",
+                    if cfg!(feature = "generate-internal-docs") {
+                        ""
+                    } else {
+                        "#[doc(hidden)] "
+                    },
                     name,
                     CRATE_SYN_PREFIX,
                     match ordering {
@@ -40,14 +45,28 @@ impl AsnDefWriter {
             }
             Rust::Enum(_enm) => {
                 scope.raw(&format!(
-                    "type AsnDef{} = {}Enumerated<{}>;",
-                    name, CRATE_SYN_PREFIX, name
+                    "{}type AsnDef{} = {}Enumerated<{}>;",
+                    if cfg!(feature = "generate-internal-docs") {
+                        ""
+                    } else {
+                        "#[doc(hidden)] "
+                    },
+                    name,
+                    CRATE_SYN_PREFIX,
+                    name
                 ));
             }
             Rust::DataEnum(enm) => {
                 scope.raw(&format!(
-                    "type AsnDef{} = {}Choice<{}>;",
-                    name, CRATE_SYN_PREFIX, name
+                    "{}type AsnDef{} = {}Choice<{}>;",
+                    if cfg!(feature = "generate-internal-docs") {
+                        ""
+                    } else {
+                        "#[doc(hidden)] "
+                    },
+                    name,
+                    CRATE_SYN_PREFIX,
+                    name
                 ));
                 for variant in enm.variants() {
                     self.write_type_declaration(scope, name, variant.name(), variant.r#type());
@@ -59,8 +78,15 @@ impl AsnDefWriter {
                 constants: _,
             } => {
                 scope.raw(&format!(
-                    "type AsnDef{} = {}Sequence<{}>;",
-                    name, CRATE_SYN_PREFIX, name
+                    "{}type AsnDef{} = {}Sequence<{}>;",
+                    if cfg!(feature = "generate-internal-docs") {
+                        ""
+                    } else {
+                        "#[doc(hidden)] "
+                    },
+                    name,
+                    CRATE_SYN_PREFIX,
+                    name
                 ));
                 self.write_type_declaration(scope, name, "0", field);
             }
@@ -118,7 +144,16 @@ impl AsnDefWriter {
     fn write_type_declaration(&self, scope: &mut Scope, base: &str, name: &str, r#type: &RustType) {
         let combined = Self::combined_field_type_name(base, name);
         let type_dec = Self::type_declaration(r#type, &Self::constraint_impl_name(&combined));
-        scope.raw(&format!("type AsnDef{} = {};", combined, type_dec));
+        scope.raw(&format!(
+            "{}type AsnDef{} = {};",
+            if cfg!(feature = "generate-internal-docs") {
+                ""
+            } else {
+                "#[doc(hidden)] "
+            },
+            combined,
+            type_dec
+        ));
     }
 
     fn constraint_impl_name(combined: &str) -> String {
@@ -699,6 +734,9 @@ impl AsnDefWriter {
     }
 
     fn write_constraint_type_decl(scope: &mut Scope, constraint_type_name: &str) {
+        if !cfg!(feature = "generate-internal-docs") {
+            scope.raw("#[doc(hidden)]");
+        }
         scope.new_struct(constraint_type_name).derive("Default");
     }
 
