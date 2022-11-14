@@ -17,6 +17,9 @@ impl AsnDefWriter {
         scope: &mut Scope,
         Definition(name, r#type): &Definition<Rust>,
     ) {
+        if !cfg!(feature = "generate-internal-docs") {
+            scope.raw("#[doc(hidden)]");
+        }
         match r#type {
             Rust::Struct {
                 fields,
@@ -25,12 +28,7 @@ impl AsnDefWriter {
                 ordering,
             } => {
                 scope.raw(&format!(
-                    "{}type AsnDef{} = {}{}<{}>;",
-                    if cfg!(feature = "generate-internal-docs") {
-                        ""
-                    } else {
-                        "#[doc(hidden)] "
-                    },
+                    "type AsnDef{} = {}{}<{}>;",
                     name,
                     CRATE_SYN_PREFIX,
                     match ordering {
@@ -45,28 +43,14 @@ impl AsnDefWriter {
             }
             Rust::Enum(_enm) => {
                 scope.raw(&format!(
-                    "{}type AsnDef{} = {}Enumerated<{}>;",
-                    if cfg!(feature = "generate-internal-docs") {
-                        ""
-                    } else {
-                        "#[doc(hidden)] "
-                    },
-                    name,
-                    CRATE_SYN_PREFIX,
-                    name
+                    "type AsnDef{} = {}Enumerated<{}>;",
+                    name, CRATE_SYN_PREFIX, name
                 ));
             }
             Rust::DataEnum(enm) => {
                 scope.raw(&format!(
-                    "{}type AsnDef{} = {}Choice<{}>;",
-                    if cfg!(feature = "generate-internal-docs") {
-                        ""
-                    } else {
-                        "#[doc(hidden)] "
-                    },
-                    name,
-                    CRATE_SYN_PREFIX,
-                    name
+                    "type AsnDef{} = {}Choice<{}>;",
+                    name, CRATE_SYN_PREFIX, name
                 ));
                 for variant in enm.variants() {
                     self.write_type_declaration(scope, name, variant.name(), variant.r#type());
@@ -78,15 +62,8 @@ impl AsnDefWriter {
                 constants: _,
             } => {
                 scope.raw(&format!(
-                    "{}type AsnDef{} = {}Sequence<{}>;",
-                    if cfg!(feature = "generate-internal-docs") {
-                        ""
-                    } else {
-                        "#[doc(hidden)] "
-                    },
-                    name,
-                    CRATE_SYN_PREFIX,
-                    name
+                    "type AsnDef{} = {}Sequence<{}>;",
+                    name, CRATE_SYN_PREFIX, name
                 ));
                 self.write_type_declaration(scope, name, "0", field);
             }
@@ -144,16 +121,10 @@ impl AsnDefWriter {
     fn write_type_declaration(&self, scope: &mut Scope, base: &str, name: &str, r#type: &RustType) {
         let combined = Self::combined_field_type_name(base, name);
         let type_dec = Self::type_declaration(r#type, &Self::constraint_impl_name(&combined));
-        scope.raw(&format!(
-            "{}type AsnDef{} = {};",
-            if cfg!(feature = "generate-internal-docs") {
-                ""
-            } else {
-                "#[doc(hidden)] "
-            },
-            combined,
-            type_dec
-        ));
+        if !cfg!(feature = "generate-internal-docs") {
+            scope.raw("#[doc(hidden)]");
+        }
+        scope.raw(&format!("type AsnDef{} = {};", combined, type_dec));
     }
 
     fn constraint_impl_name(combined: &str) -> String {
@@ -1063,18 +1034,34 @@ pub(crate) mod tests {
         let string = scope.to_string();
         println!("{}", string);
         let mut lines = string.lines().filter(|l| !l.is_empty());
+
+        macro_rules! assert_doc_hidden {
+            () => {
+                if !cfg!(feature = "generate-internal-docs") {
+                    assert_eq!(Some("#[doc(hidden)]"), lines.next());
+                }
+            };
+        }
+
+        assert_doc_hidden!();
         assert_eq!(
             Some("type AsnDefWhatever = ::asn1rs::syn::Sequence<Whatever>;"),
             lines.next()
         );
+
+        assert_doc_hidden!();
         assert_eq!(
             Some("type AsnDefWhateverFieldName = ::asn1rs::syn::Utf8String<___asn1rs_WhateverFieldNameConstraint>;"),
             lines.next()
         );
+
+        assert_doc_hidden!();
         assert_eq!(
             Some("type AsnDefWhateverFieldOpt = Option<::asn1rs::syn::Utf8String<___asn1rs_WhateverFieldOptConstraint>>;"),
             lines.next()
         );
+
+        assert_doc_hidden!();
         assert_eq!(
             Some("type AsnDefWhateverFieldSome = Option<::asn1rs::syn::Utf8String<___asn1rs_WhateverFieldSomeConstraint>>;"),
             lines.next()
@@ -1092,7 +1079,8 @@ pub(crate) mod tests {
         println!("{}", string);
 
         assert_lines(
-            r#"
+            &r#"
+            #[doc(hidden)]
             #[derive(Default)]
             struct ___asn1rs_WhateverFieldNameConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_WhateverFieldNameConstraint {
@@ -1102,7 +1090,7 @@ pub(crate) mod tests {
                 const EXTENSIBLE: bool = false;
             }
 
-            
+            #[doc(hidden)]
             #[derive(Default)]
             struct ___asn1rs_WhateverFieldOptConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_WhateverFieldOptConstraint {
@@ -1112,6 +1100,7 @@ pub(crate) mod tests {
                 const EXTENSIBLE: bool = false;
             }
             
+            #[doc(hidden)]
             #[derive(Default)]
             struct ___asn1rs_WhateverFieldSomeConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_WhateverFieldSomeConstraint {
@@ -1163,8 +1152,17 @@ pub(crate) mod tests {
                     AsnDefWhatever::write_value(writer, self)
                 }
             }
-                
-        "#,
+            "#
+                .lines()
+                .filter(|line| {
+                    if cfg!(feature = "generate-internal-docs") {
+                        line.trim() != "#[doc(hidden)]"
+                    } else {
+                        true
+                    }
+                })
+                .collect::<Vec<&str>>()
+                .join("\n"),
             &string,
         );
     }
@@ -1178,7 +1176,8 @@ pub(crate) mod tests {
         println!("{}", string);
 
         assert_lines(
-            r#"
+            &r#"
+            #[doc(hidden)]
             #[derive(Default)]
             struct ___asn1rs_PotatoFieldNameConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_PotatoFieldNameConstraint {
@@ -1187,7 +1186,8 @@ pub(crate) mod tests {
             impl ::asn1rs::syn::utf8string::Constraint for ___asn1rs_PotatoFieldNameConstraint {
                 const EXTENSIBLE: bool = false;
             }
-            
+
+            #[doc(hidden)]
             #[derive(Default)]
             struct ___asn1rs_PotatoFieldOptConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_PotatoFieldOptConstraint {
@@ -1196,7 +1196,8 @@ pub(crate) mod tests {
             impl ::asn1rs::syn::utf8string::Constraint for ___asn1rs_PotatoFieldOptConstraint {
                 const EXTENSIBLE: bool = false;
             }
-            
+
+            #[doc(hidden)]
             #[derive(Default)]
             struct ___asn1rs_PotatoFieldSomeConstraint;
             impl ::asn1rs::syn::common::Constraint for ___asn1rs_PotatoFieldSomeConstraint {
@@ -1213,7 +1214,7 @@ pub(crate) mod tests {
                 const STD_OPTIONAL_FIELDS: u64 = 1;
                 const FIELD_COUNT: u64 = 3;
                 const EXTENDED_AFTER_FIELD: Option<u64> = Some(1);
-                
+
                 #[inline]
                 fn read_seq<R: ::asn1rs::syn::Reader>(reader: &mut R) -> Result<Self, R::Error>
                 where Self: Sized,
@@ -1224,7 +1225,7 @@ pub(crate) mod tests {
                         some: AsnDefPotatoFieldSome::read_value(reader)?,
                     })
                 }
-                
+
                 #[inline]
                 fn write_seq<W: ::asn1rs::syn::Writer>(&self, writer: &mut W) -> Result<(), W::Error> {
                     AsnDefPotatoFieldName::write_value(writer, &self.name)?;
@@ -1233,8 +1234,18 @@ pub(crate) mod tests {
                     Ok(())
                 }
             }
-                
-        "#,
+
+            "#
+                .lines()
+                .filter(|line| {
+                    if cfg!(feature = "generate-internal-docs") {
+                        line.trim() != "#[doc(hidden)]"
+                    } else {
+                        true
+                    }
+                })
+                .collect::<Vec<&str>>()
+                .join("\n"),
             &string,
         );
     }
