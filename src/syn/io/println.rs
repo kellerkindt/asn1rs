@@ -23,7 +23,7 @@ impl Writer for PrintlnWriter {
         &mut self,
         f: F,
     ) -> Result<(), Self::Error> {
-        self.indented_println(&format!("Writing sequence {}, tag={:?}", C::NAME, C::TAG));
+        self.indented_println(format!("Writing sequence {}, tag={:?}", C::NAME, C::TAG));
         self.with_increased_indentation(|w| f(w))
     }
 
@@ -53,7 +53,7 @@ impl Writer for PrintlnWriter {
         &mut self,
         f: F,
     ) -> Result<(), Self::Error> {
-        self.indented_println(&format!("Writing set {}", C::NAME));
+        self.indented_println(format!("Writing set {}", C::NAME));
         self.with_increased_indentation(|w| f(w))
     }
 
@@ -82,7 +82,7 @@ impl Writer for PrintlnWriter {
         &mut self,
         enumerated: &C,
     ) -> Result<(), Self::Error> {
-        self.indented_println(&format!("Write enumerated {}, tag={:?}", C::NAME, C::TAG));
+        self.indented_println(format!("Write enumerated {}, tag={:?}", C::NAME, C::TAG));
         self.with_increased_indentation(|w| {
             if C::EXTENSIBLE {
                 w.indented_println("extensible");
@@ -90,7 +90,7 @@ impl Writer for PrintlnWriter {
                 w.indented_println("normal");
             }
             w.with_increased_indentation(|w| {
-                w.indented_println(&format!(
+                w.indented_println(format!(
                     "choice_index {}/{}/{}",
                     enumerated.to_choice_index(),
                     C::STD_VARIANT_COUNT,
@@ -102,7 +102,7 @@ impl Writer for PrintlnWriter {
     }
 
     fn write_choice<C: choice::Constraint>(&mut self, choice: &C) -> Result<(), Self::Error> {
-        self.indented_println(&format!("Write choice {}, tag={:?}", C::NAME, C::TAG));
+        self.indented_println(format!("Write choice {}, tag={:?}", C::NAME, C::TAG));
         self.with_increased_indentation(|w| {
             if C::EXTENSIBLE {
                 w.indented_println("extensible");
@@ -110,7 +110,7 @@ impl Writer for PrintlnWriter {
                 w.indented_println("normal");
             }
             w.with_increased_indentation(|w| {
-                w.indented_println(&format!(
+                w.indented_println(format!(
                     "choice_index {}/{}/{}",
                     choice.to_choice_index(),
                     C::STD_VARIANT_COUNT,
@@ -154,7 +154,7 @@ impl Writer for PrintlnWriter {
         &mut self,
         value: T,
     ) -> Result<(), Self::Error> {
-        self.indented_println(&format!(
+        self.indented_println(format!(
             "WRITING Integer({}..{}{}), tag={:?}",
             C::MIN
                 .map(|v| v.to_string())
@@ -173,7 +173,7 @@ impl Writer for PrintlnWriter {
         &mut self,
         value: &str,
     ) -> Result<(), Self::Error> {
-        self.indented_println(&format!(
+        self.indented_println(format!(
             "Writing Utf8String({}..{}), tag={:?}",
             C::MIN
                 .map(|v| format!("{}", v))
@@ -191,7 +191,7 @@ impl Writer for PrintlnWriter {
         &mut self,
         value: &str,
     ) -> Result<(), Self::Error> {
-        self.indented_println(&format!(
+        self.indented_println(format!(
             "Writing Ia5String({}..{}), tag={:?}",
             C::MIN
                 .map(|v| format!("{}", v))
@@ -209,7 +209,7 @@ impl Writer for PrintlnWriter {
         &mut self,
         value: &str,
     ) -> Result<(), Self::Error> {
-        self.indented_println(&format!(
+        self.indented_println(format!(
             "Writing NumericString({}..{}), tag={:?}",
             C::MIN
                 .map(|v| format!("{}", v))
@@ -227,7 +227,7 @@ impl Writer for PrintlnWriter {
         &mut self,
         value: &str,
     ) -> Result<(), Self::Error> {
-        self.indented_println(&format!(
+        self.indented_println(format!(
             "Writing PrintableString({}..{}), tag={:?}",
             C::MIN
                 .map(|v| format!("{}", v))
@@ -245,7 +245,7 @@ impl Writer for PrintlnWriter {
         &mut self,
         value: &str,
     ) -> Result<(), Self::Error> {
-        self.indented_println(&format!(
+        self.indented_println(format!(
             "Writing VisibleString({}..{}), tag={:?}",
             C::MIN
                 .map(|v| format!("{}", v))

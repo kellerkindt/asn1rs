@@ -268,7 +268,7 @@ impl RustCodeGenerator {
                 &format!(
                     "{} {}{}",
                     Self::asn_attribute(
-                        &Self::asn_attribute_type(&field.r#type().clone().into_asn()),
+                        Self::asn_attribute_type(&field.r#type().clone().into_asn()),
                         field.tag(),
                         None,
                         field.constants(),

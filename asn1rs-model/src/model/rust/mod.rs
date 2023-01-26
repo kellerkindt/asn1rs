@@ -651,10 +651,10 @@ impl Model<Rust> {
             Type::BitString(bs) => RustType::BitVec(bs.size.clone()),
             Type::Null => RustType::Null,
             Type::Optional(opt) => {
-                RustType::Option(Box::new(Self::map_asn_type_to_rust_type_flat(&**opt)?))
+                RustType::Option(Box::new(Self::map_asn_type_to_rust_type_flat(opt)?))
             }
             Type::Default(inner, default) => RustType::Default(
-                Box::new(Self::map_asn_type_to_rust_type_flat(&**inner)?),
+                Box::new(Self::map_asn_type_to_rust_type_flat(inner)?),
                 default.clone(),
             ),
             Type::TypeReference(name, tag) => RustType::Complex(name.clone(), *tag),
@@ -878,7 +878,7 @@ impl Model<Rust> {
                 RustType::Option(Box::new(Self::definition_type_to_rust_type(
                     name,
                     inner,
-                    tag.or_else(|| ctxt.resolver().resolve_no_default(&**inner)),
+                    tag.or_else(|| ctxt.resolver().resolve_no_default(inner)),
                     ctxt,
                 )))
             }
@@ -886,7 +886,7 @@ impl Model<Rust> {
                 Box::new(Self::definition_type_to_rust_type(
                     name,
                     inner,
-                    tag.or_else(|| ctxt.resolver().resolve_no_default(&**inner)),
+                    tag.or_else(|| ctxt.resolver().resolve_no_default(inner)),
                     ctxt,
                 )),
                 default.clone(),
@@ -895,7 +895,7 @@ impl Model<Rust> {
                 Box::new(Self::definition_type_to_rust_type(
                     name,
                     asn,
-                    tag.or_else(|| ctxt.resolver().resolve_no_default(&**asn)),
+                    tag.or_else(|| ctxt.resolver().resolve_no_default(asn)),
                     ctxt,
                 )),
                 size.clone(),
@@ -905,7 +905,7 @@ impl Model<Rust> {
                 Box::new(Self::definition_type_to_rust_type(
                     name,
                     asn,
-                    tag.or_else(|| ctxt.resolver().resolve_no_default(&**asn)),
+                    tag.or_else(|| ctxt.resolver().resolve_no_default(asn)),
                     ctxt,
                 )),
                 size.clone(),
@@ -971,7 +971,7 @@ impl Model<Rust> {
                         _ if max_amplitude <= I8_MAX => RustType::I8(Range::inclusive(min as i8, max as i8)),
                         _ if max_amplitude <= I16_MAX => RustType::I16(Range::inclusive(min as i16, max as i16)),
                         _ if max_amplitude <= I32_MAX => RustType::I32(Range::inclusive(min as i32, max as i32)),
-                        _/*if max_amplitude <= I64_MAX*/ => RustType::I64(Range::inclusive(min as i64, max as i64)),
+                        _/*if max_amplitude <= I64_MAX*/ => RustType::I64(Range::inclusive(min, max)),
                         //_ => panic!("This should never happen, since max (being i64) cannot be greater than I64_MAX")
                     }
                 }

@@ -335,7 +335,7 @@ impl<'a> Reader for ProtobufReader<'a> {
         {
             reader.read_sint32().map(|v| T::from_i64(v as i64))
         } else {
-            reader.read_sint64().map(|v| T::from_i64(v as i64))
+            reader.read_sint64().map(|v| T::from_i64(v))
         }
     }
 
