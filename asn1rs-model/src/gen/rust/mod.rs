@@ -233,7 +233,11 @@ impl RustCodeGenerator {
                     plain.extension_after_variant().cloned(),
                     &[],
                 ));
-                Self::add_enum(self.new_enum(scope, name, true), name, plain)
+                Self::add_enum(
+                    self.new_enum(scope, name, true).derive("Default"),
+                    name,
+                    plain,
+                )
             }
             Rust::DataEnum(data) => {
                 scope.raw(&Self::asn_attribute(
@@ -282,8 +286,14 @@ impl RustCodeGenerator {
     }
 
     fn add_enum(en_m: &mut Enum, _name: &str, rust_enum: &PlainEnum) {
-        for variant in rust_enum.variants() {
-            en_m.new_variant(&Self::rust_variant_name(variant));
+        for (index, variant) in rust_enum.variants().enumerate() {
+            let name = Self::rust_variant_name(variant);
+            let name = if index == 0 {
+                format!("#[default] {name}")
+            } else {
+                name
+            };
+            en_m.new_variant(&name);
         }
     }
 
@@ -498,7 +508,6 @@ impl RustCodeGenerator {
                 for g in generators {
                     g.extend_impl_of_enum(name, implementation, r_enum);
                 }
-                Self::impl_enum_default(scope, name, r_enum);
             }
             Rust::DataEnum(enumeration) => {
                 let implementation = Self::impl_data_enum(scope, name, enumeration);
@@ -662,19 +671,6 @@ impl RustCodeGenerator {
             .line(format!(
                 "self.{} = value;",
                 Self::rust_field_name(field_name, true)
-            ));
-    }
-
-    fn impl_enum_default(scope: &mut Scope, name: &str, r_enum: &PlainEnum) {
-        scope
-            .new_impl(name)
-            .impl_trait("Default")
-            .new_fn("default")
-            .ret(name as &str)
-            .line(format!(
-                "{}::{}",
-                name,
-                Self::rust_variant_name(r_enum.variants().next().unwrap())
             ));
     }
 
