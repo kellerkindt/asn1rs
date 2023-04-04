@@ -21,5 +21,5 @@ debug-proc-macro = []
 
 [dependencies]
 asn1rs-model =  { version = "0.2.2", path = "../asn1rs-model" }
-syn = {version = "1.0.61", features = ["full"] }
+syn = {version = "1.0.109", features = ["full", "visit", "extra-traits"] }
 quote = "1.0.3"
