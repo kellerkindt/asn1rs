@@ -1,6 +1,4 @@
-use std::{
-    fmt::{Display, Formatter},
-};
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, Default, Copy, Clone, PartialOrd, PartialEq, Eq)]
 pub struct Location {
@@ -164,10 +162,11 @@ impl Tokenizer {
                             }
                         }
                         _ => {
-                            if content_iterator.peek().is_none() && line_0 == asn.lines().count() - 1 {
+                            if content_iterator.peek().is_none()
+                                && line_0 == asn.lines().count() - 1
+                            {
                                 panic!("The file has unclosed comment blocks. Nested comment blocks are counted.");
-                            }
-                            else {
+                            } else {
                                 continue;
                             }
                         }
@@ -371,9 +370,11 @@ mod tests {
         assert!(iter.next().unwrap().eq_text("END"));
         assert!(iter.next().is_none());
     }
-    
+
     #[test]
-    #[should_panic(expected = "The file has unclosed comment blocks. Nested comment blocks are counted.")]
+    #[should_panic(
+        expected = "The file has unclosed comment blocks. Nested comment blocks are counted."
+    )]
     pub fn test_unclosed_comment() {
         let _ = Tokenizer::default().parse(
             r"
@@ -387,8 +388,6 @@ mod tests {
             }
             END",
         );
-        
-
     }
 
     #[test]
