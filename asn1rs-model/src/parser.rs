@@ -1,8 +1,5 @@
 use std::{
-    collections::binary_heap::Iter,
     fmt::{Display, Formatter},
-    iter::{Enumerate, FlatMap, Peekable},
-    task::Context,
 };
 
 #[derive(Debug, Default, Copy, Clone, PartialOrd, PartialEq, Eq)]
@@ -145,16 +142,11 @@ impl Tokenizer {
     pub fn parse(&self, asn: &str) -> Vec<Token> {
         let mut previous = None;
         let mut tokens = Vec::new();
-        let mut nest_lvl = 0; // Nest level of comments
+        let mut nest_lvl = 0; // Nest level of the comments
 
         for (line_0, line) in asn.lines().enumerate() {
             let mut token = None;
-            let content = Some(line);
-            let mut content_iterator = content
-                .iter()
-                .flat_map(|c| c.chars())
-                .enumerate()
-                .peekable();
+            let mut content_iterator = line.chars().enumerate().peekable();
 
             while let Some((column_0, char)) = content_iterator.next() {
                 if nest_lvl > 0 {
@@ -172,7 +164,12 @@ impl Tokenizer {
                             }
                         }
                         _ => {
-                            continue;
+                            if content_iterator.peek().is_none() && line_0 == asn.lines().count() - 1 {
+                                panic!("The file has unclosed comment blocks. Nested comment blocks are counted.");
+                            }
+                            else {
+                                continue;
+                            }
                         }
                     }
                     continue;
@@ -373,6 +370,25 @@ mod tests {
         assert!(iter.next().unwrap().eq_separator('}'));
         assert!(iter.next().unwrap().eq_text("END"));
         assert!(iter.next().is_none());
+    }
+    
+    #[test]
+    #[should_panic(expected = "The file has unclosed comment blocks. Nested comment blocks are counted.")]
+    pub fn test_unclosed_comment() {
+        let _ = Tokenizer::default().parse(
+            r"
+            ASN1 DEFINITION ::= BEGIN
+            /* This is a comment
+            SomeTypeDef ::= SEQUENCE {
+            /* Nested comment level 1
+               /* Nested comment -- level 2 */
+            still in level 1 comment */
+            integer INTEGER
+            }
+            END",
+        );
+        
+
     }
 
     #[test]
