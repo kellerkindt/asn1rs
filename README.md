@@ -391,6 +391,11 @@ buffer.write_string("Still UTF8 Text").unwrap();
 send_to_another_host(buffer):
 ``` 
 
+#### Finding deserialization error origins
+
+For a more detailed report on deserialization errors, enable the `descriptive-deserialize-errors` feature.
+With this feature flag more details will be memorized while deserializing your data (see `ScopeDescription`) - thus causing a performance penalty -
+but it will list intermediate results with the error origin and the current location in the type hierarchy when displaying the error ( `println!("{e}")`);
 
 #### TODO
 Things to do at some point in time (PRs are welcome)
