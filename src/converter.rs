@@ -62,7 +62,7 @@ pub struct Converter {
 impl Converter {
     pub fn load_file<F: AsRef<Path>>(&mut self, file: F) -> Result<(), Error> {
         let input = ::std::fs::read_to_string(file)?;
-        let tokens = Tokenizer::default().parse(&input);
+        let tokens = Tokenizer.parse(&input);
         let model = Model::try_from(tokens)?;
         self.models.push(model);
         Ok(())
@@ -172,7 +172,7 @@ pub fn convert_to_rust<F: AsRef<Path>, D: AsRef<Path>, A: Fn(&mut RustGenerator)
     custom_adjustments: A,
 ) -> Result<Vec<String>, Error> {
     let input = ::std::fs::read_to_string(file)?;
-    let tokens = Tokenizer::default().parse(&input);
+    let tokens = Tokenizer.parse(&input);
     let model = Model::try_from(tokens)?.try_resolve()?;
     let mut generator = RustGenerator::default();
     generator.add_model(model.to_rust());
@@ -195,7 +195,7 @@ pub fn convert_to_proto<F: AsRef<Path>, D: AsRef<Path>>(
     dir: D,
 ) -> Result<Vec<String>, Error> {
     let input = ::std::fs::read_to_string(file)?;
-    let tokens = Tokenizer::default().parse(&input);
+    let tokens = Tokenizer.parse(&input);
     let model = Model::try_from(tokens)?.try_resolve()?;
     let mut generator = ProtobufGenerator::default();
     generator.add_model(model.to_rust().to_protobuf());
@@ -225,7 +225,7 @@ pub fn convert_to_sql_with<F: AsRef<Path>, D: AsRef<Path>>(
     mut generator: SqlGenerator,
 ) -> Result<Vec<String>, Error> {
     let input = ::std::fs::read_to_string(file)?;
-    let tokens = Tokenizer::default().parse(&input);
+    let tokens = Tokenizer.parse(&input);
     let model = Model::try_from(tokens)?.try_resolve()?;
 
     generator.add_model(model.to_rust().to_sql());
