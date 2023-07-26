@@ -131,16 +131,61 @@ impl Token {
 pub struct Tokenizer;
 
 impl Tokenizer {
+    /// Tokenize the given ASN.1 string.
+    /// Parse the string line by line and character by character.
+    /// Exclude comments as defined in 12.6.2-4  ITU-T Rec. X.680 (02/2021)
+    /// Ignore single-line comments defined with "--".
+    /// Ignore multi-line comments defined with /*  */.
+    /// Comment terminates when a matching "*/" has been found for each "/*"
     pub fn parse(&self, asn: &str) -> Vec<Token> {
         let mut previous = None;
         let mut tokens = Vec::new();
+        let mut nest_lvl = 0; // Nest level of the comments
 
         for (line_0, line) in asn.lines().enumerate() {
             let mut token = None;
-            let content = line.split("--").next(); // get rid of one-line comments
+            let mut content_iterator = line.chars().enumerate().peekable();
 
-            for (column_0, char) in content.iter().flat_map(|c| c.chars()).enumerate() {
+            while let Some((column_0, char)) = content_iterator.next() {
+                if nest_lvl > 0 {
+                    match char {
+                        '*' => {
+                            if let Some((_, '/')) = content_iterator.peek() {
+                                nest_lvl -= 1;
+                                content_iterator.next(); // remove closing '/'
+                            }
+                        }
+                        '/' => {
+                            if let Some((_, '*')) = content_iterator.peek() {
+                                nest_lvl += 1;
+                                content_iterator.next(); // remove opening '*'
+                            }
+                        }
+                        _ => {
+                            if content_iterator.peek().is_none()
+                                && line_0 == asn.lines().count() - 1
+                            {
+                                panic!("The file has unclosed comment blocks. Nested comment blocks are counted.");
+                            } else {
+                                continue;
+                            }
+                        }
+                    }
+                    continue;
+                }
+                // Get rid of one-line comments. Can also happen immediately after closing block comment
+                if nest_lvl == 0
+                    && char == '-'
+                    && content_iterator.peek().map(|&(_, ch)| ch) == Some('-')
+                {
+                    content_iterator.next(); // remove second '-'
+                    break; // ignore rest of the line
+                }
                 match char {
+                    '/' if content_iterator.peek().map(|&(_, ch)| ch) == Some('*') => {
+                        content_iterator.next(); // remove opening '*'
+                        nest_lvl += 1;
+                    }
                     // asn syntax
                     ':' | ';' | '=' | '(' | ')' | '{' | '}' | '.' | ',' | '[' | ']' | '\''
                     | '"' => {
@@ -290,6 +335,59 @@ mod tests {
         assert!(iter.next().unwrap().eq_separator('='));
         assert!(iter.next().unwrap().eq_text("None"));
         assert!(iter.next().is_none());
+    }
+    #[test]
+    pub fn test_ignores_multiline_comments() {
+        let result = Tokenizer::default().parse(
+            r"
+            ASN1 DEFINITION ::= BEGIN
+            /* This is a comment */
+            -- This is also a comment
+            SomeTypeDef ::= SEQUENCE {
+            /* Nested comment level 1
+               /* Nested comment -- level 2 */
+            still in level 1 comment */
+            integer INTEGER
+            }
+            END",
+        );
+        let mut iter = result.into_iter();
+        assert!(iter.next().unwrap().eq_text("ASN1"));
+        assert!(iter.next().unwrap().eq_text("DEFINITION"));
+        assert!(iter.next().unwrap().eq_separator(':'));
+        assert!(iter.next().unwrap().eq_separator(':'));
+        assert!(iter.next().unwrap().eq_separator('='));
+        assert!(iter.next().unwrap().eq_text("BEGIN"));
+        assert!(iter.next().unwrap().eq_text("SomeTypeDef"));
+        assert!(iter.next().unwrap().eq_separator(':'));
+        assert!(iter.next().unwrap().eq_separator(':'));
+        assert!(iter.next().unwrap().eq_separator('='));
+        assert!(iter.next().unwrap().eq_text("SEQUENCE"));
+        assert!(iter.next().unwrap().eq_separator('{'));
+        assert!(iter.next().unwrap().eq_text("integer"));
+        assert!(iter.next().unwrap().eq_text("INTEGER"));
+        assert!(iter.next().unwrap().eq_separator('}'));
+        assert!(iter.next().unwrap().eq_text("END"));
+        assert!(iter.next().is_none());
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "The file has unclosed comment blocks. Nested comment blocks are counted."
+    )]
+    pub fn test_unclosed_comment() {
+        let _ = Tokenizer::default().parse(
+            r"
+            ASN1 DEFINITION ::= BEGIN
+            /* This is a comment
+            SomeTypeDef ::= SEQUENCE {
+            /* Nested comment level 1
+               /* Nested comment -- level 2 */
+            still in level 1 comment */
+            integer INTEGER
+            }
+            END",
+        );
     }
 
     #[test]
