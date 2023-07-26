@@ -34,9 +34,33 @@ impl std::fmt::Display for Error {
         write!(f, "{}", self.0.kind)?;
         #[cfg(feature = "descriptive-deserialize-errors")]
         {
+            use crate::syn::io::ScopeDescription;
+
             writeln!(f)?;
+            let mut depth = 0;
             for desc in &self.0.description {
-                writeln!(f, " - {desc:?}")?;
+                let c = match desc {
+                    ScopeDescription::Sequence { .. }
+                    | ScopeDescription::SequenceOf { .. }
+                    | ScopeDescription::Enumerated { .. }
+                    | ScopeDescription::Choice { .. } => '+',
+                    ScopeDescription::End(_) => {
+                        depth -= 1;
+                        '-'
+                    }
+                    _ => ' ',
+                };
+
+                writeln!(f, " {}{c} {desc:?}", "  ".repeat(depth))?;
+                match desc {
+                    ScopeDescription::Sequence { .. }
+                    | ScopeDescription::SequenceOf { .. }
+                    | ScopeDescription::Enumerated { .. }
+                    | ScopeDescription::Choice { .. } => {
+                        depth += 1;
+                    }
+                    _ => {}
+                }
             }
         }
         Ok(())
