@@ -789,6 +789,20 @@ impl<B: ScopedBitRead> UperReader<B> {
     }
 
     #[inline]
+    fn read_choice_index(&mut self, std_variants: u64, extensible: bool) -> Result<u64, Error> {
+        #[allow(clippy::let_and_return)]
+        let result = self.bits.read_choice_index(std_variants, extensible);
+        #[cfg(feature = "descriptive-deserialize-errors")]
+        self.scope_description
+            .push(ScopeDescription::bits_choice_index(
+                std_variants,
+                extensible,
+                result.clone(),
+            ));
+        result
+    }
+
+    #[inline]
     pub fn bits_remaining(&self) -> usize {
         self.bits.remaining()
     }
@@ -1066,10 +1080,8 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
         let _ = self.read_bit_field_entry(false)?;
         #[allow(clippy::let_and_return)]
         let result = self.scope_stashed(|r| {
-            let index = r
-                .bits
-                .read_choice_index(C::STD_VARIANT_COUNT, C::EXTENSIBLE)?;
-            if index >= C::STD_VARIANT_COUNT {
+            let index = r.read_choice_index(C::STD_VARIANT_COUNT, C::EXTENSIBLE)?;
+            let result = if index >= C::STD_VARIANT_COUNT {
                 let length = r.read_length_determinant(None, None)?;
                 r.read_whole_sub_slice(length as usize, |r| Ok((index, C::read_content(index, r)?)))
             } else {
@@ -1077,7 +1089,15 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
             }
             .and_then(|(index, content)| {
                 content.ok_or_else(|| ErrorKind::InvalidChoiceIndex(index, C::VARIANT_COUNT).into())
-            })
+            });
+            #[cfg(feature = "descriptive-deserialize-errors")]
+            r.scope_description.push(ScopeDescription::Result(
+                result
+                    .as_ref()
+                    .map(|_| index.to_string())
+                    .map_err(Error::clone),
+            ));
+            result
         });
 
         #[cfg(feature = "descriptive-deserialize-errors")]
@@ -1500,6 +1520,11 @@ pub enum ScopeDescription {
         extensible: bool,
         result: Result<u64, Error>,
     },
+    BitsChoiceIndex {
+        std_variants: u64,
+        extensible: bool,
+        result: Result<u64, Error>,
+    },
     ReadWholeSubSlice {
         length_bytes: usize,
         write_position: usize,
@@ -1512,6 +1537,9 @@ pub enum ScopeDescription {
         result: Result<Option<bool>, Error>,
     },
     Warning {
+        message: String,
+    },
+    Error {
         message: String,
     },
     End(&'static str),
@@ -1680,6 +1708,19 @@ mod scope_description_impl {
             result: Result<u64, Error>,
         ) -> Self {
             Self::BitsEnumerationIndex {
+                std_variants,
+                extensible,
+                result,
+            }
+        }
+
+        #[inline]
+        pub fn bits_choice_index(
+            std_variants: u64,
+            extensible: bool,
+            result: Result<u64, Error>,
+        ) -> Self {
+            Self::BitsChoiceIndex {
                 std_variants,
                 extensible,
                 result,
