@@ -17,37 +17,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.3.0] - 2023-07-27
 
 ### Added
-- More tests (aa6e4f1, 4568b1f, ee74d2b)
-- Impl PartialEq for Error (11a8312)
-- Feature `descriptive-deserialize-errors` (7f3e11a)
-- Ignore multiline comments (f6a6e86, gh-78, thanks @Nicceboy)
+- More tests ([aa6e4f1](https://github.com/kellerkindt/asn1rs/commit/aa6e4f1) [4568b1f](https://github.com/kellerkindt/asn1rs/commit/4568b1f) [ee74d2b](https://github.com/kellerkindt/asn1rs/commit/ee74d2b))
+- Impl PartialEq for Error ([11a8312](https://github.com/kellerkindt/asn1rs/commit/11a8312))
+- Feature `descriptive-deserialize-errors` ([7f3e11a](https://github.com/kellerkindt/asn1rs/commit/7f3e11a))
+- Ignore multiline comments ([f6a6e86](https://github.com/kellerkindt/asn1rs/commit/f6a6e86), [gh-78](https://github.com/kellerkindt/asn1rs/issues/78), thanks [@Nicceboy](https://github.com/Nicceboy))
 ### Changed
-- Update `syn` version to 1.0.109 (96df6b2, 5b8c49f)
-- Collect Backtrace on insufficient source / destination buffer (4a2358e)
-- Update `bytes` to v1.0 (6765543)
-- Update `postgres` to v0.19.1 (63131d0)
-- Try to generate the protobuf package based on the OID before using the path (624a697, 1c460aa)
-- Prefix protobuf enum variants with their type name to pevent collisions (c sibling rule) (93214ac)
-- Use `bytes` instead of `bit_vec` in protobuf for ASN.1 `BIT STRING` (6af109b)
-- Rewrite `ProtobufReader` to properly handle out-of-order and missing tags (681ff2b)
-- Ignore non-.rs files for `proc_macro_coverage_hack` (c925df6, 1319241)
-- Limit (P-)SQL Type names to not exceed 63 characters (d662e56, c7b7401, 2d69ca1, gh-75)
-- Split `Error` type with boxed inner `ErrorKind` (7f3e11a, 2471539)
-- Add `#[doc(hidden)]` to internal constraint types generated via macro, disable with feature `generate-internal-docs` (20767e7)
-- Derive `Default` for enums (b189ef6)
+- Update `syn` version to 1.0.109 ([96df6b2](https://github.com/kellerkindt/asn1rs/commit/96df6b2), [5b8c49f](https://github.com/kellerkindt/asn1rs/commit/5b8c49f))
+- Collect Backtrace on insufficient source / destination buffer ([4a2358e](https://github.com/kellerkindt/asn1rs/commit/4a2358e))
+- Update `bytes` to v1.0 ([6765543](https://github.com/kellerkindt/asn1rs/commit/6765543))
+- Update `postgres` to v0.19.1 ([63131d0](https://github.com/kellerkindt/asn1rs/commit/63131d0))
+- Try to generate the protobuf package based on the OID before using the path ([624a697](https://github.com/kellerkindt/asn1rs/commit/624a697), [1c460aa](https://github.com/kellerkindt/asn1rs/commit/1c460aa))
+- Prefix protobuf enum variants with their type name to pevent collisions (c sibling rule) ([93214ac](https://github.com/kellerkindt/asn1rs/commit/93214ac))
+- Use `bytes` instead of `bit_vec` in protobuf for ASN.1 `BIT STRING` ([6af109b](https://github.com/kellerkindt/asn1rs/commit/6af109b))
+- Rewrite `ProtobufReader` to properly handle out-of-order and missing tags ([681ff2b](https://github.com/kellerkindt/asn1rs/commit/681ff2b))
+- Ignore non-.rs files for `proc_macro_coverage_hack` ([c925df6](https://github.com/kellerkindt/asn1rs/commit/c925df6), [1319241](https://github.com/kellerkindt/asn1rs/commit/1319241))
+- Limit (P-)SQL Type names to not exceed 63 characters ([d662e56](https://github.com/kellerkindt/asn1rs/commit/d662e56), [c7b7401](https://github.com/kellerkindt/asn1rs/commit/c7b7401), [2d69ca1](https://github.com/kellerkindt/asn1rs/commit/2d69ca1), [gh-75](https://github.com/kellerkindt/asn1rs/issues/75))
+- Split `Error` type with boxed inner `ErrorKind` ([7f3e11a](https://github.com/kellerkindt/asn1rs/commit/7f3e11a), [2471539](https://github.com/kellerkindt/asn1rs/commit/2471539))
+- Add `#[doc(hidden)]` to internal constraint types generated via macro, disable with feature `generate-internal-docs` ([20767e7](https://github.com/kellerkindt/asn1rs/commit/20767e7))
+- Derive `Default` for enums ([b189ef6](https://github.com/kellerkindt/asn1rs/commit/b189ef6))
 - Make the `CHANGELOG.md` adhere more closely to the [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) template.
 ### Deprecated
 ### Removed
 ### Fixed
-- Fix `Scope::exhausted` for `Scope::ExtensibleSequences` (6c9f334)
-- Fix call to `BitVec::ensure_vec_large_enough` and add pub accessor (a4cec0e)
-- Fix extensible fields in `SEQUENCE` and `SET` not treat as optional fields (75f2882)
-- Fix `read_length_determinant` for fragmented sizes (0083f3b)
-- Fix `write_length_determinant` the size 16kib (5061379)
-- Fix fragmented write_octetstring and add return value to `write_length_determinant` (30dfd73)
-- Fix usage of `rustdoc::broken_intra_doc_links` (c4f55dc, a4579cc)
-- Fix name duplication for inline choice types (e8aa191, gh-75)
-- Prevent two panics (thanks fuzzer) in `PacketRead` impl for `BitRead` (e3f5323)
+- Fix `Scope::exhausted` for `Scope::ExtensibleSequences` ([6c9f334](https://github.com/kellerkindt/asn1rs/commit/6c9f334))
+- Fix call to `BitVec::ensure_vec_large_enough` and add pub accessor ([a4cec0e](https://github.com/kellerkindt/asn1rs/commit/a4cec0e))
+- Fix extensible fields in `SEQUENCE` and `SET` not treat as optional fields ([75f2882](https://github.com/kellerkindt/asn1rs/commit/75f2882))
+- Fix `read_length_determinant` for fragmented sizes ([0083f3b](https://github.com/kellerkindt/asn1rs/commit/0083f3b))
+- Fix `write_length_determinant` the size 16kib ([5061379](https://github.com/kellerkindt/asn1rs/commit/5061379))
+- Fix fragmented write_octetstring and add return value to `write_length_determinant` ([30dfd73](https://github.com/kellerkindt/asn1rs/commit/30dfd73))
+- Fix usage of `rustdoc::broken_intra_doc_links` ([c4f55dc](https://github.com/kellerkindt/asn1rs/commit/c4f55dc), [a4579cc](https://github.com/kellerkindt/asn1rs/commit/a4579cc))
+- Fix name duplication for inline choice types ([e8aa191](https://github.com/kellerkindt/asn1rs/commit/e8aa191), [gh-75](https://github.com/kellerkindt/asn1rs/issues/75))
+- Prevent two panics (thanks fuzzer) in `PacketRead` impl for `BitRead` ([e3f5323](https://github.com/kellerkindt/asn1rs/commit/e3f5323))
 ### Security
 
 
