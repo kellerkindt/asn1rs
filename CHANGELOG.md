@@ -14,13 +14,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 ### Security
 
-## [0.3.2] - 2023-07-27
+## [0.3.1] - 2023-07-27
 ### Fixed
 - Fix `asn1rs-model` dependency of `asn1rs-macros` ([3986ce9](https://github.com/kellerkindt/asn1rs/commit/3986ce9))
 - Fix `asn1rs-macros` dependency of `asn1rs` ([5d4f4ec](https://github.com/kellerkindt/asn1rs/commit/5d4f4ec))
-
-## [0.3.1] - 2023-07-27
-### Fixed
 - Fix `asn1rs-*` version dependency ([9825de9](https://github.com/kellerkindt/asn1rs/commit/9825de9))
 
 ## [0.3.0] - 2023-07-27
