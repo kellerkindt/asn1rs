@@ -1,6 +1,6 @@
 [package]
 name = "asn1rs-macros"
-version = "0.2.2"
+version = "0.3.0"
 authors = ["Michael Watzko <michael@watzko.de>"]
 edition = "2018"
 description = "Macros for asn1rs"
