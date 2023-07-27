@@ -1,10 +1,63 @@
-# Version 0.2.2 (2021-05-03)
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+### Changed
+### Deprecated
+### Removed
+### Fixed
+### Security
+
+## [0.3.0] - 2023-07-27
+
+### Added
+- More tests (aa6e4f1, 4568b1f, ee74d2b)
+- Impl PartialEq for Error (11a8312)
+- Feature `descriptive-deserialize-errors` (7f3e11a)
+- Ignore multiline comments (f6a6e86, gh-78, thanks @Nicceboy)
+### Changed
+- Update `syn` version to 1.0.109 (96df6b2, 5b8c49f)
+- Collect Backtrace on insufficient source / destination buffer (4a2358e)
+- Update `bytes` to v1.0 (6765543)
+- Update `postgres` to v0.19.1 (63131d0)
+- Try to generate the protobuf package based on the OID before using the path (624a697, 1c460aa)
+- Prefix protobuf enum variants with their type name to pevent collisions (c sibling rule) (93214ac)
+- Use `bytes` instead of `bit_vec` in protobuf for ASN.1 `BIT STRING` (6af109b)
+- Rewrite `ProtobufReader` to properly handle out-of-order and missing tags (681ff2b)
+- Ignore non-.rs files for `proc_macro_coverage_hack` (c925df6, 1319241)
+- Limit (P-)SQL Type names to not exceed 63 characters (d662e56, c7b7401, 2d69ca1, gh-75)
+- Split `Error` type with boxed inner `ErrorKind` (7f3e11a, 2471539)
+- Add `#[doc(hidden)]` to internal constraint types generated via macro, disable with feature `generate-internal-docs` (20767e7)
+- Derive `Default` for enums (b189ef6)
+- Make the `CHANGELOG.md` adhere more closely to the [Keep a Changelog](https://keepachangelog.com/en/1.0.0/) template.
+### Deprecated
+### Removed
+### Fixed
+- Fix `Scope::exhausted` for `Scope::ExtensibleSequences` (6c9f334)
+- Fix call to `BitVec::ensure_vec_large_enough` and add pub accessor (a4cec0e)
+- Fix extensible fields in `SEQUENCE` and `SET` not treat as optional fields (75f2882)
+- Fix `read_length_determinant` for fragmented sizes (0083f3b)
+- Fix `write_length_determinant` the size 16kib (5061379)
+- Fix fragmented write_octetstring and add return value to `write_length_determinant` (30dfd73)
+- Fix usage of `rustdoc::broken_intra_doc_links` (c4f55dc, a4579cc)
+- Fix name duplication for inline choice types (e8aa191, gh-75)
+- Prevent two panics (thanks fuzzer) in `PacketRead` impl for `BitRead` (e3f5323)
+### Security
+
+
+## [0.2.2] - 2021-05-03
 
 This release includes a lot of refactoring and new features. With these changes, it is now possible to use the following ASN.1 standard:
 
 - 🎉 ```itu-t(0) identified-organization(4) etsi(0) itsDomain(5) wg1(1) en(302637) denm(1) version(2)``` (DENM)
 
-### Fixes
+### Fixed
 - Properly parse (extensible) `SIZE` without a range value.
 - Fix `ProtobufWriter` on slices
 - Fix clippy v1.51 remarks.
@@ -19,25 +72,25 @@ This release includes a lot of refactoring and new features. With these changes,
 - Resolving symbols across multiple module descriptions.
 - Support ASN `NULL` type
 
-### Changes
+### Changed
 - Generate constants besides structs. This has the advantage that constants are clearly visible.
 - Performance improvement while converting the Model to Rust: Do not allocating structs that are thrown away anyway (call `RustType::as_inner_type` instead of `::clone` & `RustType::into_inner_type`).
 
 ### Removed
 - **Legacy** protobuf and uper codegen
 
-# Version 0.2.1 (2021-03-22)
+## [0.2.1] - 2021-03-22
 
 This release refactors `Model<Asn>` which is now represented as `Model<Asn<Unresolved>>` and `Model<Asn<Resolved>>`.
 This change allows Value-References in SIZE and RANGE constraints (see [gh-50](https://github.com/kellerkindt/asn1rs/issues/50) [gh-49](https://github.com/kellerkindt/asn1rs/issues/49)) without a failable `to_rust()` converter.
 
-### Fixes
+### Fixed
 - No longer choke on empty `SEQUENCE` definitions (see [gh-44](https://github.com/kellerkindt/asn1rs/issues/44))
 
 ### Added
 - Parsing and resolving Value-References in SIZE and RANGE constraints (see [gh-50](https://github.com/kellerkindt/asn1rs/issues/50) [gh-49](https://github.com/kellerkindt/asn1rs/issues/49)) 
 
-### Changes
+### Changed
 - **BREAKING**: `Model::try_from(Tokenizer)` now returns `Model<Asn<Unresolved>>`. To convert to rust (`Model::<Asn<Resolved>>::to_rust(&self) -> Model<Rust>`) the fallible function `Model::<Asn<Unresolved>>::try_resolve(&self) -> Model<Asn<Resolved>>` must be called first.
 
 ```rust
@@ -48,7 +101,7 @@ let model_rust = Model::try_from(asn_tokens)
     .to_rust();
 ```
  
-# Version 0.2.0 (2021-02-03)
+## [0.2.0] - 2021-02-03
 
 This release includes a lot of refactoring and new features.
 With these changes, it is now possible to use the following two ASN.1 standards:
@@ -62,7 +115,7 @@ It will be **removed in 0.3.0**.
 
 Feel free to visit [the tests](tests) to learn about the new usage. You might want to start with the [showcase].
 
-### Fixes
+### Fixed
 - lots of smaller and niche parsing errors
 - Implement the canonical order for tags (ITU-T X.680 | ISO/IEC 8824-1, 8.6)
 - Missing CI checks on non-default features
@@ -89,7 +142,7 @@ Feel free to visit [the tests](tests) to learn about the new usage. You might wa
 
 \* For `SET OF` only BASIC-PER encoding is supported currently, see [#20](https://github.com/kellerkindt/asn1rs/issues/20)
 
-### Changes
+### Changed
 - Added ASN.1 Support Overview to README
 - Deprecated `UperSerializer` which generates a lot of complex code for (uper-)serialization. Instead general purpose and less complex code that is based on the visitor pattern will be generated. See [showcase] and commits linked to [#11]. This also allows to write ASN serializable structures without writing ASN itself (see [proc_macro_attribute]):
 
