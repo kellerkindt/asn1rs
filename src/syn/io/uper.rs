@@ -733,21 +733,20 @@ pub struct UperReader<B: ScopedBitRead> {
     scope_description: Vec<ScopeDescription>,
 }
 
-/*
 impl<B: ScopedBitRead> From<B> for UperReader<B> {
     fn from(bits: B) -> Self {
-        UperReader { bits, scope: None }
-    }
-}*/
-
-impl<'a, I: Into<Bits<'a>>> From<I> for UperReader<Bits<'a>> {
-    fn from(bits: I) -> Self {
-        Self {
-            bits: bits.into(),
+        UperReader {
+            bits,
             scope: None,
             #[cfg(feature = "descriptive-deserialize-errors")]
             scope_description: Vec::new(),
         }
+    }
+}
+
+impl<'a> From<(&'a [u8], usize)> for UperReader<Bits<'a>> {
+    fn from(bits: (&'a [u8], usize)) -> Self {
+        UperReader::from(Bits::from(bits))
     }
 }
 
@@ -1406,14 +1405,14 @@ impl<B: ScopedBitRead> Reader for UperReader<B> {
     }
 }
 
-pub trait UperDecodable<'a, I: Into<Bits<'a>> + 'a> {
-    fn decode_from_uper(bits: I) -> Result<Self, Error>
+pub trait UperDecodable<'a, B: ScopedBitRead> {
+    fn decode_from_uper(bits: B) -> Result<Self, Error>
     where
         Self: Sized;
 }
 
-impl<'a, R: Readable, I: Into<Bits<'a>> + 'a> UperDecodable<'a, I> for R {
-    fn decode_from_uper(bits: I) -> Result<Self, Error>
+impl<'a, R: Readable, B: ScopedBitRead> UperDecodable<'a, B> for R {
+    fn decode_from_uper(bits: B) -> Result<Self, Error>
     where
         Self: Sized,
     {
