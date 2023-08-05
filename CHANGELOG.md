@@ -9,10 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 ### Changed
+ - Implement UperReader for ScopedBitReader over Bits ([aa6b083], [gh-81], [@jkalez])
 ### Deprecated
 ### Removed
 ### Fixed
 ### Security
+
+[@jkalez]: https://github.com/jkalez
+[gh-81]: https://github.com/kellerkindt/asn1rs/issues/81
+[aa6b083]: https://github.com/kellerkindt/asn1rs/commit/aa6b08319be382f310b323343d0c49268e17af84
 
 ## [0.3.1] - 2023-07-27
 ### Fixed
