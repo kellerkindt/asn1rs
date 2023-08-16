@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 ### Changed
  - Implement UperReader for ScopedBitReader over Bits ([aa6b083], [gh-81], [@jkalez])
+ - Implement `UperReader::into_bits` ([aa6b083], [gh-82], [@jkalez])
 ### Deprecated
 ### Removed
 ### Fixed
@@ -17,7 +18,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 [@jkalez]: https://github.com/jkalez
 [gh-81]: https://github.com/kellerkindt/asn1rs/issues/81
+[gh-82]: https://github.com/kellerkindt/asn1rs/pull/82
 [aa6b083]: https://github.com/kellerkindt/asn1rs/commit/aa6b08319be382f310b323343d0c49268e17af84
+[e8b7c3c]: https://github.com/kellerkindt/asn1rs/commit/e8b7c3cff161287d71ae11fdc30737f76650b495
 
 ## [0.3.1] - 2023-07-27
 ### Fixed
