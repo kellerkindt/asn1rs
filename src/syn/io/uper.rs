@@ -752,6 +752,11 @@ impl<'a> From<(&'a [u8], usize)> for UperReader<Bits<'a>> {
 
 impl<B: ScopedBitRead> UperReader<B> {
     #[inline]
+    pub fn into_bits(self) -> B {
+        self.bits
+    }
+
+    #[inline]
     fn read_length_determinant(
         &mut self,
         lower_bound: Option<u64>,
