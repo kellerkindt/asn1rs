@@ -8,19 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+ - Implement `UperReader::into_bits` ([aa6b083], [gh-82], [@jkalez])
+ - Derive `Clone` for `UperReader` ([d6c5d18], [gh-83], [@jkalez])
 ### Changed
  - Implement UperReader for ScopedBitReader over Bits ([aa6b083], [gh-81], [@jkalez])
- - Implement `UperReader::into_bits` ([aa6b083], [gh-82], [@jkalez])
 ### Deprecated
 ### Removed
 ### Fixed
 ### Security
 
 [@jkalez]: https://github.com/jkalez
-[gh-81]: https://github.com/kellerkindt/asn1rs/issues/81
+[gh-81]: https://github.com/kellerkindt/asn1rs/pull/81
 [gh-82]: https://github.com/kellerkindt/asn1rs/pull/82
+[gh-83]: https://github.com/kellerkindt/asn1rs/pull/83
 [aa6b083]: https://github.com/kellerkindt/asn1rs/commit/aa6b08319be382f310b323343d0c49268e17af84
 [e8b7c3c]: https://github.com/kellerkindt/asn1rs/commit/e8b7c3cff161287d71ae11fdc30737f76650b495
+[d6c5d18]: https://github.com/kellerkindt/asn1rs/commit/d6c5d188b2792f96a37685153e2524056ce85e52
 
 ## [0.3.1] - 2023-07-27
 ### Fixed
