@@ -726,6 +726,7 @@ impl Writer for UperWriter {
     }
 }
 
+#[derive(Clone)]
 pub struct UperReader<B: ScopedBitRead> {
     bits: B,
     scope: Option<Scope>,
