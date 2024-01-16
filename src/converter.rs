@@ -1,6 +1,6 @@
 use asn1rs_model::asn::MultiModuleResolver;
-use asn1rs_model::generator::rust::RustCodeGenerator as RustGenerator;
-use asn1rs_model::generator::Generator;
+use asn1rs_model::generate::rust::RustCodeGenerator as RustGenerator;
+use asn1rs_model::generate::Generator;
 use asn1rs_model::parse::Tokenizer;
 use asn1rs_model::Model;
 use std::collections::HashMap;
@@ -10,15 +10,15 @@ use std::path::Path;
 pub enum Error {
     RustGenerator,
     #[cfg(feature = "protobuf")]
-    ProtobufGenerator(asn1rs_model::generator::protobuf::Error),
+    ProtobufGenerator(asn1rs_model::generate::protobuf::Error),
     Model(asn1rs_model::parse::Error),
     Io(std::io::Error),
     ResolveError(asn1rs_model::resolve::Error),
 }
 
 #[cfg(feature = "protobuf")]
-impl From<asn1rs_model::generator::protobuf::Error> for Error {
-    fn from(g: asn1rs_model::generator::protobuf::Error) -> Self {
+impl From<asn1rs_model::generate::protobuf::Error> for Error {
+    fn from(g: asn1rs_model::generate::protobuf::Error) -> Self {
         Error::ProtobufGenerator(g)
     }
 }
@@ -99,7 +99,7 @@ impl Converter {
         let mut files = HashMap::with_capacity(models.len());
 
         for model in &models {
-            let mut generator = asn1rs_model::generator::protobuf::ProtobufDefGenerator::default();
+            let mut generator = asn1rs_model::generate::protobuf::ProtobufDefGenerator::default();
             generator.add_model(model.to_rust_with_scope(&scope[..]).to_protobuf());
 
             files.insert(

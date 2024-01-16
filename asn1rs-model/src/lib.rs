@@ -5,7 +5,7 @@ extern crate strum_macros;
 pub mod protobuf;
 
 pub mod asn;
-pub mod generator;
+pub mod generate;
 pub mod parse;
 pub mod proc_macro;
 pub mod resolve;

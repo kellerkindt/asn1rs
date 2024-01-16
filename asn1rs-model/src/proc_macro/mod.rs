@@ -77,7 +77,7 @@ pub fn expand(definition: Option<Definition<AsnModelType>>) -> Vec<TokenStream> 
 
     if let Some(definition) = definition {
         model.definitions.push(definition);
-        use crate::generator::walker::AsnDefWriter;
+        use crate::generate::walker::AsnDefWriter;
 
         if cfg!(feature = "debug-proc-macro") {
             println!("---------- parsed definition to rust begin ----------");

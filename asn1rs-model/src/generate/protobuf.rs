@@ -1,5 +1,5 @@
 use crate::asn::{ObjectIdentifier, ObjectIdentifierComponent};
-use crate::generator::Generator;
+use crate::generate::Generator;
 use crate::model::Definition;
 use crate::model::Model;
 use crate::protobuf::{Protobuf, ProtobufType};

@@ -1,6 +1,6 @@
 use crate::asn::Charset;
 use crate::asn::{Range, Size, Tag, TagProperty};
-use crate::generator::RustCodeGenerator;
+use crate::generate::RustCodeGenerator;
 use crate::model::{Definition, LiteralValue, Model};
 use crate::rust::{DataEnum, EncodingOrdering, Field, PlainEnum, Rust, RustType};
 use codegen::{Block, Impl, Scope};

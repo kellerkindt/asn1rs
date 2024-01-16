@@ -1,5 +1,5 @@
 use crate::asn::{Tag, TagProperty, Type as AsnType, Type};
-use crate::generator::Generator;
+use crate::generate::Generator;
 use crate::model::{Definition, Model};
 use crate::rust::{DataEnum, Field, Rust, RustType};
 use crate::rust::{EncodingOrdering, PlainEnum};
@@ -922,7 +922,7 @@ impl RustCodeGenerator {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::generator::walker::tests::assert_starts_with_lines;
+    use crate::generate::walker::tests::assert_starts_with_lines;
     use crate::parse::Tokenizer;
 
     #[test]
