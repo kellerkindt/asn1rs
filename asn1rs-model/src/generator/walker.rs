@@ -1,6 +1,6 @@
 use crate::asn::Charset;
 use crate::asn::{Range, Size, Tag, TagProperty};
-use crate::generators::RustCodeGenerator;
+use crate::generator::RustCodeGenerator;
 use crate::model::rust::{DataEnum, EncodingOrdering, Field, PlainEnum};
 use crate::model::{Definition, LiteralValue, Model, Rust, RustType};
 use codegen::{Block, Impl, Scope};
@@ -956,7 +956,7 @@ impl AsnDefWriter {
 pub(crate) mod tests {
     use crate::asn::Charset;
     use crate::asn::Size;
-    use crate::generators::rust::walker::AsnDefWriter;
+    use crate::generator::rust::walker::AsnDefWriter;
     use crate::model::rust::{EncodingOrdering, Field};
     use crate::model::{Definition, Rust, RustType};
     use codegen::Scope;

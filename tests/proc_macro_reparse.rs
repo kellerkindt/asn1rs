@@ -15,7 +15,7 @@
 //!                      Rust-Model   <--- proc-macro  <---+                                                     
 
 use asn1rs::model::model::{Definition, Model, Rust};
-use asn1rs_model::generators::RustCodeGenerator;
+use asn1rs_model::generator::RustCodeGenerator;
 use asn1rs_model::parser::Tokenizer;
 use codegen::Scope;
 use proc_macro2::TokenStream;

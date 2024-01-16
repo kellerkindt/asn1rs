@@ -1,6 +1,7 @@
 #[cfg(feature = "protobuf")]
 pub mod protobuf;
 pub mod rust;
+pub mod walker;
 
 pub use self::rust::RustCodeGenerator;
 

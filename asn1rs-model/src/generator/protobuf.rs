@@ -1,5 +1,5 @@
 use crate::asn::{ObjectIdentifier, ObjectIdentifierComponent};
-use crate::generators::Generator;
+use crate::generator::Generator;
 use crate::model::rust::rust_module_name;
 use crate::model::Definition;
 use crate::model::Model;

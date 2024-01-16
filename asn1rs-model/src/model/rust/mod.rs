@@ -1205,8 +1205,8 @@ mod tests {
     use crate::asn::Type as AsnType;
     use crate::asn::{test_property, Range, Size, Tag};
     use crate::asn::{Choice, Enumerated, EnumeratedVariant};
-    use crate::generators::rust::walker::tests::assert_starts_with_lines;
-    use crate::generators::RustCodeGenerator;
+    use crate::generator::rust::walker::tests::assert_starts_with_lines;
+    use crate::generator::RustCodeGenerator;
     use crate::model::tests::*;
     use crate::model::Field;
     use crate::parser::Tokenizer;
