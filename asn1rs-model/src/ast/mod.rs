@@ -5,11 +5,11 @@ mod range;
 mod size;
 mod tag;
 
+use crate::asn::{Choice, ChoiceVariant, Enumerated, EnumeratedVariant};
+use crate::asn::{ComponentTypeList, TagProperty, TagResolver, Type};
 use crate::ast::attribute::{Context, DefinitionHeader, Transparent};
 use crate::ast::constants::ConstLit;
-use crate::model::lor::Resolved;
-use crate::model::{Choice, ChoiceVariant, Definition, Enumerated, Field, Model, Type};
-use crate::model::{ComponentTypeList, EnumeratedVariant, TagProperty, TagResolver};
+use crate::model::lit_or_ref::Resolved;
 use attribute::AsnAttribute;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -18,8 +18,10 @@ use std::str::FromStr;
 use syn::spanned::Spanned;
 use syn::{Attribute, Item};
 
+use crate::model::{Definition, Field, Model};
 pub use inline::asn_to_rust;
-pub type AsnModelType = crate::model::Asn<crate::model::lor::Resolved>;
+
+pub type AsnModelType = crate::asn::Asn<Resolved>;
 
 pub fn parse(attr: TokenStream, item: TokenStream) -> TokenStream {
     if cfg!(feature = "debug-proc-macro") {
@@ -75,7 +77,7 @@ pub fn expand(definition: Option<Definition<AsnModelType>>) -> Vec<TokenStream> 
 
     if let Some(definition) = definition {
         model.definitions.push(definition);
-        use crate::gen::rust::walker::AsnDefWriter;
+        use crate::generators::rust::walker::AsnDefWriter;
 
         if cfg!(feature = "debug-proc-macro") {
             println!("---------- parsed definition to rust begin ----------");

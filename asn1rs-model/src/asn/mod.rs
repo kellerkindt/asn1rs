@@ -1,9 +1,52 @@
-use crate::model::lor::{Error as ResolveError, TryResolve, Unresolved};
-use crate::model::lor::{ResolveState, Resolved, Resolver};
-use crate::model::{
-    BitString, Charset, Choice, ChoiceVariant, ComponentTypeList, Enumerated, Field, Integer,
-    LitOrRef, LiteralValue, Range, Size, Tag, TagProperty, Target,
-};
+macro_rules! loop_ctrl_separator {
+    ($token:expr) => {
+        match $token {
+            t if t.eq_separator(',') => continue,
+            t if t.eq_separator('}') => break,
+            t => return Err(Error::unexpected_token(t)),
+        }
+    };
+}
+
+mod bit_string;
+mod charset;
+mod choice;
+mod components;
+mod enumerated;
+mod inner_type_constraints;
+mod integer;
+mod model;
+mod oid;
+mod range;
+mod resolve_scope;
+mod size;
+mod tag;
+mod tag_resolver;
+
+pub use crate::asn::bit_string::BitString;
+pub use charset::Charset;
+pub use choice::Choice;
+pub use choice::ChoiceVariant;
+pub use components::ComponentTypeList;
+pub use enumerated::Enumerated;
+pub use enumerated::EnumeratedVariant;
+pub use inner_type_constraints::InnerTypeConstraints;
+pub use integer::Integer;
+pub use oid::ObjectIdentifier;
+pub use oid::ObjectIdentifierComponent;
+pub use range::Range;
+pub use resolve_scope::MultiModuleResolver;
+pub use resolve_scope::ResolveScope;
+pub use size::Size;
+#[cfg(test)]
+pub(crate) use tag::tests::test_property;
+pub use tag::Tag;
+pub use tag::TagProperty;
+pub use tag_resolver::TagResolver;
+
+use crate::model::lit_or_ref::{Error as ResolveError, LitOrRef, TryResolve, Unresolved};
+use crate::model::lit_or_ref::{ResolveState, Resolved, Resolver};
+use crate::model::{Field, LiteralValue, Target};
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]

@@ -1,5 +1,6 @@
-use crate::model::lor::{Error, Resolved, Resolver, Unresolved};
-use crate::model::{Asn, Definition, LitOrRef, LiteralValue, Model, Target, Type, ValueReference};
+use crate::asn::{Asn, Type};
+use crate::model::lit_or_ref::{Error, LitOrRef, Resolved, Resolver, Unresolved};
+use crate::model::{Definition, LiteralValue, Model, Target, ValueReference};
 
 #[derive(Default)]
 pub struct MultiModuleResolver {
@@ -25,7 +26,7 @@ impl MultiModuleResolver {
     }
 }
 
-pub(crate) struct ResolveScope<'a> {
+pub struct ResolveScope<'a> {
     model: &'a Model<Asn<Unresolved>>,
     scope: &'a [Model<Asn<Unresolved>>],
 }

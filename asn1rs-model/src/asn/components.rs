@@ -1,6 +1,9 @@
-use crate::model::lor::{Error as ResolveError, Resolved, Resolver};
-use crate::model::lor::{ResolveState, Unresolved};
-use crate::model::{Asn, Error, Field, Model, PeekableTokens, Type};
+use crate::asn::{Asn, Type};
+use crate::model::err::Error;
+use crate::model::lit_or_ref::{Error as ResolveError, Resolved, Resolver};
+use crate::model::lit_or_ref::{ResolveState, Unresolved};
+use crate::model::parse::PeekableTokens;
+use crate::model::{Field, Model};
 use crate::parser::Token;
 use std::convert::TryFrom;
 use std::iter::Peekable;

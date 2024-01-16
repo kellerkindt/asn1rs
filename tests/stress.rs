@@ -1,4 +1,4 @@
-use asn1rs::model::Model;
+use asn1rs::model::model::Model;
 use asn1rs::parser::Tokenizer;
 use std::time::{Duration, Instant};
 

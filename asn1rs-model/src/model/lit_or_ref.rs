@@ -1,5 +1,4 @@
-use crate::model::rs::ResolveScope;
-use crate::model::{Asn, LiteralValue, Model};
+use crate::model::LiteralValue;
 use std::fmt::{Debug, Display, Formatter};
 
 pub trait ResolveState: Clone {
@@ -83,18 +82,13 @@ pub trait TryResolve<T, R: Sized> {
     fn try_resolve(&self, resolver: &impl Resolver<T>) -> Result<R, Error>;
 }
 
-impl Model<Asn<Unresolved>> {
-    pub fn try_resolve(&self) -> Result<Model<Asn<Resolved>>, Error> {
-        ResolveScope::from(self).try_resolve()
-    }
-}
-
 #[cfg(test)]
 pub mod tests {
     use super::*;
-    use crate::model::Range;
-    use crate::model::Type;
-    use crate::model::{Definition, Integer, ValueReference};
+    use crate::asn::Integer;
+    use crate::asn::Range;
+    use crate::asn::{Asn, Type};
+    use crate::model::{Definition, Model, ValueReference};
 
     #[test]
     fn test_simple_resolve() {

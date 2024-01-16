@@ -1,5 +1,5 @@
-use crate::gen::rust::RustCodeGenerator as RustGenerator;
-use crate::gen::Generator;
+use crate::generators::rust::RustCodeGenerator as RustGenerator;
+use crate::generators::Generator;
 use crate::model::Model;
 use crate::parser::Tokenizer;
 

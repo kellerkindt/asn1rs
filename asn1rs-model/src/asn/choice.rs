@@ -1,8 +1,13 @@
-use crate::model::lor::{Error as ResolveError, ResolveState, Resolved, Resolver, Unresolved};
-use crate::model::{Asn, Error, Model, PeekableTokens, Tag, TagProperty, Type};
+use crate::model::lit_or_ref::{
+    Error as ResolveError, ResolveState, Resolved, Resolver, Unresolved,
+};
 use crate::parser::Token;
 use std::convert::TryFrom;
 
+use crate::asn::{Asn, Tag, TagProperty, Type};
+use crate::model::err::Error;
+use crate::model::parse::PeekableTokens;
+use crate::model::Model;
 use std::iter::Peekable;
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]
@@ -179,7 +184,7 @@ impl ChoiceVariant<Unresolved> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::tag::tests::test_property;
+    use crate::asn::test_property;
 
     #[test]
     pub fn test_tag_property_choice_variant() {

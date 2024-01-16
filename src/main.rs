@@ -23,7 +23,7 @@ pub mod converter;
 
 use crate::cli::ConversionTarget;
 use asn1rs::converter::Converter;
-pub use asn1rs_model::gen;
+pub use asn1rs_model::generators;
 pub use asn1rs_model::model;
 pub use asn1rs_model::parser;
 

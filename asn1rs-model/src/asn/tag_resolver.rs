@@ -1,5 +1,6 @@
-use crate::model::charset::Charset;
-use crate::model::{Asn, Definition, Model, Tag, TagProperty, Type};
+use crate::asn::Charset;
+use crate::asn::{Asn, Tag, TagProperty, Type};
+use crate::model::{Definition, Model};
 
 pub struct TagResolver<'a> {
     model: &'a Model<Asn>,

@@ -5,8 +5,8 @@ use crate::io::per::unaligned::BitWrite;
 use crate::io::per::unaligned::BYTE_LEN;
 use crate::io::per::PackedRead;
 use crate::io::per::PackedWrite;
-use crate::model::Charset;
 use crate::syn::*;
+use asn1rs_model::asn::Charset;
 use std::fmt::Debug;
 use std::ops::Range;
 
@@ -1435,27 +1435,27 @@ impl<'a, R: Readable, B: ScopedBitRead> UperDecodable<'a, B> for R {
 pub enum ScopeDescription {
     Root(Vec<ScopeDescription>),
     Sequence {
-        tag: asn1rs_model::model::Tag,
+        tag: asn1rs_model::asn::Tag,
         name: &'static str,
         std_optional_fields: u64,
         field_count: u64,
         extended_after_field: Option<u64>,
     },
     SequenceOf {
-        tag: asn1rs_model::model::Tag,
+        tag: asn1rs_model::asn::Tag,
         min: Option<u64>,
         max: Option<u64>,
         extensible: bool,
     },
     Enumerated {
-        tag: asn1rs_model::model::Tag,
+        tag: asn1rs_model::asn::Tag,
         name: &'static str,
         variant_count: u64,
         std_variant_count: u64,
         extensible: bool,
     },
     Choice {
-        tag: asn1rs_model::model::Tag,
+        tag: asn1rs_model::asn::Tag,
         name: &'static str,
         variant_count: u64,
         std_variant_count: u64,
@@ -1464,55 +1464,55 @@ pub enum ScopeDescription {
     Optional,
     Default,
     Number {
-        tag: asn1rs_model::model::Tag,
+        tag: asn1rs_model::asn::Tag,
         min: Option<i64>,
         max: Option<i64>,
         extensible: bool,
     },
     Utf8String {
-        tag: asn1rs_model::model::Tag,
+        tag: asn1rs_model::asn::Tag,
         min: Option<u64>,
         max: Option<u64>,
         extensible: bool,
     },
     Ia5String {
-        tag: asn1rs_model::model::Tag,
+        tag: asn1rs_model::asn::Tag,
         min: Option<u64>,
         max: Option<u64>,
         extensible: bool,
     },
     NumericString {
-        tag: asn1rs_model::model::Tag,
+        tag: asn1rs_model::asn::Tag,
         min: Option<u64>,
         max: Option<u64>,
         extensible: bool,
     },
     PrintableString {
-        tag: asn1rs_model::model::Tag,
+        tag: asn1rs_model::asn::Tag,
         min: Option<u64>,
         max: Option<u64>,
         extensible: bool,
     },
     VisibleString {
-        tag: asn1rs_model::model::Tag,
+        tag: asn1rs_model::asn::Tag,
         min: Option<u64>,
         max: Option<u64>,
         extensible: bool,
     },
     OctetString {
-        tag: asn1rs_model::model::Tag,
+        tag: asn1rs_model::asn::Tag,
         min: Option<u64>,
         max: Option<u64>,
         extensible: bool,
     },
     BitString {
-        tag: asn1rs_model::model::Tag,
+        tag: asn1rs_model::asn::Tag,
         min: Option<u64>,
         max: Option<u64>,
         extensible: bool,
     },
     Boolean {
-        tag: asn1rs_model::model::Tag,
+        tag: asn1rs_model::asn::Tag,
     },
     Result(Result<String, Error>),
     BitsLengthDeterminant {

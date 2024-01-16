@@ -1,44 +1,42 @@
-use crate::gen::rust::RustCodeGenerator as RustGenerator;
-use crate::gen::Generator;
-use crate::model::lor::Error as ResolveError;
-use crate::model::Model;
-use crate::model::{Error as ModelError, MultiModuleResolver};
+use crate::generators::rust::RustCodeGenerator as RustGenerator;
+use crate::generators::Generator;
 use crate::parser::Tokenizer;
+use asn1rs_model::asn::MultiModuleResolver;
+use asn1rs_model::model::Model;
 use std::collections::HashMap;
-use std::io::Error as IoError;
 use std::path::Path;
 
 #[derive(Debug)]
 pub enum Error {
     RustGenerator,
     #[cfg(feature = "protobuf")]
-    ProtobufGenerator(crate::gen::protobuf::Error),
-    Model(ModelError),
-    Io(IoError),
-    ResolveError(ResolveError),
+    ProtobufGenerator(crate::generators::protobuf::Error),
+    Model(asn1rs_model::model::err::Error),
+    Io(std::io::Error),
+    ResolveError(asn1rs_model::model::lit_or_ref::Error),
 }
 
 #[cfg(feature = "protobuf")]
-impl From<crate::gen::protobuf::Error> for Error {
-    fn from(g: crate::gen::protobuf::Error) -> Self {
+impl From<crate::generators::protobuf::Error> for Error {
+    fn from(g: crate::generators::protobuf::Error) -> Self {
         Error::ProtobufGenerator(g)
     }
 }
 
-impl From<ModelError> for Error {
-    fn from(m: ModelError) -> Self {
+impl From<asn1rs_model::model::err::Error> for Error {
+    fn from(m: asn1rs_model::model::err::Error) -> Self {
         Error::Model(m)
     }
 }
 
-impl From<IoError> for Error {
-    fn from(e: IoError) -> Self {
+impl From<std::io::Error> for Error {
+    fn from(e: std::io::Error) -> Self {
         Error::Io(e)
     }
 }
 
-impl From<ResolveError> for Error {
-    fn from(e: ResolveError) -> Self {
+impl From<asn1rs_model::model::lit_or_ref::Error> for Error {
+    fn from(e: asn1rs_model::model::lit_or_ref::Error) -> Self {
         Error::ResolveError(e)
     }
 }
@@ -94,14 +92,14 @@ impl Converter {
         &self,
         directory: D,
     ) -> Result<HashMap<String, Vec<String>>, Error> {
-        use crate::model::protobuf::ToProtobufModel;
+        use asn1rs_model::model::protobuf::ToProtobufModel;
 
         let models = self.models.try_resolve_all()?;
         let scope = models.iter().collect::<Vec<_>>();
         let mut files = HashMap::with_capacity(models.len());
 
         for model in &models {
-            let mut generator = crate::gen::protobuf::ProtobufDefGenerator::default();
+            let mut generator = crate::generators::protobuf::ProtobufDefGenerator::default();
             generator.add_model(model.to_rust_with_scope(&scope[..]).to_protobuf());
 
             files.insert(

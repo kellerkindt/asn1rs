@@ -21,10 +21,10 @@ pub mod syn;
 #[cfg(feature = "model")]
 pub mod converter;
 #[cfg(feature = "model")]
+pub use asn1rs_model as model;
+#[cfg(feature = "model")]
 pub use asn1rs_model::ast;
 #[cfg(feature = "model")]
-pub use asn1rs_model::gen;
-#[cfg(feature = "model")]
-pub use asn1rs_model::model;
+pub use asn1rs_model::generators;
 #[cfg(feature = "model")]
 pub use asn1rs_model::parser;

@@ -1,4 +1,4 @@
-use crate::model::Tag;
+use crate::asn::Tag;
 use proc_macro2::Delimiter;
 use syn::parse::{Parse, ParseBuffer};
 

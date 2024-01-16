@@ -1,5 +1,5 @@
-use crate::model::Tag;
 use crate::syn::{ReadableType, Reader, WritableType, Writer};
+use asn1rs_model::asn::Tag;
 use core::marker::PhantomData;
 
 pub struct VisibleString<C: Constraint = NoConstraint>(PhantomData<C>);

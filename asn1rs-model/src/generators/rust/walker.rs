@@ -1,13 +1,13 @@
-use crate::gen::RustCodeGenerator;
+use crate::asn::Charset;
+use crate::asn::{Range, Size, Tag, TagProperty};
+use crate::generators::RustCodeGenerator;
 use crate::model::rust::{DataEnum, EncodingOrdering, Field, PlainEnum};
-use crate::model::{
-    Charset, Definition, LiteralValue, Model, Range, Rust, RustType, Size, Tag, TagProperty,
-};
+use crate::model::{Definition, LiteralValue, Model, Rust, RustType};
 use codegen::{Block, Impl, Scope};
 use std::fmt::Display;
 
 pub const CRATE_SYN_PREFIX: &str = "::asn1rs::syn::";
-pub const CRATE_MODEL_PREFIX: &str = "::asn1rs::model::";
+pub const CRATE_MODEL_PREFIX: &str = "::asn1rs::model::asn::";
 
 pub struct AsnDefWriter;
 
@@ -954,9 +954,11 @@ impl AsnDefWriter {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::gen::rust::walker::AsnDefWriter;
+    use crate::asn::Charset;
+    use crate::asn::Size;
+    use crate::generators::rust::walker::AsnDefWriter;
     use crate::model::rust::{EncodingOrdering, Field};
-    use crate::model::{Charset, Definition, Rust, RustType, Size};
+    use crate::model::{Definition, Rust, RustType};
     use codegen::Scope;
 
     fn simple_whatever_sequence() -> Definition<Rust> {

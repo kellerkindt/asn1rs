@@ -2,7 +2,7 @@
 
 mod test_utils;
 
-use asn1rs::model::Tag;
+use asn1rs::model::asn::Tag;
 use test_utils::*;
 
 asn_to_rust!(

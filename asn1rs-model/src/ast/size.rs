@@ -1,4 +1,4 @@
-use crate::model::Size;
+use crate::asn::Size;
 use syn::parse::{Parse, ParseStream};
 use syn::Ident;
 use syn::Lit;

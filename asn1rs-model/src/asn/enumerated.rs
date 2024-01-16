@@ -1,4 +1,5 @@
-use crate::model::{Error, PeekableTokens};
+use crate::model::err::Error;
+use crate::model::parse::PeekableTokens;
 use crate::parser::Token;
 use std::convert::TryFrom;
 use std::iter::Peekable;

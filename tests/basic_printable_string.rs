@@ -36,10 +36,12 @@ fn detect_only_invalid_character() {
     }
     .write(&mut writer);
     assert_eq!(
-        Err(
-            asn1rs::io::per::ErrorKind::InvalidString(asn1rs::model::Charset::Printable, '!', 74)
-                .into()
-        ),
+        Err(asn1rs::io::per::ErrorKind::InvalidString(
+            asn1rs::model::asn::Charset::Printable,
+            '!',
+            74
+        )
+        .into()),
         result
     )
 }

@@ -1,13 +1,12 @@
 pub mod walker;
 
-use crate::gen::Generator;
+use crate::asn::{Tag, TagProperty, Type as AsnType, Type};
+use crate::generators::Generator;
 use crate::model::rust::{DataEnum, Field};
 use crate::model::rust::{EncodingOrdering, PlainEnum};
-use crate::model::Model;
 use crate::model::Rust;
 use crate::model::RustType;
-use crate::model::TagProperty;
-use crate::model::{Definition, Tag, Type as AsnType, Type};
+use crate::model::{Definition, Model};
 use codegen::Block;
 use codegen::Enum;
 use codegen::Impl;
@@ -927,7 +926,7 @@ impl RustCodeGenerator {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::gen::rust::walker::tests::assert_starts_with_lines;
+    use crate::generators::rust::walker::tests::assert_starts_with_lines;
     use crate::parser::Tokenizer;
 
     #[test]

@@ -1,4 +1,4 @@
-use crate::model::Charset;
+use asn1rs_model::asn::Charset;
 use backtrace::Backtrace;
 use std::string::FromUtf8Error;
 

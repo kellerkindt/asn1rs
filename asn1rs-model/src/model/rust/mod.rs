@@ -1,12 +1,13 @@
-use crate::model::lor::{ResolveState, Resolved};
+use crate::asn::{
+    Asn, ComponentTypeList, Range, Size, Tag, TagProperty, TagResolver, Type as AsnType, Type,
+};
+use crate::asn::{Charset, ChoiceVariant, Integer};
+use crate::model::lit_or_ref::{ResolveState, Resolved};
 use crate::model::rust::Field as RustField;
-use crate::model::{Asn, ChoiceVariant, Integer, LiteralValue, Target};
-use crate::model::{Charset, Range};
-use crate::model::{ComponentTypeList, ValueReference};
-use crate::model::{Definition, Type};
-use crate::model::{Import, Tag, TagProperty};
-use crate::model::{Model, Size};
-use crate::model::{TagResolver, Type as AsnType};
+use crate::model::Import;
+use crate::model::Model;
+use crate::model::ValueReference;
+use crate::model::{Definition, LiteralValue, Target};
 use std::borrow::Cow;
 
 const I8_MAX: i64 = i8::MAX as i64;
@@ -1201,11 +1202,13 @@ impl LiteralValue {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::gen::rust::walker::tests::assert_starts_with_lines;
-    use crate::gen::RustCodeGenerator;
-    use crate::model::tag::tests::test_property;
+    use crate::asn::Type as AsnType;
+    use crate::asn::{test_property, Range, Size, Tag};
+    use crate::asn::{Choice, Enumerated, EnumeratedVariant};
+    use crate::generators::rust::walker::tests::assert_starts_with_lines;
+    use crate::generators::RustCodeGenerator;
     use crate::model::tests::*;
-    use crate::model::{Choice, Enumerated, EnumeratedVariant, Field, Tag, Type};
+    use crate::model::Field;
     use crate::parser::Tokenizer;
 
     #[test]

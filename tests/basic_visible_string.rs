@@ -37,7 +37,7 @@ fn detect_only_invalid_character() {
     .write(&mut writer);
     assert_eq!(
         Err(asn1rs::io::per::ErrorKind::InvalidString(
-            asn1rs::model::Charset::Visible,
+            asn1rs::model::asn::Charset::Visible,
             '\u{7F}',
             95
         )

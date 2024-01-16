@@ -1,4 +1,4 @@
-use crate::model::Tag;
+use crate::asn::Tag;
 
 #[derive(Debug, Clone, Copy, PartialOrd, PartialEq, Eq, EnumString)]
 #[strum(serialize_all = "lowercase")]
@@ -24,7 +24,7 @@ pub enum Charset {
 impl Charset {
     /// Sorted according to ITU-T X.680, 43.5
     /// ```rust
-    /// use asn1rs_model::model::Charset;
+    /// use asn1rs_model::asn::Charset;
     /// assert!(Charset::NUMERIC_STRING_CHARACTERS.chars().all(|c| Charset::Numeric.is_valid(c)));
     /// assert!(Charset::NUMERIC_STRING_CHARACTERS.chars().all(|c| Charset::Utf8.is_valid(c)));
     /// assert!(Charset::NUMERIC_STRING_CHARACTERS.chars().all(|c| Charset::Printable.is_valid(c)));
@@ -36,7 +36,7 @@ impl Charset {
 
     /// Sorted according to ITU-T X.680, 43.6
     /// ```rust
-    /// use asn1rs_model::model::Charset;
+    /// use asn1rs_model::asn::Charset;
     /// assert!(Charset::PRINTABLE_STRING_CHARACTERS.chars().all(|c| Charset::Printable.is_valid(c)));
     /// assert!(Charset::PRINTABLE_STRING_CHARACTERS.chars().all(|c| Charset::Utf8.is_valid(c)));
     /// assert!(Charset::PRINTABLE_STRING_CHARACTERS.chars().all(|c| Charset::Ia5.is_valid(c)));
@@ -48,7 +48,7 @@ impl Charset {
 
     /// Sorted according to ITU-T X.680, 43.8
     /// ```rust
-    /// use asn1rs_model::model::Charset;
+    /// use asn1rs_model::asn::Charset;
     /// assert!(Charset::IA5_STRING_CHARACTERS.chars().all(|c| Charset::Ia5.is_valid(c)));
     /// assert!(Charset::IA5_STRING_CHARACTERS.chars().all(|c| Charset::Utf8.is_valid(c)));
     /// assert_eq!(128, Charset::IA5_STRING_CHARACTERS.chars().count());
@@ -58,7 +58,7 @@ impl Charset {
 
     /// Sorted according to ITU-T X.680, 43.7
     /// ```rust
-    /// use asn1rs_model::model::Charset;
+    /// use asn1rs_model::asn::Charset;
     /// assert!(Charset::VISIBLE_STRING_CHARACTERS.chars().all(|c| Charset::Visible.is_valid(c)));
     /// assert!(Charset::VISIBLE_STRING_CHARACTERS.chars().all(|c| Charset::Ia5.is_valid(c)));
     /// assert!(Charset::VISIBLE_STRING_CHARACTERS.chars().all(|c| Charset::Utf8.is_valid(c)));

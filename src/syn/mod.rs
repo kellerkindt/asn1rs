@@ -246,7 +246,7 @@ mod tests {
     use crate::syn::io::PrintlnWriter;
     use crate::syn::sequence::Sequence;
     use crate::syn::utf8string::Utf8String;
-    use asn1rs_model::model::Tag;
+    use asn1rs_model::asn::Tag;
 
     #[test]
     fn test_compilable() {

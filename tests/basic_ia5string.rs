@@ -36,10 +36,12 @@ fn detect_only_invalid_character() {
     }
         .write(&mut writer);
     assert_eq!(
-        Err(
-            asn1rs::io::per::ErrorKind::InvalidString(asn1rs::model::Charset::Ia5, '\u{80}', 128)
-                .into()
-        ),
+        Err(asn1rs::io::per::ErrorKind::InvalidString(
+            asn1rs::model::asn::Charset::Ia5,
+            '\u{80}',
+            128
+        )
+        .into()),
         result
     )
 }

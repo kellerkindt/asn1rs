@@ -1,9 +1,10 @@
-use crate::gen::Generator;
+use crate::asn::{ObjectIdentifier, ObjectIdentifierComponent};
+use crate::generators::Generator;
 use crate::model::rust::rust_module_name;
+use crate::model::Definition;
+use crate::model::Model;
 use crate::model::Protobuf;
 use crate::model::ProtobufType;
-use crate::model::{Definition, ObjectIdentifierComponent};
-use crate::model::{Model, ObjectIdentifier};
 use std::fmt::Error as FmtError;
 use std::fmt::Write;
 

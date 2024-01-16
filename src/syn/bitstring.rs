@@ -1,6 +1,6 @@
 use crate::io::per::unaligned::BYTE_LEN;
 use crate::syn::{ReadableType, Reader, WritableType, Writer};
-use asn1rs_model::model::Tag;
+use asn1rs_model::asn::Tag;
 use std::cmp::Ordering;
 use std::marker::PhantomData;
 

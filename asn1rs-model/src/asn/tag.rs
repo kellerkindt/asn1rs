@@ -1,4 +1,6 @@
-use crate::model::{Error, PeekableTokens};
+use crate::model::err::Error;
+use crate::model::parse::PeekableTokens;
+use crate::model::{Definition, Field};
 use crate::parser::Token;
 use std::convert::TryFrom;
 use std::iter::Peekable;
@@ -11,7 +13,7 @@ use std::iter::Peekable;
 /// b) within each class, the numbers shall be ordered ascending
 ///
 /// ```rust
-/// use asn1rs_model::model::Tag;
+/// use asn1rs_model::asn::Tag;
 /// let mut tags = vec![
 ///     Tag::Universal(1),
 ///     Tag::Application(0),
@@ -136,9 +138,70 @@ pub trait TagProperty {
     }
 }
 
+impl<T: TagProperty> TagProperty for Definition<T> {
+    #[inline]
+    fn tag(&self) -> Option<Tag> {
+        self.1.tag()
+    }
+
+    #[inline]
+    fn set_tag(&mut self, tag: Tag) {
+        self.1.set_tag(tag)
+    }
+
+    #[inline]
+    fn reset_tag(&mut self) {
+        self.1.reset_tag()
+    }
+
+    #[inline]
+    fn with_tag_opt(self, tag: Option<Tag>) -> Self
+    where
+        Self: Sized,
+    {
+        Self(self.0, self.1.with_tag_opt(tag))
+    }
+
+    #[inline]
+    fn with_tag(self, tag: Tag) -> Self
+    where
+        Self: Sized,
+    {
+        Self(self.0, self.1.with_tag(tag))
+    }
+
+    #[inline]
+    fn without_tag(self) -> Self
+    where
+        Self: Sized,
+    {
+        Self(self.0, self.1.without_tag())
+    }
+}
+
+impl<T: TagProperty> TagProperty for Field<T> {
+    #[inline]
+    fn tag(&self) -> Option<Tag> {
+        self.role.tag()
+    }
+
+    #[inline]
+    fn set_tag(&mut self, tag: Tag) {
+        self.role.set_tag(tag)
+    }
+
+    #[inline]
+    fn reset_tag(&mut self) {
+        self.role.reset_tag()
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+    use crate::asn::{Asn, Type};
+    use crate::model::rust::PlainEnum;
+    use crate::model::{Definition, Rust};
 
     pub(crate) fn test_property<T: TagProperty>(mut property: T)
     where
@@ -158,5 +221,21 @@ pub(crate) mod tests {
 
         let property = property.with_tag(Tag::Private(42));
         assert_eq!(Some(Tag::Private(42)), property.tag());
+    }
+
+    #[test]
+    pub fn test_tag_property_definition_asn() {
+        test_property(Definition(
+            String::default(),
+            Asn::from(Type::unconstrained_integer()),
+        ));
+    }
+
+    #[test]
+    pub fn test_tag_property_definition_rust() {
+        test_property(Definition(
+            String::default(),
+            Rust::Enum(PlainEnum::from_names(Some("Variant").into_iter())),
+        ));
     }
 }
