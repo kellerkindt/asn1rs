@@ -954,12 +954,7 @@ impl AsnDefWriter {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::asn::Charset;
-    use crate::asn::Size;
-    use crate::generator::rust::walker::AsnDefWriter;
-    use crate::model::rust::{EncodingOrdering, Field};
-    use crate::model::{Definition, Rust, RustType};
-    use codegen::Scope;
+    use super::*;
 
     fn simple_whatever_sequence() -> Definition<Rust> {
         Definition(

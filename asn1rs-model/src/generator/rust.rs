@@ -924,7 +924,7 @@ impl RustCodeGenerator {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::generator::rust::walker::tests::assert_starts_with_lines;
+    use crate::generator::walker::tests::assert_starts_with_lines;
     use crate::parser::Tokenizer;
 
     #[test]

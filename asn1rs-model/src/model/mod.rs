@@ -2,7 +2,6 @@
 pub mod protobuf;
 pub mod rust;
 
-pub mod definition;
 pub mod err;
 pub mod lit_or_ref;
 pub mod parse;
@@ -13,7 +12,6 @@ pub use self::protobuf::Protobuf;
 pub use self::protobuf::ProtobufType;
 pub use self::rust::Rust;
 pub use self::rust::RustType;
-pub use crate::model::definition::Definition;
 
 use crate::asn::ObjectIdentifier;
 use std::fmt::Debug;
@@ -75,6 +73,24 @@ pub struct Import {
     pub what: Vec<String>,
     pub from: String,
     pub from_oid: Option<ObjectIdentifier>,
+}
+
+#[derive(Debug, Clone, PartialOrd, PartialEq, Eq)]
+pub struct Definition<T>(pub String, pub T);
+
+impl<T> Definition<T> {
+    #[cfg(test)]
+    pub fn new<I: ToString>(name: I, value: T) -> Self {
+        Definition(name.to_string(), value)
+    }
+
+    pub fn name(&self) -> &str {
+        &self.0
+    }
+
+    pub fn value(&self) -> &T {
+        &self.1
+    }
 }
 
 #[derive(Debug, Clone, PartialOrd, PartialEq, Eq)]

@@ -128,7 +128,7 @@ impl Model<Asn<Unresolved>> {
     fn read_definition(
         iter: &mut Peekable<IntoIter<Token>>,
         name: String,
-    ) -> Result<crate::model::definition::Definition<Asn<Unresolved>>, Error> {
+    ) -> Result<crate::model::Definition<Asn<Unresolved>>, Error> {
         iter.next_separator_eq_or_err(':')?;
         iter.next_separator_eq_or_err(':')?;
         iter.next_separator_eq_or_err('=')?;
@@ -136,27 +136,27 @@ impl Model<Asn<Unresolved>> {
         let (token, tag) = Self::next_with_opt_tag(iter)?;
 
         if token.eq_text_ignore_ascii_case("SEQUENCE") {
-            Ok(crate::model::definition::Definition(
+            Ok(crate::model::Definition(
                 name,
                 Self::read_sequence_or_sequence_of(iter)?.opt_tagged(tag),
             ))
         } else if token.eq_text_ignore_ascii_case("SET") {
-            Ok(crate::model::definition::Definition(
+            Ok(crate::model::Definition(
                 name,
                 Self::read_set_or_set_of(iter)?.opt_tagged(tag),
             ))
         } else if token.eq_text_ignore_ascii_case("ENUMERATED") {
-            Ok(crate::model::definition::Definition(
+            Ok(crate::model::Definition(
                 name,
                 Type::Enumerated(Enumerated::try_from(iter)?).opt_tagged(tag),
             ))
         } else if token.eq_text_ignore_ascii_case("CHOICE") {
-            Ok(crate::model::definition::Definition(
+            Ok(crate::model::Definition(
                 name,
                 Type::Choice(Choice::try_from(iter)?).opt_tagged(tag),
             ))
         } else if let Some(text) = token.text() {
-            Ok(crate::model::definition::Definition(
+            Ok(crate::model::Definition(
                 name,
                 Self::read_role_given_text(iter, text.to_string())?.opt_tagged(tag),
             ))
