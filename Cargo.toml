@@ -10,11 +10,11 @@ repository = "https://github.com/kellerkindt/asn1rs"
 license = "MIT/Apache-2.0"
 readme = "README.md"
 
-#[workspace]
-#members = [
-#    "asn1rs-macros",
-#    "asn1rs-model"
-#]
+[workspace]
+members = [
+    "asn1rs-macros",
+    "asn1rs-model"
+]
 
 [lib]
 name = "asn1rs"
@@ -35,8 +35,8 @@ serde = "1.0.195"
 serde_derive = "1.0.195"
 
 # feature asn1rs-*
-asn1rs-model =  { version = "0.3.0", path = "asn1rs-model", optional = true }
-asn1rs-macros = { version = "0.3.1", path = "asn1rs-macros", optional = true }
+asn1rs-model =  { version = "0.4.0", path = "asn1rs-model", optional = true }
+asn1rs-macros = { version = "0.4.0", path = "asn1rs-macros", optional = true }
 
 [dev-dependencies]
 syn = { version = "1.0.109", features = ["full", "visit", "extra-traits"] }
