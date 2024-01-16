@@ -16,8 +16,8 @@ codegen = "0.2.0"
 syn = {version = "1.0.109", features = ["full", "extra-traits"] }
 quote = "1.0.35"
 proc-macro2 = "1.0.76"
-strum = "0.19.5"
-strum_macros = "0.19.4"
+strum = "0.25.0"
+strum_macros = "0.25.3"
 
 [features]
 default = []
