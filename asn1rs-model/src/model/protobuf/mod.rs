@@ -1,6 +1,6 @@
-use crate::model::rust::*;
-use crate::model::*;
 use std::convert::Infallible;
+use crate::model::{Charset, Definition, Model, Range, Rust, RustType, Size, Target};
+use crate::model::rust::{EncodingOrdering, rust_module_name, rust_struct_or_enum_name, rust_variant_name};
 
 const TUPLE_VARIABLE_NAME_REPLACEMENT: &str = "value";
 const DATAENUM_VARIABLE_NAME_REPLACEMENT: &str = "value";
@@ -232,6 +232,8 @@ pub fn proto_definition_name(name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use crate::model::Import;
+    use crate::model::rust::{DataVariant, Field};
     use super::*;
 
     #[test]
