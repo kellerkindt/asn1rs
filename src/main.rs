@@ -43,7 +43,6 @@ pub fn main() {
             rust.set_fields_have_getter_and_setter(params.rust_getter_and_setter);
         }),
         cli::CONVERSION_TARGET_PROTO => converter.to_protobuf(&params.destination_dir),
-        cli::CONVERSION_TARGET_SQL => converter.to_sql(&params.destination_dir),
         e => panic!("Unexpected CONVERSION_TARGET={}", e),
     };
 

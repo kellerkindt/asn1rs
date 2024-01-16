@@ -1,14 +1,5 @@
 pub mod walker;
 
-#[cfg(feature = "psql")]
-pub mod psql;
-
-#[cfg(feature = "async-psql")]
-pub mod async_psql;
-
-#[cfg(any(feature = "psql", feature = "async-psql"))]
-pub(crate) mod shared_psql;
-
 use crate::gen::Generator;
 use crate::model::rust::{DataEnum, Field};
 use crate::model::rust::{EncodingOrdering, PlainEnum};
@@ -25,12 +16,6 @@ use codegen::Struct;
 use std::borrow::Cow;
 use std::convert::Infallible;
 use std::fmt::Display;
-
-#[cfg(feature = "psql")]
-use self::psql::PsqlInserter;
-
-#[cfg(feature = "async-psql")]
-use self::async_psql::AsyncPsqlInserter;
 
 const KEYWORDS: [&str; 9] = [
     "use", "mod", "const", "type", "pub", "enum", "struct", "impl", "trait",
@@ -94,13 +79,9 @@ impl Generator<Rust> for RustCodeGenerator {
         &mut self.models[..]
     }
 
+    #[inline]
     fn to_string(&self) -> Result<Vec<(String, String)>, Self::Error> {
-        Ok(self.to_string_with_generators(&[
-            #[cfg(feature = "psql")]
-            &PsqlInserter,
-            #[cfg(feature = "async-psql")]
-            &AsyncPsqlInserter,
-        ]))
+        Ok(self.to_string_without_generators())
     }
 }
 
@@ -138,11 +119,10 @@ impl RustCodeGenerator {
         &self,
         generators: &[&dyn GeneratorSupplement<Rust>],
     ) -> Vec<(String, String)> {
-        let mut files = Vec::new();
-        for model in &self.models {
-            files.push(self.model_to_file(model, generators));
-        }
-        files
+        self.models
+            .iter()
+            .map(|model| self.model_to_file(model, generators))
+            .collect()
     }
 
     pub fn model_to_file(

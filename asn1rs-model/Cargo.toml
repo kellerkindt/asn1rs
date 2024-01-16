@@ -3,8 +3,8 @@ name = "asn1rs-model"
 version = "0.3.0"
 authors = ["Michael Watzko <michael@watzko.de>"]
 edition = "2018"
-description = "Rust, Protobuf and SQL model definitions for asn1rs"
-keywords = ["asn1", "protobuf", "sql", "model"]
+description = "Rust and Protobuf model definitions for asn1rs"
+keywords = ["asn1", "protobuf", "model"]
 categories = ["parsing"]
 repository = "https://github.com/kellerkindt/asn1rs"
 license = "MIT/Apache-2.0"
@@ -21,9 +21,6 @@ strum_macros = "0.19.2"
 
 [features]
 default = []
-# RustCodeGenerator -> GeneratorSupplement
-psql = []
-async-psql = []
 protobuf = []
 debug-proc-macro = []
 generate-internal-docs = []

@@ -3,23 +3,8 @@
 //!      ::io::per                  Generic Packed Encoding impls and traits
 //!      ::io::per::unaligned       UNALIGNED PER specialization
 //!      ::io::per::aligned         ALIGNED PER specialization
-//!      ::io::...                  Other ASN.1 representations (e.g xer, ber, ...)
-//!
-//!      ::io::async_psql           Async PSQL io-utils
-//!      ::io::protobuf             Protocol Buffer io-utils
-//!      ::io::psql                 Blocking PSQL io-utils
-//!
-//!      ::io::uper                 Deprecated UNALIGNED PER decoder/encoder
+//!      ::io::...                  Other ASN.1 representations (e.g der, xer, ber, ...)
 //! ```
 
 pub mod per;
 pub mod protobuf;
-
-#[cfg(feature = "psql")]
-pub mod psql;
-
-#[cfg(feature = "async-psql")]
-pub mod async_psql;
-
-#[cfg(any(feature = "psql", feature = "async-psql"))]
-pub mod psql_shared;

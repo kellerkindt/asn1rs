@@ -19,60 +19,60 @@ The crate can be used as standalone CLI binary or used as library through its AP
 ### Supported Features
 
 
-| Feature             | Parses  | UPER    | Protobuf    | PSQL        | Async PSQL |
-| --------------------|:--------|:--------|:------------|:------------|:-----------|
-| ...extensible       | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
-| `SEQUENCE OF`       | ✔️ yes  | ✔️ yes   | ✔️ yes        | ✔️ yes       | ✔️ yes      |
-| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
-| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
-| `SET`               | ✔️ yes  | ✔️ yes   | ✔️ yes        | ✔️ yes       | ✔️ yes      |
-| ...extensible       | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
-| `SET OF`            | ✔️ yes  | ✔️ yes   | ✔️ yes        | ✔️ yes       | ✔️ yes      |
-| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
-| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
-| `ENUMERATED`        | ✔️ yes  | ✔️ yes   | ✔️ yes        | ✔️ yes       | ✔️ yes      |
-| ...extensible       | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
-| `CHOICE`            | ✔️ yes  | ✔️ yes   | ✔️ yes        | ✔️ yes       | ✔️ yes      |
-| ...extensible       | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
-| `BIT STRING`        | ✔️ yes  | ✔️ yes   | ✔️ yes¹       | ✔️ yes¹      | ✔️ yes¹     |
-| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
-| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
-| `OCTET STRING`      | ✔️ yes  | ✔️ yes   | ✔️ yes        | ✔️ yes       | ✔️ yes      |
-| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
-| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
-| `UTF8String`        | ✔️ yes  | ✔️ yes   | ✔️ yes        | ✔️ yes       | ✔️ yes      |
-| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
-| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
-| `IA5String`         | ✔️ yes  | ✔️ yes   | ✔️ yes¹       | ✔️ yes¹      | ✔️ yes¹     |
-| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
-| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
-| `NumericString`     | ✔️ yes  | ✔️ yes   | ✔️ yes¹       | ✔️ yes¹      | ✔️ yes¹     |
-| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
-| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
-| `PrintableString`   | ✔️ yes  | ✔️ yes   | ✔️ yes¹       | ✔️ yes¹      | ✔️ yes¹     |
-| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
-| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
-| `VisibleString`     | ✔️ yes  | ✔️ yes   | ✔️ yes¹       | ✔️ yes¹      | ✔️ yes¹     |
-| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
-| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes   | 🆗 ignored   | 🆗 ignored   | 🆗 ignored |
-| `INTEGER`           | ✔️ yes  | ✔️ yes   | ✔️ yes        | ✔️ yes       | ✔️ yes      |
-| ...`A..B`           | ✔️ yes  | ✔️ yes   | ✔️ yes²       | ✔️ yes²      | ✔️ yes²     |
-| ...`A..B,...`       | ✔️ yes  | ✔️ yes   | ✔️ yes²       | ✔️ yes²      | ✔️ yes²     |
-| `BOOLEAN`           | ✔️ yes  | ✔️ yes   | ✔️ yes        | ✔️ yes       | ✔️ yes      |
-| `OPTIONAL`          | ✔️ yes  | ✔️ yes   | ✔️ yes        | ✔️ yes       | ✔️ yes      |
-| `DEFAULT ...`       | ✔️ yes  |         |              |             |            |
-| ...`INTEGER`        | ✔️ yes  | ✔️ yes   | ✔️ yes¹       | ✔️ yes¹      | ✔️ yes¹     |
-| ...`*String`        | ✔️ yes  | ✔️ yes   | ✔️ yes¹       | ✔️ yes¹      | ✔️ yes¹     |
-| ...`BOOLEAN`        | ✔️ yes  | ✔️ yes   | ✔️ yes¹       | ✔️ yes¹      | ✔️ yes¹     |
-| ...`ENUMERATED`     | ✔️ yes  | ✔️ yes   | ✔️ yes¹       | ✔️ yes¹      | ✔️ yes¹     |
-| `NULL`              | ✔️ yes  | ✔️ yes   | ✔️ yes¹       | ✔️ yes¹      | ✔️ yes¹     |
-| `IMPORTS..FROM..;`  | ✔️ yes  |         |              |             |            |
-| `ObjectIdentifiers` | ✔️ yes  |         |              |             |            |
-| Value References    | ✔️ yes  |         |              |             |            |
-| ... in Range        | ✔️ yes  |         |              |             |            |
-| ... in Size         | ✔️ yes  |         |              |             |            |
-| ... in Default      | ✔️ yes  |         |              |             |            |
-| `WITH COMPONENTS`   | ✔️ yes  | 🆗 ignored | 🆗 ignored | 🆗 ignored  | 🆗 ignored  |
+| Feature             | Parses  | UPER   | Protobuf   |
+| --------------------|:--------|:-------|:-----------|
+| ...extensible       | ✔️ yes  | ✔️ yes | 🆗 ignored |
+| `SEQUENCE OF`       | ✔️ yes  | ✔️ yes | ✔️ yes     |
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes | 🆗 ignored |
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes | 🆗 ignored |
+| `SET`               | ✔️ yes  | ✔️ yes | ✔️ yes     |
+| ...extensible       | ✔️ yes  | ✔️ yes | 🆗 ignored |
+| `SET OF`            | ✔️ yes  | ✔️ yes | ✔️ yes     |
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes | 🆗 ignored |
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes | 🆗 ignored |
+| `ENUMERATED`        | ✔️ yes  | ✔️ yes | ✔️ yes     |
+| ...extensible       | ✔️ yes  | ✔️ yes | 🆗 ignored |
+| `CHOICE`            | ✔️ yes  | ✔️ yes | ✔️ yes     |
+| ...extensible       | ✔️ yes  | ✔️ yes | 🆗 ignored |
+| `BIT STRING`        | ✔️ yes  | ✔️ yes | ✔️ yes¹    |
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes | 🆗 ignored |
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes | 🆗 ignored |
+| `OCTET STRING`      | ✔️ yes  | ✔️ yes | ✔️ yes     |
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes | 🆗 ignored |
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes | 🆗 ignored |
+| `UTF8String`        | ✔️ yes  | ✔️ yes | ✔️ yes     |
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes | 🆗 ignored |
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes | 🆗 ignored |
+| `IA5String`         | ✔️ yes  | ✔️ yes | ✔️ yes¹    |
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes | 🆗 ignored |
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes | 🆗 ignored |
+| `NumericString`     | ✔️ yes  | ✔️ yes | ✔️ yes¹    |
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes | 🆗 ignored |
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes | 🆗 ignored |
+| `PrintableString`   | ✔️ yes  | ✔️ yes | ✔️ yes¹    |
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes | 🆗 ignored |
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes | 🆗 ignored |
+| `VisibleString`     | ✔️ yes  | ✔️ yes | ✔️ yes¹    |
+| ...`SIZE(A..B)`     | ✔️ yes  | ✔️ yes | 🆗 ignored |
+| ...`SIZE(A..B,...)` | ✔️ yes  | ✔️ yes | 🆗 ignored |
+| `INTEGER`           | ✔️ yes  | ✔️ yes | ✔️ yes     |
+| ...`A..B`           | ✔️ yes  | ✔️ yes | ✔️ yes²    |
+| ...`A..B,...`       | ✔️ yes  | ✔️ yes | ✔️ yes²    |
+| `BOOLEAN`           | ✔️ yes  | ✔️ yes | ✔️ yes     |
+| `OPTIONAL`          | ✔️ yes  | ✔️ yes | ✔️ yes     |
+| `DEFAULT ...`       | ✔️ yes  |        |            |
+| ...`INTEGER`        | ✔️ yes  | ✔️ yes | ✔️ yes¹    |
+| ...`*String`        | ✔️ yes  | ✔️ yes | ✔️ yes¹    |
+| ...`BOOLEAN`        | ✔️ yes  | ✔️ yes | ✔️ yes¹    |
+| ...`ENUMERATED`     | ✔️ yes  | ✔️ yes | ✔️ yes¹    |
+| `NULL`              | ✔️ yes  | ✔️ yes | ✔️ yes¹    |
+| `IMPORTS..FROM..;`  | ✔️ yes  |        |            |
+| `ObjectIdentifiers` | ✔️ yes  |        |            |
+| Value References    | ✔️ yes  |        |            |
+| ... in Range        | ✔️ yes  |        |            |
+| ... in Size         | ✔️ yes  |        |            |
+| ... in Default      | ✔️ yes  |        |            |
+| `WITH COMPONENTS`   | ✔️ yes  |        |            |
 
  - ✔️ yes: according to specification
  - ✔️ yes¹: different representation
@@ -83,12 +83,6 @@ The crate can be used as standalone CLI binary or used as library through its AP
  - ❌ ub: undefined behavior - whatever seems reasonable to prevent compiler errors and somehow transmit the value
  - 🟥 error: fails to compile / translate
 
-\*The legacy UPER Reader/Writer is deprecated and will be removed in version 0.3.0
-
-**TLDR**
-- The new (v0.2.0) UPER Reader/Writer supports all listed features
-- Protobuf, sync&async PSQL ignore most constraints
-- The legacy UPER Reader/Writer does not support all features (pre v0.2.0)
 
 #### Supported standards
  -  [📜️ ETSI TS 102 894-2 (PDF)](https://www.etsi.org/deliver/etsi_ts/102800_102899/10289402/01.02.01_60/ts_10289402v010201p.pdf)
@@ -114,14 +108,10 @@ asn1rs -t rust directory/for/rust/files some.asn1 messages.asn1
 asn1rs -t proto directory/for/protobuf/files some.asn1 messages.asn1
 ```
 
-```
-asn1rs -t sql directory/for/sql/schema/files some.asn1 messages.asn1
-```
-
 ### Example: build.rs
 
-The following example generates Rust, Protobuf and SQL files for all ```.asn1```-files in the ```asn/``` directory of a workspace.
-While the generated Rust code is written to the ```src/``` directory, the Protobuf files are written to ```proto/``` and the SQL files are written to ```sql/ ```.
+The following example generates Rust and Protobuf files for all ```.asn1```-files in the ```asn/``` directory of a workspace.
+While the generated Rust code is written to the ```src/``` directory, the Protobuf files are written to ```proto/```.
 Additionally, in this example each generated Rust-Type also receives ```Serialize``` and ```Deserialize``` derive directives (```#[derive(Serialize, Deserialize)]```) for [serde](https://crates.io/crates/serde) integration.
 
 Sample ```build.rs``` file:
@@ -129,7 +119,6 @@ Sample ```build.rs``` file:
 ```rust
 use asn1rs::converter::Converter;
 use asn1rs::gen::rust::RustCodeGenerator;
-use asn1rs::gen::sql::SqlDefGenerator;
 
 pub fn main() {
     let mut converter = Converter::default();
@@ -159,7 +148,7 @@ pub fn main() {
         });
 
     // writing the .rs files into src with serde_derive support
-    // feature flags decide whether additional code for protobuf and (async) psql is generated
+    // feature flags decide whether additional code for protobuf is generated
     if let Err(e) = converter.to_rust("src/", |generator: &mut RustCodeGenerator| {
         generator.add_global_derive("Serialize"); // Adds serde_derive support: #[derive(Serialize)]
         generator.add_global_derive("Deserialize"); // Adds serde_derive support: #[derive(Deserialize)]
@@ -170,16 +159,6 @@ pub fn main() {
     // OPTIONAL: writing the .proto representation to ../protocol/proto
     if let Err(e) = converter.to_protobuf("../protocol/proto/") {
         panic!("Conversion to proto failed: {:?}", e);
-    }
-
-    // OPTIONAL: writing the .sql schema files to ../protocol/sql
-    if let Err(e) = converter.to_sql_with(
-        "../protocol/sql/",
-        SqlDefGenerator::default() // optional parameter, alternatively see Converter::to_sql(&self, &str)
-            .optimize_tables_for_write_performance() // optional
-            .wrap_primary_key_on_overflow(), // optional
-    ) {
-        panic!("Conversion to sql failed: {:?}", e);
     }
 }
 
@@ -233,7 +212,7 @@ fn test_constraint_eq() {
 ```
 
 
-### Example: ASN.1-Definition converted to Rust, Protobuf and SQL
+### Example: ASN.1-Definition converted to Rust and Protobuf
 
 Minimal example showcasing what is being generated from an ASN.1 definition:
 
@@ -258,19 +237,6 @@ use asn1rs::prelude::*;
 pub struct Header {
     #[asn(integer(0..1209600000))] pub timestamp: u32,
 }
-
-// only with the feature "async-psql": Insert and query functions for async PostgreSQL
-impl Header {
-    pub async fn apsql_retrieve_many(context: &apsql::Context<'_>, ids: &[i32]) -> Result<Vec<Self>, apsql::Error> { /*..*/ }
-    pub async fn apsql_retrieve(context: &apsql::Context<'_>, id: i32) -> Result<Self, apsql::Error> { /*..*/ }
-    pub async fn apsql_load(context: &apsql::Context<'_>, row: &apsql::Row) -> Result<Self, apsql::Error> { /*..*/ }
-    pub async fn apsql_insert(&self, context: &apsql::Context<'_>) -> Result<i32, apsql::PsqlError> { /*..*/ }
-}
-
-// only with the feature "psql": Insert and query functions for non-async PostgreSQL
-impl PsqlRepresentable for Header { /*..*/ }
-impl PsqlInsertable for Header { /*..*/ }
-impl PsqlQueryable for Header { /*..*/ }
 ```
 
 The generated protobuf file (optional):
@@ -281,88 +247,6 @@ package my.messages;
 
 message Header {
     uint32 timestamp = 1;
-}
-```
-
-The generated SQL file (optional):
-
-```sql
-DROP TABLE IF EXISTS Header CASCADE;
-
-CREATE TABLE Header (
-    id SERIAL PRIMARY KEY,
-    timestamp INTEGER NOT NULL
-);
-```
-
-#### Example: Usage of async postgres
-NOTE: This requires the `async-psql` feature.
-
-Using async postgres allows the message - or the batched messages - to take advantage of [`pipelining`].
-This can provide a significant speedup for deep message types (personal experience this is around 26%) compared to the synchronous/blocking postgres implementation.
-
-```rust
-use asn1rs::io::async_psql::*;
-use tokio_postgres::NoTls;
-
-#[tokio::main]
-async fn main() {
-    let transactional = true;
-    let (mut client, connection) = tokio_postgres::connect(
-        "host=localhost user=postgres application_name=psql_async_demo",
-        NoTls,
-    )
-        .await
-        .expect("Failed to connect");
-
-    tokio::spawn(connection);
-  
-
-    let context = if transactional {
-        let transaction = client
-            .transaction()
-            .await
-            .expect("Failed to open a new transaction");
-        Cache::default().into_transaction_context(transaction)
-    } else {
-        Cache::default().into_client_context(client)
-    };
-
-    // using sample message from above
-    let message = Header {
-        timestamp: 1234,
-    };
-   
-    // This issues all necessary insert statements on the given Context and
-    // because it does not require exclusive access to the context, you can
-    // issue multiple inserts and await them concurrently with for example
-    // tokio::try_join, futures::try_join_all or the like. 
-    let id = message.apsql_insert(&context).await.expect("Insert failed");
-    
-    // This disassembles the context, allowing the Transaction to be committed
-    // or rolled back. This operation also optimizes the read access to
-    // prepared statements of the Cache. If you do not want to do that, then call
-    // Context::split_unoptimized instead.
-    // You can also call `Cache::optimize()` manually to optimize the read access
-    // to the cached prepared statements.
-    // See the doc for more information about the usage of cached prepared statements
-    let (mut cache, transaction) = context.split();
-   
-    // this is (logically) a nop on a non-transactional context
-    transaction.commit().await.expect("failed to commit");
-
-    let context = if transactional {
-        let transaction = client
-            .transaction()
-            .await
-            .expect("Failed to open a new transaction");
-        Cache::default().into_transaction_context(transaction)
-    } else {
-        Cache::default().into_client_context(client)
-    };
-
-    let message_from_db = Header::apsql_retrieve(&context, id).await.expect("Failed to load");
-    assert_eq!(message, message_from_db);
 }
 ```
 
@@ -391,6 +275,26 @@ buffer.write_string("Still UTF8 Text").unwrap();
 send_to_another_host(buffer):
 ``` 
 
+### Extending Rust Codegen
+
+```rust
+use asn1rs::model::model::gen::rust::RustCodeGenerator;
+use asn1rs::model::model::gen::rust::GeneratorSupplement;
+
+impl GeneratorSupplement<Rust> for MyRustCodeGeneratorExtension {
+    // .. implement the trait
+}
+
+fn main() {
+    let model: Model<Rust> = ... ;
+    let (_file_name, file_content) = RustCodeGenerator::from(model)
+        .to_string_with_generators(&[&MyRustCodeGeneratorExtension])
+        .into_iter()
+        .next()
+        .unwrap();
+}
+```
+
 #### Finding deserialization error origins
 
 For a more detailed report on deserialization errors, enable the `descriptive-deserialize-errors` feature.
@@ -401,7 +305,6 @@ but it will list intermediate results with the error origin and the current loca
 Things to do at some point in time (PRs are welcome)
 
   - generate a proper rust module hierarchy from the modules' object-identifier
-  - remove legacy rust+uper code generator (v0.3.0)
   - support ```#![no_std]```
   - refactor / clean-up (rust) code-generators (most will be removed in v0.3.0)
   - support more encoding formats of ASN.1 (help is welcome!)
