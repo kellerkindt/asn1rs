@@ -1,12 +1,14 @@
 use crate::asn::oid::{ObjectIdentifier, ObjectIdentifierComponent};
+use crate::asn::peekable::PeekableTokens;
 use crate::asn::resolve_scope::ResolveScope;
 use crate::asn::{Asn, ComponentTypeList, InnerTypeConstraints, Size, Tag, Type};
 use crate::asn::{BitString, Charset, Choice, Enumerated, Integer};
-use crate::model::err::{Error, ErrorKind};
-use crate::model::lit_or_ref::{LitOrRef, ResolveState, Resolved, Resolver, Unresolved};
-use crate::model::parse::PeekableTokens;
-use crate::model::{rust, Field, Import, LiteralValue, Model, ValueReference};
-use crate::parser::{Location, Token};
+use crate::model::{Field, Import, LiteralValue, Model, ValueReference};
+use crate::parse::Location;
+use crate::parse::Token;
+use crate::parse::{Error, ErrorKind};
+use crate::resolve::{LitOrRef, ResolveState, Resolved, Resolver, Unresolved};
+use crate::rust::Rust;
 use std::convert::TryFrom;
 use std::iter::Peekable;
 use std::vec::IntoIter;
@@ -421,21 +423,21 @@ impl Model<Asn<Unresolved>> {
 }
 
 impl Model<Asn<Resolved>> {
-    pub fn to_rust(&self) -> Model<rust::Rust> {
+    pub fn to_rust(&self) -> Model<Rust> {
         let scope: &[&Self] = &[];
         Model::to_rust_with_scope(self, scope)
     }
 
-    pub fn to_rust_keep_names(&self) -> Model<rust::Rust> {
+    pub fn to_rust_keep_names(&self) -> Model<Rust> {
         let scope: &[&Self] = &[];
         Model::to_rust_keep_names_with_scope(self, scope)
     }
 
-    pub fn to_rust_with_scope(&self, scope: &[&Self]) -> Model<rust::Rust> {
+    pub fn to_rust_with_scope(&self, scope: &[&Self]) -> Model<Rust> {
         Model::convert_asn_to_rust(self, scope, true)
     }
 
-    pub fn to_rust_keep_names_with_scope(&self, scope: &[&Self]) -> Model<rust::Rust> {
+    pub fn to_rust_keep_names_with_scope(&self, scope: &[&Self]) -> Model<Rust> {
         Model::convert_asn_to_rust(self, scope, false)
     }
 }
@@ -500,7 +502,7 @@ impl<RS: ResolveState> Model<Asn<RS>> {
 
 impl Model<Asn<Unresolved>> {
     #[inline]
-    pub fn try_resolve(&self) -> Result<Model<Asn<Resolved>>, crate::model::lit_or_ref::Error> {
+    pub fn try_resolve(&self) -> Result<Model<Asn<Resolved>>, crate::resolve::Error> {
         ResolveScope::from(self).try_resolve()
     }
 }
@@ -515,7 +517,7 @@ impl Field<Asn<Unresolved>> {
     >(
         &self,
         resolver: &R,
-    ) -> Result<Field<Asn<Resolved>>, crate::model::lit_or_ref::Error> {
+    ) -> Result<Field<Asn<Resolved>>, crate::resolve::Error> {
         Ok(Field {
             name: self.name.clone(),
             role: self.role.try_resolve(resolver)?,

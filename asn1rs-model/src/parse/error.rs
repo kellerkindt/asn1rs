@@ -1,9 +1,7 @@
+use crate::parse::Token;
+use backtrace::Backtrace;
 use std::error;
 use std::fmt::{Debug, Display, Formatter};
-
-use backtrace::Backtrace;
-
-use crate::parser::Token;
 
 #[derive(PartialOrd, PartialEq, Eq)]
 pub enum ErrorKind {

@@ -1,8 +1,8 @@
-use crate::model::err::Error;
-use crate::model::lit_or_ref::{Error as ResolveError, LitOrRef, Resolver, TryResolve};
-use crate::model::lit_or_ref::{ResolveState, Unresolved};
-use crate::model::parse::PeekableTokens;
-use crate::parser::Token;
+use crate::asn::peekable::PeekableTokens;
+use crate::parse::Error;
+use crate::parse::Token;
+use crate::resolve::{Error as ResolveError, LitOrRef, Resolver, TryResolve};
+use crate::resolve::{ResolveState, Unresolved};
 use std::convert::TryFrom;
 use std::fmt::{Debug, Display};
 use std::iter::Peekable;

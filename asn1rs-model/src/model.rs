@@ -1,18 +1,3 @@
-#[cfg(feature = "protobuf")]
-pub mod protobuf;
-pub mod rust;
-
-pub mod err;
-pub mod lit_or_ref;
-pub mod parse;
-
-#[cfg(feature = "protobuf")]
-pub use self::protobuf::Protobuf;
-#[cfg(feature = "protobuf")]
-pub use self::protobuf::ProtobufType;
-pub use self::rust::Rust;
-pub use self::rust::RustType;
-
 use crate::asn::ObjectIdentifier;
 use std::fmt::Debug;
 
@@ -105,9 +90,12 @@ pub(crate) mod tests {
     use crate::asn::{BitString, Choice, ChoiceVariant, Enumerated, EnumeratedVariant, Integer};
     use crate::asn::{Charset, Range, TagProperty};
     use crate::asn::{Size, Tag, Type};
-    use crate::model::err::Error;
-    use crate::model::lit_or_ref::Resolved;
-    use crate::parser::{Location, Token, Tokenizer};
+    use crate::parse::Error;
+    use crate::parse::Location;
+    use crate::parse::Token;
+    use crate::parse::Tokenizer;
+    use crate::resolve::Resolved;
+    use crate::rust::Rust;
 
     use super::*;
 

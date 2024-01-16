@@ -1,8 +1,8 @@
 use asn1rs_model::asn::MultiModuleResolver;
 use asn1rs_model::generator::rust::RustCodeGenerator as RustGenerator;
 use asn1rs_model::generator::Generator;
-use asn1rs_model::model::Model;
-use asn1rs_model::parser::Tokenizer;
+use asn1rs_model::parse::Tokenizer;
+use asn1rs_model::Model;
 use std::collections::HashMap;
 use std::path::Path;
 
@@ -11,9 +11,9 @@ pub enum Error {
     RustGenerator,
     #[cfg(feature = "protobuf")]
     ProtobufGenerator(asn1rs_model::generator::protobuf::Error),
-    Model(asn1rs_model::model::err::Error),
+    Model(asn1rs_model::parse::Error),
     Io(std::io::Error),
-    ResolveError(asn1rs_model::model::lit_or_ref::Error),
+    ResolveError(asn1rs_model::resolve::Error),
 }
 
 #[cfg(feature = "protobuf")]
@@ -23,8 +23,8 @@ impl From<asn1rs_model::generator::protobuf::Error> for Error {
     }
 }
 
-impl From<asn1rs_model::model::err::Error> for Error {
-    fn from(m: asn1rs_model::model::err::Error) -> Self {
+impl From<asn1rs_model::parse::Error> for Error {
+    fn from(m: asn1rs_model::parse::Error) -> Self {
         Error::Model(m)
     }
 }
@@ -35,8 +35,8 @@ impl From<std::io::Error> for Error {
     }
 }
 
-impl From<asn1rs_model::model::lit_or_ref::Error> for Error {
-    fn from(e: asn1rs_model::model::lit_or_ref::Error) -> Self {
+impl From<asn1rs_model::resolve::Error> for Error {
+    fn from(e: asn1rs_model::resolve::Error) -> Self {
         Error::ResolveError(e)
     }
 }
@@ -92,7 +92,7 @@ impl Converter {
         &self,
         directory: D,
     ) -> Result<HashMap<String, Vec<String>>, Error> {
-        use asn1rs_model::model::protobuf::ToProtobufModel;
+        use asn1rs_model::protobuf::ToProtobufModel;
 
         let models = self.models.try_resolve_all()?;
         let scope = models.iter().collect::<Vec<_>>();

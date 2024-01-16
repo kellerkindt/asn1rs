@@ -2,12 +2,12 @@ use crate::asn::{
     Asn, ComponentTypeList, Range, Size, Tag, TagProperty, TagResolver, Type as AsnType, Type,
 };
 use crate::asn::{Charset, ChoiceVariant, Integer};
-use crate::model::lit_or_ref::{ResolveState, Resolved};
-use crate::model::rust::Field as RustField;
 use crate::model::Import;
 use crate::model::Model;
 use crate::model::ValueReference;
 use crate::model::{Definition, LiteralValue, Target};
+use crate::resolve::{ResolveState, Resolved};
+use crate::rust::Field as RustField;
 use std::borrow::Cow;
 
 const I8_MAX: i64 = i8::MAX as i64;
@@ -1209,7 +1209,7 @@ mod tests {
     use crate::generator::RustCodeGenerator;
     use crate::model::tests::*;
     use crate::model::Field;
-    use crate::parser::Tokenizer;
+    use crate::parse::Tokenizer;
 
     #[test]
     fn test_rust_struct_or_enum_name() {
@@ -2056,11 +2056,11 @@ mod tests {
                     Rust::Struct {
                         ordering: EncodingOrdering::Keep,
                         fields: vec![
-                            crate::model::rust::Field::from_name_type(
+                            crate::rust::Field::from_name_type(
                                 "some_internal".to_string(),
                                 RustType::Bool
                             ),
-                            crate::model::rust::Field::from_name_type(
+                            crate::rust::Field::from_name_type(
                                 "id".to_string(),
                                 RustType::Complex(
                                     "SomeNameWithId".to_string(),

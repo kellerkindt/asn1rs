@@ -1,8 +1,8 @@
 use crate::asn::{Charset, Range, Size};
-use crate::model::rust::{
-    rust_module_name, rust_struct_or_enum_name, rust_variant_name, EncodingOrdering,
+use crate::model::{Definition, Model, Target};
+use crate::rust::{
+    rust_module_name, rust_struct_or_enum_name, rust_variant_name, EncodingOrdering, Rust, RustType,
 };
-use crate::model::{Definition, Model, Rust, RustType, Target};
 use std::convert::Infallible;
 
 const TUPLE_VARIABLE_NAME_REPLACEMENT: &str = "value";
@@ -236,8 +236,8 @@ pub fn proto_definition_name(name: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::rust::{DataVariant, Field};
     use crate::model::Import;
+    use crate::rust::{DataVariant, Field};
 
     #[test]
     fn test_non_definitions_rust_to_protobuf() {

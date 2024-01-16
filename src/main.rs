@@ -23,9 +23,6 @@ pub mod converter;
 
 use crate::cli::ConversionTarget;
 use asn1rs::converter::Converter;
-pub use asn1rs_model::generator;
-pub use asn1rs_model::model;
-pub use asn1rs_model::parser;
 
 pub fn main() {
     let params = <cli::Parameters as clap::Parser>::parse();

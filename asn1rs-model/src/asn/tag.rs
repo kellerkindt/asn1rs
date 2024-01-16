@@ -1,7 +1,7 @@
-use crate::model::err::Error;
-use crate::model::parse::PeekableTokens;
+use crate::asn::peekable::PeekableTokens;
 use crate::model::{Definition, Field};
-use crate::parser::Token;
+use crate::parse::Error;
+use crate::parse::Token;
 use std::convert::TryFrom;
 use std::iter::Peekable;
 
@@ -200,8 +200,9 @@ impl<T: TagProperty> TagProperty for Field<T> {
 pub(crate) mod tests {
     use super::*;
     use crate::asn::{Asn, Type};
-    use crate::model::rust::PlainEnum;
-    use crate::model::{Definition, Rust};
+    use crate::rust::PlainEnum;
+    use crate::rust::Rust;
+    use crate::Definition;
 
     pub(crate) fn test_property<T: TagProperty>(mut property: T)
     where

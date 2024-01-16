@@ -1,10 +1,8 @@
 use crate::asn::{Tag, TagProperty, Type as AsnType, Type};
 use crate::generator::Generator;
-use crate::model::rust::{DataEnum, Field};
-use crate::model::rust::{EncodingOrdering, PlainEnum};
-use crate::model::Rust;
-use crate::model::RustType;
 use crate::model::{Definition, Model};
+use crate::rust::{DataEnum, Field, Rust, RustType};
+use crate::rust::{EncodingOrdering, PlainEnum};
 use codegen::Block;
 use codegen::Enum;
 use codegen::Impl;
@@ -925,7 +923,7 @@ impl RustCodeGenerator {
 pub(crate) mod tests {
     use super::*;
     use crate::generator::walker::tests::assert_starts_with_lines;
-    use crate::parser::Tokenizer;
+    use crate::parse::Tokenizer;
 
     #[test]
     pub fn test_integer_struct_constants() {

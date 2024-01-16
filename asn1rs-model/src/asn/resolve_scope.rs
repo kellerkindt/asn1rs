@@ -1,6 +1,6 @@
 use crate::asn::{Asn, Type};
-use crate::model::lit_or_ref::{Error, LitOrRef, Resolved, Resolver, Unresolved};
 use crate::model::{Definition, LiteralValue, Model, Target, ValueReference};
+use crate::resolve::{Error, LitOrRef, Resolved, Resolver, Unresolved};
 
 #[derive(Default)]
 pub struct MultiModuleResolver {

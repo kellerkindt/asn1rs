@@ -1,7 +1,7 @@
 use crate::generator::rust::RustCodeGenerator as RustGenerator;
 use crate::generator::Generator;
 use crate::model::Model;
-use crate::parser::Tokenizer;
+use crate::parse::Tokenizer;
 
 pub fn asn_to_rust(input: &str) -> String {
     let tokens = Tokenizer.parse(input);

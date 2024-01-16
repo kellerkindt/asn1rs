@@ -7,7 +7,7 @@ mod tag;
 
 use crate::asn::{Choice, ChoiceVariant, Enumerated, EnumeratedVariant};
 use crate::asn::{ComponentTypeList, TagProperty, TagResolver, Type};
-use crate::model::lit_or_ref::Resolved;
+use crate::resolve::Resolved;
 use attribute::AsnAttribute;
 use attribute::{Context, DefinitionHeader, Transparent};
 use constants::ConstLit;

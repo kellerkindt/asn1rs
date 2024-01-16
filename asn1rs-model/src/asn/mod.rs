@@ -17,6 +17,7 @@ mod inner_type_constraints;
 mod integer;
 mod model;
 mod oid;
+mod peekable;
 mod range;
 mod resolve_scope;
 mod size;
@@ -34,6 +35,7 @@ pub use inner_type_constraints::InnerTypeConstraints;
 pub use integer::Integer;
 pub use oid::ObjectIdentifier;
 pub use oid::ObjectIdentifierComponent;
+pub use peekable::PeekableTokens;
 pub use range::Range;
 pub use resolve_scope::MultiModuleResolver;
 pub use resolve_scope::ResolveScope;
@@ -44,9 +46,9 @@ pub use tag::Tag;
 pub use tag::TagProperty;
 pub use tag_resolver::TagResolver;
 
-use crate::model::lit_or_ref::{Error as ResolveError, LitOrRef, TryResolve, Unresolved};
-use crate::model::lit_or_ref::{ResolveState, Resolved, Resolver};
 use crate::model::{Field, LiteralValue, Target};
+use crate::resolve::{Error as ResolveError, LitOrRef, TryResolve, Unresolved};
+use crate::resolve::{ResolveState, Resolved, Resolver};
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]

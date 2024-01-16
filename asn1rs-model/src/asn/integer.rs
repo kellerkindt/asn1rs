@@ -1,10 +1,10 @@
+use crate::asn::peekable::PeekableTokens;
 use crate::asn::{Asn, Range};
-use crate::model::err::Error;
-use crate::model::lit_or_ref::{Error as ResolveError, LitOrRef};
-use crate::model::lit_or_ref::{ResolveState, Resolver, TryResolve, Unresolved};
-use crate::model::parse::PeekableTokens;
 use crate::model::Model;
-use crate::parser::Token;
+use crate::parse::Error;
+use crate::parse::Token;
+use crate::resolve::{Error as ResolveError, LitOrRef};
+use crate::resolve::{ResolveState, Resolver, TryResolve, Unresolved};
 use std::convert::TryFrom;
 use std::fmt::{Debug, Display};
 use std::iter::Peekable;

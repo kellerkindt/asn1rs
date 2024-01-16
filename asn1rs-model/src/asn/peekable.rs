@@ -1,7 +1,6 @@
+use crate::parse::ErrorKind;
+use crate::parse::Token;
 use std::iter::Peekable;
-
-use crate::model::err::ErrorKind;
-use crate::parser::Token;
 
 pub trait PeekableTokens {
     fn peek_or_err(&mut self) -> Result<&Token, ErrorKind>;

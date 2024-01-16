@@ -1,8 +1,8 @@
 use crate::asn::Charset;
 use crate::asn::{Range, Size, Tag, TagProperty};
 use crate::generator::RustCodeGenerator;
-use crate::model::rust::{DataEnum, EncodingOrdering, Field, PlainEnum};
-use crate::model::{Definition, LiteralValue, Model, Rust, RustType};
+use crate::model::{Definition, LiteralValue, Model};
+use crate::rust::{DataEnum, EncodingOrdering, Field, PlainEnum, Rust, RustType};
 use codegen::{Block, Impl, Scope};
 use std::fmt::Display;
 

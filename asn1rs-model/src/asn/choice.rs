@@ -1,13 +1,11 @@
-use crate::model::lit_or_ref::{
-    Error as ResolveError, ResolveState, Resolved, Resolver, Unresolved,
-};
-use crate::parser::Token;
+use crate::parse::Token;
+use crate::resolve::{Error as ResolveError, ResolveState, Resolved, Resolver, Unresolved};
 use std::convert::TryFrom;
 
+use crate::asn::peekable::PeekableTokens;
 use crate::asn::{Asn, Tag, TagProperty, Type};
-use crate::model::err::Error;
-use crate::model::parse::PeekableTokens;
 use crate::model::Model;
+use crate::parse::Error;
 use std::iter::Peekable;
 
 #[derive(Debug, Clone, PartialOrd, PartialEq)]

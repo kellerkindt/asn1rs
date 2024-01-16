@@ -1,6 +1,6 @@
-use crate::model::err::Error;
-use crate::model::parse::PeekableTokens;
-use crate::parser::Token;
+use crate::asn::peekable::PeekableTokens;
+use crate::parse::Error;
+use crate::parse::Token;
 use std::convert::TryFrom;
 use std::iter::Peekable;
 
