@@ -12,7 +12,7 @@ pub mod macros {}
 pub mod internal_macros;
 
 #[macro_use]
-pub extern crate serde_derive;
+extern crate serde_derive;
 
 pub mod io;
 pub mod prelude;
@@ -25,9 +25,11 @@ use asn1rs::converter::Converter;
 pub use asn1rs_model::gen;
 pub use asn1rs_model::model;
 pub use asn1rs_model::parser;
+use crate::cli::ConversionTarget;
+
 
 pub fn main() {
-    let params = cli::parse_parameters();
+    let params = <cli::Parameters as clap::Parser>::parse();
     let mut converter = Converter::default();
 
     for source in &params.source_files {
@@ -37,13 +39,12 @@ pub fn main() {
         }
     }
 
-    let result = match params.conversion_target.as_str() {
-        cli::CONVERSION_TARGET_RUST => converter.to_rust(&params.destination_dir, |rust| {
+    let result = match params.conversion_target {
+        ConversionTarget::Rust =>  converter.to_rust(&params.destination_dir, |rust| {
             rust.set_fields_pub(!params.rust_fields_not_public);
             rust.set_fields_have_getter_and_setter(params.rust_getter_and_setter);
         }),
-        cli::CONVERSION_TARGET_PROTO => converter.to_protobuf(&params.destination_dir),
-        e => panic!("Unexpected CONVERSION_TARGET={}", e),
+        ConversionTarget::Proto =>  converter.to_protobuf(&params.destination_dir),
     };
 
     match result {
