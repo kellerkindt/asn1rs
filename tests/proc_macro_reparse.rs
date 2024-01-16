@@ -15,8 +15,8 @@
 //!                      Rust-Model   <--- proc-macro  <---+                                                     
 
 use asn1rs::model::model::{Definition, Model, Rust};
-use asn1rs::parser::Tokenizer;
 use asn1rs_model::generators::RustCodeGenerator;
+use asn1rs_model::parser::Tokenizer;
 use codegen::Scope;
 use proc_macro2::TokenStream;
 
@@ -178,7 +178,7 @@ fn parse_asn_map_to_rust_map_to_stringify_with_proc_macro_annotation_re_parse_ch
         println!("BODY:      {}", body.to_string());
         println!("---");
 
-        let re_parsed = asn1rs::ast::parse_asn_definition(attribute, body)
+        let re_parsed = asn1rs_model::proc_macro::parse_asn_definition(attribute, body)
             .map(|(d, _item)| d)
             .unwrap()
             .unwrap();

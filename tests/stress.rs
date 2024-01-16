@@ -1,5 +1,5 @@
 use asn1rs::model::model::Model;
-use asn1rs::parser::Tokenizer;
+use asn1rs_model::parser::Tokenizer;
 use std::time::{Duration, Instant};
 
 #[test]

@@ -7,10 +7,10 @@ mod tag;
 
 use crate::asn::{Choice, ChoiceVariant, Enumerated, EnumeratedVariant};
 use crate::asn::{ComponentTypeList, TagProperty, TagResolver, Type};
-use crate::ast::attribute::{Context, DefinitionHeader, Transparent};
-use crate::ast::constants::ConstLit;
 use crate::model::lit_or_ref::Resolved;
 use attribute::AsnAttribute;
+use attribute::{Context, DefinitionHeader, Transparent};
+use constants::ConstLit;
 use proc_macro2::TokenStream;
 use quote::quote;
 use std::convert::Infallible;

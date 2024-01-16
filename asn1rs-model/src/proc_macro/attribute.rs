@@ -1,9 +1,9 @@
+use super::constants::ConstLit;
 use super::range::ident_or_literal_or_punct;
 use super::range::IntegerRange;
 use super::tag::AttrTag;
 use crate::asn::{Charset, Choice, ChoiceVariant, Enumerated, EnumeratedVariant};
 use crate::asn::{Range, Size, Tag, Type};
-use crate::ast::constants::ConstLit;
 use crate::model::LiteralValue;
 use std::fmt::Debug;
 use std::fmt::Display;

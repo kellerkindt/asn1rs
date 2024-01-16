@@ -1,4 +1,3 @@
-use asn1rs::ast::asn_to_rust;
 use proc_macro2::TokenStream;
 use quote::ToTokens;
 use std::io::Read;
@@ -54,7 +53,7 @@ fn walk_dir(path: PathBuf) {
 ///
 pub fn emulate_macro_expansion_fallible(mut file: fs::File) {
     fn ast_parse_str(attr: &str, item: &str) -> TokenStream {
-        asn1rs::ast::parse(
+        asn1rs_model::proc_macro::parse(
             TokenStream::from_str(attr).unwrap(),
             TokenStream::from_str(item).unwrap(),
         )
@@ -62,8 +61,8 @@ pub fn emulate_macro_expansion_fallible(mut file: fs::File) {
 
     fn asn_to_rust_fn2(input: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
         let input = syn::parse2::<syn::LitStr>(input).unwrap();
-        let result = asn_to_rust(&input.value());
-        proc_macro2::TokenStream::from_str(&result).unwrap()
+        let result = asn1rs_model::proc_macro::asn_to_rust(&input.value());
+        TokenStream::from_str(&result).unwrap()
     }
 
     fn feed_derive_parser(
