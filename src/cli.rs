@@ -20,7 +20,8 @@ pub struct Parameters {
         short = 't',
         long = "convert-to",
         env = "CONVERT_TO",
-        help = "The target to convert the input files to"
+        help = "The target to convert the input files to",
+        default_value = "rust"
     )]
     pub conversion_target: ConversionTarget,
     #[arg(env = "DESTINATION_DIR")]
@@ -32,5 +33,6 @@ pub struct Parameters {
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum)]
 pub enum ConversionTarget {
     Rust,
+    #[cfg(feature = "protobuf")]
     Proto,
 }

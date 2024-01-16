@@ -21,12 +21,11 @@ pub mod syn;
 pub mod cli;
 pub mod converter;
 
+use crate::cli::ConversionTarget;
 use asn1rs::converter::Converter;
 pub use asn1rs_model::gen;
 pub use asn1rs_model::model;
 pub use asn1rs_model::parser;
-use crate::cli::ConversionTarget;
-
 
 pub fn main() {
     let params = <cli::Parameters as clap::Parser>::parse();
@@ -40,11 +39,12 @@ pub fn main() {
     }
 
     let result = match params.conversion_target {
-        ConversionTarget::Rust =>  converter.to_rust(&params.destination_dir, |rust| {
+        ConversionTarget::Rust => converter.to_rust(&params.destination_dir, |rust| {
             rust.set_fields_pub(!params.rust_fields_not_public);
             rust.set_fields_have_getter_and_setter(params.rust_getter_and_setter);
         }),
-        ConversionTarget::Proto =>  converter.to_protobuf(&params.destination_dir),
+        #[cfg(feature = "protobuf")]
+        ConversionTarget::Proto => converter.to_protobuf(&params.destination_dir),
     };
 
     match result {

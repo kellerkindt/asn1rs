@@ -1,3 +1,4 @@
+#[cfg(feature = "protobuf")]
 pub mod protobuf;
 pub mod rust;
 

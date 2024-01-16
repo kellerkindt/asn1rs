@@ -1,9 +1,6 @@
-use crate::gen::protobuf::Error as ProtobufGeneratorError;
-use crate::gen::protobuf::ProtobufDefGenerator as ProtobufGenerator;
 use crate::gen::rust::RustCodeGenerator as RustGenerator;
 use crate::gen::Generator;
 use crate::model::lor::Error as ResolveError;
-use crate::model::protobuf::ToProtobufModel;
 use crate::model::Model;
 use crate::model::{Error as ModelError, MultiModuleResolver};
 use crate::parser::Tokenizer;
@@ -14,14 +11,16 @@ use std::path::Path;
 #[derive(Debug)]
 pub enum Error {
     RustGenerator,
-    ProtobufGenerator(ProtobufGeneratorError),
+    #[cfg(feature = "protobuf")]
+    ProtobufGenerator(crate::gen::protobuf::Error),
     Model(ModelError),
     Io(IoError),
     ResolveError(ResolveError),
 }
 
-impl From<ProtobufGeneratorError> for Error {
-    fn from(g: ProtobufGeneratorError) -> Self {
+#[cfg(feature = "protobuf")]
+impl From<crate::gen::protobuf::Error> for Error {
+    fn from(g: crate::gen::protobuf::Error) -> Self {
         Error::ProtobufGenerator(g)
     }
 }
@@ -90,16 +89,19 @@ impl Converter {
         Ok(files)
     }
 
+    #[cfg(feature = "protobuf")]
     pub fn to_protobuf<D: AsRef<Path>>(
         &self,
         directory: D,
     ) -> Result<HashMap<String, Vec<String>>, Error> {
+        use crate::model::protobuf::ToProtobufModel;
+
         let models = self.models.try_resolve_all()?;
         let scope = models.iter().collect::<Vec<_>>();
         let mut files = HashMap::with_capacity(models.len());
 
         for model in &models {
-            let mut generator = ProtobufGenerator::default();
+            let mut generator = crate::gen::protobuf::ProtobufDefGenerator::default();
             generator.add_model(model.to_rust_with_scope(&scope[..]).to_protobuf());
 
             files.insert(
@@ -117,48 +119,4 @@ impl Converter {
 
         Ok(files)
     }
-}
-
-#[deprecated(note = "Use the Converter instead")]
-pub fn convert_to_rust<F: AsRef<Path>, D: AsRef<Path>, A: Fn(&mut RustGenerator)>(
-    file: F,
-    dir: D,
-    custom_adjustments: A,
-) -> Result<Vec<String>, Error> {
-    let input = ::std::fs::read_to_string(file)?;
-    let tokens = Tokenizer.parse(&input);
-    let model = Model::try_from(tokens)?.try_resolve()?;
-    let mut generator = RustGenerator::default();
-    generator.add_model(model.to_rust());
-
-    custom_adjustments(&mut generator);
-
-    let output = generator.to_string().map_err(|_| Error::RustGenerator)?;
-
-    let mut files = Vec::new();
-    for (file, content) in output {
-        ::std::fs::write(dir.as_ref().join(&file), content)?;
-        files.push(file);
-    }
-    Ok(files)
-}
-
-#[deprecated(note = "Use the Converter instead")]
-pub fn convert_to_proto<F: AsRef<Path>, D: AsRef<Path>>(
-    file: F,
-    dir: D,
-) -> Result<Vec<String>, Error> {
-    let input = ::std::fs::read_to_string(file)?;
-    let tokens = Tokenizer.parse(&input);
-    let model = Model::try_from(tokens)?.try_resolve()?;
-    let mut generator = ProtobufGenerator::default();
-    generator.add_model(model.to_rust().to_protobuf());
-    let output = generator.to_string()?;
-
-    let mut files = Vec::new();
-    for (file, content) in output {
-        ::std::fs::write(dir.as_ref().join(&file), content)?;
-        files.push(file);
-    }
-    Ok(files)
 }
