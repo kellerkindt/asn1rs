@@ -27,10 +27,8 @@ const ARG_CONVERSION_TARGET: [&str; 5] = [
 
 pub const CONVERSION_TARGET_RUST: &str = "rust";
 pub const CONVERSION_TARGET_PROTO: &str = "proto";
-pub const CONVERSION_TARGET_POSSIBLE_VALUES: [&str; 2] = [
-    CONVERSION_TARGET_RUST,
-    CONVERSION_TARGET_PROTO,
-];
+pub const CONVERSION_TARGET_POSSIBLE_VALUES: [&str; 2] =
+    [CONVERSION_TARGET_RUST, CONVERSION_TARGET_PROTO];
 
 #[derive(Debug)]
 pub struct Parameters {
