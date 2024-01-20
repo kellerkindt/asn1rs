@@ -1,5 +1,5 @@
-use asn1rs::syn::io::UperReader as NewUperReader;
-use asn1rs::syn::io::UperWriter as NewUperWriter;
+use asn1rs::rw::UperReader as NewUperReader;
+use asn1rs::rw::UperWriter as NewUperWriter;
 
 mod test_utils;
 use test_utils::*;

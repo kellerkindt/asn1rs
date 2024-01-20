@@ -14,9 +14,10 @@ pub mod internal_macros;
 #[macro_use]
 pub extern crate serde_derive;
 
-pub mod io;
+pub mod descriptor;
 pub mod prelude;
-pub mod syn;
+pub mod protocol;
+pub mod rw;
 
 #[cfg(feature = "model")]
 pub mod converter;

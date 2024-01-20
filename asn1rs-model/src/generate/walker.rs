@@ -6,7 +6,7 @@ use crate::rust::{DataEnum, EncodingOrdering, Field, PlainEnum, Rust, RustType};
 use codegen::{Block, Impl, Scope};
 use std::fmt::Display;
 
-pub const CRATE_SYN_PREFIX: &str = "::asn1rs::syn::";
+pub const CRATE_SYN_PREFIX: &str = "::asn1rs::descriptor::";
 pub const CRATE_MODEL_PREFIX: &str = "::asn1rs::model::asn::";
 
 pub struct AsnDefWriter;

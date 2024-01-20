@@ -31,7 +31,7 @@ asn_to_rust!(
 
 #[test]
 fn test_my_clever_seq_min_max() {
-    use asn1rs::syn::octetstring::Constraint;
+    use asn1rs::descriptor::octetstring::Constraint;
     assert_eq!(
         Some(5),
         ___asn1rs_MyCleverSeqFieldSecretCodesConstraint::MIN

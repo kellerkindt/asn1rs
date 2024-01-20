@@ -10,7 +10,7 @@ pub fn expand(input: DeriveInput) -> TokenStream {
         Data::Union(data) => expand_union(data).to_token_stream(),
     };
     TokenStream::from(quote::quote! {
-        impl asn1rs::io::protobuf::ProtobufEq for #name {
+        impl ::asn1rs::prelude::ProtobufEq for #name {
             fn protobuf_eq(&self, other: &Self) -> bool {
                 #inner
             }
@@ -27,7 +27,7 @@ fn expand_struct(data: DataStruct) -> impl ToTokens {
             .unwrap_or_else(|| Index::from(index).to_token_stream())
     });
     quote::quote! {
-       #(asn1rs::io::protobuf::ProtobufEq::protobuf_eq(&self.#fields, &other.#fields) &&)* true
+       #(::asn1rs::prelude::ProtobufEq::protobuf_eq(&self.#fields, &other.#fields) &&)* true
     }
 }
 
@@ -40,7 +40,7 @@ fn expand_enum(data: DataEnum) -> impl ToTokens {
            match &self {
                #(
                    Self::#rows(me) => if let Self::#rows(other) = &other {
-                       asn1rs::io::protobuf::ProtobufEq::protobuf_eq(me, other)
+                       ::asn1rs::prelude::ProtobufEq::protobuf_eq(me, other)
                    } else {
                        false
                    }

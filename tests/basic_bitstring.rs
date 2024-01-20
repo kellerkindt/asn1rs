@@ -2,7 +2,7 @@
 
 mod test_utils;
 
-use asn1rs::syn::bitstring::BitVec;
+use asn1rs::descriptor::bitstring::BitVec;
 use test_utils::*;
 
 asn_to_rust!(

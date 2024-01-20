@@ -29,13 +29,13 @@ asn_to_rust!(
 
 #[test]
 fn detect_only_invalid_character() {
-    let mut writer = asn1rs::syn::io::UperWriter::default();
+    let mut writer = UperWriter::default();
     let result = Unconstrained {
         abc: " 0123456789x".to_string(),
     }
     .write(&mut writer);
     assert_eq!(
-        Err(asn1rs::io::per::ErrorKind::InvalidString(
+        Err(asn1rs::protocol::per::ErrorKind::InvalidString(
             asn1rs::model::asn::Charset::Numeric,
             'x',
             11

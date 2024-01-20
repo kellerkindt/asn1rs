@@ -65,7 +65,7 @@ mod what_is_being_generated {
 
 #[test]
 fn uper_proof() {
-    use asn1rs::syn::io::UperWriter;
+    use asn1rs::prelude::UperWriter;
     let mut writer = UperWriter::default();
     writer
         .write(&WhatToEat::Pizza(Pizza {

@@ -29,14 +29,14 @@ asn_to_rust!(
 
 #[test]
 fn detect_only_invalid_character() {
-    let mut writer = asn1rs::syn::io::UperWriter::default();
+    let mut writer = UperWriter::default();
     let result = Unconstrained {
         abc: " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\u{7F}"
             .to_string(),
     }
     .write(&mut writer);
     assert_eq!(
-        Err(asn1rs::io::per::ErrorKind::InvalidString(
+        Err(asn1rs::protocol::per::ErrorKind::InvalidString(
             asn1rs::model::asn::Charset::Visible,
             '\u{7F}',
             95

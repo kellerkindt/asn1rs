@@ -110,7 +110,7 @@ fn test_extensible_4() {
 
 #[test]
 fn test_implicit_tag_assignment() {
-    use asn1rs::syn::common::Constraint;
+    use asn1rs::descriptor::common::Constraint;
 
     // implicit tagging, therefore no reordering
     assert_eq!(

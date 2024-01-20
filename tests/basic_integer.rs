@@ -1,5 +1,4 @@
 use asn1rs::prelude::*;
-use asn1rs::syn::io::UperWriter as NewUperWriter;
 
 asn_to_rust!(
     r"BasicInteger DEFINITIONS AUTOMATIC TAGS ::=
@@ -24,7 +23,7 @@ fn test_default_range() {
 
 #[test]
 fn test_readme_sample() {
-    use asn1rs::syn::numbers::Constraint;
+    use asn1rs::descriptor::numbers::Constraint;
     assert_eq!(
         ___asn1rs_RangedMaxField0Constraint::MIN,
         ___asn1rs_NotRangedField0Constraint::MIN,
@@ -36,7 +35,7 @@ fn test_readme_sample() {
 
     let value = NotRanged(123_u64); // does not compile if the inner type is not u64
 
-    let mut writer = NewUperWriter::default();
+    let mut writer = UperWriter::default();
     writer.write(&value).expect("Failed to serialize");
 
     let mut reader = writer.as_reader();
@@ -47,14 +46,14 @@ fn test_readme_sample() {
 
 #[test]
 fn test_uper_small() {
-    let mut writer = NewUperWriter::default();
+    let mut writer = UperWriter::default();
     writer.write(&RangedMax(123)).unwrap();
     assert_eq!(&[0x01, 123_u8], writer.byte_content());
 }
 
 #[test]
 fn test_uper_big() {
-    let mut writer = NewUperWriter::default();
+    let mut writer = UperWriter::default();
     writer.write(&RangedMax(66_000)).unwrap();
     let bytes = 66_000_u64.to_be_bytes();
 
