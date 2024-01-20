@@ -13,7 +13,7 @@ pub enum Error {
     ProtobufGenerator(asn1rs_model::generate::protobuf::Error),
     Model(asn1rs_model::parse::Error),
     Io(std::io::Error),
-    ResolveError(asn1rs_model::resolve::Error),
+    ResolveFailure(asn1rs_model::resolve::Error),
 }
 
 #[cfg(feature = "protobuf")]
@@ -37,7 +37,7 @@ impl From<std::io::Error> for Error {
 
 impl From<asn1rs_model::resolve::Error> for Error {
     fn from(e: asn1rs_model::resolve::Error) -> Self {
-        Error::ResolveError(e)
+        Error::ResolveFailure(e)
     }
 }
 
