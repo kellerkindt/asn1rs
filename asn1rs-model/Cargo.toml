@@ -13,7 +13,7 @@ readme = "README.md"
 [dependencies]
 backtrace = "0.3.69"
 codegen = "0.2.0"
-syn = {version = "1.0.109", features = ["full", "extra-traits"] }
+syn = {version = "2.0.48", features = ["full", "extra-traits"] }
 quote = "1.0.35"
 proc-macro2 = "1.0.76"
 strum = "0.25.0"

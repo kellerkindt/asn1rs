@@ -72,15 +72,12 @@ pub fn emulate_macro_expansion_fallible(mut file: fs::File) {
         body_start_marker: &str,
     ) {
         for attr in attributes {
-            if attr.path == *attribute_path {
-                let attribute_meta = attr.parse_meta().unwrap();
-                let attribute_meta = attribute_meta.into_token_stream().to_string();
-
+            if *attr.path() == *attribute_path {
                 let item = item();
-                // skip 'asn (' and ')'
-                let start = attribute_meta.find('(').unwrap();
-                let end = attribute_meta.rfind(')').unwrap();
-                let header = &attribute_meta[start + 1..end];
+                let header = attr
+                    .parse_args::<proc_macro2::TokenStream>()
+                    .unwrap()
+                    .to_string();
                 let body = {
                     let body_start = item.find(body_start_marker).unwrap();
                     &item[body_start..]
@@ -88,13 +85,12 @@ pub fn emulate_macro_expansion_fallible(mut file: fs::File) {
 
                 if cfg!(feature = "debug-proc-macro") {
                     println!("##########: {}", item);
-                    println!("      meta: {}", attribute_meta);
                     println!("    header: {}", header);
                     println!("      body: {}", body);
                     println!();
                 }
 
-                let result = ast_parse_str(header, body).to_string();
+                let result = ast_parse_str(&header, body).to_string();
 
                 if result.contains("compile_error") {
                     panic!("{}", result);

@@ -413,7 +413,7 @@ fn find_and_remove_first_asn_attribute(attributes: &mut Vec<Attribute>) -> Optio
 
 fn index_of_first_asn_attribute(attributes: &[Attribute]) -> Option<usize> {
     attributes.iter().enumerate().find_map(|(index, attr)| {
-        attr.path
+        attr.path()
             .segments
             .first()
             .filter(|s| s.ident.to_string().eq("asn"))
