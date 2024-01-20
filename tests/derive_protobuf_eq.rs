@@ -1,4 +1,5 @@
 #![recursion_limit = "512"]
+#![cfg(feature = "protobuf")]
 
 use asn1rs::prelude::*;
 
