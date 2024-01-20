@@ -84,9 +84,15 @@ impl<W: BasicWrite> Writer for BasicWriter<W> {
 
     fn write_number<T: Number, C: crate::descriptor::numbers::Constraint<T>>(
         &mut self,
-        _value: T,
+        value: T,
     ) -> Result<(), Self::Error> {
-        todo!()
+        self.write.write_identifier(C::TAG)?;
+        let value = value.to_i64();
+        let offset = value.leading_zeros() / u8::BITS;
+        let len = value.to_be_bytes().len() as u64 - offset as u64;
+        self.write.write_length(len)?;
+        self.write.write_integer_i64(value)?;
+        Ok(())
     }
 
     fn write_utf8string<C: crate::descriptor::utf8string::Constraint>(
@@ -227,7 +233,12 @@ impl<R: BasicRead> Reader for BasicReader<R> {
     fn read_number<T: Number, C: crate::descriptor::numbers::Constraint<T>>(
         &mut self,
     ) -> Result<T, Self::Error> {
-        todo!()
+        let identifier = self.read.read_identifier()?;
+        if identifier.value() != Tag::DEFAULT_INTEGER.value() {
+            return Err(Error::unexpected_tag(Tag::DEFAULT_INTEGER, identifier));
+        }
+        let len = self.read.read_length()?;
+        self.read.read_integer_i64(len as u32).map(T::from_i64)
     }
 
     fn read_utf8string<C: crate::descriptor::utf8string::Constraint>(
