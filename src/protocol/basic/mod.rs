@@ -24,6 +24,12 @@ pub trait BasicRead {
     /// According to ITU-T X.690, chapter 8.2, the boolean type is represented in a single byte,
     /// where 0 represents `false` and any other value represents `true`.
     fn read_boolean(&mut self) -> Result<bool, Error>;
+
+    /// According to ITU-T X.690, chapter 8.3, the integer type is represented in a series of bytes.
+    fn read_integer_i64(&mut self, byte_len: u32) -> Result<i64, Error>;
+
+    /// According to ITU-T X.690, chapter 8.3, the integer type is represented in a series of bytes.
+    fn read_integer_u64(&mut self, byte_len: u32) -> Result<u64, Error>;
 }
 
 /// According to ITU-T X.690
@@ -41,4 +47,10 @@ pub trait BasicWrite {
     /// According to ITU-T X.690, chapter 8.2, the boolean type is represented in a single byte,
     /// where 0 represents `false` and any other value represents `true`.
     fn write_boolean(&mut self, value: bool) -> Result<(), Error>;
+
+    /// According to ITU-T X.690, chapter 8.3, the integer type is represented in a series of bytes.
+    fn write_integer_i64(&mut self, value: i64) -> Result<(), Error>;
+
+    /// According to ITU-T X.690, chapter 8.3, the integer type is represented in a series of bytes.
+    fn write_integer_u64(&mut self, value: u64) -> Result<(), Error>;
 }

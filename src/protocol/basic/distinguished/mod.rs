@@ -58,19 +58,8 @@ impl<T: Read> BasicRead for T {
         if bytes[0] & LENGTH_BIT_MASK == LENGTH_BIT_SHORT_FORM {
             Ok(u64::from(bytes[0] & !LENGTH_BIT_MASK))
         } else {
-            let byte_length = (bytes[0] & !LENGTH_BIT_MASK) as usize;
-            let mut bytes = 0u64.to_be_bytes();
-
-            if byte_length > bytes.len() {
-                return Err(Error::unsupported_byte_len(
-                    bytes.len() as u8,
-                    byte_length as u8,
-                ));
-            }
-
-            let offset = bytes.len() - byte_length;
-            self.read_exact(&mut bytes[offset..])?;
-            Ok(u64::from_be_bytes(bytes))
+            let byte_length = (bytes[0] & !LENGTH_BIT_MASK) as u32;
+            self.read_integer_u64(byte_length)
         }
     }
 
@@ -79,6 +68,36 @@ impl<T: Read> BasicRead for T {
         let mut byte = [0u8; 1];
         self.read_exact(&mut byte[..])?;
         Ok(byte[0] != 0x00)
+    }
+
+    fn read_integer_i64(&mut self, byte_len: u32) -> Result<i64, Error> {
+        let mut bytes = 0i64.to_be_bytes();
+
+        if byte_len as usize > bytes.len() {
+            return Err(Error::unsupported_byte_len(
+                bytes.len() as u8,
+                byte_len as u8,
+            ));
+        }
+
+        let offset = bytes.len() - byte_len as usize;
+        self.read_exact(&mut bytes[offset..])?;
+        Ok(i64::from_be_bytes(bytes))
+    }
+
+    fn read_integer_u64(&mut self, byte_len: u32) -> Result<u64, Error> {
+        let mut bytes = 0u64.to_be_bytes();
+
+        if byte_len as usize > bytes.len() {
+            return Err(Error::unsupported_byte_len(
+                bytes.len() as u8,
+                byte_len as u8,
+            ));
+        }
+
+        let offset = bytes.len() - byte_len as usize;
+        self.read_exact(&mut bytes[offset..])?;
+        Ok(u64::from_be_bytes(bytes))
     }
 }
 
@@ -105,21 +124,33 @@ impl<T: Write> BasicWrite for T {
             let byte = LENGTH_BIT_SHORT_FORM | (length as u8);
             Ok(self.write_all(&[byte])?)
         } else {
-            // long  form 8.1.3.5
+            // long form 8.1.3.5
             let leading_zero_bits = length.leading_zeros();
             let leading_zero_bytes = leading_zero_bits / u8::BITS;
+            let len_bytes = length.to_be_bytes().len() as u32 - leading_zero_bytes;
 
-            let value = &length.to_be_bytes()[leading_zero_bytes as usize..];
-
-            self.write_all(&[LENGTH_BIT_LONG_FORM | (value.len() as u8)])?;
-            self.write_all(&value)?;
-            Ok(())
+            self.write_all(&[LENGTH_BIT_LONG_FORM | len_bytes as u8])?;
+            self.write_integer_u64(length)
         }
     }
 
     #[inline]
     fn write_boolean(&mut self, value: bool) -> Result<(), Error> {
         Ok(self.write_all(&[if value { 0x01 } else { 0x00 }])?)
+    }
+
+    #[inline]
+    fn write_integer_i64(&mut self, value: i64) -> Result<(), Error> {
+        let offset = value.leading_zeros() / u8::BITS;
+        self.write_all(&value.to_be_bytes()[offset as usize..])?;
+        Ok(())
+    }
+
+    #[inline]
+    fn write_integer_u64(&mut self, value: u64) -> Result<(), Error> {
+        let offset = value.leading_zeros() / u8::BITS;
+        self.write_all(&value.to_be_bytes()[offset as usize..])?;
+        Ok(())
     }
 }
 
