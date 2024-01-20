@@ -38,7 +38,7 @@ impl<C: Constraint> ReadableType for BitString<C> {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialOrd, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialOrd, PartialEq, Eq, Hash)]
 pub struct BitVec(Vec<u8>, u64);
 
 impl BitVec {
