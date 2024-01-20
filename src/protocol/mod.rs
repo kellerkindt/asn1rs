@@ -6,6 +6,7 @@
 //!      ::io::...                  Other ASN.1 representations (e.g der, xer, ber, ...)
 //! ```
 
+pub mod basic;
 pub mod per;
 #[cfg(feature = "protobuf")]
 pub mod protobuf;

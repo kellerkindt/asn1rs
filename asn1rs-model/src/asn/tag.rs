@@ -73,6 +73,16 @@ impl Tag {
     pub const DEFAULT_UNIVERSAL_STRING: Tag = Tag::Universal(28);
     /// ITU-T Rec. X.680, 41
     pub const DEFAULT_BMP_STRING: Tag = Tag::Universal(30);
+
+    #[inline]
+    pub fn value(self) -> usize {
+        match self {
+            Tag::Universal(value) => value,
+            Tag::Application(value) => value,
+            Tag::ContextSpecific(value) => value,
+            Tag::Private(value) => value,
+        }
+    }
 }
 
 impl<T: Iterator<Item = Token>> TryFrom<&mut Peekable<T>> for Tag {

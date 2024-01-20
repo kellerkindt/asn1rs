@@ -1,3 +1,4 @@
+mod der;
 mod println;
 #[cfg(feature = "protobuf")]
 mod proto_read;
@@ -5,6 +6,7 @@ mod proto_read;
 mod proto_write;
 mod uper;
 
+pub use der::*;
 pub use println::*;
 #[cfg(feature = "protobuf")]
 pub use proto_read::*;
