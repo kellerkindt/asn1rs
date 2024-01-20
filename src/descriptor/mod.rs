@@ -243,8 +243,7 @@ mod tests {
     use crate::descriptor::common;
     use crate::descriptor::sequence::Sequence;
     use crate::descriptor::utf8string::Utf8String;
-    use crate::prelude::{ProtobufWriter, UperWriter};
-    use crate::rw::PrintlnWriter;
+    use crate::prelude::*;
     use asn1rs_model::asn::Tag;
 
     #[test]
@@ -332,14 +331,17 @@ mod tests {
         //
         //    Showcase: Protobuf
         //
-        let mut writer = ProtobufWriter::default();
-        writer.write(&value).expect("Writing to PROTO failed");
+        #[cfg(feature = "protobuf")]
+        {
+            let mut writer = ProtobufWriter::default();
+            writer.write(&value).expect("Writing to PROTO failed");
 
-        let mut reader = writer.as_reader();
-        let read_value = reader
-            .read::<Whatever>()
-            .expect("Reading from PROTO failed");
+            let mut reader = writer.as_reader();
+            let read_value = reader
+                .read::<Whatever>()
+                .expect("Reading from PROTO failed");
 
-        assert_eq!(value, read_value);
+            assert_eq!(value, read_value);
+        }
     }
 }
