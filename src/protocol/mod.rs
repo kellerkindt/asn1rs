@@ -7,4 +7,5 @@
 //! ```
 
 pub mod per;
+#[cfg(feature = "protobuf")]
 pub mod protobuf;
