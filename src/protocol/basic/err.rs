@@ -19,8 +19,14 @@ impl Error {
 
     #[cold]
     #[inline(never)]
-    pub fn unexpected_length(expected: Range<usize>, got: usize) -> Self {
+    pub fn unexpected_length(expected: Range<u64>, got: u64) -> Self {
         Self::from(ErrorKind::UnexpectedTypeLength { expected, got })
+    }
+
+    #[cold]
+    #[inline(never)]
+    pub fn unsupported_byte_len(max: u8, got: u8) -> Self {
+        Self::from(ErrorKind::UnsupportedByteLen { max, got })
     }
 }
 
@@ -79,7 +85,8 @@ impl From<ErrorKind> for Inner {
 #[derive(Debug)]
 pub enum ErrorKind {
     UnexpectedTypeTag { expected: Tag, got: Tag },
-    UnexpectedTypeLength { expected: Range<usize>, got: usize },
+    UnexpectedTypeLength { expected: Range<u64>, got: u64 },
+    UnsupportedByteLen { max: u8, got: u8 },
     IoError(std::io::Error),
 }
 
@@ -91,6 +98,12 @@ impl Display for ErrorKind {
             }
             ErrorKind::UnexpectedTypeLength { expected, got } => {
                 write!(f, "Expected length in range {expected:?} but got {got:?}")
+            }
+            ErrorKind::UnsupportedByteLen { max, got } => {
+                write!(
+                    f,
+                    "Unsupported byte length received, max={max:?} but got {got:?}"
+                )
             }
             ErrorKind::IoError(e) => {
                 write!(f, "Experienced underlying IO error: {e:?}")

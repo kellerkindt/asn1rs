@@ -279,7 +279,7 @@ impl<R: BasicRead> Reader for BasicReader<R> {
         if identifier.value() != Tag::DEFAULT_BOOLEAN.value() {
             return Err(Error::unexpected_tag(Tag::DEFAULT_BOOLEAN, identifier));
         }
-        let expecting = 1_usize..2_usize;
+        let expecting = 1_u64..2_u64;
         let length = self.read.read_length()?;
         if !expecting.contains(&length) {
             return Err(Error::unexpected_length(expecting, length));

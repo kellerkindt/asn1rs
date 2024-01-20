@@ -19,7 +19,7 @@ pub trait BasicRead {
 
     /// According to ITU-T X.690, chapter 8.1.3, the length is encoded in at least one byte, in
     /// either the short (8.1.3.4) or long (8.1.3.5) form
-    fn read_length(&mut self) -> Result<usize, Error>;
+    fn read_length(&mut self) -> Result<u64, Error>;
 
     /// According to ITU-T X.690, chapter 8.2, the boolean type is represented in a single byte,
     /// where 0 represents `false` and any other value represents `true`.
@@ -36,7 +36,7 @@ pub trait BasicWrite {
 
     /// According to ITU-T X.690, chapter 8.1.3, the length is encoded in at least one byte, in
     /// either the short (8.1.3.4) or long (8.1.3.5) form
-    fn write_length(&mut self, length: usize) -> Result<(), Error>;
+    fn write_length(&mut self, length: u64) -> Result<(), Error>;
 
     /// According to ITU-T X.690, chapter 8.2, the boolean type is represented in a single byte,
     /// where 0 represents `false` and any other value represents `true`.
