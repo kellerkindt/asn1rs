@@ -27,8 +27,9 @@ const CLASS_BITS_APPLICATION: u8 = 0b_01_000000;
 const CLASS_BITS_CONTEXT_SPECIFIC: u8 = 0b_10_000000;
 const CLASS_BITS_PRIVATE: u8 = 0b_11_000000;
 
-const LENGTH_MASK: u8 = 0b_11_000000;
-const LENGTH_SHORT_FORM: u8 = 0b_01_000000;
+const LENGTH_SHORT_MAX_VALUE: usize = 127;
+const LENGTH_BIT_MASK: u8 = 0b1_0000000;
+const LENGTH_BIT_SHORT_FORM: u8 = 0b0_0000000;
 
 impl<T: Read> BasicRead for T {
     type Flavor = DistinguishedEncodingRules;
@@ -53,8 +54,8 @@ impl<T: Read> BasicRead for T {
     fn read_length(&mut self) -> Result<usize, Error> {
         let mut bytes = [0u8; 1];
         self.read_exact(&mut bytes[..])?;
-        if bytes[0] & LENGTH_MASK == LENGTH_SHORT_FORM {
-            Ok(usize::from(bytes[0] & !LENGTH_MASK))
+        if bytes[0] & LENGTH_BIT_MASK == LENGTH_BIT_SHORT_FORM {
+            Ok(usize::from(bytes[0] & !LENGTH_BIT_MASK))
         } else {
             todo!()
         }
@@ -86,9 +87,9 @@ impl<T: Write> BasicWrite for T {
 
     #[inline]
     fn write_length(&mut self, length: usize) -> Result<(), Error> {
-        let byte = if length < 64 {
+        let byte = if length <= LENGTH_SHORT_MAX_VALUE {
             // short form 8.1.3.4
-            LENGTH_SHORT_FORM | (length as u8)
+            LENGTH_BIT_SHORT_FORM | (length as u8)
         } else {
             // long  form 8.1.3.5
             todo!()
