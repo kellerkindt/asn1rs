@@ -1,9 +1,10 @@
 use crate::descriptor::numbers::Number;
 use crate::descriptor::sequence::Constraint;
-use crate::descriptor::{Null, ReadableType, Reader, WritableType, Writer};
+use crate::descriptor::{numbers, Null, ReadableType, Reader, WritableType, Writer};
 use crate::protocol::basic::Error;
 use crate::protocol::basic::{BasicRead, BasicWrite};
 use asn1rs_model::asn::Tag;
+use std::marker::PhantomData;
 
 pub struct BasicWriter<W: BasicWrite> {
     write: W,
@@ -54,11 +55,25 @@ impl<W: BasicWrite> Writer for BasicWriter<W> {
         todo!()
     }
 
+    #[inline]
     fn write_enumerated<C: crate::descriptor::enumerated::Constraint>(
         &mut self,
-        _enumerated: &C,
+        enumerated: &C,
     ) -> Result<(), Self::Error> {
-        todo!()
+        struct IntegerConstraint<IC: crate::descriptor::enumerated::Constraint>(PhantomData<IC>);
+        impl<IC: crate::descriptor::enumerated::Constraint> crate::descriptor::common::Constraint
+            for IntegerConstraint<IC>
+        {
+            const TAG: Tag = <IC as crate::descriptor::common::Constraint>::TAG;
+        }
+        impl<IC: crate::descriptor::enumerated::Constraint> numbers::Constraint<u64>
+            for IntegerConstraint<IC>
+        {
+        }
+        numbers::Integer::<u64, IntegerConstraint<C>>::write_value(
+            self,
+            &enumerated.to_choice_index(),
+        )
     }
 
     fn write_choice<C: crate::descriptor::choice::Constraint>(
@@ -90,7 +105,7 @@ impl<W: BasicWrite> Writer for BasicWriter<W> {
         let value = value.to_i64();
         let offset = value.leading_zeros() / u8::BITS;
         let len = value.to_be_bytes().len() as u64 - offset as u64;
-        self.write.write_length(len)?;
+        self.write.write_length(len.max(1))?;
         self.write.write_integer_i64(value)?;
         Ok(())
     }
@@ -210,10 +225,24 @@ impl<R: BasicRead> Reader for BasicReader<R> {
         todo!()
     }
 
+    #[inline]
     fn read_enumerated<C: crate::descriptor::enumerated::Constraint>(
         &mut self,
     ) -> Result<C, Self::Error> {
-        todo!()
+        struct IntegerConstraint<IC: crate::descriptor::enumerated::Constraint>(PhantomData<IC>);
+        impl<IC: crate::descriptor::enumerated::Constraint> crate::descriptor::common::Constraint
+            for IntegerConstraint<IC>
+        {
+            const TAG: Tag = <IC as crate::descriptor::common::Constraint>::TAG;
+        }
+        impl<IC: crate::descriptor::enumerated::Constraint> numbers::Constraint<u64>
+            for IntegerConstraint<IC>
+        {
+        }
+        numbers::Integer::<u64, IntegerConstraint<C>>::read_value(self).and_then(|v| {
+            C::from_choice_index(v)
+                .ok_or_else(|| Error::unexpected_choice_index(0..C::VARIANT_COUNT, v))
+        })
     }
 
     fn read_choice<C: crate::descriptor::choice::Constraint>(&mut self) -> Result<C, Self::Error> {
@@ -234,8 +263,8 @@ impl<R: BasicRead> Reader for BasicReader<R> {
         &mut self,
     ) -> Result<T, Self::Error> {
         let identifier = self.read.read_identifier()?;
-        if identifier.value() != Tag::DEFAULT_INTEGER.value() {
-            return Err(Error::unexpected_tag(Tag::DEFAULT_INTEGER, identifier));
+        if identifier.value() != C::TAG.value() {
+            return Err(Error::unexpected_tag(C::TAG, identifier));
         }
         let len = self.read.read_length()?;
         self.read.read_integer_i64(len as u32).map(T::from_i64)
@@ -287,8 +316,8 @@ impl<R: BasicRead> Reader for BasicReader<R> {
         &mut self,
     ) -> Result<bool, Self::Error> {
         let identifier = self.read.read_identifier()?;
-        if identifier.value() != Tag::DEFAULT_BOOLEAN.value() {
-            return Err(Error::unexpected_tag(Tag::DEFAULT_BOOLEAN, identifier));
+        if identifier.value() != C::TAG.value() {
+            return Err(Error::unexpected_tag(C::TAG, identifier));
         }
         let expecting = 1_u64..2_u64;
         let length = self.read.read_length()?;

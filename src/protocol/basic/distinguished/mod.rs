@@ -141,15 +141,17 @@ impl<T: Write> BasicWrite for T {
 
     #[inline]
     fn write_integer_i64(&mut self, value: i64) -> Result<(), Error> {
-        let offset = value.leading_zeros() / u8::BITS;
-        self.write_all(&value.to_be_bytes()[offset as usize..])?;
+        let bytes = value.to_be_bytes();
+        let offset = (value.leading_zeros() / u8::BITS).min(bytes.len() as u32 - 1);
+        self.write_all(&bytes[offset as usize..])?;
         Ok(())
     }
 
     #[inline]
     fn write_integer_u64(&mut self, value: u64) -> Result<(), Error> {
-        let offset = value.leading_zeros() / u8::BITS;
-        self.write_all(&value.to_be_bytes()[offset as usize..])?;
+        let bytes = value.to_be_bytes();
+        let offset = (value.leading_zeros() / u8::BITS).min(bytes.len() as u32 - 1);
+        self.write_all(&bytes[offset as usize..])?;
         Ok(())
     }
 }

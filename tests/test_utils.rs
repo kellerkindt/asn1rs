@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use asn1rs::prelude::basic::DER;
 pub use asn1rs::prelude::*;
 
 pub fn serialize_uper(to_uper: &impl Writable) -> (usize, Vec<u8>) {
@@ -35,6 +36,41 @@ pub fn serialize_and_deserialize_uper<T: Readable + Writable + std::fmt::Debug +
     assert_eq!(
         uper,
         &deserialize_uper::<T>(data, bits),
+        "Deserialized data struct does not match"
+    );
+}
+
+pub fn serialize_der(to_der: &impl Writable) -> Vec<u8> {
+    let mut writer = DER::writer(Vec::new());
+    writer.write(to_der).unwrap();
+    writer.into_inner()
+}
+
+pub fn deserialize_der<T: Readable>(data: &[u8]) -> T {
+    let mut reader = DER::reader(data);
+    let result = reader.read::<T>().unwrap();
+    assert_eq!(
+        0,
+        reader.into_inner().len(),
+        "After reading, there are still bytes remaining!"
+    );
+    result
+}
+
+pub fn serialize_and_deserialize_der<T: Readable + Writable + std::fmt::Debug + PartialEq>(
+    data: &[u8],
+    value: &T,
+) {
+    let serialized = serialize_der(value);
+    assert_eq!(
+        data,
+        &serialized[..],
+        "Serialized binary data does not match, bad-hex: {:02x?}",
+        &serialized[..]
+    );
+    assert_eq!(
+        value,
+        &deserialize_der::<T>(data),
         "Deserialized data struct does not match"
     );
 }

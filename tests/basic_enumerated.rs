@@ -1,6 +1,3 @@
-use asn1rs::rw::UperReader as NewUperReader;
-use asn1rs::rw::UperWriter as NewUperWriter;
-
 mod test_utils;
 use test_utils::*;
 
@@ -35,24 +32,12 @@ asn_to_rust!(
     END"
 );
 
-fn serialize_uper(to_uper: impl Writable) -> (usize, Vec<u8>) {
-    let mut writer = NewUperWriter::default();
-    writer.write(&to_uper).unwrap();
-    let bits = writer.bit_len();
-    (bits, writer.into_bytes_vec())
-}
-
-fn deserialize_uper<T: Readable>(bytes: &[u8], bit_len: usize) -> T {
-    let mut reader = NewUperReader::from((bytes, bit_len));
-    reader.read::<T>().unwrap()
-}
-
 #[test]
-fn test_predefined_numbers() {
-    assert_eq!((2, vec![0x00_u8]), serialize_uper(PredefinedNumbers::Abc));
-    assert_eq!((2, vec![0x40_u8]), serialize_uper(PredefinedNumbers::Def));
-    assert_eq!((8, vec![0x80_u8]), serialize_uper(PredefinedNumbers::Ghi));
-    assert_eq!((8, vec![0x81_u8]), serialize_uper(PredefinedNumbers::Jkl));
+fn test_uper_predefined_numbers() {
+    assert_eq!((2, vec![0x00_u8]), serialize_uper(&PredefinedNumbers::Abc));
+    assert_eq!((2, vec![0x40_u8]), serialize_uper(&PredefinedNumbers::Def));
+    assert_eq!((8, vec![0x80_u8]), serialize_uper(&PredefinedNumbers::Ghi));
+    assert_eq!((8, vec![0x81_u8]), serialize_uper(&PredefinedNumbers::Jkl));
 
     assert_eq!(PredefinedNumbers::Abc, deserialize_uper(&[0x00_u8], 2,));
     assert_eq!(PredefinedNumbers::Def, deserialize_uper(&[0x40_u8], 2,));
@@ -61,7 +46,7 @@ fn test_predefined_numbers() {
 }
 
 #[test]
-fn test_basic_variants_parsed() {
+fn test_uper_basic_variants_parsed() {
     let _abc = Basic::Abc;
     let _def = Basic::Def;
     let _ghi = Basic::Ghi;
@@ -73,8 +58,8 @@ fn test_basic_variants_parsed() {
 }
 
 #[test]
-pub fn test_basic_uper() {
-    let mut writer = NewUperWriter::default();
+pub fn test_uper_basic() {
+    let mut writer = UperWriter::default();
     writer.write(&Basic::Abc).unwrap();
     writer.write(&Basic::Def).unwrap();
     writer.write(&Basic::Ghi).unwrap();
@@ -90,11 +75,18 @@ pub fn test_basic_uper() {
 }
 
 #[test]
-fn test_some_enum_with_skipped_numbers() {
-    test_utils::serialize_and_deserialize_uper(3, &[0x00], &SomeEnum::Abc);
-    test_utils::serialize_and_deserialize_uper(3, &[0x20], &SomeEnum::Def);
-    test_utils::serialize_and_deserialize_uper(3, &[0x40], &SomeEnum::Ghi);
-    test_utils::serialize_and_deserialize_uper(3, &[0x60], &SomeEnum::Jkl);
-    test_utils::serialize_and_deserialize_uper(3, &[0x80], &SomeEnum::Mno);
-    test_utils::serialize_and_deserialize_uper(3, &[0xA0], &SomeEnum::Qrs);
+fn test_uper_some_enum_with_skipped_numbers() {
+    serialize_and_deserialize_uper(3, &[0x00], &SomeEnum::Abc);
+    serialize_and_deserialize_uper(3, &[0x20], &SomeEnum::Def);
+    serialize_and_deserialize_uper(3, &[0x40], &SomeEnum::Ghi);
+    serialize_and_deserialize_uper(3, &[0x60], &SomeEnum::Jkl);
+    serialize_and_deserialize_uper(3, &[0x80], &SomeEnum::Mno);
+    serialize_and_deserialize_uper(3, &[0xA0], &SomeEnum::Qrs);
+}
+
+#[test]
+fn test_der_basic() {
+    serialize_and_deserialize_der(&[0x0A, 0x01, 0x00], &Basic::Abc);
+    serialize_and_deserialize_der(&[0x0A, 0x01, 0x01], &Basic::Def);
+    serialize_and_deserialize_der(&[0x0A, 0x01, 0x02], &Basic::Ghi);
 }

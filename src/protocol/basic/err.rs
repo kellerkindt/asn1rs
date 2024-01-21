@@ -25,6 +25,12 @@ impl Error {
 
     #[cold]
     #[inline(never)]
+    pub fn unexpected_choice_index(expected: Range<u64>, got: u64) -> Self {
+        Self::from(ErrorKind::UnexpectedChoiceIndex { expected, got })
+    }
+
+    #[cold]
+    #[inline(never)]
     pub fn unsupported_byte_len(max: u8, got: u8) -> Self {
         Self::from(ErrorKind::UnsupportedByteLen { max, got })
     }
@@ -86,6 +92,7 @@ impl From<ErrorKind> for Inner {
 pub enum ErrorKind {
     UnexpectedTypeTag { expected: Tag, got: Tag },
     UnexpectedTypeLength { expected: Range<u64>, got: u64 },
+    UnexpectedChoiceIndex { expected: Range<u64>, got: u64 },
     UnsupportedByteLen { max: u8, got: u8 },
     IoError(std::io::Error),
 }
@@ -98,6 +105,9 @@ impl Display for ErrorKind {
             }
             ErrorKind::UnexpectedTypeLength { expected, got } => {
                 write!(f, "Expected length in range {expected:?} but got {got:?}")
+            }
+            ErrorKind::UnexpectedChoiceIndex { expected, got } => {
+                write!(f, "Expected choice index in {expected:?} but got {got:?}")
             }
             ErrorKind::UnsupportedByteLen { max, got } => {
                 write!(
