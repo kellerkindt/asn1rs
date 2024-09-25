@@ -9,6 +9,7 @@ use codegen::Impl;
 use codegen::Scope;
 use codegen::Struct;
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::convert::Infallible;
 use std::fmt::Display;
 
@@ -36,6 +37,7 @@ pub trait GeneratorSupplement<T> {
 pub struct RustCodeGenerator {
     models: Vec<Model<Rust>>,
     global_derives: Vec<String>,
+    local_attrs: HashMap<String, Vec<String>>,
     direct_field_access: bool,
     getter_and_setter: bool,
 }
@@ -53,6 +55,7 @@ impl Default for RustCodeGenerator {
         RustCodeGenerator {
             models: Default::default(),
             global_derives: Vec::default(),
+            local_attrs: HashMap::new(),
             direct_field_access: true,
             getter_and_setter: false,
         }
@@ -87,6 +90,18 @@ impl RustCodeGenerator {
 
     pub fn without_additional_global_derives(mut self) -> Self {
         self.global_derives.clear();
+        self
+    }
+
+    pub fn add_local_attr<N: Into<String>, I: Into<String>>(&mut self, name: N, attr: I) {
+        self.local_attrs
+            .entry(name.into())
+            .or_default()
+            .push(attr.into());
+    }
+
+    pub fn without_additional_local_attrs(mut self) -> Self {
+        self.local_attrs.clear();
         self
     }
 
@@ -898,6 +913,11 @@ impl RustCodeGenerator {
         self.global_derives.iter().for_each(|derive| {
             str_ct.derive(derive);
         });
+        if let Some(local_attrs) = self.local_attrs.get(name) {
+            local_attrs.iter().for_each(|attr| {
+                str_ct.attr(attr);
+            });
+        }
         str_ct
     }
 
@@ -915,6 +935,11 @@ impl RustCodeGenerator {
         self.global_derives.iter().for_each(|derive| {
             en_m.derive(derive);
         });
+        if let Some(local_attrs) = self.local_attrs.get(name) {
+            local_attrs.iter().for_each(|attr| {
+                en_m.r#macro(&format!("#[{attr}]")); // Workaround for missing `.attr` for enums in codegen
+            });
+        }
         en_m
     }
 }
@@ -1006,6 +1031,110 @@ pub(crate) mod tests {
                 pub const BERND: u8 = 9;
             }
             
+        "#,
+            &file_content,
+        );
+    }
+
+    #[test]
+    pub fn test_struct_local_attr() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r#"Test DEFINITIONS AUTOMATIC TAGS ::=
+            BEGIN
+
+            MyStruct ::= SEQUENCE {
+                myField BOOLEAN
+            }
+
+            END
+        "#,
+        ))
+        .unwrap()
+        .try_resolve()
+        .unwrap()
+        .to_rust();
+
+        let mut generator = RustCodeGenerator::from(model).without_additional_global_derives();
+        generator.add_local_attr("MyStruct", "my_attr");
+        let (_file_name, file_content) = generator
+            .to_string_without_generators()
+            .into_iter()
+            .next()
+            .unwrap();
+
+        assert_starts_with_lines(
+            r#"
+            use asn1rs::prelude::*;
+
+            #[asn(sequence)]
+            #[derive(Default, Debug, Clone, PartialEq, Hash)]
+            #[my_attr]
+            pub struct MyStruct {
+                #[asn(boolean)] pub my_field: bool,
+            }
+
+            impl MyStruct {
+            }
+        "#,
+            &file_content,
+        );
+    }
+
+    #[test]
+    pub fn test_enum_local_attr() {
+        let model = Model::try_from(Tokenizer::default().parse(
+            r#"Test DEFINITIONS AUTOMATIC TAGS ::=
+            BEGIN
+            MyEnum ::= ENUMERATED {
+                a,
+                b
+            }
+            END
+        "#,
+        ))
+        .unwrap()
+        .try_resolve()
+        .unwrap()
+        .to_rust();
+        let mut generator = RustCodeGenerator::from(model).without_additional_global_derives();
+        generator.add_local_attr("MyEnum", "my_attr");
+        let (_file_name, file_content) = generator
+            .to_string_without_generators()
+            .into_iter()
+            .next()
+            .unwrap();
+
+        assert_starts_with_lines(
+            r#"
+            use asn1rs::prelude::*;
+            #[asn(enumerated)]
+            #[derive(Debug, Clone, PartialEq, Hash, Copy, PartialOrd, Eq, Default)]
+            #[my_attr]
+            pub enum MyEnum {
+                #[default] A,
+                B,
+            }
+            impl MyEnum {
+                pub fn variant(index: usize) -> Option<Self> {
+                    match index {
+                        0 => Some(MyEnum::A),
+                        1 => Some(MyEnum::B),
+                        _ => None,
+                    }
+                }
+                pub const fn variants() -> [Self; 2] {
+                    [
+                        MyEnum::A,
+                        MyEnum::B,
+                    ]
+                }
+                pub fn value_index(self) -> usize {
+                    match self {
+                        MyEnum::A => 0,
+                        MyEnum::B => 1,
+                    }
+                }
+            }
         "#,
             &file_content,
         );
